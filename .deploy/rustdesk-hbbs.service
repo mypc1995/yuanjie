@@ -1,0 +1,21 @@
+[Unit]
+Description=Rustdesk Signal Server (hbbs)
+Documentation=https://rustdesk.com/docs/en/self-host/rustdesk-server-oss/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+LimitNOFILE=1000000
+ExecStart=/usr/bin/hbbs -r @@SERVER_HOST@@
+WorkingDirectory=/var/lib/rustdesk-server/
+User=rustdesk
+Group=rustdesk
+Environment=RUST_LOG=info
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/rustdesk-server/hbbs.log
+StandardError=append:/var/log/rustdesk-server/hbbs.error
+
+[Install]
+WantedBy=multi-user.target

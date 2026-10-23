@@ -1,0 +1,16 @@
+* text=auto
+
+# HZDesk: 行尾统一钉死, 别让每台机器自己 convert。
+# 仓库里没有 CRLF 文件, 全部按 LF 存; .cmd/.bat 例外 (cmd.exe 用 CRLF 更稳)。
+*.sh   text eol=lf
+*.ps1  text eol=lf
+*.py   text eol=lf
+*.rs   text eol=lf
+*.dart text eol=lf
+*.toml text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.cmd  text eol=crlf
+*.bat  text eol=crlf

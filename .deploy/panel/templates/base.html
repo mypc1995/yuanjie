@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}RustDesk 服务端面板{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_version) }}">
+{% if branding and branding.primary_color %}
+<style>:root { --accent: {{ branding.primary_color }}; }</style>
+{% endif %}
+</head>
+<body>
+{% block header %}
+<header class="topbar">
+  <div class="brand">
+    {% if branding and branding.logo %}
+      <img class="brand-logo" src="{{ url_for('api_branding_asset', name='logo') }}?v={{ asset_version }}" alt="">
+    {% else %}
+      <span class="dot {{ 'ok' if hbbs.active and hbbr.active else 'bad' }}"></span>
+    {% endif %}
+    <span>{{ branding.app_name if branding else 'RustDesk' }} 服务端面板</span>
+  </div>
+  <nav>
+    <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' }}">仪表盘</a>
+    <a href="{{ url_for('config') }}" class="{{ 'active' if request.endpoint == 'config' }}">基础配置</a>
+    <a href="{{ url_for('branding') }}" class="{{ 'active' if request.endpoint == 'branding' }}">品牌定制</a>
+    <a href="{{ url_for('client') }}" class="{{ 'active' if request.endpoint == 'client' }}">客户端集成</a>
+    <a href="{{ url_for('build') }}" class="{{ 'active' if request.endpoint == 'build' }}">客户端构建</a>
+    <a href="{{ url_for('keys') }}" class="{{ 'active' if request.endpoint == 'keys' }}">密钥</a>
+    <a href="{{ url_for('lists') }}" class="{{ 'active' if request.endpoint == 'lists' }}">黑白名单</a>
+    <a href="{{ url_for('logs') }}" class="{{ 'active' if request.endpoint == 'logs' }}">日志</a>
+  </nav>
+  <div class="status">
+    <span class="pill {{ 'ok' if hbbs.active else 'bad' }}">hbbs {{ hbbs.state }}</span>
+    <span class="pill {{ 'ok' if hbbr.active else 'bad' }}">hbbr {{ hbbr.state }}</span>
+    <form method="post" action="{{ url_for('logout') }}" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <button class="link" type="submit">退出</button>
+    </form>
+  </div>
+</header>
+{% endblock %}
+
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flashes">
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+{% block footer %}
+{% if logged_in %}
+<footer>
+  <span>数据目录 <code>{{ server_dir }}</code></span>
+  <span>·</span>
+  <span>改动配置会重启 hbbs / hbbr</span>
+</footer>
+{% endif %}
+{% endblock %}
+
+<script>
+function copyToClipboard(text, button) {
+  var done = function () {
+    var old = button.getAttribute('data-label') || button.textContent;
+    button.setAttribute('data-label', old);
+    button.textContent = '已复制';
+    setTimeout(function () { button.textContent = old; }, 1500);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done);
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/bjornsnoen/x11-rs"]
+git = "https://github.com/bjornsnoen/x11-rs"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/clslaid/cacao?branch=feat/set-file-urls"]
+git = "https://github.com/clslaid/cacao"
+branch = "feat/set-file-urls"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/clslaid/x11-clipboard?branch=feat/store-batch"]
+git = "https://github.com/clslaid/x11-clipboard"
+branch = "feat/store-batch"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/madsmtm/core-foundation-rs.git?rev=7d593d016175755e492a92ef89edca68ac3bd5cd"]
+git = "https://github.com/madsmtm/core-foundation-rs.git"
+rev = "7d593d016175755e492a92ef89edca68ac3bd5cd"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/The-Fat-Controller?branch=history/rebase_upstream_20240722"]
+git = "https://github.com/rustdesk-org/The-Fat-Controller"
+branch = "history/rebase_upstream_20240722"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/android-wakelock"]
+git = "https://github.com/rustdesk-org/android-wakelock"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/arboard"]
+git = "https://github.com/rustdesk-org/arboard"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/clipboard-master"]
+git = "https://github.com/rustdesk-org/clipboard-master"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/confy"]
+git = "https://github.com/rustdesk-org/confy"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/cpal?branch=osx-screencapturekit"]
+git = "https://github.com/rustdesk-org/cpal"
+branch = "osx-screencapturekit"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/default_net"]
+git = "https://github.com/rustdesk-org/default_net"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/evdev"]
+git = "https://github.com/rustdesk-org/evdev"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/fuser?branch=refact/tag-0.16.0-cargo-1.75.0"]
+git = "https://github.com/rustdesk-org/fuser"
+branch = "refact/tag-0.16.0-cargo-1.75.0"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/hwcodec"]
+git = "https://github.com/rustdesk-org/hwcodec"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/impersonate-system"]
+git = "https://github.com/rustdesk-org/impersonate-system"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/kcp-sys?branch=rustdesk-patches"]
+git = "https://github.com/rustdesk-org/kcp-sys"
+branch = "rustdesk-patches"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/keepawake-rs"]
+git = "https://github.com/rustdesk-org/keepawake-rs"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/machine-uid"]
+git = "https://github.com/rustdesk-org/machine-uid"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/magnum-opus"]
+git = "https://github.com/rustdesk-org/magnum-opus"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/nokhwa.git?branch=fix_from_raw_parts"]
+git = "https://github.com/rustdesk-org/nokhwa.git"
+branch = "fix_from_raw_parts"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/parity-tokio-ipc"]
+git = "https://github.com/rustdesk-org/parity-tokio-ipc"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/pulsectl"]
+git = "https://github.com/rustdesk-org/pulsectl"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/rdev"]
+git = "https://github.com/rustdesk-org/rdev"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/rust-sciter?branch=dyn"]
+git = "https://github.com/rustdesk-org/rust-sciter"
+branch = "dyn"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/rust-webm"]
+git = "https://github.com/rustdesk-org/rust-webm"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/sysinfo?branch=rlim_max"]
+git = "https://github.com/rustdesk-org/sysinfo"
+branch = "rlim_max"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/tao?branch=dev"]
+git = "https://github.com/rustdesk-org/tao"
+branch = "dev"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/tokio-socks"]
+git = "https://github.com/rustdesk-org/tokio-socks"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/tokio-tungstenite?rev=c241b11b03de4881faf1ecd2fe6e867c92f3013b"]
+git = "https://github.com/rustdesk-org/tokio-tungstenite"
+rev = "c241b11b03de4881faf1ecd2fe6e867c92f3013b"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/tungstenite-rs?rev=efce47e5364f00a63302cf07ab1fb13ded478914"]
+git = "https://github.com/rustdesk-org/tungstenite-rs"
+rev = "efce47e5364f00a63302cf07ab1fb13ded478914"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/wallpaper.rs"]
+git = "https://github.com/rustdesk-org/wallpaper.rs"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/webrtc?rev=49c89bd8d30e6e62e4c1a96cee38fdc11f79ef63"]
+git = "https://github.com/rustdesk-org/webrtc"
+rev = "49c89bd8d30e6e62e4c1a96cee38fdc11f79ef63"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/rustdesk-org/wezterm?branch=rustdesk/pty_based_0.8.1"]
+git = "https://github.com/rustdesk-org/wezterm"
+branch = "rustdesk/pty_based_0.8.1"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/tauri-apps/tray-icon"]
+git = "https://github.com/tauri-apps/tray-icon"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/yury/cidre.git?rev=f05c428"]
+git = "https://github.com/yury/cidre.git"
+rev = "f05c428"
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "D:/Software/RustDesk/.vendor"

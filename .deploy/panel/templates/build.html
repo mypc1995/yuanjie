@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}客户端构建 · {{ branding.app_name }} 服务端面板{% endblock %}
+{% block content %}
+<h1>客户端构建</h1>
+<p class="subtitle">
+  一键把客户端编出来，<strong>品牌和服务器配置会一起烘焙进去</strong> ——
+  装完直接用，不用再手动填 ID Server 和 Key。
+</p>
+
+<div class="grid two">
+  <div class="card">
+    <h2>这次会打进客户端的内容</h2>
+    <dl class="kv">
+      <dt>应用名</dt><dd>{{ branding.app_name }}</dd>
+      <dt>ID Server</dt><dd class="mono">{{ cfg.host or '(未设置)' }}</dd>
+      <dt>Relay</dt><dd class="mono">{{ cfg.relay or '(未设置)' }}</dd>
+      <dt>API</dt><dd class="mono">{{ cfg.api or '(未设置)' }}</dd>
+      <dt>Key</dt><dd class="mono">{{ cfg.key or '(未设置)' }}</dd>
+      <dt>Logo</dt>
+      <dd>
+        {% if branding.logo %}
+          <img src="{{ url_for('branding_preview', name='logo') }}?v={{ asset_version }}"
+               style="max-height:32px;vertical-align:middle;">
+        {% else %}未上传{% endif %}
+      </dd>
+    </dl>
+    <p class="hint">
+      这些值来自「品牌定制」和「客户端集成」两页 —— 先去那里配好，再回来构建。
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>新建构建任务</h2>
+    <form method="post">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="target">目标平台</label>
+        {% for t in targets %}
+        <label style="font-weight:400;margin-bottom:10px;">
+          <input type="radio" name="target" value="{{ t[0] }}"
+                 {% if loop.first %}checked{% endif %}
+                 style="width:auto;display:inline-block;margin-right:8px;">
+          <strong>{{ t[1] }}</strong>
+          <span class="tag">{{ t[0] }}</span>
+          <br>
+          <span style="color:var(--muted);font-size:12px;margin-left:20px;">{{ t[2] }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <div class="field">
+        <label style="font-weight:400;">
+          <input type="checkbox" name="hwcodec" value="1" style="width:auto;display:inline-block;margin-right:8px;">
+          启用硬件编解码 (hwcodec)
+        </label>
+        <p class="hint">会显著拉长编译时间，而且需要机器上有对应的编解码器。不确定就别勾。</p>
+      </div>
+      <div class="actions">
+        <button type="submit">开始构建</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if detail %}
+<div class="card">
+  <h2>任务 {{ detail.id }}
+    <span class="pill {{ 'ok' if detail.phase in ('done',) else ('bad' if detail.phase == 'failed' else '') }}">
+      {{ detail.phase }}
+    </span>
+  </h2>
+  <dl class="kv">
+    <dt>目标</dt><dd>{{ detail.target }}</dd>
+    <dt>应用名</dt><dd>{{ detail.get('app_name', '') }}</dd>
+    <dt>更新时间</dt><dd>{{ detail.get('updated_at', '') }}</dd>
+    {% if detail.get('error') %}<dt>错误</dt><dd style="color:var(--bad)">{{ detail.error }}</dd>{% endif %}
+    {% if detail.get('artifact') %}
+    <dt>产物</dt>
+    <dd>
+      <a class="btn small" href="{{ url_for('build_artifact', job_id=detail.id) }}">下载 {{ detail.artifact }}</a>
+      <span class="tag">{{ '%.1f MB' % (detail.get('size', 0) / 1024.0 / 1024.0) }}</span>
+    </dd>
+    {% endif %}
+  </dl>
+
+  {% if log %}
+  <h2 style="margin-top:16px;">构建日志</h2>
+  <pre class="mono">{% for line in log %}{{ line }}
+{% endfor %}</pre>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>构建记录</h2>
+  {% if jobs %}
+  <table>
+    <tr><th>任务</th><th>目标</th><th>应用名</th><th>状态</th><th>更新时间</th><th></th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td class="mono">{{ j.id }}</td>
+      <td>{{ j.target }}</td>
+      <td>{{ j.get('app_name', '') }}</td>
+      <td>
+        <span class="pill {{ 'ok' if j.phase == 'done' else ('bad' if j.phase == 'failed' else '') }}">
+          {{ j.phase }}
+        </span>
+      </td>
+      <td class="mono">{{ j.get('updated_at', '') }}</td>
+      <td>
+        <a class="btn small secondary" href="{{ url_for('build', job=j.id) }}">详情</a>
+        {% if j.get('artifact') %}
+        <a class="btn small" href="{{ url_for('build_artifact', job_id=j.id) }}">下载</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">还没有构建记录。</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Windows 目标需要一台构建机</h2>
+  <p class="hint">
+    Flutter 不支持在 Linux 上构建 Windows 客户端，所以 Windows 目标走 agent 模式：
+    面板派发任务 -&gt; Windows 构建机编译 -&gt; 产物自动回传 -&gt; 你在面板上下载。
+  </p>
+  <p class="hint">在 Windows 构建机上跑（agent 源码在客户端仓库的 <code>tools/</code> 或随包分发的 <code>builder/agent.py</code>）：</p>
+  <pre class="mono">python builder\agent.py --panel http://<服务器IP>:21120 --token &lt;agent_token&gt;</pre>
+  <p class="hint">
+    agent_token 在服务器的 <code>/etc/rustdesk-panel/panel.conf</code> 里，
+    安装时生成，也可以看 <code>cat /etc/rustdesk-panel/panel.conf</code>。
+    构建机需要预装：Rust 工具链、vcpkg 依赖（libvpx/libyuv/opus/aom）、Flutter SDK。
+  </p>
+</div>
+{% endblock %}

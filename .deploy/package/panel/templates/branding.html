@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}品牌定制 · {{ branding.app_name }} 服务端面板{% endblock %}
+{% block content %}
+<h1>品牌定制</h1>
+<p class="subtitle">
+  上传后 <strong>面板自身</strong>立即换上新的 logo 和应用名；
+  客户端则有两种生效方式：<strong>运行时从服务器拉取</strong>（改完即生效，不用重编），
+  或用「客户端集成」页导出的品牌包在打包时烘焙进 exe。
+</p>
+
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+
+  <div class="card">
+    <h2>应用信息</h2>
+    <div class="field">
+      <label for="app_name">应用名</label>
+      <p class="hint">显示在客户端标题栏、窗口标题和面板左上角。客户端通过 <code>bind.mainGetAppNameSync()</code> 从 Rust 侧取这个值。</p>
+      <input type="text" id="app_name" name="app_name" value="{{ branding.app_name }}">
+    </div>
+    <div class="field">
+      <label for="primary_color">主题色</label>
+      <p class="hint">十六进制，如 <code>#2563eb</code>。面板的按钮和链接会用这个颜色。</p>
+      <input type="text" id="primary_color" name="primary_color" value="{{ branding.primary_color }}"
+             pattern="#[0-9a-fA-F]{6}" placeholder="#2563eb">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>主 logo</h2>
+    <p class="hint">
+      建议 PNG、宽高比约 5:1（客户端显示上限 300×60）。
+      勾选下面的「一份图用于全部主题」最省事。
+    </p>
+    <div class="field">
+      <label for="asset_logo">上传 logo</label>
+      <input type="file" id="asset_logo" name="asset_logo" accept="image/png,image/jpeg,image/svg+xml">
+    </div>
+    <div class="field">
+      <label style="font-weight:400;">
+        <input type="checkbox" name="apply_all" value="1" style="width:auto;display:inline-block;margin-right:6px;">
+        一份图用于全部主题（logo / logo_light / logo_dark 全部用同一张）
+      </label>
+    </div>
+    {% if branding.logo %}
+    <div class="preview">
+      <span class="tag">当前</span>
+      <img src="{{ url_for('branding_preview', name='logo') }}?v={{ asset_version }}" alt="logo">
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>分主题 logo（可选）</h2>
+    <p class="hint">留空就保持原样。客户端会按当前主题亮度选 logo_light / logo_dark，都找不到时用主 logo。</p>
+    <div class="grid two">
+      <div class="field">
+        <label for="asset_logo_light">浅色主题 logo</label>
+        <input type="file" id="asset_logo_light" name="asset_logo_light" accept="image/png,image/jpeg">
+      </div>
+      <div class="field">
+        <label for="asset_logo_dark">深色主题 logo</label>
+        <input type="file" id="asset_logo_dark" name="asset_logo_dark" accept="image/png,image/jpeg">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>图标</h2>
+    <div class="grid two">
+      <div class="field">
+        <label for="asset_icon">应用图标 <code>icon.png</code></label>
+        <p class="hint">客户端界面里的方形图标，透明底 PNG，建议 128×128 以上。</p>
+        <input type="file" id="asset_icon" name="asset_icon" accept="image/png">
+      </div>
+      <div class="field">
+        <label for="asset_app_icon">Windows exe 图标 <code>app_icon.ico</code></label>
+        <p class="hint">多尺寸 ICO（16/32/48/64/128/256）。只在打包时用得上。</p>
+        <input type="file" id="asset_app_icon" name="asset_app_icon" accept="image/x-icon,image/vnd.microsoft.icon">
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="submit">保存品牌</button>
+    <a class="btn secondary" href="{{ url_for('client') }}">去客户端集成页</a>
+  </div>
+</form>
+
+<div class="card">
+  <h2>客户端运行时拉取地址</h2>
+  <p class="hint">客户端启动时访问这两个地址（无需登录，只读）：</p>
+  <pre class="mono">{{ request.url_root.rstrip('/') }}/api/branding
+{{ request.url_root.rstrip('/') }}/api/client-config
+{{ request.url_root.rstrip('/') }}/api/branding/logo.png
+{{ request.url_root.rstrip('/') }}/api/branding/icon.png</pre>
+  <p class="hint">
+    客户端只要配置了 ID Server，就能推算出这个面板地址（同一台机器的 21120 端口），
+    也可以在客户端配置里显式指定 branding URL。
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,59 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+
+# Web related
+
+# Symbolication related
+app.*.symbols
+# Obfuscation related
+app.*.map.json
+jniLibs
+.vscode
+
+# flutter rust bridge
+# HZDesk: bridge 生成代码提交进仓库 —— 上游靠 CI 重新生成, 本仓库不跑 CI,
+# 提交进来才能保证 clone 下来直接编。需要重新生成时用
+# flutter_rust_bridge_codegen 1.80.1 (--llvm-path 指向 libclang)。
+#lib/generated_bridge.dart
+#lib/generated_bridge.freezed.dart
+
+# Flutter Generated Files
+**/GeneratedPluginRegistrant.swift
+**/flutter/generated_plugin_registrant.cc
+**/flutter/generated_plugin_registrant.h
+**/flutter/generated_plugins.cmake
+#**/Runner/bridge_generated.h
+flutter_export_environment.sh
+Flutter-Generated.xcconfig
+key.jks
+macos/rustdesk.xcodeproj/project.xcworkspace/

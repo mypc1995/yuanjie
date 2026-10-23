@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}密钥 · RustDesk 服务端面板{% endblock %}
+{% block content %}
+<h1>密钥管理</h1>
+<p class="subtitle">客户端的 Key 就是这里的公钥。留空会回落到官方 RustDesk 公钥，自建服务器会直接拒绝连接。</p>
+
+<div class="card">
+  <h2>当前公钥</h2>
+  <pre class="mono" id="pk">{{ pubkey }}</pre>
+  <div class="actions">
+    <button class="small" type="button"
+            onclick="copyToClipboard('{{ pubkey }}', this)">复制公钥</button>
+    <a class="btn small secondary" href="{{ url_for('client') }}">生成客户端配置串</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>私钥</h2>
+  <p class="hint">
+    私钥 <code>id_ed25519</code> 存在工作目录，权限 0600，{% if priv_exists %}已存在{% else %}尚未生成{% endif %}。
+    面板不会显示它，也不需要你保管 —— 只要别泄露工作目录即可。
+  </p>
+</div>
+
+<div class="card">
+  <h2>轮换密钥</h2>
+  <p class="hint">
+    删除密钥对并重启服务，服务器会生成一对新的。
+    <strong>注意</strong>：轮换后所有客户端都要更新 Key 才能继续连接，已保存的服务器配置会失效。
+  </p>
+  <form method="post" onsubmit="return confirm('确定轮换密钥？现有客户端的 Key 会全部失效。');">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="action" value="rotate">
+    <button class="danger" type="submit">轮换密钥并重启</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,119 @@
+/build
+/target
+.vscode
+.idea
+.DS_Store
+.env
+libsciter-gtk.so
+src/ui/inline.rs
+extractor
+__pycache__
+src/version.rs
+*dmg
+*exe
+*tgz
+cert.pfx
+*.bak
+*png
+*svg
+*jpg
+sciter.dll
+**pdb
+src/bridge_generated.rs
+src/bridge_generated.io.rs
+*deb
+rustdesk
+*.cache
+# appimage
+appimage/AppDir
+appimage/*.AppImage
+appimage/appimage-build
+appimage/*.xz
+# flutter
+flutter/linux/build/**
+flutter/linux/cmake-build-debug/**
+# flatpak
+flatpak/.flatpak-builder/**
+flatpak/ccache/**
+flatpak/.flatpak-builder/build/**
+flatpak/.flatpak-builder/shared-modules/**
+flatpak/.flatpak-builder/shared-modules/*.tar.xz
+flatpak/.flatpak-builder/debian-binary
+flatpak/build/**
+flatpak/repo/**
+flatpak/*.flatpak
+# bridge file
+lib/generated_bridge.dart
+# vscode devcontainer
+.gitconfig
+.vscode-server/
+.ssh
+.devcontainer/.*
+# build cache in examples
+examples/**/target/
+# ===
+vcpkg_installed
+flutter/lib/generated_plugin_registrant.dart
+libsciter.dylib
+flutter/web/
+# libdrmtap is cloned at build time by build.py (not a submodule)
+/third_party/libdrmtap/
+# Local git worktrees
+.worktrees/
+
+# ================================================================
+# HZDesk 私有化定制补充
+# ================================================================
+
+# --- 把上游一刀切挡掉的源码资源放回来 ---
+# 上游用 `*png` `*svg` `*jpg` 把所有图片都挡了, 结果源码里的图标资源
+# (flutter/assets 的 SVG、平台启动图标、文档配图) 也跟着没了,
+# 克隆下来编不出来。这里逐个放回来。
+!flutter/assets/**
+!flutter/android/**
+!flutter/ios/**
+!flutter/linux/**
+!flutter/macos/**
+!flutter/windows/**
+!res/**
+!fastlane/metadata/**
+!libs/**
+!.deploy/**
+# libs 下的编译产物还是要挡
+libs/**/target/
+
+# --- bridge 生成代码: 提交进来, 保证 clone 下来就能编 ---
+# 上游靠 CI 重新生成, 本仓库不跑 CI, 所以直接提交。
+# 重新生成的话用 flutter_rust_bridge_codegen 1.80.1 (--llvm-path 指向 libclang)。
+!src/bridge_generated.rs
+!src/bridge_generated.io.rs
+!flutter/lib/generated_bridge.dart
+!flutter/lib/generated_bridge.freezed.dart
+!flutter/ios/Runner/bridge_generated.h
+!flutter/macos/Runner/bridge_generated.h
+
+# --- 本地构建产物 / 依赖缓存 / 下载包 (不提交) ---
+.vendor/
+/installed/
+/vcpkg_installed/
+/.dl/
+/.trash/
+/logs/
+flutter/.dart_tool/
+flutter/build/
+**/ephemeral/
+**/__pycache__/
+*.pyc
+
+# --- 服务端官方二进制和打好的套件: 不是源码 ---
+# 需要的时候去 D:\Software\rustdesk-deployment 取现成的部署包。
+.deploy/package/server/amd64/
+.deploy/package/server/arm64/
+.deploy/*.zip
+.vcpkg-assets/
+
+# --- 敏感信息: 绝对不能进版本库 ---
+# 面板账号密码 / agent token 只放在服务器的 /etc/rustdesk-panel/panel.conf
+.deploy/panel-credentials.txt
+*.pem.key
+.env.local

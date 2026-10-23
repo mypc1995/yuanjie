@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}基础配置 · RustDesk 服务端面板{% endblock %}
+{% block content %}
+<h1>基础配置</h1>
+<p class="subtitle">
+  写入 <code>{{ server_dir }}/.env</code>。保存后会自动重启 hbbs 与 hbbr。
+  hbbs 和 hbbr 共用这一份文件，<code>PORT</code> 只有一个：hbbs 监听 PORT，hbbr 监听 PORT+1。
+</p>
+
+<form method="post">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+
+  <div class="card">
+    <h2>共享</h2>
+    {% for key, label, hint, default in shared %}
+    <div class="field">
+      <label for="{{ key }}">{{ label }} <code>{{ key }}</code></label>
+      <p class="hint">{{ hint }}（默认 {{ default or '空' }}）</p>
+      <input type="text" id="{{ key }}" name="{{ key }}"
+             value="{{ conf.get(key, default) }}">
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>hbbs（信令服务器）</h2>
+    {% for key, label, hint, default in hbbs %}
+    <div class="field">
+      <label for="{{ key }}">{{ label }} <code>{{ key }}</code></label>
+      <p class="hint">{{ hint }}（默认 {{ default or '空' }}）</p>
+      <input type="text" id="{{ key }}" name="{{ key }}"
+             value="{{ conf.get(key, default) }}">
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>hbbr（中继服务器）</h2>
+    {% for key, label, hint, default in hbbr %}
+    <div class="field">
+      <label for="{{ key }}">{{ label }} <code>{{ key }}</code></label>
+      <p class="hint">{{ hint }}（默认 {{ default }}）</p>
+      <input type="text" id="{{ key }}" name="{{ key }}"
+             value="{{ conf.get(key, default) }}">
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>原始 .env</h2>
+    <p class="hint">只读参考。面板不会改动这里显示的内容以外的东西，但也不建议直接手改服务器上的文件。</p>
+    <pre class="mono">{{ raw }}</pre>
+  </div>
+
+  <div class="actions">
+    <button type="submit">保存并重启服务</button>
+    <a class="btn secondary" href="{{ url_for('index') }}">取消</a>
+  </div>
+</form>
+{% endblock %}

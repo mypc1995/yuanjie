@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}黑白名单 · RustDesk 服务端面板{% endblock %}
+{% block content %}
+<h1>黑白名单</h1>
+<p class="subtitle">
+  限速黑名单里的 IP 会被压到 LIMIT_SPEED，拒绝黑名单里的 IP 直接连不上中继。
+  两个文件都在 <code>{{ server_dir }}</code> 下，一行一个 IP。
+</p>
+
+<div class="grid two">
+  <div class="card">
+    <h2>限速黑名单 <code>blacklist.txt</code></h2>
+    <p class="hint">当前生效条目数：{{ console_blacklist.split('\n') | reject('equalto', '') | list | length }}</p>
+    <form method="post">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="which" value="blacklist">
+      <textarea name="content" spellcheck="false" placeholder="203.0.113.7&#10;198.51.100.22">{{ blacklist }}</textarea>
+      <div class="actions">
+        <button type="submit">保存</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>拒绝黑名单 <code>blocklist.txt</code></h2>
+    <p class="hint">当前生效条目数：{{ console_blocklist.split('\n') | reject('equalto', '') | list | length }}</p>
+    <form method="post">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="which" value="blocklist">
+      <textarea name="content" spellcheck="false" placeholder="203.0.113.99">{{ blocklist }}</textarea>
+      <div class="actions">
+        <button type="submit">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>运行时即时增删</h2>
+  <p class="hint">通过 hbbr 的 loopback console 立即生效，不用重启服务，也不会写进文件。</p>
+  <table>
+    <tr><th>命令</th><th>作用</th></tr>
+    <tr><td class="mono">ba &lt;ip&gt;</td><td>加入限速黑名单</td></tr>
+    <tr><td class="mono">br &lt;ip&gt;</td><td>移出限速黑名单</td></tr>
+    <tr><td class="mono">Ba &lt;ip&gt;</td><td>加入拒绝黑名单</td></tr>
+    <tr><td class="mono">Br &lt;ip&gt;</td><td>移出拒绝黑名单</td></tr>
+  </table>
+  <p class="hint">要即时操作，用 ssh 连上服务器执行：<code>printf 'ba 1.2.3.4' | nc 127.0.0.1 {{ 21117 }}</code></p>
+</div>
+{% endblock %}

@@ -1,0 +1,210 @@
+﻿<#
+.SYNOPSIS
+  RustDesk 客户端品牌化打包脚本（Windows x64）。
+
+  从「服务端管理面板 → 客户端集成 → 下载品牌包」拿到的 zip 解压到 branding/ 目录，
+  本脚本会把 logo / 图标替换进 Flutter 资源和 Rust 资源，并把服务器配置预置进客户端。
+
+.EXAMPLE
+  # 1. 从面板下载品牌包，解压成 branding/
+  # 2. 打包
+  pwsh -File package.ps1 -BrandingDir branding
+
+.EXAMPLE
+  # 不带品牌包，只出标准包
+  pwsh -File package.ps1
+#>
+param(
+  [string]   $BrandingDir   = "",
+  [string]   $RepoRoot      = "",
+  [string]   $Version       = "",
+  [switch]   $SkipCargo,
+  [switch]   $SkipPortable,
+  [switch]   $Hwcodec
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+function Say([string]$msg) { Write-Host "  $msg" -ForegroundColor Green }
+function Warn([string]$msg) { Write-Host "  ! $msg" -ForegroundColor Yellow }
+function Die([string]$msg) { Write-Host "  x $msg" -ForegroundColor Red; exit 1 }
+
+if ([string]::IsNullOrEmpty($RepoRoot)) {
+  $RepoRoot = Split-Path -Parent $PSScriptRoot
+}
+if ([string]::IsNullOrEmpty($RepoRoot)) { $RepoRoot = (Get-Location).Path }
+
+Write-Host ""
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host " RustDesk 客户端品牌化打包" -ForegroundColor Cyan
+Write-Host "==========================================================" -ForegroundColor Cyan
+Say "仓库: $RepoRoot"
+
+# ---------------------------------------------------------------- 品牌资源
+$branding = $null
+if (-not [string]::IsNullOrEmpty($BrandingDir)) {
+  $bdir = if ([System.IO.Path]::IsPathRooted($BrandingDir)) { $BrandingDir } else { Join-Path $RepoRoot $BrandingDir }
+  if (-not (Test-Path $bdir)) { Die "品牌目录不存在: $bdir" }
+  $jsonPath = Join-Path $bdir 'branding.json'
+  if (Test-Path $jsonPath) {
+    $branding = Get-Content $jsonPath -Raw | ConvertFrom-Json
+    Say "品牌元数据: $($branding.app_name)"
+  } else { Warn "没找到 branding.json，只替换图片资源" }
+}
+
+# Flutter 界面 logo / 图标
+$assetMap = @{
+  'logo.png'         = 'flutter\assets\logo.png'
+  'logo_light.png'   = 'flutter\assets\logo_light.png'
+  'logo_dark.png'    = 'flutter\assets\logo_dark.png'
+  'icon.png'         = 'flutter\assets\icon.png'
+}
+# Windows exe 图标 (两个位置都要换)
+$exeIconTargets = @(
+  'flutter\windows\runner\resources\app_icon.ico',
+  'res\icon.ico'
+)
+
+Write-Host ""
+Write-Host "==> 替换品牌资源" -ForegroundColor Cyan
+$replaced = 0
+if ($branding) {
+  foreach ($name in $assetMap.Keys) {
+    $src = Join-Path $bdir $name
+    $dst = Join-Path $RepoRoot $assetMap[$name]
+    if ((Test-Path $src) -and (Test-Path $dst)) {
+      Copy-Item -LiteralPath $src -Destination $dst -Force
+      Say "$name -> $($assetMap[$name])"
+      $replaced++
+    }
+  }
+  $ico = Join-Path $bdir 'app_icon.ico'
+  if (Test-Path $ico) {
+    foreach ($rel in $exeIconTargets) {
+      $target = Join-Path $RepoRoot $rel
+      if (Test-Path $target) {
+        Copy-Item -LiteralPath $ico -Destination $target -Force
+        Say "app_icon.ico -> $rel"
+        $replaced++
+      }
+    }
+  }
+}
+if ($replaced -eq 0) { Warn "没有替换任何资源（用的是内置默认资源）" }
+
+# ---------------------------------------------------------------- 服务器配置预置
+Write-Host ""
+Write-Host "==> 预置服务器配置" -ForegroundColor Cyan
+$serverConfig = $null
+if (-not [string]::IsNullOrEmpty($BrandingDir)) {
+  $bdir = if ([System.IO.Path]::IsPathRooted($BrandingDir)) { $BrandingDir } else { Join-Path $RepoRoot $BrandingDir }
+  $cfgPath = Join-Path $bdir 'client-config.json'
+  $b64Path = Join-Path $bdir 'server-config.b64'
+  if (Test-Path $b64Path) {
+    $b64 = (Get-Content $b64Path -Raw).Trim()
+    $appName = if ($branding) { "$($branding.app_name)" } else { 'RustDesk' }
+    $appName = $appName.Replace('\', '\\').Replace("'", "\'")
+
+    # 服务器配置预置必须落在 Rust 侧: 真正去连 hbbs 的是 Rust 核心,
+    # Dart 改运行期配置来不及。src/server_preset.txt 是编译期常量。
+    $rustTarget = Join-Path $RepoRoot 'src\server_preset.txt'
+    [System.IO.File]::WriteAllText($rustTarget, $b64, (New-Object System.Text.UTF8Encoding($false)))
+    Say "预置配置串已写入 src/server_preset.txt"
+
+    # Dart 侧只管界面上的应用名
+    $dartTarget = Join-Path $RepoRoot 'flutter\lib\common\server_preset.dart'
+    $dartContent = @"
+// 由 package.ps1 生成 —— 不要手工改, 重新打包会覆盖。
+const String kPresetAppName = '$appName';
+"@
+    [System.IO.File]::WriteAllText($dartTarget, $dartContent, (New-Object System.Text.UTF8Encoding($false)))
+    Say "预置应用名已写入 flutter/lib/common/server_preset.dart"
+  }
+  if (Test-Path $cfgPath) {
+    $serverConfig = Get-Content $cfgPath -Raw | ConvertFrom-Json
+    Say "ID Server  : $($serverConfig.host)"
+    Say "Relay      : $($serverConfig.relay)"
+    Say "API        : $($serverConfig.api)"
+    Say "Key        : $($serverConfig.key)"
+  } else {
+    Warn "品牌包里没有 client-config.json，跳过服务器预置"
+  }
+}
+
+# ---------------------------------------------------------------- 版本号
+if ([string]::IsNullOrEmpty($Version)) {
+  $cargoToml = Join-Path $RepoRoot 'Cargo.toml'
+  if (Test-Path $cargoToml) {
+    $m = Select-String -Path $cargoToml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
+    if ($m) { $Version = $m.Matches[0].Groups[1].Value }
+  }
+}
+Say "版本 $Version"
+
+# ---------------------------------------------------------------- 编译
+if (-not $SkipCargo) {
+  Write-Host ""
+  Write-Host "==> 编译 Rust 内核" -ForegroundColor Cyan
+  $features = @('flutter')
+  if ($Hwcodec) { $features += 'hwcodec' }
+  $featStr = $features -join ','
+  Say "cargo build --locked --features $featStr --lib --release"
+  Push-Location $RepoRoot
+  try {
+    & cargo build --locked --features $featStr --lib --release
+    if ($LASTEXITCODE -ne 0) { Die "cargo build 失败" }
+  } finally { Pop-Location }
+  if (-not (Test-Path (Join-Path $RepoRoot 'target\release\librustdesk.dll'))) {
+    Die "编译完了但找不到 target/release/librustdesk.dll"
+  }
+  Say "Rust 内核编译完成"
+} else {
+  Warn "跳过 Rust 编译"
+}
+
+# ---------------------------------------------------------------- Flutter + 打包
+Write-Host ""
+Write-Host "==> 编译 Flutter 界面" -ForegroundColor Cyan
+Push-Location (Join-Path $RepoRoot 'flutter')
+try {
+  & flutter build windows --release
+  if ($LASTEXITCODE -ne 0) { Die "flutter build windows 失败" }
+} finally { Pop-Location }
+Say "Flutter 编译完成"
+
+$outDir = Join-Path $RepoRoot 'flutter\build\windows\x64\runner\Release'
+if (-not (Test-Path $outDir)) { Die "找不到构建输出目录: $outDir" }
+
+# 把 virtual_display 的 dll 一起带上（build.py 里也是这么做的）
+$vdll = Join-Path $RepoRoot 'target\release\deps\dylib_virtual_display.dll'
+if (Test-Path $vdll) {
+  Copy-Item -LiteralPath $vdll -Destination (Join-Path $outDir 'dylib_virtual_display.dll') -Force
+  Say "已带上 dylib_virtual_display.dll"
+}
+
+# ---------------------------------------------------------------- 免安装包
+if (-not $SkipPortable) {
+  Write-Host ""
+  Write-Host "==> 生成免安装包" -ForegroundColor Cyan
+  $portableDir = Join-Path $RepoRoot 'libs\portable'
+  if (Test-Path $portableDir) {
+    Push-Location $portableDir
+    try {
+      & python -m pip install -r requirements.txt 2>&1 | Out-Null
+      & python ./generate.py -f $outDir -o . -e (Join-Path $outDir 'rustdesk.exe')
+      if ($LASTEXITCODE -ne 0) { Warn "免安装包生成失败" } else { Say "免安装包已生成" }
+    } catch { Warn "免安装包生成出错: $_" }
+    finally { Pop-Location }
+  } else { Warn "没有 libs/portable，跳过免安装包" }
+}
+
+Write-Host ""
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host " 打包完成" -ForegroundColor Cyan
+Write-Host "==========================================================" -ForegroundColor Cyan
+Say "输出目录: $outDir"
+if ($serverConfig) {
+  Say "客户端已预置到服务器 $($serverConfig.host)"
+}
+Write-Host ""

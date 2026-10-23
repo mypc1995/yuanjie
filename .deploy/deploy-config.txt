@@ -1,0 +1,11 @@
+# RustDesk build machine deploy config
+# Fill in before running setup.cmd
+# panel  = address of the admin panel (include port)
+# token  = agent_token from the server's /etc/rustdesk-panel/panel.conf
+# src    = where the RustDesk source tree is placed
+#          (the installer puts it under <RepoHome>\rustdesk,
+#           default: %USERPROFILE%\rustdesk-src\rustdesk)
+
+panel=http://<服务器IP>:21120
+token=<AGENT_TOKEN>
+src=%USERPROFILE%\rustdesk-src\rustdesk

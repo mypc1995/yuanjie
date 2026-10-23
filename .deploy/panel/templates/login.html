@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}登录 · {{ branding.app_name if branding else 'RustDesk' }} 服务端面板{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="card login-card">
+    {% if branding and branding.logo %}
+      <div class="login-logo">
+        <img src="{{ url_for('api_branding_asset', name='logo') }}?v={{ asset_version }}" alt="">
+      </div>
+    {% endif %}
+    <h1 style="text-align:center;">{{ branding.app_name if branding else 'RustDesk' }} 服务端面板</h1>
+    <p class="subtitle" style="text-align:center;">请输入管理账号密码</p>
+
+    {% if error %}
+    <div class="flash err">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('login') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label for="username">账号</label>
+        <input type="text" id="username" name="username" autocomplete="username"
+               autofocus required>
+      </div>
+      <div class="field">
+        <label for="password">密码</label>
+        <input type="password" id="password" name="password"
+               autocomplete="current-password" required>
+      </div>
+      <div class="actions">
+        <button type="submit" style="width:100%;">登录</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
