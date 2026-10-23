@@ -137,6 +137,38 @@ HZDesk/
 
 已经打好的成品在 `D:\Software\rustdesk-deployment\`：服务端部署包 + 构建机离线包 + 编好的客户端。
 
+### 清理掉了什么
+
+上游 RustDesk 仓库里一大堆本项目用不上的东西已经删掉，免得拉进版本库变成噪音：
+
+| 删掉的 | 为什么 |
+|---|---|
+| `docs/` | 上游的多语言 README、行为准则、贡献指南（README 已换成本项目的） |
+| `.github/` | 上游的 CI / 发布流水线（含 fdroid 发布、macOS 签名、上游 Flutter 补丁） |
+| `flutter/android` `ios` `macos` | 移动端与 macOS 平台工程 —— 本产品只出 Windows 客户端 |
+| `flutter/build_*.sh` `ndk_*.sh` `ios_*.sh` | 移动端构建脚本 |
+| `appimage/` `flatpak/` `fastlane/` `examples/` | 上游的 Linux 打包、Android 商店素材、示例 |
+| `res/DEBIAN` `fdroid` `PKGBUILD` `rpm*.spec` | 上游的 deb/rpm 打包链 |
+| `res/{users,devices,device-groups,strategies,audits,admin-roles,control-roles,user-groups,job,lang,ab}.py` | RustDesk **Server Pro** 的管理 API 客户端与许可证激活脚本（见下） |
+| `Dockerfile` `entrypoint.sh` `build.py` | 上游的 Docker 与 Linux 打包脚本 |
+| `res/mac-*` `res/*x128*.png` `res/logo-header.svg` `res/rustdesk-banner.svg` `res/*.desktop` `res/rustdesk.service` | macOS 图标、Linux 桌面图标与打包用文件、README 配图 |
+| `.vcpkg-assets/` | vcpkg 端口的下载缓存（30MB，不是源码） |
+
+> **Server Pro 是什么**：RustDesk 官方收费版服务端，比免费版多了多用户/团队、角色权限、
+> 访问控制策略、审计日志、SSO（OIDC/LDAP）、地址簿这些企业级管控能力。
+> 本项目用的是**免费版 rustdesk-server**，Pro 的那些接口在服务端根本不存在，
+> 所以这些脚本拿过去只会 404。**Pro 的企业管控功能我们目前一个都没实现**，
+> 本项目的方向是「私有化 + 品牌化 + 一键出包 + 内网离线构建」，和 Pro 不重叠。
+
+### 特意留下的几个
+
+| 留下的 | 为什么 |
+|---|---|
+| `src/ui/` | 上游已废弃的 Sciter 界面。它还挂在 crate 的**非 flutter 编译路径**上（`cargo build` 不带 `--features flutter` 时会编它），删掉要连带改 `src/lib.rs`、`src/keyboard.rs` 和共享的 `src/ui_session_interface.rs`，风险大收益小。**本项目只用 Flutter 界面**，编译命令一律带 `--features flutter` |
+| `res/vcpkg-triplets/` | 4 个 Android triplet。`vcpkg.json` 的 `overlay-triplets` 指着它，删目录就得同步改 `vcpkg.json`，会影响已验证过的 vcpkg 依赖编译链。才 2KB，不值得动 |
+| `res/msi/` | Windows 客户端安装包工程（WiX）。上游品牌名（`RustDesk.wxs` 等）要自己改成 HZDesk，但这是唯一能出正规安装包的路径，先留着 |
+| `src/lang/` | 客户端界面多语言 |
+
 ---
 
 ## 开发
