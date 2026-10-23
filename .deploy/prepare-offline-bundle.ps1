@@ -220,8 +220,8 @@ New-Item -ItemType Directory -Path $srcOut -Force | Out-Null
 # 用**本地这份源码树**而不是重新克隆上游 —— 这个仓库有自己的改动
 # (libs/base 拆分、res/vcpkg overlay port 等), 离线构建机要编的必须是它。
 Say "复制本地源码 (排除构建产物) ..."
-# 这个产品只做电脑端。flutter/android 和 flutter/ios 是移动端平台工程,
-# Windows 构建根本用不到, 不进离线包 (省心也省 0.5MB)。
+# 这个产品只做电脑端。仓库里已经没有移动端/macOS 平台工程了,
+# 这里再排一次是为了防止以后又把它们拷进来。
 # .offline-bundle 一定要排除: 输出目录若在仓库内, robocopy 会把它拷进
 # 自己的 source 目录里, 变成无限递归。
 $excludeDirs = @("target", "vcpkg_installed", "installed", ".vendor", ".dl", ".deploy", ".git", "build", ".dart_tool", "android", "ios", ".offline-bundle", ".trash")

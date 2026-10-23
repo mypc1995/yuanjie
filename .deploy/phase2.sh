@@ -95,11 +95,13 @@ if [ ! -f src/bridge_generated.rs ]; then
   echo "  装 flutter_rust_bridge_codegen 1.80.1 ..."
   cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --locked 2>&1 | tail -3
   echo "  生成 bridge ..."
+  # --c-output 是给移动端用的 C 头文件, 本仓库没有移动端平台工程了,
+  # 生成到临时目录即可 (别写进源码树)。
+  C_OUT="$(mktemp -d)/bridge_generated.h"
   flutter_rust_bridge_codegen \
     --rust-input ./src/flutter_ffi.rs \
     --dart-output ./flutter/lib/generated_bridge.dart \
-    --c-output ./flutter/macos/Runner/bridge_generated.h 2>&1 | tail -15
-  cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h 2>/dev/null
+    --c-output "$C_OUT" 2>&1 | tail -15
   ls -l src/bridge_generated.rs src/bridge_generated.io.rs flutter/lib/generated_bridge.dart 2>/dev/null
 else
   echo "  bridge 已存在"

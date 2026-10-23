@@ -176,7 +176,7 @@ Say "Flutter 编译完成"
 $outDir = Join-Path $RepoRoot 'flutter\build\windows\x64\runner\Release'
 if (-not (Test-Path $outDir)) { Die "找不到构建输出目录: $outDir" }
 
-# 把 virtual_display 的 dll 一起带上（build.py 里也是这么做的）
+# 把 virtual_display 的 dll 一起带上（上游 Linux 打包脚本也是这么做的）
 $vdll = Join-Path $RepoRoot 'target\release\deps\dylib_virtual_display.dll'
 if (Test-Path $vdll) {
   Copy-Item -LiteralPath $vdll -Destination (Join-Path $outDir 'dylib_virtual_display.dll') -Force
