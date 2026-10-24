@@ -50,10 +50,10 @@ impl PrivacyMode for PrivacyModeImpl {
     }
 
     fn turn_off_privacy(&mut self, conn_id: i32, _state: Option<PrivacyModeState>) -> ResultType<()> {
-        // Note: The `_state` parameter is intentionally ignored on macOS.
-        // On Windows, it's used to notify the connection manager about privacy mode state changes
-        // (see win_topmost_window.rs). macOS currently has a simpler single-mode implementation
-        // without the need for such cross-component state synchronization.
+        // 注意：在 macOS 上 `_state` 参数被有意忽略。
+        // 在 Windows 上，它用于把隐私模式的状态变化通知连接管理器
+        // （参见 win_topmost_window.rs）。macOS 目前实现更简单，只有单一模式
+        // 不需要这种跨组件的状态同步。
         self.check_off_conn_id(conn_id)?;
         let success = unsafe { MacSetPrivacyMode(false) };
         if !success {
@@ -74,8 +74,8 @@ impl PrivacyMode for PrivacyModeImpl {
 
 impl Drop for PrivacyModeImpl {
     fn drop(&mut self) {
-        // Use the same cleanup logic as other code paths to keep conn_id consistent
-        // and ensure all cleanup is centralized in one place.
+        // 使用与其他代码路径相同的清理逻辑，以保持 conn_id 一致
+        // 并确保所有清理都集中在一处。
         self.clear();
     }
 }

@@ -60,7 +60,7 @@ fn record(i: usize) {
                 bitflipped.extend_from_slice(&[frame[i + 2], frame[i + 1], frame[i], 255]);
             }
         }
-        // Save the image.
+        // 保存图像。
         let name = format!("capture_mag_{}_1.png", i);
         repng::encode(
             File::create(name.clone()).unwrap(),

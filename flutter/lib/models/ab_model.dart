@@ -59,7 +59,7 @@ class AbModel {
   String? _personalAbGuid;
   RxBool legacyMode = false.obs;
 
-  // Only handles peers add/remove
+  // 只处理设备的添加/移除
   final Map<String, VoidCallback> _peerIdUpdateListeners = {};
 
   final sortTags = shouldSortTags().obs;
@@ -111,11 +111,11 @@ class AbModel {
   }
 
 // #region ab
-  /// Pulls the address book data from the server.
+  /// 从服务器拉取地址簿数据。
   ///
-  /// If `force` is `ForcePullAb.listAndCurrent`, the function will pull the list of address books, current address book, and try initialize personal address book.
-  /// If `force` is `ForcePullAb.current`, the function will only pull the current address book.
-  /// If `quiet` is true, the function will not display any notifications or errors.
+  /// 如果 `force` 为 `ForcePullAb.listAndCurrent`，该函数会拉取地址簿列表、当前地址簿，并尝试初始化个人地址簿。
+  /// 如果 `force` 为 `ForcePullAb.current`，该函数只拉取当前地址簿。
+  /// 如果 `quiet` 为 true，该函数不会显示任何通知或错误。
   var _pulling = false;
   Future<void> pullAb(
       {required ForcePullAb? force, required bool quiet}) async {
@@ -145,9 +145,9 @@ class AbModel {
     debugPrint("pullAb, force: $force, quiet: $quiet");
     if (!listInitialized || force == ForcePullAb.listAndCurrent) {
       try {
-        // Read personal guid every time to avoid upgrading the server without closing the main window
+        // 每次都读取个人 guid，以避免在未关闭主窗口的情况下升级服务器
         _personalAbGuid = null;
-        // `true`: continue init. `false`: stop, error already recorded.
+        // `true`：继续初始化。`false`：停止，错误已记录。
         if (!await _getPersonalAbGuid(quiet: quiet)) {
           return;
         }
@@ -160,7 +160,7 @@ class AbModel {
           List<AbProfile> abProfiles = List.empty(growable: true);
           abProfiles.add(AbProfile(_personalAbGuid!, _personalAddressBookName,
               gFFI.userModel.userName.value, null, ShareRule.read.value, null));
-          // get all address book name
+          // 获取所有地址簿名称
           await _getSharedAbProfiles(abProfiles, quiet: quiet);
           addressbooks.removeWhere((key, value) =>
               abProfiles.firstWhereOrNull((e) => e.name == key) == null);
@@ -173,14 +173,14 @@ class AbModel {
             }
           }
         } else {
-          // only legacy address book
+          // 仅有旧版地址簿
           addressbooks
               .removeWhere((key, value) => key != _legacyAddressBookName);
           if (!addressbooks.containsKey(_legacyAddressBookName)) {
             addressbooks[_legacyAddressBookName] = LegacyAb();
           }
         }
-        // set current address book name
+        // 设置当前地址簿名称
         if (!listInitialized) {
           listInitialized = true;
           trySetCurrentToLast();
@@ -190,9 +190,9 @@ class AbModel {
               ? _legacyAddressBookName
               : _personalAddressBookName);
         }
-        // pull current address book
+        // 拉取当前地址簿
         await current.pullAb(quiet: quiet);
-        // try initialize personal address book
+        // 尝试初始化个人地址簿
         if (!current.isPersonal()) {
           final personalAb = addressbooks[_personalAddressBookName];
           if (personalAb != null && !personalAb.initialized) {
@@ -257,8 +257,8 @@ class AbModel {
     return false;
   }
 
-  /// Loads `/api/ab/personal`.
-  /// Returns `true` to continue init, `false` to stop after a real error.
+  /// 加载 `/api/ab/personal`。
+  /// 返回 `true` 表示继续初始化，返回 `false` 表示发生真实错误后停止。
   Future<bool> _getPersonalAbGuid({required bool quiet}) async {
     int? statusCode;
     try {
@@ -270,7 +270,7 @@ class AbModel {
       statusCode = resp.statusCode;
       if (statusCode == 404) {
         debugPrint("HTTP 404, current api server is legacy mode");
-        // Old server: keep `_personalAbGuid` null and continue in legacy mode.
+        // 旧版服务器：保持 `_personalAbGuid` 为 null 并继续以旧版模式运行。
         return true;
       }
       Map<String, dynamic> json =
@@ -282,13 +282,13 @@ class AbModel {
         throw 'HTTP $statusCode';
       }
       _personalAbGuid = json['guid'];
-      // New server: guid is available, continue in non-legacy mode.
+      // 新版服务器：guid 可用，继续以非旧版模式运行。
       return true;
     } catch (err) {
       debugPrint('get personal ab err: ${err.toString()}');
       _setListPullError(err, quiet: quiet, statusCode: statusCode);
     }
-    // Real error: stop the current pull.
+    // 真实错误：停止本次拉取。
     return false;
   }
 
@@ -382,7 +382,7 @@ class AbModel {
       'alias': alias,
       'tags': tags,
     };
-    // avoid set existing password to empty
+    // 避免把已有密码设置为空
     if (password.isNotEmpty) {
       peer['password'] = password;
     }
@@ -394,7 +394,7 @@ class AbModel {
     return ret;
   }
 
-  // Use Map<String, dynamic> rather than Peer to distinguish between empty and null
+  // 使用 Map<String, dynamic> 而不是 Peer，以区分空值和 null
   Future<String?> addPeersTo(
     List<Map<String, dynamic>> ps,
     String name,
@@ -436,7 +436,7 @@ class AbModel {
     bool res = await current.changeNote(id: id, note: note);
     await pullNonLegacyAfterChange();
     currentAbPeers.refresh();
-    // no need to save cache
+    // 无需保存缓存
     return res;
   }
 
@@ -472,7 +472,7 @@ class AbModel {
     _refreshTab();
     _saveCache();
     if (legacyMode.value && current.isPersonal()) {
-      // non-legacy mode not add peers automatically
+      // 非旧版模式不会自动添加设备
       Future.delayed(Duration(seconds: 2), () async {
         if (!shouldSyncAb()) return;
         var hasSynced = false;
@@ -786,7 +786,7 @@ class AbModel {
     platformFFI.tryHandle({'name': LoadEvent.addressBook});
   }
 
-  // should not call this function in a loop call stack
+  // 不应在循环调用栈中调用此函数
   Future<void> pullNonLegacyAfterChange({String? name}) async {
     if (name == null) {
       if (current.name() != _legacyAddressBookName) {
@@ -971,7 +971,7 @@ abstract class BaseAb {
 
 class LegacyAb extends BaseAb {
   bool get emtpy => peers.isEmpty && tags.isEmpty;
-  // licensedDevices is obtained from personal ab, shared ab restrict it in server
+  // licensedDevices 来自个人地址簿，共享地址簿的限制由服务器处理
   var licensedDevices = 0;
 
   LegacyAb();
@@ -1016,7 +1016,7 @@ class LegacyAb extends BaseAb {
       final resp = await http.get(Uri.parse(api), headers: authHeaders);
       statusCode = resp.statusCode;
       if (resp.body.toLowerCase() == "null") {
-        // normal reply, empty ab return null
+        // 正常回复，地址簿为空时返回 null
         tags.clear();
         tagColors.clear();
         peers.clear();
@@ -1059,7 +1059,7 @@ class LegacyAb extends BaseAb {
     pushError.value = '';
     bool ret = false;
     try {
-      //https: //stackoverflow.com/questions/68249333/flutter-getx-updating-item-in-children-list-is-not-reactive
+      // https: //stackoverflow.com/questions/68249333/flutter-getx-updating-item-in-children-list-is-not-reactive
       peers.refresh();
       final api = "${await bind.mainGetApiServer()}/api/ab";
       var authHeaders = getHttpHeaders();
@@ -1159,13 +1159,13 @@ class LegacyAb extends BaseAb {
 
   @override
   Future<bool> changeNote({required String id, required String note}) async {
-    // no need to implement
+    // 无需实现
     return false;
   }
 
   @override
   Future<bool> changeSharedPassword(String id, String password) async {
-    // no need to implement
+    // 无需实现
     return false;
   }
 
@@ -1200,7 +1200,7 @@ class LegacyAb extends BaseAb {
       await pushAb(toastIfSucc: false, toastIfFail: false);
       gFFI.abModel._refreshTab();
     }
-    // Pull cannot be used for sync to avoid cyclic sync.
+    // 同步不能使用 Pull，以避免循环同步。
   }
 
   void _merge(Peer r, Peer p) {
@@ -1339,7 +1339,7 @@ class LegacyAb extends BaseAb {
     if (isFull()) {
       peers.removeRange(licensedDevices, peers.length);
     }
-    // restore online
+    // 恢复在线状态
     peers
         .where((e) => oldOnlineIDs.contains(e.id))
         .map((e) => e.online = true)
@@ -1348,7 +1348,7 @@ class LegacyAb extends BaseAb {
       Map<String, dynamic> map = jsonDecode(data['tag_colors']);
       tagColors.value = Map<String, int>.from(map);
     }
-    // add color to tag
+    // 为标签添加颜色
     final tagsWithoutColor =
         tags.toList().where((e) => !tagColors.containsKey(e)).toList();
     for (var t in tagsWithoutColor) {
@@ -1713,7 +1713,7 @@ class Ab extends BaseAb {
         saveCache = true;
       }
       if (map.isEmpty) {
-        // no need to sync
+        // 无需同步
         return false;
       }
       map['id'] = p.id;
@@ -1729,14 +1729,14 @@ class Ab extends BaseAb {
     }
 
     try {
-      // Not add new peers because IDs that are not on the server can't be synced, then sync will happen every startup.
+      // 不添加新设备，因为不在服务器上的 ID 无法同步，那样每次启动都会触发同步。
       for (var p in peers) {
         Peer? r = recents.firstWhereOrNull((e) => e.id == p.id);
         if (r != null) {
           await trySyncOnePeer(p, r);
         }
       }
-      // Pull cannot be used for sync to avoid cyclic sync.
+      // 同步不能使用 Pull，以避免循环同步。
       if (uiUpdate && gFFI.abModel.currentName.value == profile.name) {
         peers.refresh();
       }
@@ -1878,7 +1878,7 @@ class Ab extends BaseAb {
 // #endregion
 }
 
-// DummyAb is for current ab is null
+// DummyAb 用于当前 ab 为 null 的情况
 class DummyAb extends BaseAb {
   @override
   bool isFull() {

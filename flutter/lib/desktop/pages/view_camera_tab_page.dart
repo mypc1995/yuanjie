@@ -228,7 +228,7 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
         : Obx(() => SubWindowDragToResizeArea(
               key: contentKey,
               child: tabWidget,
-              // Specially configured for a better resize area and remote control.
+              // 专门配置，以获得更好的缩放区域和远端控制体验。
               childPadding: kDragToResizeAreaPadding,
               resizeEdgeSize: stateGlobal.resizeEdgeSize.value,
               enableResizeEdges: subWindowManagerEnableResizeEdges,
@@ -236,7 +236,7 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
             ));
   }
 
-  // Note: Some dup code to ../widgets/remote_toolbar
+  // 注意：与 ../widgets/remote_toolbar 存在部分重复代码
   Widget _tabMenuBuilder(String key, CancelFunc cancelFunc) {
     final List<MenuEntryBase<String>> menu = [];
     const EdgeInsets padding = EdgeInsets.only(left: 8.0, right: 5.0);
@@ -326,11 +326,11 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
 
   void onRemoveId(String id) async {
     if (tabController.state.value.tabs.isEmpty) {
-      // Keep calling until the window status is hidden.
+      // 持续调用直到窗口状态隐藏。
       //
-      // Workaround for Windows:
-      // If you click other buttons and close in msgbox within a very short period of time, the close may fail.
-      // `await WindowController.fromWindowId(windowId()).close();`.
+      // Windows 上的变通方案：
+      // 如果你在很短的时间内点击其他按钮并在 msgbox 中关闭，关闭操作可能会失败。
+      // `await WindowController.fromWindowId(windowId()).close();`。
       Future<void> loopCloseWindow() async {
         int c = 0;
         final windowController = WindowController.fromWindowId(windowId());
@@ -389,7 +389,7 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
         "[View Camera Page] call ${call.method} with args ${call.arguments} from window $fromWindowId");
 
     dynamic returnValue;
-    // for simplify, just replace connectionId
+    // 为简化实现，仅替换 connectionId
     if (call.method == kWindowEventNewViewCamera) {
       final args = jsonDecode(call.arguments);
       final id = args['id'];
@@ -473,7 +473,7 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
           .toList()
           .join(';');
     } else if (call.method == kWindowEventGetCachedSessionData) {
-      // Ready to show new window and close old tab.
+      // 准备显示新窗口并关闭旧标签页。
       final args = jsonDecode(call.arguments);
       final id = args['id'];
       final close = args['close'];

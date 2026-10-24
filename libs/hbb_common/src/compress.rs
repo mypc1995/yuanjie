@@ -6,10 +6,10 @@ use zstd::bulk::Compressor;
 
 const MAX_DECOMPRESSED_SIZE: usize = 256 * 1024 * 1024;
 
-// The library supports regular compression levels from 1 up to ZSTD_maxCLevel(),
-// which is currently 22. Levels >= 20
-// Default level is ZSTD_CLEVEL_DEFAULT==3.
-// value 0 means default, which is controlled by ZSTD_CLEVEL_DEFAULT
+// 本库支持从 1 到 ZSTD_maxCLevel() 的常规压缩级别，
+// 目前该值为 22。级别 >= 20
+// 默认级别是 ZSTD_CLEVEL_DEFAULT==3。
+// 值 0 表示默认值，由 ZSTD_CLEVEL_DEFAULT 控制
 thread_local! {
     static COMPRESSOR: RefCell<io::Result<Compressor<'static>>> = RefCell::new(Compressor::new(crate::config::COMPRESS_LEVEL));
 }

@@ -98,7 +98,7 @@ async fn start_hbbs_sync_async() {
                 let url = heartbeat_url();
                 let id = Config::get_id();
                 if url.is_empty() {
-                    *PRO.lock().unwrap() = false;
+                    * PRO.lock().unwrap() = false;
                     continue;
                 }
                 if config::option2bool("stop-service", &Config::get_option("stop-service")) {
@@ -107,26 +107,26 @@ async fn start_hbbs_sync_async() {
                 let conns = Connection::alive_conns();
                 if info_uploaded.uploaded && (url != info_uploaded.url || id != info_uploaded.id) {
                     info_uploaded.uploaded = false;
-                    *PRO.lock().unwrap() = false;
+                    * PRO.lock().unwrap() = false;
                 }
-                // For Windows:
-                // We can't skip uploading sysinfo when the username is empty, because the username may
-                // always be empty before login. We also need to upload the other sysinfo info.
+                // 对于 Windows：
+                // 当用户名为空时我们不能跳过上传 sysinfo，因为用户名可能
+                // 在登录之前一直为空。我们还需要上传其他 sysinfo 信息。
                 //
                 // https://github.com/rustdesk/rustdesk/discussions/8031
-                // We still need to check the username after uploading sysinfo, because
-                // 1. The username may be empty when logining in, and it can be fetched after a while.
-                //    In this case, we need to upload sysinfo again.
-                // 2. The username may be changed after uploading sysinfo, and we need to upload sysinfo again.
+                // 上传 sysinfo 之后我们仍需检查用户名，因为
+                // 1. 登录时用户名可能为空，过一段时间才能取到。
+                //    这种情况下我们需要再次上传 sysinfo。
+                // 2. 上传 sysinfo 之后用户名可能改变，我们需要再次上传 sysinfo。
                 //
-                // The Windows session will switch to the last user session before the restart,
-                // so it may be able to get the username before login.
-                // But strangely, sometimes we can get the username before login,
-                // we may not be able to get the username before login after the next restart.
+                // Windows 会话在重启前会切换到上一个用户会话，
+                // 所以它也许能在登录前取到用户名。
+                // 但奇怪的是，有时我们能在登录前取到用户名，
+                // 而下一次重启之后又可能取不到。
                 let mut v = crate::get_sysinfo();
                 let sys_username = v["username"].as_str().unwrap_or_default().to_string();
-                // Though the username comparison is only necessary on Windows,
-                // we still keep the comparison on other platforms for consistency.
+                // 虽然用户名的比较只在 Windows 上才必要，
+                // 我们仍在其他平台上保留该比较以保持一致。
                 let need_upload = (!info_uploaded.uploaded || info_uploaded.username.as_ref() != Some(&sys_username)) &&
                     info_uploaded.last_uploaded.map(|x| x.elapsed() >= UPLOAD_SYSINFO_TIMEOUT).unwrap_or(true);
                 if need_upload {
@@ -189,16 +189,16 @@ async fn start_hbbs_sync_async() {
                         let old_hash = config::Status::get("sysinfo_hash");
                         let ver = config::Status::get("sysinfo_ver"); // sysinfo_ver is the version of sysinfo on server's side
                         if hash == old_hash {
-                            // When the api doesn't exist, Ok("") will be returned in test.
+                            // 当该 api 不存在时，测试中会返回 Ok("")。
                             let samever = match crate::post_request(url.replace("heartbeat", "sysinfo_ver"), "".to_owned(), "").await {
                                 Ok(x)  => {
                                     sysinfo_ver = x.clone();
-                                    *PRO.lock().unwrap() = true;
+                                    * PRO.lock().unwrap() = true;
                                     x == ver
                                 }
                                 _ => {
                                     false // to make sure Pro can be assigned in below post for old
-                                            // hbbs pro not supporting sysinfo_ver, use false for ensuring
+                                            // hbbs pro 不支持 sysinfo_ver，用 false 以确保
                                 }
                             };
                             if samever {
@@ -217,7 +217,7 @@ async fn start_hbbs_sync_async() {
                                     config::Status::set("sysinfo_hash", hash);
                                     config::Status::set("sysinfo_ver", sysinfo_ver.clone());
                                 }
-                                *PRO.lock().unwrap() = true;
+                                * PRO.lock().unwrap() = true;
                             } else if x == "ID_NOT_FOUND" {
                                 info_uploaded.last_uploaded = None; // next heartbeat will upload sysinfo again
                             } else {
@@ -295,9 +295,9 @@ fn handle_config_options(config_options: HashMap<String, String>) {
     config_options
         .iter()
         .map(|(k, v)| {
-            // Priority: user config > default advanced options.
-            // Only when default advanced options are also empty, remove user option (fallback to built-in default);
-            // otherwise insert an empty value so user config remains present.
+            // 优先级：用户配置 > 默认高级选项。
+            // 只有当默认高级选项也为空时，才移除用户选项（回退到内置默认值）；
+            // 否则插入一个空值，使用户配置仍然存在。
             if v.is_empty() && default_settings.get(k).map_or("", |v| v).is_empty() {
                 options.remove(k);
             } else {
@@ -314,9 +314,9 @@ pub fn is_pro() -> bool {
     PRO.lock().unwrap().clone()
 }
 
-// Fire-and-forget by design: the switch flow must not block on this POST.
-// If the device clock is outside the server's accepted window, the server
-// returns its current Unix time and this task re-signs and retries once.
+// 设计上就是即发即弃：切换流程不能阻塞在这个 POST 上。
+// 如果设备时钟超出服务器接受的范围，服务器
+// 会返回它当前的 Unix 时间，这个任务会重新签名并重试一次。
 #[cfg(feature = "flutter")]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn register_switch_grant(switch_uuid: String) {

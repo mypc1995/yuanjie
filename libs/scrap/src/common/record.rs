@@ -17,9 +17,9 @@ use webm::mux::{self, Segment, Track, VideoTrack, Writer};
 
 const MIN_SECS: u64 = 1;
 
-// Replace characters that are invalid in Windows filename components so recordings remain portable.
-// Control characters are also replaced because they can make filenames invalid
-// on Windows or invisible and difficult to handle on Linux and macOS.
+// 替换掉在 Windows 文件名组成部分中非法的字符，使录制文件保持可移植性。
+// 控制字符也会被替换，因为它们可能导致文件名无效
+// （在 Windows 上）或者在 Linux 和 macOS 上不可见、难以处理。
 fn sanitize_filename_component(value: &str) -> String {
     value
         .chars()
@@ -176,7 +176,7 @@ impl Recorder {
                 #[cfg(not(feature = "hwcodec"))]
                 _ => bail!("unsupported codec type"),
             };
-            // pts is None when new inner is created
+            // 创建新的 inner 时 pts 为 None
             self.pts = None;
             self.send_state(RecordState::NewFile(ctx2.filename.clone()));
         }
@@ -322,7 +322,7 @@ impl RecorderApi for WebmRecorder {
             },
         );
         if ctx2.format == CodecFormat::AV1 {
-            // [129, 8, 12, 0] in 3.6.0, but zero works
+            // 在 3.6.0 中是 [129, 8, 12, 0]，但用 0 也可以
             let codec_private = vec![0, 0, 0, 0];
             if !webm.set_codec_private(vt.track_number(), &codec_private) {
                 bail!("Failed to set codec private");
@@ -426,7 +426,7 @@ impl Drop for HwRecorder {
         self.muxer.as_mut().map(|m| m.write_tail().ok());
         let mut state = RecordState::WriteTail;
         if !self.written || self.start.elapsed().as_secs() < MIN_SECS {
-            // The process cannot access the file because it is being used by another process
+            // 进程无法访问该文件，因为它正被另一个进程使用
             self.muxer = None;
             std::fs::remove_file(&self.ctx2.filename).ok();
             state = RecordState::RemoveFile;

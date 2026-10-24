@@ -31,16 +31,16 @@ fn get_driver_inf_abs_path() -> ResultType<PathBuf> {
     Ok(abs_path)
 }
 
-// Note: This function must be called in a separate thread.
-// Because many functions in this module are blocking or synchronous.
-// Calling this function from a thread that manages interaction with the user interface could make the application appear to be unresponsive.
-// Steps:
-// 1. Add the local port.
-// 2. Check if the driver is installed.
-//    Uninstall the existing driver if it is installed.
-//    We should not check the driver version because the driver is deployed with the application.
-//    It's better to uninstall the existing driver and install the driver from the application.
-// 3. Add the printer.
+// 注意：此函数必须在单独的线程中调用。
+// 因为本模块中的许多函数是阻塞或同步的。
+// 在管理用户界面交互的线程中调用此函数，可能会让应用程序看起来没有响应。
+// 步骤：
+// 1. 添加本地端口。
+// 2. 检查驱动是否已安装。
+//    如果已安装，则卸载现有驱动。
+//    我们不应该检查驱动版本，因为驱动是随应用程序一起部署的。
+//    更好的做法是卸载现有驱动，然后安装应用程序自带的驱动。
+// 3. 添加打印机。
 pub fn install_update_printer(app_name: &str) -> ResultType<()> {
     let printer_name = crate::get_printer_name(app_name);
     let driver_name = crate::get_driver_name();

@@ -41,7 +41,7 @@ struct StateCursor {
 
 impl super::service::Reset for StateCursor {
     fn reset(&mut self) {
-        *self = Default::default();
+        * self = Default::default();
         CURSOR_SHAPES.lock().unwrap().clear();
         crate::platform::reset_input_cache();
         fix_key_down_timeout(true);
@@ -111,7 +111,7 @@ struct Input {
 
 const KEY_CHAR_START: u64 = 9999;
 
-// XKB keycode for Insert key (evdev KEY_INSERT code 110 + 8 for XKB offset)
+// Insert 键的 XKB 键码（evdev KEY_INSERT 编码 110，加上 XKB 偏移 8）
 #[cfg(target_os = "linux")]
 const XKB_KEY_INSERT: u16 = evdev::Key::KEY_INSERT.code() + 8;
 
@@ -144,7 +144,7 @@ impl Subscriber for MouseCursorSub {
             } else {
                 self.inner.send(msg.clone());
                 let mut tmp = Message::new();
-                // only send id out, require client side cache also
+                // 只把 id 发出去，客户端侧也需要缓存
                 tmp.set_cursor_id(cd.id);
                 self.cached.insert(cd.id, Arc::new(tmp));
             }
@@ -185,7 +185,7 @@ impl LockModesHandler {
     #[cfg(target_os = "linux")]
     fn sleep_to_ensure_locked(v: bool, k: enigo::Key, en: &mut Enigo) {
         if wayland_use_uinput() {
-            // Sleep at most 500ms to ensure the lock state is applied.
+            // 最多 sleep 500 毫秒，以确保锁定状态已生效。
             for _ in 0..50 {
                 std::thread::sleep(std::time::Duration::from_millis(10));
                 if en.get_key_state(k) == v {
@@ -193,7 +193,7 @@ impl LockModesHandler {
                 }
             }
         } else if wayland_use_rdp_input() {
-            // We can't call `en.get_key_state(k)` because there's no api for this.
+            // 我们无法调用 `en.get_key_state(k)`，因为没有对应的 api。
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
     }
@@ -239,8 +239,8 @@ impl LockModesHandler {
     #[cfg(target_os = "macos")]
     fn new(key_event: &KeyEvent) -> Self {
         let event_caps_enabled = Self::is_modifier_enabled(key_event, ControlKey::CapsLock);
-        // Do not use the following code to detect `local_caps_enabled`.
-        // Because the state of get_key_state will not affect simulation of `VIRTUAL_INPUT_STATE` in this file.
+        // 不要用下面这段代码来检测 `local_caps_enabled`。
+        // 因为 get_key_state 的状态不会影响本文件中 `VIRTUAL_INPUT_STATE` 的模拟。
         //
         // let local_caps_enabled = VirtualInput::get_key_state(
         //     CGEventSourceStateID::CombinedSessionState,
@@ -265,9 +265,9 @@ impl LockModesHandler {
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 impl Drop for LockModesHandler {
     fn drop(&mut self) {
-        // Do not change led state if is Wayland uinput.
-        // Because there must be a delay to ensure the lock state is applied on Wayland uinput,
-        // which may affect the user experience.
+        // 如果是 Wayland uinput，就不要改变 led 状态。
+        // 因为在 Wayland uinput 上必须有一个延迟来确保锁定状态生效，
+        // 这可能会影响用户体验。
         #[cfg(target_os = "linux")]
         if wayland_use_uinput() {
             return;
@@ -286,8 +286,8 @@ impl Drop for LockModesHandler {
 #[inline]
 #[cfg(target_os = "windows")]
 fn should_disable_numlock(evt: &KeyEvent) -> bool {
-    // disable numlock if press home etc when numlock is on,
-    // because we will get numpad value (7,8,9 etc) if not
+    // 在 numlock 打开时按下 home 等键就禁用 numlock，
+    // 否则我们会得到数字小键盘的值（7、8、9 等）
     match (&evt.union, evt.mode.enum_value_or(KeyboardMode::Legacy)) {
         (Some(key_event::Union::ControlKey(ck)), KeyboardMode::Legacy) => {
             return NUMPAD_KEY_MAP.contains_key(&ck.value());
@@ -396,11 +396,11 @@ fn run_cursor(sp: MouseCursorService, state: &mut StateCursor) -> ResultType<()>
     if let Some(hcursor) = crate::get_cursor()? {
         if hcursor != state.hcursor {
             let msg;
-            // On the DRM path get_cursor_data() may return a snapshot whose id has advanced past the
-            // requested `hcursor` (it returns the latest hardware cursor); file it in the cache AND
-            // record state.hcursor under the id ACTUALLY served, so a later reappearance of that exact
-            // shape dedupes correctly instead of being suppressed. Everything below is fully
-            // gated on the drm feature, so the drm-off build stays byte-identical to upstream.
+            // 在 DRM 路径上，get_cursor_data() 可能返回一个 id 已经超过所请求
+            // `hcursor` 的快照（它返回的是最新的硬件光标）；要把它归档到缓存中，并且
+            // 在实际提供出去的那个 id 下记录 state.hcursor，这样该形状之后再次出现时
+            // 能正确去重而不是被抑制。下面的一切都完全
+            // 以 drm 特性为开关，因此关闭 drm 的构建与上游逐字节一致。
             #[cfg(all(target_os = "linux", feature = "drm"))]
             let mut drm_served_id = hcursor;
             if let Some(cached) = state.cached_cursor_data.get(&hcursor) {
@@ -408,10 +408,10 @@ fn run_cursor(sp: MouseCursorService, state: &mut StateCursor) -> ResultType<()>
                 msg = cached.clone();
             } else {
                 let data = crate::get_cursor_data(hcursor)?;
-                // File the shape under the id ACTUALLY served, not the one requested. Deliberately a
-                // NEW name rather than shadowing `hcursor`: the insert below reads as the requested
-                // id everywhere else in this function, and a cfg-gated shadow would make the two
-                // builds disagree about what that line means.
+                // 把形状归档在实际提供出去的那个 id 下，而不是被请求的那个。这里刻意用
+                // 一个新名字，而不是遮蔽 `hcursor`：下面的插入把它读作被请求的
+                // id，而在这个函数的其余各处都是这样理解的；一个受 cfg 控制的遮蔽会让两种
+                // 构建对那一行的含义产生分歧。
                 #[cfg(all(target_os = "linux", feature = "drm"))]
                 let served_id = data.id;
                 #[cfg(all(target_os = "linux", feature = "drm"))]
@@ -423,27 +423,27 @@ fn run_cursor(sp: MouseCursorService, state: &mut StateCursor) -> ResultType<()>
                 #[cfg(not(all(target_os = "linux", feature = "drm")))]
                 let cache_key = hcursor;
                 msg = cursor_shape_message(data, hbb_common::compress::compress);
-                // A DRM cursor id is derived from the shape's pixels plus geometry, so an animated
-                // pointer mints a new id on every shape change and this map would grow for the life
-                // of the service, each entry pinning a compressed cursor message. (Upstream's X11
-                // ids come from a small set of XFixes serials, so the map is effectively bounded
-                // there -- which is why the ceiling is gated and the stock build stays untouched.)
-                // Past the ceiling, drop the map and start over: the next request for any evicted
-                // shape just recompresses it, and the ceiling comfortably covers every static shape
-                // plus a generous animation window.
+                // DRM 光标 id 是由形状的像素加上几何信息推导出来的，因此一个带动画的
+                // 指针每次形状变化都会生成新的 id，而这个 map 会在服务的整个生命周期内不断增长，
+                // 每个条目都钉住一条压缩过的光标消息。（上游的 X11
+                // id 来自一小批 XFixes 序列号，所以这个 map 实际上是有界的，
+                // 这也是上限受开关控制、原版构建保持不变的原因。）
+                // 超过上限后，丢弃这个 map 并重新开始：下一次请求任何被淘汰的
+                // 形状时只需重新压缩它，而这个上限足以覆盖每个静态形状
+                // 以及一段相当宽裕的动画窗口。
                 #[cfg(all(target_os = "linux", feature = "drm"))]
                 {
                     const CURSOR_CACHE_MAX: usize = 64;
                     if state.cached_cursor_data.len() >= CURSOR_CACHE_MAX {
                         state.cached_cursor_data.clear();
                         CURSOR_SHAPES.lock().unwrap().clear();
-                        // The shape being sent was kept above; keep it past the clear.
+                        // 上面保留了正在发送的形状；清空之后也要保留它。
                         shared_cursor_shape(msg.clone());
                     }
                 }
                 limit_cursor_handles(&mut state.cached_cursor_data, &msg);
-                // A macOS seed marks a change, never the same one twice: filing it would only
-                // fill the map.
+                // macOS 的 seed 标记的是一次变化，同一个绝不会出现两次：归档它只会
+                // 把 map 填满。
                 #[cfg(not(target_os = "macos"))]
                 state.cached_cursor_data.insert(cache_key, msg.clone());
                 super::log::trace!("Cursor data updated, hcursor: {}", cache_key);
@@ -456,8 +456,8 @@ fn run_cursor(sp: MouseCursorService, state: &mut StateCursor) -> ResultType<()>
             {
                 state.hcursor = drm_served_id;
             }
-            // A new handle or seed for the shape already shown changes nothing a controller sees;
-            // a shape is one message however many handles name it.
+            // 为已经显示的形状新建一个 handle 或 seed，对控制端看到的东西没有任何影响；
+            // 无论有多少个 handle 指向它，一个形状就是一条消息。
             if !Arc::ptr_eq(&msg, &state.cursor_data) {
                 sp.send_shared(msg.clone());
                 state.cursor_data = msg;
@@ -503,21 +503,21 @@ lazy_static::lazy_static! {
     static ref KEYS_DOWN: Arc<Mutex<HashMap<KeysDown, Instant>>> = Default::default();
     static ref LATEST_PEER_INPUT_CURSOR: Arc<Mutex<Input>> = Default::default();
     static ref LATEST_SYS_CURSOR_POS: Arc<Mutex<(Option<Instant>, (i32, i32))>> = Arc::new(Mutex::new((None, (INVALID_CURSOR_POS, INVALID_CURSOR_POS))));
-    // Track connections that are currently using relative mouse movement.
-    // Used to disable whiteboard/cursor display for all events while in relative mode.
+    // 跟踪当前正在使用相对鼠标移动的连接。
+    // 用于在相对模式下对所有事件禁用白板/光标显示。
     static ref RELATIVE_MOUSE_CONNS: Arc<Mutex<std::collections::HashSet<i32>>> = Default::default();
 }
 
 lazy_static::lazy_static! {
-    // Every shape the service has sent, by content id, for a controller that asks for one
-    // again. A shape under several handles is one message here, shared with `cached_cursor_data`,
-    // and cleared with it; see `limit_cursor_handles` for the ceilings. A shape dropped is
-    // rebuilt here the next time it is shown, in `run_cursor`, before any connection sends its
-    // `cursor_id`: whatever a controller has just been told to show, it can ask for.
+    // 服务已发送的每个形状，按内容 id 记录，供再次来请求的控制端使用。
+    // 在这里，一个由多个 handle 指向的形状只有一条消息，与 `cached_cursor_data` 共享，
+    // 并随之被清除；各个上限参见 `limit_cursor_handles`。被丢弃的形状
+    // 会在下次显示时在这里重建（在 `run_cursor` 中），在任何连接发出它的
+    // `cursor_id` 之前：控制端刚被告知要显示什么，就可以来请求什么。
     static ref CURSOR_SHAPES: Mutex<CursorShapes> = Default::default();
 }
 
-/// The shapes sent, by content id, and the bytes they hold compressed.
+/// 已发送的形状，按内容 id 记录，以及它们压缩后持有的字节。
 #[derive(Default)]
 struct CursorShapes {
     shapes: HashMap<u64, Arc<Message>>,
@@ -534,23 +534,23 @@ impl CursorShapes {
         self.bytes = 0;
     }
 
-    /// The message kept for this shape, `msg` if there was none.
+    /// 为该形状保留的消息，若之前没有则为 `msg`。
     fn keep(&mut self, cd: &CursorData, msg: &Arc<Message>) -> Arc<Message> {
         let bytes = &mut self.bytes;
         self.shapes
             .entry(cd.id)
             .or_insert_with(|| {
-                *bytes += cd.colors.len();
+                * bytes += cd.colors.len();
                 msg.clone()
             })
             .clone()
     }
 }
 
-/// The message for a shape the platform gave, named by content, so the per-connection send sends
-/// a shape once however many handles the platform gives it; see
-/// `is_peer_naming_cursors_by_content`. A shape sent before, under any handle, is reused without
-/// being compressed again.
+/// 平台提供的形状对应的消息，按内容命名，这样按连接发送时
+/// 无论平台给出多少个 handle，一个形状只发送一次；参见
+/// `is_peer_naming_cursors_by_content`。之前以任何 handle 发送过的形状会被直接复用，
+/// 不会重新压缩。
 fn cursor_shape_message(
     mut data: CursorData,
     compress: impl FnOnce(&[u8]) -> Vec<u8>,
@@ -565,11 +565,11 @@ fn cursor_shape_message(
     shared_cursor_shape(Arc::new(msg))
 }
 
-// A platform may mint a new handle each time it shows a shape (Chrome, Electron), so the handles
-// filed would grow for the life of the service, each entry a u64 and an Arc even when every one
-// names the same shape. Past this many handles, or this many bytes of compressed shapes, however
-// few, the handles and the shapes start over together: a handle shown again is captured and named
-// again. macOS files no handles, so there the bytes alone bound the shapes.
+// 某些平台每次显示一个形状时都会生成新的 handle（Chrome、Electron），因此这些 handle
+// 一旦归档就会在服务的整个生命周期内增长，每个条目都是一个 u64 和一个 Arc，哪怕每一个
+// 都指向同一个形状。超过这么多 handle 或这么多压缩字节后，无论
+// 有多少，handle 和形状就一起重新开始：再次显示的 handle 会被捕获并命名
+// 。macOS 不归档任何 handle，所以在那里只由字节数限制形状数量。
 const CURSOR_HANDLES_MAX: usize = 4096;
 const CURSOR_SHAPES_BYTES_MAX: usize = 32 << 20;
 
@@ -579,12 +579,12 @@ fn limit_cursor_handles(handles: &mut HashMap<u64, Arc<Message>>, sending: &Arc<
     {
         handles.clear();
         CURSOR_SHAPES.lock().unwrap().clear();
-        // The shape being sent was kept; keep it past the clear.
+        // 正在发送的形状被保留了；清空之后也要保留它。
         shared_cursor_shape(sending.clone());
     }
 }
 
-/// The message already kept for this shape if there is one, so every handle for it shares it.
+/// 该形状已经保留的消息（如果有），这样指向它的每个 handle 都共享它。
 fn shared_cursor_shape(msg: Arc<Message>) -> Arc<Message> {
     let Some(message::Union::CursorData(cd)) = &msg.union else {
         return msg;
@@ -592,7 +592,7 @@ fn shared_cursor_shape(msg: Arc<Message>) -> Arc<Message> {
     CURSOR_SHAPES.lock().unwrap().keep(cd, &msg)
 }
 
-/// The CursorData message of a shape the service has sent, for `Misc::request_cursor_data`.
+/// 服务已发送的某个形状的 CursorData 消息，供 `Misc::request_cursor_data` 使用。
 pub fn cursor_data_message(id: u64) -> Option<Arc<Message>> {
     CURSOR_SHAPES.lock().unwrap().get(&id).cloned()
 }
@@ -618,11 +618,11 @@ fn is_relative_mouse_active(conn: i32) -> bool {
     RELATIVE_MOUSE_CONNS.lock().unwrap().contains(&conn)
 }
 
-/// Clears the relative mouse mode state for a connection.
+/// 清除某个连接的相对鼠标模式状态。
 ///
-/// This must be called when an authenticated connection is dropped (during connection teardown)
-/// to avoid leaking the connection id in `RELATIVE_MOUSE_CONNS` (a `Mutex<HashSet<i32>>`).
-/// Callers are responsible for invoking this on disconnect.
+/// 当一个已认证的连接被丢弃时（在连接拆除过程中）必须调用它，
+/// 以免在 `RELATIVE_MOUSE_CONNS`（一个 `Mutex<HashSet<i32>>`）中泄漏该连接 id。
+/// 调用方负责在断开连接时调用它。
 #[inline]
 pub(crate) fn clear_relative_mouse_active(conn: i32) {
     set_relative_mouse_active(conn, false);
@@ -631,19 +631,19 @@ pub(crate) fn clear_relative_mouse_active(conn: i32) {
 static EXITING: AtomicBool = AtomicBool::new(false);
 
 const MOUSE_MOVE_PROTECTION_TIMEOUT: Duration = Duration::from_millis(1_000);
-// Actual diff of (x,y) is (1,1) here. But 5 may be tolerant.
+// 这里 (x,y) 的实际差值是 (1,1)。不过 5 可能更宽容一些。
 const MOUSE_ACTIVE_DISTANCE: i32 = 5;
 
 static RECORD_CURSOR_POS_RUNNING: AtomicBool = AtomicBool::new(false);
 
 // https://github.com/rustdesk/rustdesk/issues/9729
-// We need to do some special handling for macOS when using the legacy mode.
+// 在 legacy 模式下使用 macOS 时，我们需要做一些特殊处理。
 #[cfg(target_os = "macos")]
 static LAST_KEY_LEGACY_MODE: AtomicBool = AtomicBool::new(true);
-// We use enigo to
-// 1. Simulate mouse events
-// 2. Simulate the legacy mode key events
-// 3. Simulate the functioin key events, like LockScreen
+// 我们用 enigo 来
+// 1. 模拟鼠标事件
+// 2. 模拟 legacy 模式的按键事件
+// 3. 模拟功能键事件，比如 LockScreen
 #[inline]
 #[cfg(target_os = "macos")]
 fn enigo_ignore_flags() -> bool {
@@ -696,7 +696,7 @@ pub fn try_stop_record_cursor_pos() {
     RECORD_CURSOR_POS_RUNNING.store(false, Ordering::SeqCst);
 }
 
-// mac key input must be run in main thread, otherwise crash on >= osx 10.15
+// mac 的按键输入必须在主线程中运行，否则在 >= osx 10.15 上会崩溃
 #[cfg(target_os = "macos")]
 lazy_static::lazy_static! {
     static ref QUEUE: Queue = Queue::main();
@@ -715,17 +715,17 @@ impl VirtualInputState {
     fn new() -> Option<Self> {
         VirtualInput::new(
             CGEventSourceStateID::CombinedSessionState,
-            // Note: `CGEventTapLocation::Session` will be affected by the mouse events.
-            // When we're simulating key events, then move the physical mouse, the key events will be affected.
-            // It looks like https://github.com/rustdesk/rustdesk/issues/9729#issuecomment-2432306822
-            // 1. Press "Command" key in RustDesk
-            // 2. Move the physical mouse
-            // 3. Press "V" key in RustDesk
-            // Then the controlled side just prints "v" instead of pasting.
+            // 注意：`CGEventTapLocation::Session` 会受到鼠标事件的影响。
+            // 当我们在模拟按键事件时移动物理鼠标，按键事件会受到影响。
+            // 现象类似于 https://github.com/rustdesk/rustdesk/issues/9729#issuecomment-2432306822
+            // 1. 在 RustDesk 中按下 "Command" 键
+            // 2. 移动物理鼠标
+            // 3. 在 RustDesk 中按下 "V" 键
+            // 结果被控端只是打印出 "v"，而不是粘贴。
             //
-            // Changing `CGEventTapLocation::Session` to `CGEventTapLocation::HID` fixes it.
-            // But we do not consider this as a bug, because it's not a common case,
-            // we consider only RustDesk operates the controlled side.
+            // 把 `CGEventTapLocation::Session` 改成 `CGEventTapLocation::HID` 即可解决。
+            // 但我们不认为这是一个 bug，因为它不是常见情况，
+            // 我们只考虑 RustDesk 操作被控端这一种场景。
             //
             // https://developer.apple.com/documentation/coregraphics/cgeventtaplocation/
             CGEventTapLocation::Session,
@@ -748,12 +748,12 @@ static mut VIRTUAL_INPUT_MTX: Mutex<()> = Mutex::new(());
 #[cfg(target_os = "macos")]
 static mut VIRTUAL_INPUT_STATE: Option<VirtualInputState> = None;
 
-// First call set_uinput() will create keyboard and mouse clients.
-// The clients are ipc connections that must live shorter than tokio runtime.
-// Thus this function must not be called in a temporary runtime.
+// 第一次调用 set_uinput() 会创建键盘和鼠标客户端。
+// 这些客户端是 ipc 连接，存活时间必须短于 tokio 运行时。
+// 因此这个函数绝不能在临时运行时中调用。
 #[cfg(target_os = "linux")]
 pub async fn setup_uinput(minx: i32, maxx: i32, miny: i32, maxy: i32) -> ResultType<()> {
-    // Keyboard and mouse both open /dev/uinput
+    // 键盘和鼠标都打开 /dev/uinput
     // TODO: Make sure there's no race
     set_uinput_resolution(minx, maxx, miny, maxy).await?;
 
@@ -763,11 +763,11 @@ pub async fn setup_uinput(minx: i32, maxx: i32, miny: i32, maxy: i32) -> ResultT
     log::info!("UInput mouse created");
 
     let mut en = ENIGO.lock().unwrap();
-    // enigo guessed x11 once at construction, which is what a Wayland greeter reads as, and
-    // then routes the devices installed below to a null xdo that drops everything silently.
-    // Reaching here means `wayland_use_uinput()` was true, so this states a fact.
+    // enigo 在构造时猜测了一次 x11，而 Wayland 欢迎界面正是这样读的，于是
+    // 接着把下面安装的设备都路由到一个空的 xdo，它会静默丢弃一切。
+    // 能走到这里说明 `wayland_use_uinput()` 为 true，因此这是在陈述一个事实。
     en.set_is_x11(false);
-    // One lock for both, so there is no window where the keyboard is custom and the mouse is not.
+    // 两者共用一把锁，因此不会出现键盘是自定义而鼠标不是的时间窗口。
     en.set_custom_keyboard(Box::new(keyboard));
     en.set_custom_mouse(Box::new(mouse));
     Ok(())
@@ -776,7 +776,7 @@ pub async fn setup_uinput(minx: i32, maxx: i32, miny: i32, maxy: i32) -> ResultT
 #[cfg(target_os = "linux")]
 pub async fn setup_rdp_input() -> ResultType<(), Box<dyn std::error::Error>> {
     let mut en = ENIGO.lock()?;
-    // Same as `setup_uinput`: the caller is gated on `wayland_use_rdp_input()`.
+    // 与 `setup_uinput` 相同：调用方以 `wayland_use_rdp_input()` 为开关。
     en.set_is_x11(false);
     let rdp_info_lock = RDP_SESSION_INFO.lock()?;
     let rdp_info = rdp_info_lock.as_ref().ok_or("RDP session is None")?;
@@ -808,8 +808,8 @@ pub async fn setup_rdp_input() -> ResultType<(), Box<dyn std::error::Error>> {
 pub async fn update_mouse_resolution(minx: i32, maxx: i32, miny: i32, maxy: i32) -> ResultType<()> {
     set_uinput_resolution(minx, maxx, miny, maxy).await?;
 
-    // Confirm the device adopted the new range before the caller caches it.
-    // spawn_blocking because ENIGO is a std Mutex and send_refresh blocks on IPC.
+    // 在调用方缓存之前，确认设备已经采纳了新的范围。
+    // 用 spawn_blocking，因为 ENIGO 是一个 std Mutex，而 send_refresh 会阻塞在 IPC 上。
     tokio::task::spawn_blocking(move || {
         if let Some(mouse) = ENIGO.lock().unwrap().get_custom_mouse() {
             if let Some(mouse) = mouse
@@ -820,7 +820,7 @@ pub async fn update_mouse_resolution(minx: i32, maxx: i32, miny: i32, maxy: i32)
             }
             bail!("failed to downcast custom mouse to UInputMouse");
         }
-        // No custom mouse: nothing to refresh.
+        // 没有自定义鼠标：无需刷新任何东西。
         Ok(())
     })
     .await?
@@ -846,7 +846,7 @@ pub fn mouse_move_relative(x: i32, y: i32) {
 
 #[cfg(windows)]
 fn modifier_sleep() {
-    // sleep for a while, this is only for keying in rdp in peer so far
+    // sleep 一段时间，目前这只是为了在 peer 中输入 rdp
     std::thread::sleep(std::time::Duration::from_nanos(1));
 }
 
@@ -856,16 +856,16 @@ fn is_pressed(key: &Key, en: &mut Enigo) -> bool {
     get_modifier_state(key.clone(), en)
 }
 
-// Sleep for 8ms is enough in my tests, but we sleep 12ms to be safe.
-// sleep 12ms In my test, the characters are already output in real time.
+// 在我的测试中 sleep 8ms 就够了，但为了稳妥我们 sleep 12ms。
+// sleep 12ms 在我的测试中，字符已经是实时输出了。
 #[inline]
 #[cfg(target_os = "macos")]
 fn key_sleep() {
     // https://www.reddit.com/r/rustdesk/comments/1kn1w5x/typing_lags_when_connecting_to_macos_clients/
     //
-    // There's a strange bug when running by `launchctl load -w /Library/LaunchAgents/abc.plist`
-    // `std::thread::sleep(Duration::from_millis(20));` may sleep 90ms or more.
-    // Though `/Applications/RustDesk.app/Contents/MacOS/rustdesk --server` in terminal is ok.
+    // 用 `launchctl load -w /Library/LaunchAgents/abc.plist` 运行时有一个奇怪的 bug
+    // `std::thread::sleep(Duration::from_millis(20));` 可能会睡 90 毫秒甚至更久。
+    // 不过在终端里运行 `/Applications/RustDesk.app/Contents/MacOS/rustdesk --server` 是没问题的。
     let now = Instant::now();
     while now.elapsed() < Duration::from_millis(12) {
         std::thread::sleep(Duration::from_millis(1));
@@ -875,8 +875,8 @@ fn key_sleep() {
 #[inline]
 fn get_modifier_state(key: Key, en: &mut Enigo) -> bool {
     // https://github.com/rustdesk/rustdesk/issues/332
-    // on Linux, if RightAlt is down, RightAlt status is false, Alt status is true
-    // but on Windows, both are true
+    // 在 Linux 上，如果按下了 RightAlt，RightAlt 的状态是 false，而 Alt 的状态是 true
+    // 但在 Windows 上，两者都是 true
     let x = en.get_key_state(key.clone());
     match key {
         Key::Shift => x || en.get_key_state(Key::RightShift),
@@ -902,7 +902,7 @@ pub fn handle_mouse(
 ) {
     #[cfg(target_os = "macos")]
     {
-        // having GUI (--server has tray, it is GUI too), run main GUI thread, otherwise crash
+        // 有 GUI 时（--server 也有托盘，它同样是 GUI），要在主 GUI 线程中运行，否则会崩溃
         let evt = evt.clone();
         QUEUE.exec_async(move || handle_mouse_(&evt, conn, username, argb, simulate, show_cursor));
         return;
@@ -913,12 +913,12 @@ pub fn handle_mouse(
     handle_mouse_(evt, conn, username, argb, simulate, show_cursor);
 }
 
-// to-do: merge handle_mouse and handle_pointer
+// 待办：合并 handle_mouse 和 handle_pointer
 #[allow(unreachable_code)]
 pub fn handle_pointer(evt: &PointerDeviceEvent, conn: i32) {
     #[cfg(target_os = "macos")]
     {
-        // having GUI, run main GUI thread, otherwise crash
+        // 有 GUI 时，要在主 GUI 线程中运行，否则会崩溃
         let evt = evt.clone();
         QUEUE.exec_async(move || handle_pointer_(&evt, conn));
         return;
@@ -1033,7 +1033,7 @@ fn fix_key_down_timeout(force: bool) {
     }
 }
 
-// e.g. current state of ctrl is down, but ctrl not in modifier, we should change ctrl to up, to make modifier state sync between remote and local
+// 例如 ctrl 的当前状态是按下，但 ctrl 不在 modifier 中，我们应该把 ctrl 改成抬起，以使 modifier 状态在远端和本地之间保持同步
 #[inline]
 fn fix_modifier(
     modifiers: &[EnumOrUnknown<ControlKey>],
@@ -1044,7 +1044,7 @@ fn fix_modifier(
     if get_modifier_state(key1, en) && !modifiers.contains(&EnumOrUnknown::new(key0)) {
         #[cfg(windows)]
         if key0 == ControlKey::Control && get_modifier_state(Key::Alt, en) {
-            // AltGr case
+            // AltGr 的情况
             return;
         }
         en.key_up(key1);
@@ -1079,12 +1079,12 @@ fn fix_modifiers(modifiers: &[EnumOrUnknown<ControlKey>], en: &mut Enigo, ck: i3
     }
 }
 
-/// The last ABSOLUTE peer-injected pointer position, in the post-remap uinput layout space, with
-/// when it was injected, a sequence number and the wayland snapshot generation it was mapped
-/// against. Deliberately NOT `LATEST_PEER_INPUT_CURSOR`: its relative arm stores
-/// `get_cursor_pos()`, an X-server coordinate that never went through the layout remap, and the
-/// DRM cursor calibration subtracts a cursor-plane position from this, so the two spaces must
-/// match. Only the uinput absolute path writes here.
+/// 最近一次由对端注入的绝对指针位置，位于重映射之后的 uinput 布局空间中，并带有
+/// 注入时间、一个序列号，以及它所对照映射的 wayland 快照代际
+/// 。刻意不用 `LATEST_PEER_INPUT_CURSOR`：它的相对分支保存的是
+/// `get_cursor_pos()`，一个从未经过布局重映射的 X 服务器坐标，而
+/// DRM 光标校准要从这里减去一个光标平面位置，因此这两个空间必须
+/// 一致。只有 uinput 的绝对路径会写入这里。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 static LATEST_PEER_ABS_POS: std::sync::Mutex<
     Option<((i32, i32), std::time::Instant, u64, u64, u64)>,
@@ -1092,45 +1092,45 @@ static LATEST_PEER_ABS_POS: std::sync::Mutex<
 #[cfg(all(target_os = "linux", feature = "drm"))]
 static PEER_ABS_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-/// One absolute peer sample, as the calibration reads it.
+/// 一个对端绝对样本，按校准读取它的方式。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct PeerAbsSample {
     pub pos: (i32, i32),
     pub age_ms: u64,
-    /// Distinct per injected move. Two measurements taken against the same sample are not
-    /// independent, whatever the cursor plane did in between.
+    /// 每次注入的移动都不同。针对同一个样本的两次测量并不
+    /// 独立，无论中间光标平面做了什么。
     pub seq: u64,
-    /// The layout generation the point was mapped against.
+    /// 该点所对照映射的布局代际。
     pub gen: u64,
-    /// The input-mapping epoch at injection: a sample from before a range adoption was mapped by
-    /// the old range. See `display_service::input_map_epoch`.
+    /// 注入时的输入映射 epoch：在采纳某个范围之前产生的样本是按
+    /// 旧范围映射的。参见 `display_service::input_map_epoch`。
     pub map_epoch: u64,
 }
 
-/// The peer moved the pointer to an absolute, post-remap position. Called under the ENIGO guard
-/// of the move, which an adoption also needs for its refresh: a move stamped with the count of an
-/// adoption was injected after that adoption's refresh.
+/// 对端把指针移动到一个绝对的重映射之后的位置。在 ENIGO 守卫下被调用，
+/// 该守卫也保护这次移动，而采纳同样需要它来完成自己的刷新：一次以某次采纳的计数打戳的
+/// 移动是在那次采纳的刷新之后注入的。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 pub(crate) fn note_peer_absolute_move(x: i32, y: i32) {
     let seq = PEER_ABS_SEQ.fetch_add(1, Ordering::Relaxed) + 1;
     let gen = scrap::wayland::display::wayland_snapshot_generation();
     let map_epoch = super::display_service::input_map_epoch();
-    *LATEST_PEER_ABS_POS.lock().unwrap() =
+    * LATEST_PEER_ABS_POS.lock().unwrap() =
         Some(((x, y), std::time::Instant::now(), seq, gen, map_epoch));
 }
 
-/// The pointer moved by a path that has no post-remap absolute position to offer: a relative
-/// delta from the peer, or a move this process made on its own. The last sample no longer says
-/// where the pointer is; forget it, the next absolute move restores it.
+/// 指针通过一种没有重映射后绝对位置可提供的路径移动了：来自对端的相对
+/// 增量，或是本进程自己发起的移动。上一个样本不再能说明
+/// 指针在哪里；忘掉它，下一次绝对移动会重新提供它。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 pub(crate) fn note_pointer_moved_without_absolute_sample() {
-    *LATEST_PEER_ABS_POS.lock().unwrap() = None;
+    * LATEST_PEER_ABS_POS.lock().unwrap() = None;
 }
 
-/// A move this process makes on its own. The forget runs once `lock` returned the guard the peer
-/// move records its sample under, so no peer move lands between the forget and this move and
-/// leaves its sample describing a pointer that has moved since.
+/// 本进程自己发起的移动。这个「忘掉」发生在 `lock` 返回守卫之后，
+/// 而对端移动正是在该守卫之下记录其样本的，因此不会有对端移动落在这「忘掉」与本次移动之间，
+/// 让它留下的样本描述的是一个此后已经移动过的指针。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 fn forget_sample_and_move<G>(lock: impl FnOnce() -> G, move_to: impl FnOnce(G)) {
     let guard = lock();
@@ -1150,8 +1150,8 @@ pub(crate) fn last_peer_abs_sample() -> Option<PeerAbsSample> {
     })
 }
 
-// Update time to avoid send cursor position event to the peer.
-// See `run_pos` --> `set_cursor_position` --> `exclude`
+// 更新时间，以避免向对端发送光标位置事件。
+// 参见 `run_pos` --> `set_cursor_position` --> `exclude`
 #[inline]
 pub fn update_latest_input_cursor_time(conn: i32) {
     let mut lock = LATEST_PEER_INPUT_CURSOR.lock().unwrap();
@@ -1165,11 +1165,11 @@ fn get_last_input_cursor_pos() -> (i32, i32) {
     (lock.x, lock.y)
 }
 
-// check if mouse is moved by the controlled side user to make controlled side has higher mouse priority than remote.
+// 检查鼠标是否被被控端用户移动，以让被控端的鼠标优先级高于远端。
 fn active_mouse_(_conn: i32) -> bool {
     true
-    /* this method is buggy (not working on macOS, making fast moving mouse event discarded here) and added latency (this is blocking way, must do in async way), so we disable it for now
-    // out of time protection
+    /* 这个方法有 bug（在 macOS 上不起作用，会让快速移动的鼠标事件在这里被丢弃），而且会增加延迟（这是阻塞式做法，必须用异步方式），所以我们暂时禁用它
+    // 超时保护
     if LATEST_SYS_CURSOR_POS
         .lock()
         .unwrap()
@@ -1180,24 +1180,24 @@ fn active_mouse_(_conn: i32) -> bool {
         return true;
     }
 
-    // last conn input may be protected
+    // 上一个连接的输入可能受到保护
     if LATEST_PEER_INPUT_CURSOR.lock().unwrap().conn != conn {
         return false;
     }
 
     let in_active_dist = |a: i32, b: i32| -> bool { (a - b).abs() < MOUSE_ACTIVE_DISTANCE };
 
-    // Check if input is in valid range
+    // 检查输入是否在有效范围内
     match crate::get_cursor_pos() {
         Some((x, y)) => {
             let (last_in_x, last_in_y) = get_last_input_cursor_pos();
             let mut can_active = in_active_dist(last_in_x, x) && in_active_dist(last_in_y, y);
-            // The cursor may not have been moved to last input position if system is busy now.
-            // While this is not a common case, we check it again after some time later.
+            // 如果系统现在很忙，光标可能还没被移动到上一个输入位置。
+            // 虽然这不是常见情况，我们还是会在稍后再次检查它。
             if !can_active {
-                // 100 micros may be enough for system to move cursor.
-                // Mouse inputs on macOS are asynchronous. 1. Put in a queue to process in main thread. 2. Send event async.
-                // More reties are needed on macOS.
+                // 100 微秒可能就足够系统移动光标了。
+                // macOS 上的鼠标输入是异步的。1. 放入队列，在主线程中处理。2. 异步发送事件。
+                // 在 macOS 上需要更多次重试。
                 #[cfg(not(target_os = "macos"))]
                 let retries = 10;
                 #[cfg(target_os = "macos")]
@@ -1208,7 +1208,7 @@ fn active_mouse_(_conn: i32) -> bool {
                 let sleep_interval: u64 = 30;
                 for _retry in 0..retries {
                     std::thread::sleep(std::time::Duration::from_micros(sleep_interval));
-                    // Sleep here can also somehow suppress delay accumulation.
+                    // 在这里 sleep 不知怎么也能抑制延迟的累积。
                     if let Some((x2, y2)) = crate::get_cursor_pos() {
                         let (last_in_x, last_in_y) = get_last_input_cursor_pos();
                         can_active = in_active_dist(last_in_x, x2) && in_active_dist(last_in_y, y2);
@@ -1265,11 +1265,11 @@ pub fn handle_mouse_(
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let evt_type = evt.mask & MOUSE_TYPE_MASK;
-        // Relative (delta) mouse events do not include absolute coordinates, so
-        // whiteboard/cursor rendering must be disabled during relative mode to prevent
-        // incorrect cursor/whiteboard updates. We check both is_relative_mouse_active(conn)
-        // (connection already in relative mode from prior events) and evt_type (current
-        // event is relative) to guard against the first relative event before the flag is set.
+        // 相对（增量）鼠标事件不包含绝对坐标，因此
+        // 在相对模式下必须禁用白板/光标渲染，以免出现
+        // 错误的光标/白板更新。我们同时检查 is_relative_mouse_active(conn)
+        // （连接由于先前的事件已处于相对模式）和 evt_type（当前
+        // 事件是相对的），以防标志被设置之前就出现第一个相对事件。
         if _show_cursor && !is_relative_mouse_active(conn) && evt_type != MOUSE_TYPE_MOVE_RELATIVE {
             handle_mouse_show_cursor_(evt, conn, _username, _argb);
         }
@@ -1316,11 +1316,11 @@ pub fn handle_mouse_simulation_(evt: &MouseEvent, conn: i32) {
     }
     match evt_type {
         MOUSE_TYPE_MOVE => {
-            // Switching back to absolute movement implicitly disables relative mouse mode.
+            // 切回绝对移动会隐式地禁用相对鼠标模式。
             set_relative_mouse_active(conn, false);
-            // On Wayland with uinput, the client sends coordinates in the layout it was
-            // told at session init. If the compositor has since moved a monitor, correct
-            // them onto the current layout. https://github.com/rustdesk/rustdesk/issues/15601
+            // 在带 uinput 的 Wayland 上，客户端发送的坐标是按会话初始化时
+            // 告知它的布局。如果合成器此后移动了某台显示器，就要把它们
+            // 修正到当前布局上。https://github.com/rustdesk/rustdesk/issues/15601
             #[cfg(target_os = "linux")]
             let uinput = wayland_use_uinput();
             #[cfg(target_os = "linux")]
@@ -1332,26 +1332,26 @@ pub fn handle_mouse_simulation_(evt: &MouseEvent, conn: i32) {
             #[cfg(not(target_os = "linux"))]
             let (mx, my) = (evt.x, evt.y);
             en.mouse_move_to(mx, my);
-            // Only the uinput point is in the layout space the calibration measures in.
+            // 只有 uinput 的那个点处在校准所测量的布局空间中。
             #[cfg(all(target_os = "linux", feature = "drm"))]
             if uinput {
                 note_peer_absolute_move(mx, my);
             }
-            *LATEST_PEER_INPUT_CURSOR.lock().unwrap() = Input {
+            * LATEST_PEER_INPUT_CURSOR.lock().unwrap() = Input {
                 conn,
                 time: get_time(),
                 x: mx,
                 y: my,
             };
         }
-        // MOUSE_TYPE_MOVE_RELATIVE: Relative mouse movement for gaming/3D applications.
-        // Each client independently decides whether to use relative mode.
-        // Multiple clients can mix absolute and relative movements without conflict,
-        // as the server simply applies the delta to the current cursor position.
+        // MOUSE_TYPE_MOVE_RELATIVE：用于游戏/3D 应用的相对鼠标移动。
+        // 每个客户端独立决定是否使用相对模式。
+        // 多个客户端可以混用绝对和相对移动而互不冲突，
+        // 因为服务端只是把增量应用到当前的光标位置上。
         MOUSE_TYPE_MOVE_RELATIVE => {
             set_relative_mouse_active(conn, true);
-            // Clamp delta to prevent extreme/malicious values from reaching OS APIs.
-            // This matches the Flutter client's kMaxRelativeMouseDelta constant.
+            // 对增量做钳制，防止极端或恶意数值传到 OS API。
+            // 这与 Flutter 客户端的 kMaxRelativeMouseDelta 常量一致。
             const MAX_RELATIVE_MOUSE_DELTA: i32 = 10000;
             let dx = evt
                 .x
@@ -1359,14 +1359,14 @@ pub fn handle_mouse_simulation_(evt: &MouseEvent, conn: i32) {
             let dy = evt
                 .y
                 .clamp(-MAX_RELATIVE_MOUSE_DELTA, MAX_RELATIVE_MOUSE_DELTA);
-            // The absolute sample stops describing the pointer the moment a delta lands. Drop it
-            // BEFORE the move, so no frame in between can measure the plane against it.
+            // 增量一落下来，绝对样本就不再能描述指针了。要在移动
+            // 之前就丢掉它，这样中间的帧就不会拿平面去对照它测量。
             #[cfg(all(target_os = "linux", feature = "drm"))]
             note_pointer_moved_without_absolute_sample();
             en.mouse_move_relative(dx, dy);
-            // Get actual cursor position after relative movement for tracking
+            // 获取相对移动之后的实际光标位置以便跟踪
             if let Some((x, y)) = crate::get_cursor_pos() {
-                *LATEST_PEER_INPUT_CURSOR.lock().unwrap() = Input {
+                * LATEST_PEER_INPUT_CURSOR.lock().unwrap() = Input {
                     conn,
                     time: get_time(),
                     x,
@@ -1427,7 +1427,7 @@ pub fn handle_mouse_simulation_(evt: &MouseEvent, conn: i32) {
             {
                 // TODO: support track pad on win.
 
-                // fix shift + scroll(down/up)
+                // 修复 shift + 滚动（向下/向上）
                 if !is_track_pad
                     && evt
                         .modifiers
@@ -1488,12 +1488,12 @@ pub fn handle_mouse_show_cursor_(evt: &MouseEvent, conn: i32, username: String, 
         }
         MOUSE_TYPE_UP => {
             if buttons == MOUSE_BUTTON_LEFT {
-                // Some clients intentionally send button events without coordinates.
-                // Fall back to the last known cursor position to avoid jumping to (0, 0).
+                // 有些客户端会有意发送不带坐标的按键事件。
+                // 回退到最后已知的光标位置，避免跳到 (0, 0)。
                 // TODO(protocol): (0, 0) is a valid screen coordinate. Consider using a dedicated
-                // sentinel value (e.g. INVALID_CURSOR_POS) or a protocol-level flag to distinguish
-                // "coordinates not provided" from "coordinates are (0, 0)". Impact is minor since
-                // this only affects whiteboard rendering and clicking exactly at (0, 0) is rare.
+                // 哨兵值（例如 INVALID_CURSOR_POS）或协议层面的标志，用来区分
+                // 「未提供坐标」和「坐标是 (0, 0)」。影响很小，因为
+                // 这只影响白板渲染，而恰好点击 (0, 0) 是很少见的。
                 let (x, y) = if evt.x == 0 && evt.y == 0 {
                     get_last_input_cursor_pos()
                 } else {
@@ -1540,8 +1540,8 @@ pub fn is_enter(evt: &KeyEvent) -> bool {
 pub async fn lock_screen() {
     cfg_if::cfg_if! {
     if #[cfg(target_os = "linux")] {
-        // xdg_screensaver lock not work on Linux from our service somehow
-        // loginctl lock-session also not work, they both work run rustdesk from cmd
+        // 不知怎么的，从我们的服务在 Linux 上调用 xdg_screensaver lock 不起作用
+        // loginctl lock-session 也不起作用；两者在从命令行运行 rustdesk 时都正常
         std::thread::spawn(|| {
             let mut key_event = KeyEvent::new();
 
@@ -1556,7 +1556,7 @@ pub async fn lock_screen() {
             handle_key(&key_event);
         });
     } else if #[cfg(target_os = "macos")] {
-        // CGSession -suspend not real lock screen, it is user switch
+        // CGSession -suspend 不是真正的锁屏，它是用户切换
         std::thread::spawn(|| {
             let mut key_event = KeyEvent::new();
 
@@ -1591,16 +1591,16 @@ pub fn handle_key(evt: &KeyEvent) {
 #[inline]
 #[cfg(target_os = "macos")]
 pub fn handle_key(evt: &KeyEvent) {
-    // having GUI, run main GUI thread, otherwise crash
+    // 有 GUI 时，要在主 GUI 线程中运行，否则会崩溃
     let evt = evt.clone();
     QUEUE.exec_async(move || handle_key_(&evt));
-    // Key sleep is required for macOS.
-    // If we don't sleep, the key press/release events may not take effect.
+    // macOS 上按键必须 sleep。
+    // 如果不 sleep，按键按下/释放事件可能不会生效。
     //
-    // For example, the controlled side osx `12.7.6` or `15.1.1`
-    // If we input characters quickly and continuously, and press or release "Shift" for a short period of time,
-    // it is possible that after releasing "Shift", the controlled side will still print uppercase characters.
-    // Though it is not very easy to reproduce.
+    // 例如被控端的 osx `12.7.6` 或 `15.1.1`
+    // 如果我们快速连续地输入字符，并且短时间内按下或释放 "Shift"，
+    // 有可能在释放 "Shift" 之后，被控端仍然打印出大写字符。
+    // 尽管复现起来不太容易。
     key_sleep();
 }
 
@@ -1623,13 +1623,13 @@ fn sim_rdev_rawkey_position(code: KeyCode, keydown: bool) {
     let rawkey = RawKey::ScanCode(code);
     #[cfg(target_os = "linux")]
     let rawkey = RawKey::LinuxXorgKeycode(code);
-    // // to-do: test android
+    // 待办：测试 android
     // #[cfg(target_os = "android")]
     // let rawkey = RawKey::LinuxConsoleKeycode(code);
     #[cfg(target_os = "macos")]
     let rawkey = RawKey::MacVirtualKeycode(code);
 
-    // map mode(1): Send keycode according to the peer platform.
+    // map 模式(1)：根据对端平台发送键码。
     record_pressed_key(KeysDown::RdevKey(rawkey), keydown);
 
     let event_type = if keydown {
@@ -1734,8 +1734,8 @@ fn map_keyboard_mode(evt: &KeyEvent) {
     sim_rdev_rawkey_position(evt.chr() as _, evt.down);
 }
 
-/// Send raw keycode on Wayland via the active backend (uinput or RemoteDesktop portal).
-/// The keycode is expected to be a Linux keycode (evdev code + 8 for X11 compatibility).
+/// 在 Wayland 上通过当前活动的后端（uinput 或 RemoteDesktop portal）发送原始键码。
+/// 期望该键码是 Linux 键码（evdev 编码加上为兼容 X11 而设的 8）。
 #[cfg(target_os = "linux")]
 #[inline]
 fn wayland_send_raw_key(code: u16, down: bool) {
@@ -1749,8 +1749,8 @@ fn wayland_send_raw_key(code: u16, down: bool) {
 
 #[cfg(target_os = "macos")]
 fn add_flags_to_enigo(en: &mut Enigo, key_event: &KeyEvent) {
-    // When long-pressed the command key, then press and release
-    // the Tab key, there should be CGEventFlagCommand in the flag.
+    // 当长按 command 键后再按下并释放
+    // Tab 键时，标志中应该带有 CGEventFlagCommand。
     en.reset_flag();
     for ck in key_event.modifiers.iter() {
         if let Some(key) = KEY_MAP.get(&ck.value()) {
@@ -1848,12 +1848,12 @@ fn need_to_uppercase(en: &mut Enigo) -> bool {
 }
 
 fn process_chr(en: &mut Enigo, chr: u32, down: bool, _hotkey: bool) {
-    // On Wayland with uinput mode:
-    // - ASCII printable: input via key events (custom keyboard path, e.g. portal keysym)
-    // - Non-ASCII: input via clipboard paste
+    // 在带 uinput 模式的 Wayland 上：
+    // - ASCII 可打印字符：通过按键事件输入（自定义键盘路径，例如 portal keysym）
+    // - 非 ASCII：通过剪贴板粘贴输入
     #[cfg(target_os = "linux")]
     if !crate::platform::linux::is_x11() && wayland_use_uinput() {
-        // Skip clipboard for hotkeys (Ctrl/Alt/Meta pressed)
+        // 快捷键（按下了 Ctrl/Alt/Meta）时跳过剪贴板
         if !is_hotkey_modifier_pressed(en) {
             if let Ok(c) = char::try_from(chr) {
                 if is_ascii_printable(c) {
@@ -1904,9 +1904,9 @@ fn process_chr(en: &mut Enigo, chr: u32, down: bool, _hotkey: bool) {
 }
 
 fn process_unicode(en: &mut Enigo, chr: u32) {
-    // On Wayland with uinput mode:
-    // - ASCII printable: input via key sequence (custom keyboard path)
-    // - Non-ASCII: input via clipboard paste
+    // 在带 uinput 模式的 Wayland 上：
+    // - ASCII 可打印字符：通过按键序列输入（自定义键盘路径）
+    // - 非 ASCII：通过剪贴板粘贴输入
     #[cfg(target_os = "linux")]
     if !crate::platform::linux::is_x11() && wayland_use_uinput() {
         if let Ok(c) = char::try_from(chr) {
@@ -1925,9 +1925,9 @@ fn process_unicode(en: &mut Enigo, chr: u32) {
 }
 
 fn process_seq(en: &mut Enigo, sequence: &str) {
-    // On Wayland with uinput mode:
-    // - pure ASCII printable sequence: input via key sequence (custom keyboard path)
-    // - any non-ASCII present: input whole sequence via clipboard to preserve order
+    // 在带 uinput 模式的 Wayland 上：
+    // - 纯 ASCII 可打印序列：通过按键序列输入（自定义键盘路径）
+    // - 含有任何非 ASCII 字符：通过剪贴板输入整个序列以保持顺序
     #[cfg(target_os = "linux")]
     if !crate::platform::linux::is_x11() && wayland_use_uinput() {
         if sequence.chars().all(is_ascii_printable) {
@@ -1941,10 +1941,10 @@ fn process_seq(en: &mut Enigo, sequence: &str) {
     en.key_sequence(&sequence);
 }
 
-/// Delay in milliseconds to wait for clipboard to sync on Wayland.
-/// This is an empirical value — Wayland provides no callback or event to confirm
-/// clipboard content has been received by the compositor. Under heavy system load,
-/// this delay may be insufficient, but there is no reliable alternative mechanism.
+/// 在 Wayland 上等待剪贴板同步的延迟（毫秒）。
+/// 这是一个经验值——Wayland 没有提供回调或事件来确认
+/// 剪贴板内容已被合成器接收。在系统负载很高时，
+/// 这个延迟可能不够，但也没有可靠的替代机制。
 #[cfg(target_os = "linux")]
 const CLIPBOARD_SYNC_DELAY_MS: u64 = 50;
 #[cfg(target_os = "linux")]
@@ -2007,7 +2007,7 @@ fn rollback_wayland_clipboard_input_record(record: (Instant, String)) {
     if let Some(pos) = records
         .iter()
         .rposition(|(record_created_at, record_normalized)| {
-            *record_created_at == created_at && *record_normalized == normalized
+            * record_created_at == created_at && *record_normalized == normalized
         })
     {
         records.remove(pos);
@@ -2030,8 +2030,8 @@ pub(super) fn is_recent_wayland_clipboard_input(text: &str) -> bool {
         .any(|(_, record_normalized)| record_normalized == &normalized)
 }
 
-/// Internal: Set clipboard content without delay.
-/// Returns true if clipboard was set successfully.
+/// 内部接口：设置剪贴板内容，不加延迟。
+/// 如果剪贴板设置成功则返回 true。
 #[cfg(target_os = "linux")]
 fn set_clipboard_content(text: &str) -> bool {
     if let Err(e) = crate::clipboard::set_text_clipboard_with_owner_sync(
@@ -2047,12 +2047,12 @@ fn set_clipboard_content(text: &str) -> bool {
     true
 }
 
-/// Set clipboard content for paste operation (sync version for use in blocking contexts).
+/// 为粘贴操作设置剪贴板内容（同步版本，用于阻塞上下文）。
 ///
-/// Note: The original clipboard content is intentionally NOT restored after paste.
-/// Restoring clipboard could cause race conditions where subsequent keystrokes
-/// might accidentally paste the old clipboard content instead of the intended input.
-/// This trade-off prioritizes input reliability over preserving clipboard state.
+/// 注意：粘贴后刻意不会恢复原来的剪贴板内容。
+/// 恢复剪贴板可能引发竞态，导致后续的按键
+/// 意外粘贴出旧的剪贴板内容，而不是预期的输入。
+/// 这个取舍把输入的可靠性置于保留剪贴板状态之上。
 #[cfg(target_os = "linux")]
 #[inline]
 pub(super) fn set_clipboard_for_paste_sync(text: &str) -> bool {
@@ -2067,24 +2067,24 @@ pub(super) fn set_clipboard_for_paste_sync(text: &str) -> bool {
     true
 }
 
-/// Check if a character is ASCII printable (0x20-0x7E).
+/// 检查一个字符是否是 ASCII 可打印字符（0x20-0x7E）。
 #[cfg(target_os = "linux")]
 #[inline]
 pub(super) fn is_ascii_printable(c: char) -> bool {
     c as u32 >= 0x20 && c as u32 <= 0x7E
 }
 
-/// Input a single character via clipboard + Shift+Insert in server process.
+/// 在服务端进程中通过剪贴板 + Shift+Insert 输入单个字符。
 #[cfg(target_os = "linux")]
 #[inline]
 fn input_char_via_clipboard_server(en: &mut Enigo, chr: char) {
     input_text_via_clipboard_server(en, &chr.to_string());
 }
 
-/// Input text via clipboard + Shift+Insert in server process.
-/// Shift+Insert is more universal than Ctrl+V, works in both GUI apps and terminals.
+/// 在服务端进程中通过剪贴板 + Shift+Insert 输入文本。
+/// Shift+Insert 比 Ctrl+V 更通用，在 GUI 程序和终端里都能用。
 ///
-/// Note: Clipboard content is NOT restored after paste - see `set_clipboard_for_paste_sync` for rationale.
+/// 注意：粘贴后不会恢复剪贴板内容——原因参见 `set_clipboard_for_paste_sync`。
 #[cfg(target_os = "linux")]
 fn input_text_via_clipboard_server(en: &mut Enigo, text: &str) {
     if text.is_empty() {
@@ -2094,8 +2094,8 @@ fn input_text_via_clipboard_server(en: &mut Enigo, text: &str) {
         return;
     }
 
-    // Use ENIGO's custom_keyboard directly to avoid creating new IPC connections
-    // which would cause excessive logging and keyboard device creation/destruction
+    // 直接使用 ENIGO 的 custom_keyboard，以避免创建新的 IPC 连接
+    // 那会导致过多的日志以及键盘设备的反复创建/销毁
     if en.key_down(Key::Shift).is_err() {
         log::error!("input_text_via_clipboard_server: failed to press Shift, skipping paste");
         return;
@@ -2108,8 +2108,8 @@ fn input_text_via_clipboard_server(en: &mut Enigo, text: &str) {
     en.key_up(Key::Raw(XKB_KEY_INSERT));
     en.key_up(Key::Shift);
 
-    // Brief delay to allow the target application to process the paste event.
-    // Empirical value — no reliable synchronization mechanism exists on Wayland.
+    // 短暂延迟，让目标应用有时间处理粘贴事件。
+    // 经验值——Wayland 上不存在可靠的同步机制。
     std::thread::sleep(std::time::Duration::from_millis(20));
 }
 
@@ -2132,7 +2132,7 @@ fn record_pressed_key(record_key: KeysDown, down: bool) {
 fn is_function_key(ck: &EnumOrUnknown<ControlKey>) -> bool {
     let mut res = false;
     if ck.value() == ControlKey::CtrlAltDel.value() {
-        // have to spawn new thread because send_sas is tokio_main, the caller can not be tokio_main.
+        // 必须新建线程，因为 send_sas 是 tokio_main，调用方不能是 tokio_main。
         #[cfg(windows)]
         std::thread::spawn(|| {
             allow_err!(send_sas());
@@ -2147,13 +2147,13 @@ fn is_function_key(ck: &EnumOrUnknown<ControlKey>) -> bool {
     return res;
 }
 
-/// Check if any hotkey modifier (Ctrl/Alt/Meta) is currently pressed.
-/// Used to detect hotkey combinations like Ctrl+C, Alt+Tab, etc.
+/// 检查当前是否按下了某个快捷键修饰键（Ctrl/Alt/Meta）。
+/// 用于检测 Ctrl+C、Alt+Tab 等快捷键组合。
 ///
-/// Note: Shift is intentionally NOT checked here. Shift+character produces a different
-/// character (e.g., Shift+a → 'A'), which is normal text input, not a hotkey.
-/// Shift is only relevant as a hotkey modifier when combined with Ctrl/Alt/Meta
-/// (e.g., Ctrl+Shift+Z), in which case this function already returns true via Ctrl.
+/// 注意：这里刻意不检查 Shift。Shift+字符会产生一个不同的
+/// 字符（例如 Shift+a → 'A'），这是普通的文本输入，而不是快捷键。
+/// 只有当 Shift 与 Ctrl/Alt/Meta 组合时，它作为快捷键修饰键才有意义
+/// （例如 Ctrl+Shift+Z），而那种情况下这个函数已经通过 Ctrl 返回 true。
 #[cfg(target_os = "linux")]
 #[inline]
 fn is_hotkey_modifier_pressed(en: &mut Enigo) -> bool {
@@ -2165,27 +2165,27 @@ fn is_hotkey_modifier_pressed(en: &mut Enigo) -> bool {
         || get_modifier_state(Key::RWin, en)
 }
 
-/// Release Shift keys before character input in Legacy/Translate mode.
-/// In these modes, the character has already been converted by the client,
-/// so we should input it directly without Shift modifier affecting the result.
+/// 在 Legacy/Translate 模式下输入字符之前先释放 Shift 键。
+/// 在这些模式下，字符已经由客户端转换过了，
+/// 因此我们应当直接输入它，不让 Shift 修饰键影响结果。
 ///
-/// Note: Does NOT release Shift if hotkey modifiers (Ctrl/Alt/Meta) are pressed,
-/// to preserve combinations like Ctrl+Shift+Z.
+/// 注意：如果按下了快捷键修饰键（Ctrl/Alt/Meta），则不会释放 Shift，
+/// 以保留 Ctrl+Shift+Z 这样的组合。
 #[cfg(target_os = "linux")]
 fn release_shift_for_char_input(en: &mut Enigo) {
-    // Don't release Shift if hotkey modifiers (Ctrl/Alt/Meta) are pressed.
-    // This preserves combinations like Ctrl+Shift+Z.
+    // 如果按下了快捷键修饰键（Ctrl/Alt/Meta），不要释放 Shift。
+    // 这样可以保留 Ctrl+Shift+Z 这样的组合。
     if is_hotkey_modifier_pressed(en) {
         return;
     }
 
-    // In translate mode, the client has already converted the keystroke to a character
-    // (e.g., Shift+a → 'A'). We release Shift here so the server inputs the character
-    // directly without Shift affecting the result.
+    // 在 translate 模式下，客户端已经把按键转换成了字符
+    // （例如 Shift+a → 'A'）。我们在这里释放 Shift，好让服务端直接输入该字符
+    // 而不受 Shift 影响。
     //
-    // Shift is intentionally NOT restored after input — the client will send an explicit
-    // Shift key_up event when the user physically releases Shift. Restoring it here would
-    // cause a brief Shift re-press that could interfere with the next input event.
+    // 输入后刻意不会恢复 Shift——客户端会在用户物理释放 Shift 时
+    // 发送明确的 Shift key_up 事件。在这里恢复它会导致
+    // Shift 被短暂地重新按下，从而干扰下一个输入事件。
 
     let is_x11 = crate::platform::linux::is_x11();
 
@@ -2224,10 +2224,10 @@ fn legacy_keyboard_mode(evt: &KeyEvent) {
             process_control_key(&mut en, &ck, down)
         }
         Some(key_event::Union::Chr(chr)) => {
-            // For character input in Legacy mode, we need to release Shift first.
-            // The character has already been converted by the client, so we should
-            // input it directly without Shift modifier affecting the result.
-            // Only Ctrl/Alt/Meta should be kept for hotkeys like Ctrl+C.
+            // 在 Legacy 模式下输入字符时，需要先释放 Shift。
+            // 字符已经由客户端转换过了，因此我们应当
+            // 直接输入它，不让 Shift 修饰键影响结果。
+            // 只应为 Ctrl+C 这样的快捷键保留 Ctrl/Alt/Meta。
             #[cfg(target_os = "linux")]
             release_shift_for_char_input(&mut en);
 
@@ -2236,7 +2236,7 @@ fn legacy_keyboard_mode(evt: &KeyEvent) {
             process_chr(&mut en, chr, down, has_hotkey_modifiers(evt))
         }
         Some(key_event::Union::Unicode(chr)) => {
-            // Same as Chr: release Shift for Unicode input
+            // 与 Chr 相同：为 Unicode 输入释放 Shift
             #[cfg(target_os = "linux")]
             release_shift_for_char_input(&mut en);
 
@@ -2262,11 +2262,11 @@ fn translate_process_code(code: u32, down: bool) {
 fn translate_keyboard_mode(evt: &KeyEvent) {
     match &evt.union {
         Some(key_event::Union::Seq(seq)) => {
-            // On Wayland:
-            // - uinput mode (--service): keep clipboard handling in this process because
-            //   clipboard is unreliable in root service context.
-            // - rdp_input mode (--server): forward sequence to custom keyboard handler so
-            //   ASCII can use Portal keysym and non-ASCII can use clipboard.
+            // 在 Wayland 上：
+            // - uinput 模式（--service）：把剪贴板处理留在本进程中，因为
+            //   在 root 服务上下文中剪贴板并不可靠。
+            // - rdp_input 模式（--server）：把序列转发给自定义键盘处理器，这样
+            //   ASCII 可以用 Portal keysym，非 ASCII 可以用剪贴板。
             #[cfg(target_os = "linux")]
             if !crate::platform::linux::is_x11() {
                 let mut en = ENIGO.lock().unwrap();
@@ -2277,18 +2277,18 @@ fn translate_keyboard_mode(evt: &KeyEvent) {
                 }
 
                 if wayland_use_uinput() {
-                    // Check if this is a hotkey (Ctrl/Alt/Meta pressed)
-                    // For hotkeys, we send character-based key events via Enigo instead of
-                    // using the clipboard. This relies on the local keyboard layout for
-                    // mapping characters to physical keys.
-                    // This assumes client and server use the same keyboard layout (common case).
-                    // Note: For non-Latin keyboards (e.g., Arabic), hotkeys may not work
-                    // correctly if the character cannot be mapped to a key via KEY_MAP_LAYOUT.
-                    // This is a known limitation - most common hotkeys (Ctrl+A/C/V/Z) use Latin
-                    // characters which are mappable on most keyboard layouts.
+                    // 检查这是否是快捷键（按下了 Ctrl/Alt/Meta）
+                    // 对于快捷键，我们通过 Enigo 发送基于字符的按键事件，而不是
+                    // 使用剪贴板。这依赖于本地键盘布局来
+                    // 把字符映射到物理按键。
+                    // 这假设客户端和服务端使用相同的键盘布局（常见情况）。
+                    // 注意：对于非拉丁键盘（例如阿拉伯语键盘），如果字符无法通过 KEY_MAP_LAYOUT 映射到某个按键，快捷键可能无法
+                    // 正常工作。
+                    // 这是一个已知的限制——最常用的快捷键（Ctrl+A/C/V/Z）使用的是拉丁
+                    // 字符，在大多数键盘布局上都能映射。
                     if is_hotkey_modifier_pressed(&mut en) {
-                        // For hotkeys, send character-based key events via Enigo.
-                        // This relies on the local keyboard layout mapping (KEY_MAP_LAYOUT).
+                        // 对于快捷键，通过 Enigo 发送基于字符的按键事件。
+                        // 这依赖于本地键盘布局映射（KEY_MAP_LAYOUT）。
                         for chr in seq.chars() {
                             if !is_ascii_printable(chr) {
                                 log::warn!(
@@ -2300,7 +2300,7 @@ fn translate_keyboard_mode(evt: &KeyEvent) {
                         return;
                     }
 
-                    // Normal text input: release Shift and use clipboard
+                    // 普通文本输入：释放 Shift 并使用剪贴板
                     release_shift_for_char_input(&mut en);
                     if seq.chars().all(is_ascii_printable) {
                         en.key_sequence(seq);
@@ -2312,11 +2312,11 @@ fn translate_keyboard_mode(evt: &KeyEvent) {
             }
 
             // Fr -> US
-            // client: Shift + & => 1(send to remote)
-            // remote: Shift + 1 => !
+            // 客户端：Shift + & => 1（发送到远端）
+            // 远端：Shift + 1 => "!"
             //
-            // Try to release shift first.
-            // remote: Shift + 1 => 1
+            // 先尝试释放 shift。
+            // 远端：Shift + 1 => 1
             let mut en = ENIGO.lock().unwrap();
 
             #[cfg(target_os = "macos")]
@@ -2341,8 +2341,8 @@ fn translate_keyboard_mode(evt: &KeyEvent) {
                     }
                 }
                 for chr in seq.chars() {
-                    // char in rust is 4 bytes.
-                    // But for this case, char comes from keyboard. We only need 2 bytes.
+                    // rust 中的 char 是 4 字节。
+                    // 但这里 char 来自键盘，我们只需要 2 字节。
                     #[cfg(target_os = "windows")]
                     if simulate_win_hot_key {
                         rdev::simulate_char(chr, true).ok();
@@ -2360,7 +2360,7 @@ fn translate_keyboard_mode(evt: &KeyEvent) {
             #[cfg(target_os = "linux")]
             {
                 if !crate::platform::linux::is_x11() {
-                    // Wayland: use uinput to send raw keycode
+                    // Wayland：用 uinput 发送原始键码
                     wayland_send_raw_key(evt.chr() as u16, evt.down);
                 } else {
                     sim_rdev_rawkey_position(evt.chr() as _, evt.down);
@@ -2370,7 +2370,7 @@ fn translate_keyboard_mode(evt: &KeyEvent) {
             sim_rdev_rawkey_position(evt.chr() as _, evt.down);
         }
         Some(key_event::Union::Unicode(..)) => {
-            // Do not handle unicode for now.
+            // 暂不处理 unicode。
         }
         #[cfg(target_os = "windows")]
         Some(key_event::Union::Win2winHotkey(code)) => {
@@ -2416,8 +2416,8 @@ fn skip_led_sync_control_key(_key: &ControlKey) -> bool {
     false
 }
 
-// LockModesHandler should not be created when single meta is pressing and releasing.
-// Because the drop function may insert "CapsLock Click" and "NumLock Click", which breaks single meta click.
+// 当只是按下并释放单个 meta 时，不应创建 LockModesHandler。
+// 因为 drop 函数可能插入 "CapsLock Click" 和 "NumLock Click"，这会破坏单独的 meta 点击。
 // https://github.com/rustdesk/rustdesk/issues/3928#issuecomment-1496936687
 // https://github.com/rustdesk/rustdesk/issues/3928#issuecomment-1500415822
 // https://github.com/rustdesk/rustdesk/issues/3928#issuecomment-1500773473
@@ -2538,8 +2538,8 @@ pub fn handle_key_(evt: &KeyEvent) {
             translate_keyboard_mode(evt);
         }
         _ => {
-            // All key down events are started from here,
-            // so we can reset the flag of last legacy mode here.
+            // 所有按键按下事件都从这里开始，
+            // 因此我们可以在这里重置上一个 legacy 模式的标志。
             #[cfg(target_os = "macos")]
             set_last_legacy_mode(true);
             legacy_keyboard_mode(evt);
@@ -2589,7 +2589,7 @@ impl TemporaryMouseMoveHandle {
         let thread_handle = std::thread::spawn(move || {
             log::debug!("TemporaryMouseMoveHandle thread started");
             for (x, y) in rx {
-                // Not the peer's position: the calibration must not subtract from it.
+                // 不是对端的位置：校准不能从它做减法。
                 #[cfg(feature = "drm")]
                 forget_sample_and_move(|| ENIGO.lock().unwrap(), |mut en| en.mouse_move_to(x, y));
                 #[cfg(not(feature = "drm"))]
@@ -2614,9 +2614,9 @@ impl TemporaryMouseMoveHandle {
 impl Drop for TemporaryMouseMoveHandle {
     fn drop(&mut self) {
         log::debug!("Dropping TemporaryMouseMoveHandle");
-        // Close the channel to signal the thread to exit.
+        // 关闭通道以通知线程退出。
         self.tx.take();
-        // Wait for the thread to finish.
+        // 等待线程结束。
         if let Some(thread_handle) = self.thread_handle.take() {
             if let Err(e) = thread_handle.join() {
                 log::error!("Error joining TemporaryMouseMoveHandle thread: {:?}", e);
@@ -2742,7 +2742,7 @@ mod cursor_shape_tests {
         Arc::new(msg)
     }
 
-    // One test, since the shapes are kept process-wide.
+    // 只写一个测试，因为这些形状是进程级保存的。
     #[test]
     fn a_shape_is_kept_once_and_can_be_asked_for_again() {
         let first = shared_cursor_shape(shape(u64::MAX - 1));

@@ -36,11 +36,11 @@ fn finish_macos_update(result: hbb_common::ResultType<()>) -> Option<CoreMainAct
     }
 }
 
-/// shared by flutter and sciter main function
+/// 由 flutter 和 sciter 的主函数共用
 ///
-/// [Note]
-/// If it returns [`None`], then the process will terminate, and flutter gui will not be started.
-/// If it returns [`Some`], the action determines whether to start the UI or report failure.
+/// [注意]
+/// 如果返回 [`None`]，进程将终止，不会启动 flutter 界面。
+/// 如果返回 [`Some`]，则由返回的动作决定是启动界面还是报告失败。
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn core_main() -> Option<CoreMainAction> {
     if !crate::common::global_init() {
@@ -49,7 +49,7 @@ pub fn core_main() -> Option<CoreMainAction> {
     crate::load_custom_client();
     #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
-        // return None to terminate the process
+        // 返回 None 以终止进程
         return None;
     }
     let mut args = Vec::new();
@@ -97,9 +97,9 @@ pub fn core_main() -> Option<CoreMainAction> {
     if args.is_empty() {
         #[cfg(target_os = "linux")]
         let should_check_start_tray = crate::check_process("--server", false);
-        // We can use `crate::check_process("--server", false)` on Windows.
-        // Because `--server` process is the System user's process. We can't get the arguments in `check_process()`.
-        // We can assume that self service running means the server is also running on Windows.
+        // 在 Windows 上可以使用 `crate::check_process("--server", false)`。
+        // 因为 `--server` 进程是 System 用户的进程，我们在 `check_process()` 中拿不到它的参数。
+        // 可以认为在 Windows 上自服务正在运行就意味着服务端也在运行。
         #[cfg(target_os = "windows")]
         let should_check_start_tray = crate::platform::is_self_service_running()
             && crate::platform::is_cur_exe_the_installed();
@@ -141,9 +141,9 @@ pub fn core_main() -> Option<CoreMainAction> {
     if args.contains(&"--noinstall".to_string()) {
         args.clear();
     }
-    // The portable wrapper injects `--install` when its name ends with `install.exe`,
-    // including `no-install.exe`. Drop the argument instead of exiting so disabled
-    // clients can continue running as portable applications.
+    // 便携版包装器在自身名称以 `install.exe` 结尾时会注入 `--install`，
+    // 其中包括 `no-install.exe`。这里丢弃该参数而不是退出，以便被禁用的
+    // 客户端可以继续以便携应用方式运行。
     if config::is_disable_installation() {
         args.retain(|arg| arg != "--install");
         flutter_args.retain(|arg| arg != "--install");
@@ -167,7 +167,7 @@ pub fn core_main() -> Option<CoreMainAction> {
         crate::portable_service::client::set_quick_support(_is_quick_support);
     }
     let mut log_name = "".to_owned();
-    // Keep portable-service logs under a stable directory name.
+    // 把便携版服务的日志放在稳定的目录下。
     let has_portable_service_shmem_arg = args
         .iter()
         .any(|arg| arg.starts_with("--portable-service-shmem-name="));
@@ -181,7 +181,7 @@ pub fn core_main() -> Option<CoreMainAction> {
     }
     hbb_common::init_log(false, &log_name);
 
-    // linux uni (url) go here.
+    // linux uni (url) 放在这里。
     #[cfg(all(target_os = "linux", feature = "flutter"))]
     if args.len() > 0 && args[0].starts_with(&crate::get_uri_prefix()) {
         return try_send_by_dbus(args[0].clone()).map(CoreMainAction::StartUi);
@@ -218,10 +218,10 @@ pub fn core_main() -> Option<CoreMainAction> {
         std::thread::spawn(move || crate::start_server(false, no_server));
     } else {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        // Root CLI management commands must talk to the user `--server` main IPC.
-        // Example: `sudo rustdesk --option custom-rendezvous-server` should query the
-        // user's IPC instead of root's `/tmp/<app>-0/ipc`; `connect()` still limits this
-        // routing to empty-postfix main IPC only.
+        // root 的 CLI 管理命令必须与用户态的 `--server` 主 IPC 通信。
+        // 例如：`sudo rustdesk --option custom-rendezvous-server` 应查询
+        // 用户的 IPC，而不是 root 的 `/tmp/<app>-0/ipc`；`connect()` 仍将其限制为
+        // 只路由到无后缀的主 IPC。
         let _user_main_ipc_scope = if crate::platform::is_installed()
             && is_root()
             && is_user_main_ipc_scope_cli_command(&args)
@@ -240,7 +240,7 @@ pub fn core_main() -> Option<CoreMainAction> {
                 }
                 return None;
             } else if args[0] == "--update" {
-                // The elevated updater cannot delete its running verified copy.
+                // 提权后的更新程序无法删除正在运行的、已校验的自身副本。
                 if let Err(err) = platform::schedule_current_verified_update_file_cleanup() {
                     log::warn!("Failed to schedule verified update file cleanup: {}", err);
                 }
@@ -359,7 +359,7 @@ pub fn core_main() -> Option<CoreMainAction> {
         }
         if args[0] == "--remove" {
             if args.len() == 2 {
-                // sleep a while so that process of removed exe exit
+                // 稍作等待，让被删除的 exe 对应进程退出
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 std::fs::remove_file(&args[1]).ok();
                 return None;
@@ -403,7 +403,7 @@ pub fn core_main() -> Option<CoreMainAction> {
             {
                 let handler = std::thread::spawn(move || crate::start_server(true, false));
                 crate::tray::start_tray();
-                // prevent server exit when encountering errors from tray
+                // 避免遇到托盘（tray）错误时服务端退出
                 hbb_common::allow_err!(handler.join());
             }
             return None;
@@ -488,7 +488,7 @@ pub fn core_main() -> Option<CoreMainAction> {
         } else if args[0] == "--config" {
             if args.len() == 2 && !args[0].contains("host=") {
                 if crate::platform::is_installed() && is_root() {
-                    // encrypted string used in renaming exe.
+                    // 重命名 exe 时使用的加密字符串。
                     let name = if args[1].ends_with(".exe") {
                         args[1].to_owned()
                     } else {
@@ -652,7 +652,7 @@ pub fn core_main() -> Option<CoreMainAction> {
                         None
                     }
                 };
-                // An empty --id (e.g. an unset var) would deploy a blank id; the Android flow guards this too (#15146).
+                // 空的 --id（例如未赋值的变量）会部署一个空 id；Android 流程也做了同样的防护 (#15146)。
                 let new_id = get_value("--id").filter(|s| !s.is_empty());
                 match crate::ui_interface::deploy_device(token, new_id) {
                     crate::ui_interface::DeployResult::Ok => {
@@ -687,8 +687,8 @@ pub fn core_main() -> Option<CoreMainAction> {
             crate::ipc::hwcodec_process();
             return None;
         } else if args[0] == "--terminal-helper" {
-            // Terminal helper process - runs as user to create ConPTY
-            // This is needed because ConPTY has compatibility issues with CreateProcessAsUserW
+            // 终端辅助进程 —— 以用户身份运行来创建 ConPTY
+            // 这是必需的，因为 ConPTY 与 CreateProcessAsUserW 存在兼容性问题
             #[cfg(target_os = "windows")]
             {
                 let helper_args: Vec<String> = args[1..].to_vec();
@@ -698,8 +698,8 @@ pub fn core_main() -> Option<CoreMainAction> {
             }
             return None;
         } else if args[0] == "--cm" {
-            // call connection manager to establish connections
-            // meanwhile, return true to call flutter window to show control panel
+            // 调用连接管理器来建立连接
+            // 同时返回 true，以调用 flutter 窗口显示控制面板
             crate::ui_interface::start_option_status_sync();
         } else if args[0] == "--whiteboard" {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -708,7 +708,7 @@ pub fn core_main() -> Option<CoreMainAction> {
             }
             return None;
         } else if args[0] == "-gtk-sudo" {
-            // rustdesk service kill `rustdesk --` processes
+            // rustdesk 服务杀掉 `rustdesk --` 进程
             #[cfg(target_os = "linux")]
             if args.len() > 2 {
                 crate::platform::gtk_sudo::exec();
@@ -716,7 +716,7 @@ pub fn core_main() -> Option<CoreMainAction> {
             return None;
         }
     }
-    //_async_logger_holder.map(|x| x.flush());
+    // _async_logger_holder.map(|x| x.flush());
     #[cfg(feature = "flutter")]
     return Some(CoreMainAction::StartUi(flutter_args));
     #[cfg(not(feature = "flutter"))]
@@ -749,12 +749,12 @@ fn import_config(path: &str) {
     }
 }
 
-/// invoke a new connection
+/// 发起一个新连接
 ///
-/// [Note]
-/// this is for invoke new connection from dbus.
-/// If it returns [`None`], then the process will terminate, and flutter gui will not be started.
-/// If it returns [`Some`], then the process will continue, and flutter gui will be started.
+/// [注意]
+/// 这是用于从 dbus 发起新连接。
+/// 如果返回 [`None`]，进程将终止，不会启动 flutter 界面。
+/// 如果返回 [`Some`]，则进程将继续，并启动 flutter 界面。
 #[cfg(feature = "flutter")]
 fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<String>> {
     let mut authority = None;
@@ -775,7 +775,7 @@ fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<Strin
             "--relay" => {
                 param_array.push(format!("relay=true"));
             }
-            // inner
+            // 内部
             "--switch_uuid" => {
                 if let Some(switch_uuid) = args.next() {
                     param_array.push(format!("switch_uuid={switch_uuid}"));
@@ -843,7 +843,7 @@ fn try_send_by_dbus(uni_links: String) -> Option<Vec<String>> {
         }
         Err(err) => {
             log::error!("{}", err.as_ref());
-            // return Some to invoke this url by self
+            // 返回 Some 以由自身处理该 url
             return Some(Vec::new());
         }
     }
@@ -900,8 +900,8 @@ fn parse_silent_install_args(args: &[String]) -> (Option<bool>, bool) {
     (printer_override, debug)
 }
 
-/// Check if the executable is a Quick Support version.
-/// Note: This function must be kept in sync with `libs/portable/src/main.rs`.
+/// 检查该可执行文件是否为 Quick Support 版本。
+/// 注意：此函数必须与 `libs/portable/src/main.rs` 保持同步。
 #[cfg(windows)]
 #[inline]
 fn is_quick_support_exe(exe: &str) -> bool {

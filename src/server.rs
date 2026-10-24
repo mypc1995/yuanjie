@@ -95,19 +95,19 @@ pub struct ConnectionMeta {
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 const CONFIG_SYNC_INTERVAL_SECS: f32 = 0.3;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-// 3s is enough for at least one initial sync attempt:
-// 0.3s backoff + up to 1s connect timeout + up to 1s response timeout.
+// 3s 足以完成至少一次初始同步尝试：
+// 0.3s 退避 + 最多 1s 连接超时 + 最多 1s 响应超时。
 const CONFIG_SYNC_INITIAL_WAIT_SECS: u64 = 3;
 
 lazy_static::lazy_static! {
     pub static ref CHILD_PROCESS: Childs = Default::default();
-    // A client server used to provide local services(audio, video, clipboard, etc.)
-    // for all initiative connections.
+    // 一个客户端服务器，用于提供本地服务（音频、视频、剪贴板等）
+    // 适用于所有主动发起的连接。
     //
-    // [Note]
-    // ugly
-    // Now we use this [`CLIENT_SERVER`] to do following operations:
-    // - record local audio, and send to remote
+    // [注意]
+    // 丑陋
+    // 现在我们用这个 [`CLIENT_SERVER`] 来完成以下操作：
+    // - 录制本地音频并发送到远端
     pub static ref CLIENT_SERVER: ServerPtr = new();
 }
 
@@ -154,7 +154,7 @@ pub fn new() -> ServerPtr {
             server.add_service(Box::new(input_service::new_pos()));
             #[cfg(target_os = "linux")]
             if scrap::is_x11() {
-                // wayland does not support multiple displays currently
+                // wayland 目前不支持多显示器
                 server.add_service(Box::new(input_service::new_window_focus()));
             }
             #[cfg(not(target_os = "linux"))]
@@ -175,7 +175,7 @@ pub fn new() -> ServerPtr {
             }
         }
     }
-    // Terminal service is created per connection, not globally
+    // 终端服务按连接创建，而不是全局创建
     Arc::new(RwLock::new(server))
 }
 
@@ -188,13 +188,13 @@ async fn accept_connection_(
 ) -> ResultType<()> {
     let local_addr = socket.local_addr();
     drop(socket);
-    // even we drop socket, below still may fail if not use reuse_addr,
-    // there is TIME_WAIT before socket really released, so sometimes we
-    // see "Only one usage of each socket address is normally permitted" on windows sometimes,
+    // 即使我们丢弃了套接字，下面仍可能失败，如果没有使用 reuse_addr，
+    // 在套接字真正释放之前存在 TIME_WAIT，所以有时我们
+    // 在 windows 上会看到 "Only one usage of each socket address is normally permitted"，
     let listener = new_listener(local_addr, true).await?;
     log::info!("Server listening on: {}", &listener.local_addr()?);
     if let Ok((stream, addr)) = timeout(CONNECT_TIMEOUT, listener.accept()).await? {
-        // The peer is in: the place goes back before the session runs, as every punch's does.
+        // 对端已接入：槽位在会话运行前归还，就像每次打洞的那样。
         drop(slot);
         stream.set_nodelay(true).ok();
         let stream_addr = stream.local_addr()?;
@@ -218,15 +218,15 @@ pub async fn create_tcp_connection(
     meta: ConnectionMeta,
 ) -> ResultType<()> {
     let mut stream = stream;
-    // The address the connection layer keys on, whitelist and admission alike.
+    // 连接层所依据的地址，白名单和准入同样如此。
     let addr = hbb_common::try_into_v4(addr);
     let id = server.write().unwrap().get_new_id();
-    // Admitted before the identity handshake, so a peer that stalls in it, or after it without
-    // logging in, holds its place the whole time; an address over its share is turned away.
+    // 在身份握手之前就被准入，所以卡在握手中、或握手后未
+    // 登录的对端会一直占着它的槽位；超出份额的地址会被拒绝。
     let Some(unauthorized) = admit_unauthorized(id, addr.ip()) else {
         bail!("too many unauthenticated connections from {}", addr.ip());
     };
-    // Before the handshake, so its read is bounded too; lifted again at authorization.
+    // 在握手之前，所以它的读取也是有界的；在授权时再次解除。
     stream.set_max_packet_length(MAX_UNAUTHORIZED_MESSAGE);
     tokio::select! {
         handshake = identity_handshake(&mut stream, secure) => handshake?,
@@ -259,8 +259,8 @@ pub async fn create_tcp_connection(
     Ok(())
 }
 
-/// Our signed identity goes out and, when `secure`, the controller's reply keys `stream`.
-/// Separate so it can be raced against the connection's eviction.
+/// 我们签名的身份被发出，当 `secure` 时，控制端的回复以 `stream` 为键。
+/// 单独存放，以便能与管理连接淘汰赛跑。
 async fn identity_handshake(stream: &mut Stream, secure: bool) -> ResultType<()> {
     let (sk, pk) = Config::get_key_pair();
     if secure && pk.len() == sign::PUBLICKEYBYTES && sk.len() == sign::SECRETKEYBYTES {
@@ -269,18 +269,18 @@ async fn identity_handshake(stream: &mut Stream, secure: bool) -> ResultType<()>
         let sk = sign::SecretKey(sk_);
         let mut msg_out = Message::new();
         let (our_pk_b, our_sk_b) = box_::gen_keypair();
-        // On a WebRTC transport, bind our DTLS certificate fingerprint to our signed identity so
-        // the controller can verify the DTLS channel it negotiated actually terminates at us
-        // (not a rendezvous/relay that swapped the SDP fingerprint). Empty on other transports.
-        // Fail immediately on WebRTC if the local fingerprint is unavailable: signing "" would
-        // only make the client fail-closed after a wasted round-trip.
+        // 在 WebRTC 传输上，把我们的 DTLS 证书指纹与我们的签名身份绑定，这样
+        // 控制端就能验证它协商出的 DTLS 通道确实终结于我们这里
+        // （而不是某个替换了 SDP 指纹的 rendezvous/relay）。其他传输上为空。
+        // 在 WebRTC 上，如果本地指纹不可用就立即失败：签署 "" 只会
+        // 让客户端在浪费一次往返之后才失败关闭。
         let dtls_fingerprint = stream.dtls_fingerprint(true).await.unwrap_or_default();
         if stream.is_webrtc() && dtls_fingerprint.is_empty() {
             bail!("WebRTC local DTLS fingerprint unavailable");
         }
-        // A WebRTC stream is encrypted by DTLS and takes no stream key of its own, split or
-        // not, so what it advertises is what it runs: 0. Saying 1 there would have a future
-        // controller that splits keys on WebRTC agree on a version this side never applies.
+        // WebRTC 流由 DTLS 加密，本身不携带流密钥，无论是否拆分，
+        // 所以它宣告的就是它实际使用的：0。在那里写 1 会让将来
+        // 在 WebRTC 上拆分密钥的控制端，与这一侧从未应用的版本达成一致。
         let advertised = if stream.is_webrtc() {
             0
         } else {
@@ -404,7 +404,7 @@ async fn create_relay_connection_(
     ipv4: bool,
     meta: ConnectionMeta,
 ) -> ResultType<()> {
-    // The proxy's address family does not constrain the relay target.
+    // 代理的地址族不约束中继目标。
     let relay_server = crate::check_port(relay_server, RELAY_PORT);
     let use_ws_proxy = Config::is_proxy() && is_ws_endpoint(&check_ws(&relay_server));
     let mut stream = socket_client::connect_tcp(
@@ -532,7 +532,7 @@ impl Server {
         }
     }
 
-    // get a new unique id
+    // 获取一个新的唯一 id
     pub fn get_new_id(&mut self) -> i32 {
         self.id_count += 1;
         self.id_count
@@ -607,7 +607,7 @@ impl Server {
                 video_service_count += 1;
             }
         }
-        *scrap::quartz::ENABLE_RETINA.lock().unwrap() = video_service_count < 2;
+        * scrap::quartz::ENABLE_RETINA.lock().unwrap() = video_service_count < 2;
     }
 }
 
@@ -638,27 +638,27 @@ pub fn check_zombie() {
     });
 }
 
-/// Start the host server that allows the remote peer to control the current machine.
+/// 启动宿主服务，使远端对端可以控制当前机器。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `is_server` - Whether the current client is definitely the server.
-/// If true, the server will be started.
-/// Otherwise, client will check if there's already a server and start one if not.
+/// * `is_server` - 当前客户端是否确定是服务端。
+/// 为 true 时将启动服务端。
+/// 否则客户端会检查是否已存在服务端，若没有则启动一个。
 #[cfg(any(target_os = "android", target_os = "ios"))]
 #[tokio::main]
 pub async fn start_server(_is_server: bool) {
     crate::RendezvousMediator::start_all().await;
 }
 
-/// Start the host server that allows the remote peer to control the current machine.
+/// 启动宿主服务，使远端对端可以控制当前机器。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `is_server` - Whether the current client is definitely the server.
-/// If true, the server will be started.
-/// Otherwise, client will check if there's already a server and start one if not.
-/// * `no_server` - If `is_server` is false, whether to start a server if not found.
+/// * `is_server` - 当前客户端是否确定是服务端。
+/// 为 true 时将启动服务端。
+/// 否则客户端会检查是否已存在服务端，若没有则启动一个。
+/// * `no_server` - 当 `is_server` 为 false 时，未找到服务端是否要启动一个。
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tokio::main]
 pub async fn start_server(is_server: bool, no_server: bool) {
@@ -686,23 +686,23 @@ pub async fn start_server(is_server: bool, no_server: bool) {
                 std::process::exit(-1);
             }
         });
-        // Warm the DRM availability cache before any client connects, so the first connection does
-        // not race a cold `_drm` probe and ship an empty display list ("No displays" + retry).
-        // X11 is skipped -- probing there makes the root service open DRM readers for a path this
-        // session can never take -- but that decision belongs to `warm_availability`, which already
-        // makes it, and NOT to this call site. Deciding it here is the same one-shot-at-startup
-        // mistake the pre-warm had: `is_x11()` answers "x11" whenever loginctl cannot yet name the
-        // seat0 session, which during a boot is exactly when this runs, and nothing revisits it --
-        // so a Wayland host that came up slowly skipped the warm for the life of the process and
-        // got back the cold-probe "No displays" symptom the warm exists to remove.
+        // 在任何客户端连接之前预热 DRM 可用性缓存，这样首次连接不会
+        // 与冷启动的 `_drm` 探测赛跑而返回空的显示器列表（"No displays" + 重试）。
+        // X11 会被跳过——在那里探测会让 root 服务为本会话
+        // 根本走不到的路径打开 DRM reader——但这个决定属于 `warm_availability`，它已经
+        // 做出了这个决定，而不是这个调用点。在这里决定就等于重复了启动时一次性的
+        // 预热犯过的错误：只要 loginctl 还无法指出 seat0 会话，`is_x11()` 就回答 "x11"，
+        // 而启动过程中恰恰正是它运行的时候，且没有任何东西会重新检查它——
+        // 所以启动缓慢的 Wayland 宿主会在整个进程生命周期内跳过预热，
+        // 又出现了预热本该消除的冷探测 "No displays" 症状。
         #[cfg(all(target_os = "linux", feature = "drm"))]
         if let Err(err) = std::thread::Builder::new()
             .name("drm-warm".into())
             .spawn(drm_capturer::warm_availability)
         {
-            // Same reason as the root service's startup threads: `thread::spawn` panics on EAGAIN
-            // and that would abort `start_server`. Skipping the warm costs the first session the
-            // cold probe, which is what happened before the warm existed.
+            // 与 root 服务的启动线程同样的原因：`thread::spawn` 在 EAGAIN 时会 panic，
+            // 那会中止 `start_server`。跳过预热会让首个会话付出
+            // 冷探测的代价，而这正是预热出现之前的情况。
             log::warn!("drm: could not spawn the availability warm ({err}); skipping it");
         }
         input_service::fix_key_down_timeout_loop();
@@ -801,7 +801,7 @@ async fn wait_initial_config_sync() {
         return;
     }
 
-    // Non-server process should not block startup, but still keeps background sync/watch alive.
+    // 非服务端进程不应阻塞启动，但仍要保持后台同步/监控存活。
     if !crate::is_server() {
         tokio::spawn(async move {
             sync_and_watch_config_dir(None).await;
@@ -814,7 +814,7 @@ async fn wait_initial_config_sync() {
         sync_and_watch_config_dir(Some(sync_done_tx)).await;
     });
 
-    // Server process waits up to N seconds for initial root->local sync to reduce stale-start window.
+    // 服务端进程最多等待 N 秒完成初始的 root->local 同步，以缩短陈旧启动窗口。
     tokio::select! {
         _ = &mut sync_done_rx => {
         }
@@ -861,16 +861,16 @@ async fn sync_and_watch_config_dir(sync_done_tx: Option<tokio::sync::oneshot::Se
                                             log::info!("sync config2 from root");
                                         }
                                     } else {
-                                        // only on macos, because this issue was only reproduced on macos
+                                        // 仅在 macos 上，因为这个问题只在 macos 上复现过
                                         #[cfg(target_os = "macos")]
                                         {
-                                            // root config is empty, mark for sync in watch loop
-                                            // to prevent root from generating a new config on login screen
+                                            // root 配置为空，标记以便在监控循环中同步
+                                            // 以防止 root 在登录界面生成新配置
                                             is_root_config_empty = true;
                                         }
                                     }
                                     synced = true;
-                                    // Notify startup waiter once initial sync phase finishes successfully.
+                                    // 初始同步阶段成功完成后通知启动等待者。
                                     if let Some(tx) = sync_done_tx.take() {
                                         let _ = tx.send(());
                                     }
@@ -922,7 +922,7 @@ async fn sync_and_watch_config_dir(sync_done_tx: Option<tokio::sync::oneshot::Se
             }
         }
     }
-    // Notify startup waiter even when initial sync is skipped/failed, to avoid unnecessary waiting.
+    // 即使初始同步被跳过或失败，也通知启动等待者，以免无谓等待。
     if let Some(tx) = sync_done_tx.take() {
         let _ = tx.send(());
     }
@@ -931,14 +931,14 @@ async fn sync_and_watch_config_dir(sync_done_tx: Option<tokio::sync::oneshot::Se
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn stop_main_window_process() {
-    // this may also kill another --server process,
-    // but --server usually can be auto restarted by --service, so it is ok
+    // 这也可能杀掉另一个 --server 进程，
+    // 但 --server 通常可以由 --service 自动重启，所以没问题
     if let Ok(mut conn) = crate::ipc::connect(1000, "").await {
         conn.send(&crate::ipc::Data::Close).await.ok();
     }
     #[cfg(windows)]
     {
-        // in case above failure, e.g. zombie process
+        // 应对上述失败情况，例如僵尸进程
         if let Err(e) = crate::platform::try_kill_rustdesk_main_window_process() {
             log::error!("kill failed: {}", e);
         }

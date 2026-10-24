@@ -23,14 +23,14 @@ import '../../utils/image.dart';
 
 final initText = '1' * 1024;
 
-// Workaround for Android (default input method, Microsoft SwiftKey keyboard) when using physical keyboard.
-// When connecting a physical keyboard, `KeyEvent.physicalKey.usbHidUsage` are wrong is using Microsoft SwiftKey keyboard.
+// 在 Android 上使用物理键盘时的变通方案（默认输入法 Microsoft SwiftKey 键盘）。
+// 连接物理键盘时，使用 Microsoft SwiftKey 键盘会导致 `KeyEvent.physicalKey.usbHidUsage` 取值错误。
 // https://github.com/flutter/flutter/issues/159384
 // https://github.com/flutter/flutter/issues/159383
 void _disableAndroidSoftKeyboard({bool? isKeyboardVisible}) {
   if (isAndroid) {
     if (isKeyboardVisible != true) {
-      // `enable_soft_keyboard` will be set to `true` when clicking the keyboard icon, in `openKeyboard()`.
+      // 点击键盘图标时会在 `openKeyboard()` 中把 `enable_soft_keyboard` 设为 `true`。
       gFFI.invokeMethod("enable_soft_keyboard", false);
     }
   }
@@ -138,9 +138,9 @@ class _ViewCameraPageState extends State<ViewCameraPage>
         overlays: SystemUiOverlay.values);
     WakelockManager.disable(_uniqueKey);
     removeSharedStates(widget.id);
-    // `on_voice_call_closed` should be called when the connection is ended.
-    // The inner logic of `on_voice_call_closed` will check if the voice call is active.
-    // Only one client is considered here for now.
+    // 连接结束时应该调用 `on_voice_call_closed`。
+    // `on_voice_call_closed` 的内部逻辑会检查语音通话是否处于活动状态。
+    // 目前这里只考虑一个客户端。
     gFFI.chatModel.onVoiceCallClosed("End connection");
   }
 
@@ -149,8 +149,8 @@ class _ViewCameraPageState extends State<ViewCameraPage>
 
   @override
   void didChangeMetrics() {
-    // If the soft keyboard is visible and the canvas has been changed(panned or scaled)
-    // Don't try reset the view style and focus the cursor.
+    // 如果软键盘可见且画布已被改变（平移或缩放）
+    // 不要尝试重置视图样式并聚焦光标。
     if (gFFI.cursorModel.lastKeyboardIsVisible &&
         gFFI.canvasModel.isMobileCanvasChanged) {
       return;
@@ -159,7 +159,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
     final newBottom = MediaQueryData.fromView(ui.window).viewInsets.bottom;
     _timerDidChangeMetrics?.cancel();
     _timerDidChangeMetrics = Timer(Duration(milliseconds: 100), () async {
-      // We need this comparation because poping up the floating action will also trigger `didChangeMetrics()`.
+      // 需要这个比较，因为弹出浮动操作按钮同样会触发 `didChangeMetrics()`。
       if (newBottom != _viewInsetsBottom) {
         gFFI.canvasModel.mobileFocusCanvasCursor();
         _viewInsetsBottom = newBottom;
@@ -167,13 +167,13 @@ class _ViewCameraPageState extends State<ViewCameraPage>
     });
   }
 
-  // to-do: It should be better to use transparent color instead of the bgColor.
-  // But for now, the transparent color will cause the canvas to be white.
-  // I'm sure that the white color is caused by the Overlay widget in BlockableOverlay.
-  // But I don't know why and how to fix it.
+  // 待办：使用透明色而不是 bgColor 会更好。
+  // 但目前透明色会导致画布变成白色。
+  // 我确信白色是由 BlockableOverlay 中的 Overlay 组件造成的。
+  // 但我不知道原因以及如何修复。
   Widget emptyOverlay(Color bgColor) => BlockableOverlay(
-        /// the Overlay key will be set with _blockableOverlayState in BlockableOverlay
-        /// see override build() in [BlockableOverlay]
+        /// Overlay 的 key 将在 BlockableOverlay 中用 _blockableOverlayState 设置
+        /// 参见 [BlockableOverlay] 中的 override build()
         state: _blockableOverlayState,
         underlying: Container(
           color: bgColor,
@@ -196,7 +196,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
         return false;
       },
       child: Scaffold(
-          // workaround for https://github.com/rustdesk/rustdesk/issues/3131
+          // 针对 https://github.com/rustdesk/rustdesk/issues/3131 的变通方案
           floatingActionButtonLocation: keyboardIsVisible
               ? FABLocation(FloatingActionButtonLocation.endFloat, 0, -35)
               : null,
@@ -280,8 +280,8 @@ class _ViewCameraPageState extends State<ViewCameraPage>
   Widget getRawPointerAndKeyBody(Widget child) {
     return CameraRawPointerMouseRegion(
       inputModel: inputModel,
-      // Disable RawKeyFocusScope before the connecting is established.
-      // The "Delete" key on the soft keyboard may be grabbed when inputting the password dialog.
+      // 在连接建立之前禁用 RawKeyFocusScope。
+      // 在密码对话框中输入时，软键盘上的 "Delete" 键可能被抢占。
       child: gFFI.ffiModel.pi.isSet.isTrue
           ? RawKeyFocusScope(
               focusNode: _physicalFocusNode,
@@ -379,8 +379,8 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                   : TextFormField(
                       textInputAction: TextInputAction.newline,
                       autocorrect: false,
-                      // Flutter 3.16.9 Android.
-                      // `enableSuggestions` causes secure keyboard to be shown.
+                      // Flutter 3.16.9 Android。
+                      // `enableSuggestions` 会导致显示安全键盘。
                       // https://github.com/flutter/flutter/issues/139143
                       // https://github.com/flutter/flutter/issues/146540
                       // enableSuggestions: false,
@@ -388,16 +388,16 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                       focusNode: _mobileFocusNode,
                       maxLines: null,
                       controller: _textController,
-                      // trick way to make backspace work always
+                      // 让退格键始终生效的小技巧
                       keyboardType: TextInputType.multiline,
-                      // `onChanged` may be called depending on the input method if this widget is wrapped in
+                      // 如果该组件被包裹在
                       // `Focus(onKeyEvent: ..., child: ...)`
-                      // For `Backspace` button in the soft keyboard:
-                      // en/fr input method:
-                      //      1. The button will not trigger `onKeyEvent` if the text field is not empty.
-                      //      2. The button will trigger `onKeyEvent` if the text field is empty.
-                      // ko/zh/ja input method: the button will trigger `onKeyEvent`
-                      //                     and the event will not popup if `KeyEventResult.handled` is returned.
+                      // 对于软键盘上的 `Backspace` 按钮：
+                      // en/fr 输入法：
+                      // 1. 如果文本框非空，该按钮不会触发 `onKeyEvent`。
+                      // 2. 如果文本框为空，该按钮会触发 `onKeyEvent`。
+                      // ko/zh/ja 输入法：该按钮会触发 `onKeyEvent`
+                      // 并且如果返回 `KeyEventResult.handled`，事件就不会弹出。
                       onChanged: null,
                     ).workaroundFreezeLinuxMint(),
             ),
@@ -588,9 +588,9 @@ void showOptions(
     final isDarkTheme = MyTheme.currentThemeMode() == ThemeMode.dark;
     final numColorSelected = Colors.white;
     final numColorUnselected = isDarkTheme ? Colors.grey : Colors.black87;
-    // We can't use `Theme.of(context).primaryColor` here, the color is:
-    // - light theme: 0xff2196f3 (Colors.blue)
-    // - dark theme: 0xff212121 (the canvas color?)
+    // 这里不能用 `Theme.of(context).primaryColor`，因为颜色是：
+    // - 浅色主题：0xff2196f3 (Colors.blue)
+    // - 深色主题：0xff212121（画布颜色？）
     final numBgSelected =
         Theme.of(context).colorScheme.primary.withOpacity(0.6);
     for (var i = 0; i < pi.displays.length; ++i) {

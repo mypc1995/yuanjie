@@ -77,7 +77,7 @@ customImageQualityWidget(
                     translate('Bitrate'),
                     style: const TextStyle(fontSize: 15),
                   )),
-              // mobile doesn't have enough space
+              // 移动端空间不足
               if (showMoreQuality && !isMobile)
                 Expanded(
                     flex: 1,
@@ -278,11 +278,11 @@ bool isOtherDefaultSettingReadOnly(String key) =>
 
 class TrackpadSpeedWidget extends StatefulWidget {
   final SimpleWrapper<int> value;
-  // If null, no debouncer will be applied.
+  // 如果为 null，则不应用防抖。
   final Function(int)? onDebouncer;
   final ValueChanged<String>? onTextChanged;
-  // IME actions call TextField.onSubmitted without reaching the dialog's
-  // raw Enter handler, so the dialog needs a separate submission callback.
+  // IME 操作会调用 TextField.onSubmitted，而不会走到对话框的
+  // 原生 Enter 处理逻辑，因此对话框需要一个单独的提交回调。
   final ValueChanged<String>? onTextSubmitted;
 
   TrackpadSpeedWidget({
@@ -307,7 +307,7 @@ class TrackpadSpeedWidgetState extends State<TrackpadSpeedWidget> {
   void updateValue(int newValue) {
     setState(() {
       value = newValue.clamp(kMinTrackpadSpeed, kMaxTrackpadSpeed);
-      // Scale the trackpad speed value to a percentage for display purposes.
+      // 将触控板速度值缩放为百分比以便显示。
       _controller.text = value.toString();
       if (widget.onDebouncer != null) {
         debouncerSpeed.setValue(value);

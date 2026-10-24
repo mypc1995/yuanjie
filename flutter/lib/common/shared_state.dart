@@ -204,7 +204,7 @@ class KeyboardEnabledState {
   static void init(String id) {
     final key = tag(id);
     if (!Get.isRegistered<RxBool>(tag: key)) {
-      // Server side, default true
+      // 服务端，默认 true
       final RxBool state = true.obs;
       Get.put<RxBool>(state, tag: key);
     } else {

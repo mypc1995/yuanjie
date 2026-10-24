@@ -9,7 +9,7 @@ import 'package:flutter_hbb/native/custom_cursor.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uuid/uuid.dart';
 
-/// Stands in for the core, which keeps every shape the peer sent.
+/// 充当 core 的替身，core 会保留对端发送的每个图形。
 class _Cursor extends CursorModel {
   _Cursor(FFI ffi) : super(WeakReference(ffi));
   final core = <String, CursorShape>{};
@@ -44,7 +44,7 @@ class _FFI extends Fake implements FFI {
 Uint8List _pixels(int size, int seed) =>
     Uint8List.fromList(List.generate(size * size * 4, (i) => (i + seed) % 256));
 
-/// A shape as the core delivers it, and keeps it.
+/// core 交付图形的方式，并将其保留。
 Future<void> _feed(_FFI ffi, String id, {int size = 8, int seed = 0}) {
   final pixels = _pixels(size, seed);
   ffi.cursor.core[id] =
@@ -140,7 +140,7 @@ void main() {
 
   test('native cursors stay for the session, every raster of every shape',
       () async {
-    // A delete frees nothing on Windows, so none is deleted before the session ends.
+    // 在 Windows 上删除不会释放任何东西，因此在会话结束前不会有任何图形被删除。
     final cursor = ffi.cursorModel;
     for (var i = 0; i < 100; i++) {
       await _feed(ffi, '$i', size: 32);

@@ -136,12 +136,12 @@ impl PrivacyMode for PrivacyModeImpl {
             self.stop();
         }
 
-        // Continue local state cleanup even after stop(); the broker has
-        // been torn down, so keeping conn_id/hwnd would leave stale state.
+        // 即使 stop() 之后也继续清理本地状态；broker 已经
+        // 被拆掉了，所以保留 conn_id/hwnd 会留下过期状态。
         if self.conn_id != INVALID_PRIVACY_MODE_CONN_ID {
-            // Only publish the off state after the hide message was posted.
-            // Otherwise the peer may receive a success-like state and then a
-            // failed turn-off response for the same request.
+            // 只有在隐藏消息发出之后才发布关闭状态。
+            // 否则对端可能先收到一个类似成功的状态，紧接着又收到
+            // 同一个请求的关闭失败响应。
             if hide_result.is_ok() {
                 if let Some(state) = state {
                     allow_err!(super::set_privacy_mode_state(
@@ -430,17 +430,17 @@ fn privacy_window_wait_millis(base_millis: u128, monitor_count: usize) -> u128 {
     if base_millis == 0 {
         return 0;
     }
-    // Privacy Mode 1 creates one overlay per monitor. Keep the single-monitor
-    // wait as the base and add time for each extra overlay before coverage
-    // verification times out.
+    // 隐私模式 1 会为每台显示器创建一个覆盖层。以单显示器
+    // 的等待时间为基准，并在覆盖
+    // 校验超时之前为每个额外的覆盖层增加时间。
     base_millis
         + (monitor_count.saturating_sub(1) as u128) * PRIVACY_WINDOW_WAIT_EXTRA_MONITOR_MILLIS
 }
 
 fn wait_find_privacy_hwnds_impl(msecs: u128, require_visible: bool) -> ResultType<Vec<HWND>> {
-    // This verifies initial turn-on coverage. If displays change during this
-    // short poll window, the DLL refreshes overlays asynchronously, while this
-    // check may still time out against the geometry sampled here.
+    // 这校验的是初次开启时的覆盖情况。如果在这段
+    // 短暂的轮询窗口内显示器发生变化，DLL 会异步刷新覆盖层，而这里
+    // 的检查仍可能因为此处采样的几何信息而超时。
     let monitor_rects = get_monitor_rects()?;
     if monitor_rects.is_empty() {
         bail!("No privacy monitor found");

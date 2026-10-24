@@ -2,11 +2,11 @@ use std::boxed::Box;
 use std::error::Error;
 
 pub enum PixelProvider<'a> {
-    // 8 bits per color
+    // 每种颜色 8 位
     RGB(usize, usize, &'a [u8]),
     RGB0(usize, usize, &'a [u8]),
     BGR0(usize, usize, &'a [u8]),
-    // width, height, stride
+    // width、height、stride
     BGR0S(usize, usize, usize, &'a [u8]),
     NONE,
 }
@@ -41,15 +41,15 @@ where
 }
 
 pub trait Capturable: Send + BoxCloneCapturable {
-    /// Name of the Capturable, for example the window title, if it is a window.
+    /// Capturable 的名称，例如它是窗口时的窗口标题。
     fn name(&self) -> String;
-    /// Return x, y, width, height of the Capturable as floats relative to the absolute size of the
-    /// screen. For example x=0.5, y=0.0, width=0.5, height=1.0 means the right half of the screen.
+    /// 以相对于屏幕绝对尺寸的浮点数返回 Capturable 的 x、y、width、height。
+    /// 例如 x=0.5、y=0.0、width=0.5、height=1.0 表示屏幕的右半部分。
     fn geometry_relative(&self) -> Result<(f64, f64, f64, f64), Box<dyn Error>>;
-    /// Callback that is called right before input is simulated.
-    /// Useful to focus the window on input.
+    /// 在模拟输入之前调用的回调。
+    /// 用于在有输入时把窗口置前。
     fn before_input(&mut self) -> Result<(), Box<dyn Error>>;
-    /// Return a Recorder that can record the current capturable.
+    /// 返回一个可以录制当前 capturable 的 Recorder。
     fn recorder(&self, capture_cursor: bool) -> Result<Box<dyn Recorder>, Box<dyn Error>>;
 }
 

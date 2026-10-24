@@ -6,7 +6,7 @@ use std::{
 
 #[cfg(all(target_os = "linux", feature = "linux-pkg-config"))]
 fn link_pkg_config(name: &str) -> Vec<PathBuf> {
-    // sometimes an override is needed
+    // 有时需要覆盖
     let pc_name = match name {
         "libvpx" => "vpx",
         _ => name,
@@ -23,7 +23,7 @@ fn link_pkg_config(_name: &str) -> Vec<PathBuf> {
     unimplemented!()
 }
 
-/// Link vcpkg package.
+/// 链接 vcpkg 包。
 fn link_vcpkg(mut path: PathBuf, name: &str) -> PathBuf {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
     let mut target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
@@ -74,7 +74,7 @@ fn link_vcpkg(mut path: PathBuf, name: &str) -> PathBuf {
     include
 }
 
-/// Link homebrew package(for Mac M1).
+/// 链接 homebrew 包（用于 Mac M1）。
 fn link_homebrew_m1(name: &str) -> PathBuf {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
@@ -94,7 +94,7 @@ fn link_homebrew_m1(name: &str) -> PathBuf {
         .map(|x| x.unwrap().path())
         .filter(|x| x.is_dir())
         .collect::<Vec<_>>();
-    // Find the newest version.
+    // 查找最新版本。
     directories.sort_unstable();
     if directories.is_empty() {
         panic!(
@@ -103,25 +103,25 @@ fn link_homebrew_m1(name: &str) -> PathBuf {
         );
     }
     path.push(directories.pop().unwrap());
-    // Link the library.
+    // 链接该库。
     println!(
         "cargo:rustc-link-lib=static={}",
         name.trim_start_matches("lib")
     );
-    // Add the library path.
+    // 添加库路径。
     println!(
         "cargo:rustc-link-search={}",
         path.join("lib").to_str().unwrap()
     );
-    // Add the include path.
+    // 添加 include 路径。
     let include = path.join("include");
     println!("cargo:include={}", include.to_str().unwrap());
     include
 }
 
-/// Find package. By default, it will try to find vcpkg first, then homebrew(currently only for Mac M1).
-/// If building for linux and feature "linux-pkg-config" is enabled, will try to use pkg-config
-/// unless check fails (e.g. NO_PKG_CONFIG_libyuv=1)
+/// 查找包。默认先尝试查找 vcpkg，然后是 homebrew（目前仅用于 Mac M1）。
+/// 如果为 linux 构建且启用了 "linux-pkg-config" feature，则会尝试使用 pkg-config，
+/// 除非检查失败（例如 NO_PKG_CONFIG_libyuv=1）
 fn find_package(name: &str) -> Vec<PathBuf> {
     let no_pkg_config_var_name = format!("NO_PKG_CONFIG_{name}");
     println!("cargo:rerun-if-env-changed={no_pkg_config_var_name}");
@@ -132,7 +132,7 @@ fn find_package(name: &str) -> Vec<PathBuf> {
     } else if let Ok(vcpkg_root) = std::env::var("VCPKG_ROOT") {
         vec![link_vcpkg(vcpkg_root.into(), name)]
     } else {
-        // Try using homebrew
+        // 尝试使用 homebrew
         vec![link_homebrew_m1(name)]
     }
 }
@@ -180,8 +180,8 @@ fn gen_vcpkg_package(package: &str, ffi_header: &str, generated: &str, regex: &s
     generate_bindings(&ffi_header, &includes, &ffi_rs, &exact_file, regex);
 }
 
-// If you have problems installing ffmpeg, you can download $VCPKG_ROOT/installed from ci
-// Linux require link in hwcodec
+// 如果安装 ffmpeg 时遇到问题，可以从 ci 下载 $VCPKG_ROOT/installed
+// Linux 需要在 hwcodec 中链接
 /*
 fn ffmpeg() {
     // ffmpeg
@@ -227,16 +227,16 @@ fn ffmpeg() {
 */
 
 fn main() {
-    // in this crate, these are also valid configurations
+    // 在本 crate 中，这些也是有效的配置
     println!("cargo:rustc-check-cfg=cfg(dxgi,quartz,x11)");
 
-    // there is problem with cfg(target_os) in build.rs, so use our workaround
+    // build.rs 中的 cfg(target_os) 存在问题，所以使用我们的变通方案
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
 
-    // note: all link symbol names in x86 (32-bit) are prefixed wth "_".
-    // run "rustup show" to show current default toolchain, if it is stable-x86-pc-windows-msvc,
-    // please install x64 toolchain by "rustup toolchain install stable-x86_64-pc-windows-msvc",
-    // then set x64 to default by "rustup default stable-x86_64-pc-windows-msvc"
+    // 注意：x86（32 位）中的所有链接符号名都带 "_" 前缀。
+    // 运行 "rustup show" 查看当前默认工具链，如果是 stable-x86-pc-windows-msvc，
+    // 请用 "rustup toolchain install stable-x86_64-pc-windows-msvc" 安装 x64 工具链，
+    // 然后用 "rustup default stable-x86_64-pc-windows-msvc" 把 x64 设为默认
     let target = target_build_utils::TargetInfo::new();
     if target.unwrap().target_pointer_width() != "64" {
         // panic!("Only support 64bit system");
@@ -251,17 +251,17 @@ fn main() {
     // ffmpeg();
 
     if target_os == "ios" {
-        // nothing
+        // 无
     } else if target_os == "android" {
         println!("cargo:rustc-cfg=android");
     } else if cfg!(windows) {
-        // The first choice is Windows because DXGI is amazing.
+        // 首选 Windows，因为 DXGI 太棒了。
         println!("cargo:rustc-cfg=dxgi");
     } else if cfg!(target_os = "macos") {
-        // Quartz is second because macOS is the (annoying) exception.
+        // 其次是 Quartz，因为 macOS 是那个（麻烦的）例外。
         println!("cargo:rustc-cfg=quartz");
     } else if cfg!(unix) {
-        // On UNIX we pray that X11 (with XCB) is available.
+        // 在 UNIX 上我们祈祷 X11（带 XCB）可用。
         println!("cargo:rustc-cfg=x11");
     }
 }

@@ -37,7 +37,7 @@ class ServerPage extends StatefulWidget implements PageShape {
 class _DropDownAction extends StatelessWidget {
   _DropDownAction();
 
-  // should only have one action
+  // 应该只有一个操作
   final actions = [
     PopupMenuButton<String>(
         tooltip: "",
@@ -529,7 +529,7 @@ class ServerInfo extends StatelessWidget {
                     copyToClipboard(model.serverId.value.text.trim());
                   })
             ]).marginOnly(left: 39, bottom: 10),
-            // Password
+            // 密码
             Row(children: [
               const Icon(Icons.lock_outline, color: Colors.grey, size: iconSize)
                   .marginOnly(right: iconMarginRight),

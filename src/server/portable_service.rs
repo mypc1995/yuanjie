@@ -275,7 +275,7 @@ impl SharedMemory {
         };
         log::info!("Create shared memory, size: {}, flink: {}", size, flink);
         if let Err(err) = set_path_permission_for_portable_service_shmem_file(Path::new(&flink)) {
-            // Release shmem handle first so best-effort flink cleanup has a chance to succeed.
+            // 先释放 shmem 句柄，好让尽力而为的 flink 清理有机会成功。
             drop(shmem);
             match std::fs::remove_file(&flink) {
                 Ok(()) => {
@@ -328,11 +328,11 @@ impl SharedMemory {
             std::fs::create_dir_all(&dir)?;
         }
         if parent_created || crate::platform::is_root() {
-            // Harden parent ACL on first provisioning and periodically on SYSTEM path.
+            // 首次配置时加固父级 ACL，并在 SYSTEM 路径上周期性地加固。
             set_path_permission_for_portable_service_shmem_dir(&dir)?;
         } else {
-            // Existing parents still need type/reparse validation. Non-SYSTEM callers may lack
-            // WRITE_DAC on a valid parent, so avoid rebuilding the ACL here.
+            // 已存在的父级仍然需要做类型/重解析点校验。非 SYSTEM 的调用方可能缺少
+            // 对有效父级的 WRITE_DAC 权限，因此这里避免重建 ACL。
             validate_path_for_portable_service_shmem_dir(&dir)?;
         }
         Ok(dir
@@ -433,7 +433,7 @@ mod utils {
     }
 }
 
-// functions called in separate SYSTEM user process.
+// 在独立的 SYSTEM 用户进程中调用的函数。
 pub mod server {
     use base::message_proto::PointerDeviceEvent;
 
@@ -494,15 +494,15 @@ pub mod server {
         threads.push(std::thread::spawn(move || {
             run_ipc_client(ipc_token);
         }));
-        // Detached shutdown watchdog:
-        // - gives graceful shutdown/cleanup a short window
-        // - force-exits the process if workers are still stuck
+        // 分离式关闭看门狗：
+        // - 给优雅关闭/清理留出一个短暂窗口
+        // - 如果 worker 仍然卡住，就强制退出进程
         std::thread::spawn(|| {
             run_exit_check();
         });
         let record_pos_handle = crate::input_service::try_start_record_cursor_pos();
-        // Arm forced-exit watchdog only for worker join phase.
-        // Once join phase completes, cleanup should not be interrupted by forced exit.
+        // 只在使用强制退出看门狗的 worker 汇合阶段启用它。
+        // 汇合阶段一旦完成，清理就不应被强制退出打断。
         FORCE_EXIT_ARMED.store(true, Ordering::SeqCst);
         for th in threads.drain(..) {
             th.join().ok();
@@ -529,9 +529,9 @@ pub mod server {
             }
             std::thread::sleep(Duration::from_millis(50));
         }
-        // Fallback only: normal shutdown path should complete and process should exit naturally.
-        // This forced exit is a last resort when worker threads are stuck and graceful teardown
-        // does not finish in time.
+        // 仅作为兜底：正常的关闭路径应当完成，进程应当自然退出。
+        // 当 worker 线程卡住、优雅拆除
+        // 未能及时完成时，这个强制退出是最后手段。
         std::thread::sleep(FORCED_EXIT_DELAY);
         if FORCE_EXIT_ARMED.load(Ordering::SeqCst) {
             log::warn!(
@@ -573,7 +573,7 @@ pub mod server {
                     utils::increase_counter(shmem.as_ptr().add(ADDR_CURSOR_COUNTER));
                 }
             }
-            // more frequent in case of `Error of mouse_cursor service`
+            // 在出现 `Error of mouse_cursor service` 时更为频繁
             std::thread::sleep(Duration::from_millis(15));
         }
     }
@@ -600,12 +600,12 @@ pub mod server {
                 if c.is_none() {
                     let Ok(mut displays) = display_service::try_get_displays() else {
                         log::error!("Failed to get displays");
-                        *EXIT.lock().unwrap() = true;
+                        * EXIT.lock().unwrap() = true;
                         return;
                     };
                     if displays.len() <= current_display {
                         log::error!("Invalid display index:{}", current_display);
-                        *EXIT.lock().unwrap() = true;
+                        * EXIT.lock().unwrap() = true;
                         return;
                     }
                     let display = displays.remove(current_display);
@@ -672,7 +672,7 @@ pub mod server {
                                     frame_capacity,
                                     shmem.len()
                                 );
-                                *EXIT.lock().unwrap() = true;
+                                * EXIT.lock().unwrap() = true;
                                 return;
                             }
                             utils::set_frame_info(
@@ -690,7 +690,7 @@ pub mod server {
                             dxgi_failed_times = 0;
                         }
                         Frame::Texture(_) => {
-                            // should not happen
+                            // 不应该发生
                         }
                     },
                     Some(Err(e)) => {
@@ -701,7 +701,7 @@ pub mod server {
                             continue;
                         }
                         if e.kind() != std::io::ErrorKind::WouldBlock {
-                            // DXGI_ERROR_INVALID_CALL after each success on Microsoft GPU driver
+                            // 在微软 GPU 驱动上每次成功之后都会出现 DXGI_ERROR_INVALID_CALL
                             // log::error!("capture frame failed: {:?}", e);
                             if c.as_ref().map(|c| c.is_gdi()) == Some(false) {
                                 // nog gdi
@@ -736,7 +736,7 @@ pub mod server {
                     ipc::portable_service_ipc_handshake_as_client(&mut stream, &ipc_token).await
                 {
                     log::error!("portable service ipc handshake failed: {}", err);
-                    *EXIT.lock().unwrap() = true;
+                    * EXIT.lock().unwrap() = true;
                     return;
                 }
                 let mut timer =
@@ -818,11 +818,11 @@ pub mod server {
             }
         }
 
-        *EXIT.lock().unwrap() = true;
+        * EXIT.lock().unwrap() = true;
     }
 }
 
-// functions called in main process.
+// 在主进程中调用的函数。
 pub mod client {
     use super::*;
     use crate::display_service;
@@ -864,7 +864,7 @@ pub mod client {
 
     #[inline]
     fn set_runtime_ipc_token(token: String) {
-        *IPC_RUNTIME_TOKEN.lock().unwrap() = Some(token);
+        * IPC_RUNTIME_TOKEN.lock().unwrap() = Some(token);
     }
 
     #[inline]
@@ -892,9 +892,9 @@ pub mod client {
         if let Some(shmem) = shmem_lock.as_mut() {
             clear_ipc_token_in_shmem(shmem);
         }
-        *shmem_lock = None;
+        * shmem_lock = None;
         let runtime_name = SHMEM_RUNTIME_NAME.lock().unwrap().take();
-        *runtime_token = None;
+        * runtime_token = None;
         drop(runtime_token);
         drop(shmem_lock);
         if let Some(name) = runtime_name.as_deref() {
@@ -915,7 +915,7 @@ pub mod client {
         }
         let mut shmem_lock = SHMEM.lock().unwrap();
         let matched_shmem_name = SHMEM_RUNTIME_NAME.lock().unwrap().clone();
-        *token = None;
+        * token = None;
         if let Some(shmem) = shmem_lock.as_mut() {
             clear_ipc_token_in_shmem(shmem);
         }
@@ -940,7 +940,7 @@ pub mod client {
         let current_shmem_name = SHMEM_RUNTIME_NAME.lock().unwrap().clone();
         if current_shmem_name.as_deref() != expected_shmem_name {
             if runtime_token.as_deref() == Some(token) {
-                *runtime_token = None;
+                * runtime_token = None;
             }
             log::debug!(
                 "Skip restoring portable service ipc token after handshake failure: shared-memory instance has changed"
@@ -956,7 +956,7 @@ pub mod client {
         };
         if let Some(err) = shmem_write_error {
             if runtime_token.as_deref() == Some(token) {
-                *runtime_token = None;
+                * runtime_token = None;
             }
             log::warn!(
                 "Failed to restore portable service ipc token after handshake failure: {}",
@@ -964,7 +964,7 @@ pub mod client {
             );
             return;
         }
-        *runtime_token = Some(token.to_owned());
+        * runtime_token = Some(token.to_owned());
     }
 
     #[inline]
@@ -972,11 +972,11 @@ pub mod client {
         std::thread::spawn(move || {
             std::thread::sleep(PORTABLE_SERVICE_STARTUP_TIMEOUT);
             let should_reset = {
-                // Guard against stale watchdogs from previous launches:
-                // only the watchdog that matches the latest STARTING_TOKEN may reset STARTING.
+                // 防止上一次启动残留的过期看门狗：
+                // 只有与最新 STARTING_TOKEN 匹配的那个看门狗才可以重置 STARTING。
                 let current_token = STARTING_TOKEN.load(Ordering::SeqCst);
-                // Keep lock guards in explicit short scopes to make it obvious
-                // there is no nested lock ordering (and to avoid Copilot false positives).
+                // 把锁守卫放在明确的短作用域里，让人一眼看出
+                // 不存在嵌套加锁顺序（同时也是为了避免 Copilot 的误报）。
                 let starting = { *STARTING.lock().unwrap() };
                 let running = { *RUNNING.lock().unwrap() };
                 current_token == launch_token && starting && !running
@@ -985,32 +985,32 @@ pub mod client {
                 log::warn!(
                     "Portable service startup timeout before IPC ready, reset STARTING state"
                 );
-                *STARTING.lock().unwrap() = false;
+                * STARTING.lock().unwrap() = false;
             }
         });
     }
 
-    // Launch flow summary:
-    // 1) Prepare/reset runtime shared memory + IPC token.
-    // 2) Start helper process (direct or logon) with shmem argument.
-    // 3) Keep STARTING=true until IPC ping/pong marks RUNNING, or timeout watchdog resets it.
+    // 启动流程小结：
+    // 1) 准备/重置运行时共享内存 + IPC token。
+    // 2) 带 shmem 参数启动辅助进程（直接启动或登录启动）。
+    // 3) 保持 STARTING=true，直到 IPC 的 ping/pong 标记 RUNNING，或超时看门狗将其重置。
     pub(crate) fn start_portable_service(para: StartPara) -> ResultType<()> {
         log::info!("start portable service");
         let launch_token = {
-            // Keep lock guards in explicit short scopes to make it obvious
-            // there is no nested lock ordering (and to avoid Copilot false positives).
+            // 把锁守卫放在明确的短作用域里，让人一眼看出
+            // 不存在嵌套加锁顺序（同时也是为了避免 Copilot 的误报）。
             let running = { *RUNNING.lock().unwrap() };
             let mut starting = STARTING.lock().unwrap();
             if *starting && !running && !has_running_portable_service_process() {
                 log::warn!(
                     "Detected stale portable service STARTING state without running process, reset it"
                 );
-                *starting = false;
+                * starting = false;
             }
             if *starting || running {
                 bail!("already running");
             }
-            *starting = true;
+            * starting = true;
             STARTING_TOKEN.fetch_add(1, Ordering::SeqCst) + 1
         };
         let start_result = (|| -> ResultType<()> {
@@ -1039,12 +1039,12 @@ pub mod client {
                 bail!("Generated invalid portable service shared memory name");
             }
             let ipc_token = ipc::generate_one_time_ipc_token()?;
-            // os error 112, no enough space
-            *shmem_lock = Some(crate::portable_service::SharedMemory::create(
+            // os error 112，空间不足
+            * shmem_lock = Some(crate::portable_service::SharedMemory::create(
                 &shmem_name,
                 shmem_size,
             )?);
-            *SHMEM_RUNTIME_NAME.lock().unwrap() = Some(shmem_name);
+            * SHMEM_RUNTIME_NAME.lock().unwrap() = Some(shmem_name);
             shutdown_hooks::add_shutdown_hook(drop_portable_service_shared_memory);
             let shmem_name = SHMEM_RUNTIME_NAME
                 .lock()
@@ -1170,19 +1170,19 @@ pub mod client {
             Ok(())
         })();
         if start_result.is_err() {
-            *STARTING.lock().unwrap() = false;
+            * STARTING.lock().unwrap() = false;
         }
         start_result
     }
 
     pub extern "C" fn drop_portable_service_shared_memory() {
         // https://stackoverflow.com/questions/35980148/why-does-an-atexit-handler-panic-when-it-accesses-stdout
-        // Please make sure there is no print in the call stack
+        // 请确保调用栈里没有 print
         clear_runtime_shmem_state();
     }
 
     pub fn set_quick_support(v: bool) {
-        *QUICK_SUPPORT.lock().unwrap() = v;
+        * QUICK_SUPPORT.lock().unwrap() = v;
     }
 
     pub struct CapturerPortable {
@@ -1300,7 +1300,7 @@ pub mod client {
             }
         }
 
-        // control by itself
+        // 自行控制
         fn is_gdi(&self) -> bool {
             true
         }
@@ -1368,7 +1368,7 @@ pub mod client {
                                                 token,
                                                 consumed_token_shmem_name.as_deref(),
                                             );
-                                            *STARTING.lock().unwrap() = false;
+                                            * STARTING.lock().unwrap() = false;
                                         }
                                         log::warn!(
                                             "Rejected portable service ipc connection due to token handshake failure: postfix={}, err={}",
@@ -1403,8 +1403,8 @@ pub mod client {
                                                             }
                                                             Pong => {
                                                                 nack = 0;
-                                                                *RUNNING.lock().unwrap() = true;
-                                                                *STARTING.lock().unwrap() = false;
+                                                                * RUNNING.lock().unwrap() = true;
+                                                                * STARTING.lock().unwrap() = false;
                                                             },
                                                             ConnCount(None) => {
                                                                 if !quick_support {
@@ -1429,7 +1429,7 @@ pub mod client {
                                                 _ = timer.tick() => {
                                                     nack+=1;
                                                     if nack > MAX_NACK {
-                                                        // In fact, this will not happen, ipc will be closed before max nack.
+                                                        // 实际上这不会发生，ipc 会在达到最大 nack 之前关闭。
                                                         log::error!("max ipc nack");
                                                         break;
                                                     }
@@ -1440,8 +1440,8 @@ pub mod client {
                                                 }
                                             }
                                         }
-                                        *RUNNING.lock().unwrap() = false;
-                                        *STARTING.lock().unwrap() = false;
+                                        * RUNNING.lock().unwrap() = false;
+                                        * STARTING.lock().unwrap() = false;
                                     });
                                 }
                                 Err(err) => {

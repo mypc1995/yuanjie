@@ -13,7 +13,7 @@ lazy_static::lazy_static! {
 }
 
 pub fn set_map_err(f: fn(err: String) -> io::Error) {
-    *MAP_ERR.write().unwrap() = Some(f);
+    * MAP_ERR.write().unwrap() = Some(f);
 }
 
 fn map_err<E: ToString>(err: E) -> io::Error {

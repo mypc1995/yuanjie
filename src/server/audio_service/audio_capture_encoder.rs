@@ -26,7 +26,7 @@ struct CaptureEncoderState {
 
 impl CaptureEncoderState {
     fn new(sample_rate: u32, channels: Channels) -> Self {
-        // The encoder has already validated the supported Opus rate and channel count.
+        // 编码器已经校验过受支持的 Opus 采样率和声道数。
         let fade_frames = sample_rate as usize * CAPTURE_DECLICK_MS / MILLISECONDS_PER_SECOND;
         Self {
             channels: channels as usize,
@@ -47,7 +47,7 @@ impl CaptureEncoderState {
 
     fn smooth_packet(&mut self, sequence: usize, packet: &mut [f32]) {
         if sequence != self.expected_sequence {
-            // Capture packets contain 10 ms of PCM, so the transition fits in this packet.
+            // 采集包包含 10 ms 的 PCM，因此这个过渡能装进本包中。
             for (index, frame) in packet
                 .chunks_exact_mut(self.channels)
                 .take(self.fade_frames)
@@ -55,7 +55,7 @@ impl CaptureEncoderState {
             {
                 let weight = (index + 1) as f32 / self.fade_frames as f32;
                 for (channel, sample) in frame.iter_mut().enumerate() {
-                    *sample = self.last_frame[channel] * (1.0 - weight) + *sample * weight;
+                    * sample = self.last_frame[channel] * (1.0 - weight) + *sample * weight;
                 }
             }
         }

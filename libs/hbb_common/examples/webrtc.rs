@@ -66,12 +66,12 @@ async fn main() -> Result<()> {
     };
 
     let webrtc_stream = WebRTCStream::new(&remote_endpoint, false, 30000).await?;
-    // Print the offer to be sent to the other peer
+    // 打印要发送给另一个对端的 offer
     let local_endpoint = webrtc_stream.get_local_endpoint().await?;
 
     if remote_endpoint.is_empty() {
         println!();
-        // Wait for the answer to be pasted
+        // 等待粘贴 answer
         println!(
             "Start new terminal run: \n{} \ncopy remote endpoint and paste here",
             format!(
@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
                 local_endpoint
             )
         );
-        // readline blocking
+        // readline 阻塞
         let line = std::io::stdin()
             .lines()
             .next()
@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-// read_loop shows how to read from the datachannel directly
+// read_loop 演示如何直接从 datachannel 读取
 #[cfg(feature = "webrtc")]
 async fn read_loop(mut stream: WebRTCStream) -> Result<()> {
     loop {
@@ -132,7 +132,7 @@ async fn read_loop(mut stream: WebRTCStream) -> Result<()> {
     }
 }
 
-// write_loop shows how to write to the webrtc stream directly
+// write_loop 演示如何直接写入 webrtc 流
 #[cfg(feature = "webrtc")]
 async fn write_loop(mut stream: WebRTCStream) -> Result<()> {
     let mut result = Result::<()>::Ok(());

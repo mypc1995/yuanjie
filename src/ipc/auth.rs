@@ -51,13 +51,13 @@ pub(crate) fn portable_service_listener_security_attributes() -> io::Result<Secu
         "current_process_user_sid_string returned a non-SDDL SID: {}",
         user_sid
     );
-    // SDDL:
-    // - `D:P`                => protected DACL (no inherited ACEs)
-    // - `(A;;GA;;;SY)`       => allow GENERIC_ALL to LocalSystem
-    // - `(A;;GA;;;{user_sid})` => allow GENERIC_ALL to current process user SID
-    // References:
-    // - Security Descriptor String Format: https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
-    // - ACE strings in SDDL: https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
+    // SDDL：
+    // - `D:P`                => 受保护的 DACL（没有继承的 ACE）
+    // - `(A;;GA;;;SY)`       => 允许 LocalSystem 拥有 GENERIC_ALL
+    // - `(A;;GA;;;{user_sid})` => 允许当前进程的用户 SID 拥有 GENERIC_ALL
+    // 参考：
+    // - 安全描述符字符串格式：https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
+    // - SDDL 中的 ACE 字符串：https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
     let sddl = format!("D:P(A;;GA;;;SY)(A;;GA;;;{user_sid})");
     SecurityAttributes::from_sddl(&sddl).map_err(|err| {
         io::Error::new(
@@ -90,8 +90,8 @@ fn macos_service_ipc_allows_gui_and_service_binaries(
         return false;
     }
 
-    // On installed macOS builds, `_service` is listened by the `service` binary while the GUI
-    // process connects from the app executable within the same app bundle.
+    // 在已安装的 macOS 版本上，`_service` 由 `service` 二进制监听，而 GUI
+    // 进程则从同一个 app bundle 内的可执行文件发起连接。
     let gui_exe_name = std::ffi::OsString::from(crate::get_app_name());
     let gui_exe = gui_exe_name.as_os_str();
     let service_exe = std::ffi::OsStr::new("service");
@@ -156,17 +156,17 @@ fn is_allowed_windows_portable_service_peer(
     _client_session_id: Option<u32>,
     _expected_session_id: Option<u32>,
 ) -> bool {
-    // Portable-service listener DACL includes SYSTEM and current-process SID.
-    // In the portable-service path, current process is expected to run as SYSTEM,
-    // and the higher-layer peer policy stays SYSTEM-only.
+    // 便携版服务监听器的 DACL 包含 SYSTEM 和当前进程的 SID。
+    // 在便携版服务路径中，预期当前进程以 SYSTEM 身份运行，
+    // 而上层的对端策略仍然只允许 SYSTEM。
     matches!(client_is_system, Some(true))
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[inline]
 pub(crate) fn is_allowed_service_peer_uid(peer_uid: u32, active_uid: Option<u32>) -> bool {
-    // Root is allowed at the UID gate because the service side may run as root.
-    // Callers still enforce executable matching before accepting service-scoped peers.
+    // 在 UID 这一关允许 root，是因为服务侧可能以 root 运行。
+    // 调用方在接受服务作用域的对端之前，仍会强制校验可执行文件是否匹配。
     peer_uid == 0 || active_uid.is_some_and(|uid| uid == peer_uid)
 }
 
@@ -181,7 +181,7 @@ fn console_owner_uid() -> Option<u32> {
 #[cfg(target_os = "macos")]
 #[inline]
 fn active_uid_strict() -> Option<u32> {
-    // Prefer the filesystem metadata over parsing external command output.
+    // 优先使用文件系统元数据，而不是解析外部命令的输出。
     console_owner_uid()
 }
 
@@ -207,11 +207,11 @@ pub(crate) fn active_uid() -> Option<u32> {
     active_uid_strict()
 }
 
-/// The active session uid read ONLY from the service-loop cache, never from a fresh (blocking) seat0
-/// lookup. `None` on a cache miss. For hot, latency-sensitive, fail-closed re-auth on an async runtime
-/// thread (the `_drm` per-frame re-auth), where a blocking `loginctl` per frame would stall the stream.
-// Gated with the feature, not just the OS: the `_drm` per-frame re-auth is its only caller, so a
-// drm-off Linux build would carry it as dead code and warn about it.
+/// 活动会话 uid 只从服务循环缓存中读取，绝不来自新做的（阻塞式）seat0
+/// 查询。缓存未命中时为 `None`。用于在异步运行时线程上做热点、延迟敏感、失败即关闭的重新认证
+/// （`_drm` 的逐帧重新认证），在那里每帧一次阻塞的 `loginctl` 会拖垮码流。
+// 用 feature 门控，而不只是按操作系统门控：`_drm` 的逐帧重新认证是它唯一的调用者，所以
+// 关闭 drm 的 Linux 构建会把它当作死代码并产生警告。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 #[inline]
 pub(crate) fn active_uid_cached() -> Option<u32> {
@@ -368,10 +368,10 @@ fn peer_exe_canonical_path_by_pid(peer_pid: u32) -> ResultType<PathBuf> {
 pub(crate) fn executable_paths_match(left: &Path, right: &Path) -> bool {
     #[cfg(target_os = "windows")]
     {
-        // Callers pass paths resolved through fs::canonicalize() first, so NT
-        // namespace paths and 8.3 short names are expected to be resolved before
-        // this check. Keep this normalization limited to remaining Win32 spelling
-        // differences.
+        // 调用方会先传入经过 fs::canonicalize() 解析的路径，因此 NT
+        // 命名空间路径和 8.3 短名应当在此检查之前
+        // 就已解析。把这种归一化限制在剩余的 Win32 拼写
+        // 差异上。
         fn normalize(path: &Path) -> String {
             let mut normalized = path.to_string_lossy().replace('/', "\\");
             if let Some(stripped) = normalized.strip_prefix(r"\\?\") {
@@ -656,26 +656,26 @@ pub(crate) fn authorize_windows_portable_service_ipc_connection(
     stream: &Connection,
     postfix: &str,
 ) -> bool {
-    // Portable service IPC policy:
-    // - only SYSTEM peers are authorized by is_allowed_windows_portable_service_peer()
-    // - expected_session_id is still collected for diagnostics and identity checks
-    // - final privilege boundary is enforced by named-pipe ACL + one-time token handshake
-    // - when peer identity is unavailable on some hosts, executable verification remains
-    //   best-effort telemetry (not fail-closed) to avoid breaking valid SYSTEM bootstrap
-    //   flows that cannot be fully introspected
+    // 便携版服务的 IPC 策略：
+    // - 只有 SYSTEM 对端才会被 is_allowed_windows_portable_service_peer() 授权
+    // - expected_session_id 仍会被收集，用于诊断和身份校验
+    // - 最终的权限边界由命名管道 ACL + 一次性 token 握手来强制
+    // - 当某些主机上无法获取对端身份时，可执行文件校验仍然是
+    //   尽力而为的遥测（不是失败即关闭），以免破坏那些无法被完全内省的合法 SYSTEM 引导
+    //   流程
     let expected_session_id = crate::platform::windows::get_current_process_session_id();
     let (authorized, peer_pid, peer_session_id, peer_is_system) =
         stream.portable_service_authorization_status_for_session(expected_session_id);
     if !authorized {
-        // Session lookup may succeed while SYSTEM identity lookup fails, so only the
-        // SYSTEM identity result determines whether peer identity is unavailable here.
-        // Don't use `peer_pid.is_some() && peer_session_id.is_none() && peer_is_system.is_none();` here.
+        // 会话查询可能成功而 SYSTEM 身份查询失败，所以只有
+        // SYSTEM 身份查询的结果能决定这里对端身份是否不可用。
+        // 这里不要用 `peer_pid.is_some() && peer_session_id.is_none() && peer_is_system.is_none();`。
         let identity_unavailable = peer_pid.is_some() && peer_is_system.is_none();
         if identity_unavailable {
-            // In portable-service startup, resolving SYSTEM peer identity may fail on some hosts.
-            // `ProcessIdToSessionId` can still succeed while `OpenProcessToken(TOKEN_QUERY)` is
-            // denied by the peer token DACL or missing privileges. Treat that partial identity
-            // failure as unavailable and defer final authorization to pipe ACL + token handshake.
+            // 在便携版服务启动时，在某些主机上解析 SYSTEM 对端身份可能失败。
+            // `ProcessIdToSessionId` 仍可能成功，而 `OpenProcessToken(TOKEN_QUERY)` 却
+            // 被对端 token 的 DACL 或缺失的权限拒绝。把这种部分的身份
+            // 失败视为不可用，并把最终授权推迟到管道 ACL + token 握手。
             if let Err(err) = ensure_peer_executable_matches_current_by_pid_opt(peer_pid, postfix) {
                 log::warn!(
                     "Portable service ipc peer identity unavailable and executable verification failed; continue with ACL+token-gated flow: postfix={}, peer_pid={:?}, err={}",
@@ -717,8 +717,8 @@ where
 
     fn service_authorization_status(&self) -> (bool, Option<u32>, Option<u32>) {
         let peer_uid = self.peer_uid();
-        // On Linux, `_service` can use the cached active UID from the service loop for
-        // stable config sync. Uinput does a fresh active-UID lookup in its own authorizer.
+        // 在 Linux 上，`_service` 可以使用服务循环缓存的活动 UID 来
+        // 做稳定的配置同步。Uinput 则在自己的授权器里做一次新的活动 UID 查询。
         let active_uid = active_uid();
         let authorized = peer_uid.is_some_and(|uid| is_allowed_service_peer_uid(uid, active_uid));
         (authorized, peer_uid, active_uid)
@@ -782,16 +782,16 @@ impl ConnectionTmpl<parity_tokio_ipc::Connection> {
             && !peer_is_system.unwrap_or(false)
             && !peer_is_elevated.unwrap_or(false)
         {
-            // When the server session id cannot be determined, the session-id allow-path is
-            // disabled and only privileged peers can be authorized.
+            // 当无法确定服务端会话 id 时，基于会话 id 的放行路径
+            // 被禁用，只有特权对端才能被授权。
             log::debug!(
                 "IPC authorization: server session id unavailable; rejecting non-privileged peer, peer_pid={:?}, peer_session_id={:?}",
                 peer_pid,
                 peer_session_id
             );
         }
-        // Main IPC trusts same-session peers, LocalSystem, and elevated administrators.
-        // Service-scoped IPC channels keep their own stricter authorization paths.
+        // 主 IPC 信任同会话对端、LocalSystem 以及已提升权限的管理员。
+        // 服务作用域的 IPC 通道保留它们自己更严格的授权路径。
         let authorized = session_authorized || peer_is_elevated.unwrap_or(false);
         if !authorized {
             if let (Some(pid), Some(Err(err))) = (peer_pid, peer_is_system_result.as_ref()) {
@@ -852,8 +852,8 @@ impl ConnectionTmpl<parity_tokio_ipc::Connection> {
         &self,
         expected_active_session_id: Option<u32>,
     ) -> (bool, Option<u32>, Option<u32>, Option<bool>) {
-        // Portable-service policy:
-        // only SYSTEM peers are allowed.
+        // 便携版服务策略：
+        // 只允许 SYSTEM 对端。
         let (_service_authorized, peer_pid, peer_session_id, peer_is_system) =
             self.service_authorization_status_for_session(expected_active_session_id);
         (

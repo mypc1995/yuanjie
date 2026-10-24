@@ -52,7 +52,7 @@ pub(super) fn rechannel<'a>(
         6 => rechannel_frame::<6>(input, output),
         7 => rechannel_frame::<7>(input, output),
         8 => rechannel_frame::<8>(input, output),
-        // Preserve the existing passthrough for mono/stereo and unsupported layouts.
+        // 为单声道/立体声以及不支持的布局保留现有的直通处理。
         _ => return input,
     }
     output
@@ -67,9 +67,9 @@ fn rechannel_frame<const CHANNELS: usize>(input: &[f32], output: &mut Vec<f32>) 
     for samples in input.chunks_exact(CHANNELS) {
         let mut frame = Frame::<Ch32, CHANNELS>::default();
         for (channel, sample) in frame.channels_mut().iter_mut().zip(samples) {
-            *channel = (*sample).into();
+            * channel = (*sample).into();
         }
-        // Match the same-rate Stream::pipe conversion before fon's SinkTo conversion.
+        // 在 fon 的 SinkTo 转换之前，先做与同采样率 Stream::pipe 相同的转换。
         let stereo = frame.to::<Ch32, CHANNELS>().to::<Ch32, STEREO_CHANNELS>();
         output.extend(stereo.channels().iter().map(|channel| channel.to_f32()));
     }

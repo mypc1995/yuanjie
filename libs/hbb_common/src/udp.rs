@@ -20,15 +20,15 @@ fn new_socket(addr: SocketAddr, reuse: bool, buf_size: usize) -> Result<Socket, 
         SocketAddr::V6(..) => Socket::new(Domain::ipv6(), Type::dgram(), None),
     }?;
     if reuse {
-        // windows has no reuse_port, but its reuse_address
-        // almost equals to unix's reuse_port + reuse_address,
-        // though may introduce nondeterministic behavior
-        // illumos has no support for SO_REUSEPORT
+        // windows 没有 reuse_port，但它的 reuse_address
+        // 几乎等同于 unix 的 reuse_port + reuse_address，
+        // 尽管可能引入不确定行为
+        // illumos 不支持 SO_REUSEPORT
         #[cfg(all(unix, not(target_os = "illumos")))]
         socket.set_reuse_port(true).ok();
         socket.set_reuse_address(true).ok();
     }
-    // only nonblocking work with tokio, https://stackoverflow.com/questions/64649405/receiver-on-tokiompscchannel-only-receives-messages-when-buffer-is-full
+    // 只与 tokio 进行非阻塞工作，https://stackoverflow.com/questions/64649405/receiver-on-tokiompscchannel-only-receives-messages-when-buffer-is-full
     socket.set_nonblocking(true)?;
     if buf_size > 0 {
         socket.set_recv_buffer_size(buf_size).ok();

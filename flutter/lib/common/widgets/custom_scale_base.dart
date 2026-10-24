@@ -9,18 +9,18 @@ import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/utils/scale.dart';
 import 'package:flutter_hbb/common.dart';
 
-/// Base class providing shared custom scale control logic for both mobile and desktop widgets.
-/// Implementations must provide [ffi] and [onScaleChanged] getters.
+/// 为移动端和桌面端控件提供共享自定义缩放控制逻辑的基类。
+/// 实现类必须提供 [ffi] 和 [onScaleChanged] getter。
 abstract class CustomScaleControls<T extends StatefulWidget> extends State<T> {
-  /// FFI instance for session interaction
+  /// 用于会话交互的 FFI 实例
   FFI get ffi;
 
-  /// Callback invoked when scale value changes
+  /// 缩放值变化时调用的回调
   ValueChanged<int>? get onScaleChanged;
 
   late int _scaleValue;
   late final Debouncer<int> _debouncerScale;
-  // Normalized slider position in [0, 1]. We map it nonlinearly to percent.
+  // 归一化的滑块位置，范围为 [0, 1]。我们将其非线性映射为百分比。
   double _scalePos = 0.0;
 
   int get scaleValue => _scaleValue;
@@ -34,10 +34,10 @@ abstract class CustomScaleControls<T extends StatefulWidget> extends State<T> {
   static const double pivotPos = kScaleCustomPivotPos; // first 1/3 → up to 100%
   static const double detentEpsilon = kScaleCustomDetentEpsilon; // snap range around pivot (~0.6%)
 
-  // Clamp helper for local use
+  // 供本地使用的 Clamp 辅助函数
   int _clampScale(int v) => clampCustomScalePercent(v);
 
-  // Map normalized position [0,1] → percent [5,1000] with 100 at 1/3 width.
+  // 将归一化位置 [0,1] 映射为百分比 [5,1000]，在 1/3 宽度处为 100。
   int _mapPosToPercent(double p) {
     if (p <= 0.0) return minPercent;
     if (p >= 1.0) return maxPercent;
@@ -52,7 +52,7 @@ abstract class CustomScaleControls<T extends StatefulWidget> extends State<T> {
     }
   }
 
-  // Map percent [5,1000] → normalized position [0,1]
+  // 将百分比 [5,1000] 映射为归一化位置 [0,1]
   double _mapPercentToPos(int percent) {
     final p = _clampScale(percent);
     if (p <= pivotPercent) {
@@ -64,7 +64,7 @@ abstract class CustomScaleControls<T extends StatefulWidget> extends State<T> {
     }
   }
 
-  // Snap normalized position to the pivot when close to it
+  // 当归一化位置接近支点时将其吸附到支点
   double _snapNormalizedPos(double p) {
     if ((p - pivotPos).abs() <= detentEpsilon) return pivotPos;
     if (p < 0.0) return 0.0;

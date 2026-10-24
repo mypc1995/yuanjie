@@ -47,14 +47,14 @@ delay:
     Outstanding-probe checks and their late replies do not age this window.
 */
 
-// Constants
+// 常量
 pub const FPS: u32 = 30;
 pub const MIN_FPS: u32 = 1;
 pub const MAX_FPS: u32 = 120;
 pub const INIT_FPS: u32 = 15;
 const MIN_AUTO_FPS: u32 = 5;
 
-// Bitrate ratio constants for different quality levels
+// 不同画质级别的码率比例常量
 const BR_MAX: f32 = 40.0; // 2000 * 2 / 100
 const BR_MIN: f32 = 0.2;
 const BR_MIN_HIGH_RESOLUTION: f32 = 0.1; // For high resolution, BR_MIN is still too high, so we set a lower limit
@@ -100,10 +100,10 @@ impl UserDelay {
         bitrate_first: bool,
         braked: bool,
     ) -> u32 {
-        // A spike stays in the average for several samples; confirm congestion with fresh samples.
+        // 尖峰会在平均值中停留若干个采样；要用新的采样来确认拥塞。
         let delay = delay.saturating_sub(self.rtt_calculator.get_rtt().unwrap_or_default());
         if let Some(samples) = self.samples_since_restore.as_mut() {
-            *samples = samples.saturating_add(1);
+            * samples = samples.saturating_add(1);
         }
         if delay < DELAY_THRESHOLD_150MS {
             self.consecutive_bad_samples = 0;
@@ -115,13 +115,13 @@ impl UserDelay {
         self.consecutive_bad_samples = (self.consecutive_bad_samples + 1).min(3);
         self.fps_bad_samples = (self.fps_bad_samples + 1).min(3);
         if let Some(replies) = self.replies_after_bitrate_reduction.as_mut() {
-            *replies = (*replies + 1).min(2);
+            * replies = (*replies + 1).min(2);
         }
         let failed_restore = delay >= 600
             && self
                 .samples_since_restore
                 .is_some_and(|samples| samples <= RESTORE_GUARD_SAMPLES);
-        // A level that congests right after being restored is not the level to return to.
+        // 一个刚恢复就又拥塞的档位并不是应该回到的档位。
         if self
             .samples_since_restore
             .is_some_and(|samples| samples <= RESTORE_GUARD_SAMPLES)
@@ -130,11 +130,11 @@ impl UserDelay {
             self.fps_before_congestion = Some(current_fps - current_fps / 4);
             self.samples_since_restore = None;
         }
-        // The timeout brake already reduced for the probe this reply answers.
+        // 针对这次探测，超时制动已经降低了档位，而这次回复正是在回应该探测。
         if fps >= current_fps || braked {
             return current_fps;
         }
-        // An extra second of delay cannot wait for another confirmation.
+        // 多出一秒的延迟不能再等一次确认。
         if !failed_restore
             && delay < 1000
             && (self.fps_bad_samples < 3
@@ -142,8 +142,8 @@ impl UserDelay {
         {
             return current_fps;
         }
-        // A fast restore probes capacity. Roll it back promptly if the queue grows
-        // again, rather than waiting through another ordinary confirmation window.
+        // 快速恢复是在探测容量。如果队列再次增长，应立即回退，
+        // 而不是再等一个普通的确认窗口。
         let divisor = if delay >= 1000 || failed_restore {
             2
         } else {
@@ -153,8 +153,8 @@ impl UserDelay {
         fps.max(current_fps.saturating_sub((current_fps / divisor).max(1)))
     }
 
-    // Fresh low-delay replies permit recovery even while the average contains a spike:
-    // a little at first, then back to the level held before congestion.
+    // 新的低延迟回复允许恢复，即使平均值中还含有尖峰：
+    // 先略微恢复一点，然后回到拥塞前保持的档位。
     fn recover(&mut self, current_fps: u32, fps: u32) -> u32 {
         let gradual = current_fps + (current_fps / 10).max(1);
         let level = self
@@ -186,8 +186,8 @@ impl UserDelay {
             return fps;
         }
         let excess = delay.saturating_sub(self.rtt_calculator.get_rtt().unwrap_or_default());
-        // A low-load sample does not establish capacity: require two clean replies
-        // per step and abandon startup probing on the first sign of queue growth.
+        // 低负载的采样并不能确立容量：每一步都需要两次干净的回复，
+        // 并且一旦出现队列增长的迹象就放弃启动探测。
         if braked || excess >= 50 || current_fps >= cap {
             self.startup_good_samples = u8::MAX;
             return fps;
@@ -204,7 +204,7 @@ impl UserDelay {
         accelerated
     }
 
-    // The first reduction of an episode remembers the level to return to.
+    // 一次拥塞期内的首次降档会记下要返回的档位。
     fn on_reduction(&mut self, current_fps: u32) {
         self.startup_good_samples = u8::MAX;
         self.good_samples = 0;
@@ -214,16 +214,16 @@ impl UserDelay {
         }
     }
 
-    // Bitrate is cut on confirmation only: two bad replies in a row, or a probe still
-    // outstanding at the second tick past two seconds.  One slow reply or one short
-    // stall is jitter, and a static screen would never earn the cut back.
+    // 只有确认后才会削减码率：连续两次坏回复，或探测在两秒后的第二个 tick 仍
+    // 未完成。 一次慢回复或一次短暂
+    // 卡顿属于抖动，而静态画面永远无法让码率回升。
     fn needs_bitrate_reduction(&self) -> bool {
         self.consecutive_bad_samples >= 2 || self.stall_ticks >= 2
     }
 
-    // The bitrate step this viewer's own evidence calls for, None when it calls for
-    // none.  Severity and confirmation come from the same viewer; the controller
-    // never pairs one viewer's spike with another viewer's confirmation.
+    // 根据该观看者自身证据所需的码率档位，无需求变时为 None。
+    //  严重程度和确认都来自同一个观看者；控制器
+    // 绝不会把一个观看者的尖峰与另一个观看者的确认配对。
     fn ratio_reduction(&self) -> Option<f32> {
         if !self.needs_bitrate_reduction() {
             return None;
@@ -247,7 +247,7 @@ impl UserDelay {
         })
     }
 
-    // Average delay above the baseline: what the queue adds on top of the path itself.
+    // 高于基线的平均延迟：队列在链路本身之外额外增加的部分。
     fn avg_delay(&self) -> u32 {
         if self.delay_history.is_empty() {
             return DELAY_THRESHOLD_150MS;
@@ -257,7 +257,7 @@ impl UserDelay {
     }
 }
 
-// User session data structure
+// 用户会话数据结构
 #[derive(Default, Debug, Clone)]
 struct UserData {
     auto_adjust_fps: Option<u32>, // reserve for compatibility
@@ -269,7 +269,7 @@ struct UserData {
 }
 
 impl UserData {
-    // The frame rate this viewer asked for, from its custom or auto-adjust limit.
+    // 该观看者请求的帧率，取自其自定义或自动调整的上限。
     fn fps_cap(&self) -> u32 {
         let mut fps = self.custom_fps.unwrap_or(FPS);
         if let Some(auto_adjust_fps) = self.auto_adjust_fps {
@@ -287,7 +287,7 @@ struct DisplayData {
     support_changing_quality: bool,
 }
 
-// Main QoS controller structure
+// QoS 控制器主体结构
 pub struct VideoQoS {
     fps: u32,
     ratio: f32,
@@ -318,7 +318,7 @@ impl Default for VideoQoS {
     }
 }
 
-// Clock; tests drive a virtual clock so timing is deterministic.
+// 时钟；测试使用虚拟时钟，因此时序是确定的。
 impl VideoQoS {
     fn now(&self) -> Instant {
         #[cfg(test)]
@@ -338,14 +338,14 @@ impl VideoQoS {
     }
 }
 
-// Basic functionality
+// 基本功能
 impl VideoQoS {
-    // Calculate seconds per frame based on current FPS
+    // 根据当前 FPS 计算每帧的秒数
     pub fn spf(&self) -> Duration {
         Duration::from_secs_f32(1. / (self.fps() as f32))
     }
 
-    // Get current FPS within valid range
+    // 获取有效范围内的当前 FPS
     pub fn fps(&self) -> u32 {
         let fps = self.fps;
         if fps >= MIN_FPS && fps <= MAX_FPS {
@@ -355,17 +355,17 @@ impl VideoQoS {
         }
     }
 
-    // Store bitrate for later use
+    // 保存码率以供后续使用
     pub fn store_bitrate(&mut self, bitrate: u32) {
         self.bitrate_store = bitrate;
     }
 
-    // Get stored bitrate
+    // 获取已保存的码率
     pub fn bitrate(&self) -> u32 {
         self.bitrate_store
     }
 
-    // Get current bitrate ratio with bounds checking
+    // 带边界检查地获取当前码率比例
     pub fn ratio(&mut self) -> f32 {
         if self.ratio < BR_MIN_HIGH_RESOLUTION || self.ratio > BR_MAX {
             self.ratio = BR_BALANCED;
@@ -373,7 +373,7 @@ impl VideoQoS {
         self.ratio
     }
 
-    // Check if any user is in recording mode
+    // 检查是否有用户处于录制模式
     pub fn record(&self) -> bool {
         self.users.iter().any(|u| u.1.record)
     }
@@ -384,15 +384,15 @@ impl VideoQoS {
         }
     }
 
-    // Check if variable bitrate encoding is supported and enabled
+    // 检查是否支持并启用了可变码率编码
     pub fn in_vbr_state(&self) -> bool {
         self.abr_config && self.displays.iter().all(|e| e.1.support_changing_quality)
     }
 }
 
-// User session management
+// 用户会话管理
 impl VideoQoS {
-    // Initialize new user session
+    // 初始化新的用户会话
     pub fn on_connection_open(&mut self, id: i32) {
         let user = UserData {
             joined_at: Some(self.now()),
@@ -402,15 +402,15 @@ impl VideoQoS {
         self.abr_config = Config::get_option("enable-abr") != "N";
     }
 
-    // Clean up user session
+    // 清理用户会话
     pub fn on_connection_close(&mut self, id: i32) {
         self.users.remove(&id);
         if self.users.is_empty() {
-            *self = Default::default();
+            * self = Default::default();
             return;
         }
-        // The stream follows the remaining viewers at once; a departed viewer's
-        // start-up guard left with its entry.
+        // 码流会立即跟随剩余的观看者；已离开的观看者的
+        // 启动保护随其条目一起被移除。
         self.adjust_fps();
     }
 
@@ -449,7 +449,7 @@ impl VideoQoS {
         let quality = Some((hbb_common::get_time(), convert_quality(image_quality)));
         if let Some(user) = self.users.get_mut(&id) {
             user.quality = quality;
-            // update ratio directly
+            // 直接更新比例
             self.ratio = self.latest_quality().ratio();
         }
     }
@@ -462,11 +462,11 @@ impl VideoQoS {
 
     pub fn user_network_delay(&mut self, id: i32, delay: u32) {
         let target_ratio = self.latest_quality().ratio();
-        // Fewer frames only save bytes with encoders that size frames for a fixed rate;
-        // bitrate-targeted encoders keep the bitrate, so the bitrate has to come down first.
+        // 只有当编码器按固定码率为帧定尺寸时，减少帧数才能节省字节；
+        // 以码率为目标的编码器会保持码率，所以必须先把码率降下来。
         let bitrate_first = self.can_reduce_bitrate();
 
-        // For bad network, small fps means quick reaction and high quality
+        // 对于糟糕的网络，较低的 fps 意味着反应更快、质量更高
         let (min_fps, normal_fps) = if target_ratio >= BR_BEST {
             (8, 16)
         } else if target_ratio >= BR_BALANCED {
@@ -475,14 +475,14 @@ impl VideoQoS {
             (12, 24)
         };
 
-        // Calculate minimum acceptable delay-fps product
+        // 计算可接受的最小延迟与 fps 乘积
         let dividend_ms = DELAY_THRESHOLD_150MS * min_fps;
 
         let mut adjust_ratio = false;
         let mut reduce_bitrate = false;
         if let Some(user) = self.users.get_mut(&id) {
             let delay = delay.max(10);
-            // The reply closes the outstanding probe, braked or not.
+            // 该回复结束了尚未完成的探测，无论是否已制动。
             user.delay.stall_ticks = 0;
             let braked = user.delay.stall_reference_fps.take().is_some();
             let old_avg_delay = user.delay.avg_delay();
@@ -492,19 +492,19 @@ impl VideoQoS {
             user.delay.add_delay(delay);
             let mut avg_delay = user.delay.avg_delay();
             avg_delay = avg_delay.max(10);
-            // Each viewer adapts from its own target, starts at INIT_FPS and is capped
-            // by its own limit.  The stream follows the slowest viewer in adjust_fps;
-            // neither that minimum nor another viewer's limit feeds back into it.
+            // 每个观看者都基于自己的目标进行自适应，从 INIT_FPS 起步，并受限于
+            // 自己的上限。 在 adjust_fps 中，码流跟随最慢的观看者；
+            // 无论是该最小值还是其他观看者的上限，都不会反过来影响它。
             let user_cap = user.fps_cap();
             let current_fps = user.delay.fps.unwrap_or(INIT_FPS.min(user_cap));
             let mut fps = current_fps;
 
-            // Adaptive FPS adjustment based on network delay:
+            // 基于网络延迟的自适应 FPS 调整：
             if avg_delay < 50 {
                 user.delay.quick_increase_fps_count += 1;
                 let mut step = if fps < normal_fps { 1 } else { 0 };
                 if user.delay.quick_increase_fps_count >= 3 {
-                    // After 3 consecutive good samples, increase more aggressively
+                    // 连续 3 次良好采样后，更激进地提升
                     user.delay.quick_increase_fps_count = 0;
                     step = 5;
                 }
@@ -542,18 +542,18 @@ impl VideoQoS {
                 user.delay.increase_fps_count = 0;
             }
             if user.delay.increase_fps_count >= 3 {
-                // After 3 stable samples, try increasing FPS
+                // 3 次稳定采样后，尝试提高 FPS
                 user.delay.increase_fps_count = 0;
                 fps += 1;
             }
 
-            // Reset quick increase counter if network condition worsens
+            // 如果网络状况变差，则重置快速提升计数器
             if avg_delay > 50 {
                 user.delay.quick_increase_fps_count = 0;
             }
 
             if bitrate_first {
-                // While the bitrate can still come down, the frame rate keeps its floor.
+                // 在码率仍可下降的期间，帧率保持其下限。
                 fps = fps.max(min_fps);
             }
             fps = fps.max(MIN_AUTO_FPS.min(user_cap));
@@ -567,7 +567,7 @@ impl VideoQoS {
                 && user.delay.needs_bitrate_reduction()
                 && user.delay.replies_after_bitrate_reduction.is_none();
             fps = fps.clamp(MIN_FPS, user_cap);
-            // first network delay message
+            // 首次网络延迟消息
             adjust_ratio = user.delay.fps.is_none();
             user.delay.fps = Some(fps);
             let base = user.delay.rtt_calculator.get_rtt().unwrap_or_default();
@@ -581,9 +581,9 @@ impl VideoQoS {
             );
         }
         self.adjust_fps();
-        // A viewer's first reply is one more trigger of the periodic adjustment and
-        // keeps its cooldown: a viewer joining right after a cut must not spend the
-        // other viewers' evidence a second time.
+        // 某个观看者的首次回复是周期调整的又一个触发条件，并且
+        // 会保持其冷却期：紧随一次降档之后加入的观看者不能消耗掉
+        // 其他观看者的证据第二次。
         if adjust_ratio
             && self.first_reply_adjusts_ratio
             && self.since(self.adjust_ratio_instant).as_secs() >= ADJUST_RATIO_INTERVAL as u64
@@ -606,8 +606,8 @@ impl VideoQoS {
         }
         user.delay.stall_ticks = user.delay.stall_ticks.saturating_add(1);
         user.delay.add_delay(elapsed as u32);
-        // Halve for every second the probe stays out beyond the first: two seconds
-        // halve, three quarter, and so on down to the floor.
+        // 探测超出第一秒后，每多一秒就减半：两秒
+        // 减半，四分之三，依此类推直到下限。
         let reference = match user.delay.stall_reference_fps {
             Some(reference) => reference,
             None => {
@@ -619,7 +619,7 @@ impl VideoQoS {
         };
         let divisor = 1u32 << ((elapsed / 1000) as u32).saturating_sub(1).min(5);
         let user_cap = user.fps_cap();
-        // The floor is a floor, not a lift: a target already below it stays.
+        // 下限就是下限，不会把目标抬高：已经低于它的目标保持不变。
         let current = user.delay.fps.unwrap_or(reference);
         let fps = (reference / divisor)
             .clamp(MIN_AUTO_FPS.min(user_cap), user_cap)
@@ -633,7 +633,7 @@ impl VideoQoS {
     }
 }
 
-// Common adjust functions
+// 常用调整函数
 impl VideoQoS {
     pub fn new_display(&mut self, video_service_name: String) {
         self.displays
@@ -673,7 +673,7 @@ impl VideoQoS {
             .clamp(MIN_FPS, MAX_FPS)
     }
 
-    // Get latest quality settings from all users
+    // 获取所有用户的最新画质设置
     pub fn latest_quality(&self) -> Quality {
         self.users
             .iter()
@@ -685,7 +685,7 @@ impl VideoQoS {
             .1
     }
 
-    // Lowest ratio the latest quality allows: keeps about 1Mbps at high resolutions.
+    // 最新画质所允许的最低比例：在高分辨率下仍保持约 1Mbps。
     fn min_ratio(&self) -> f32 {
         let current_bitrate = self.bitrate();
         let ratio_1mbps = if current_bitrate > 0 {
@@ -716,37 +716,37 @@ impl VideoQoS {
         }
     }
 
-    // Whether congestion can still be answered with a lower bitrate.  Within two
-    // percent of the floor another step is not worth waiting a cooldown for.
+    // 拥塞是否仍可以通过更低的码率来应对。 在下限的两个
+    // 百分点以内，再降一档不值得为此等一个冷却期。
     fn can_reduce_bitrate(&self) -> bool {
         self.in_vbr_state() && !self.displays.is_empty() && self.ratio > self.min_ratio() * 1.02
     }
 
-    // Every ratio adjustment starts a new window for the dynamic screen counters.
+    // 每次比例调整都会为动态屏幕计数器开启一个新的窗口。
     fn reset_send_counters(&mut self) {
         self.displays.values_mut().for_each(|d| d.send_counter = 0);
     }
 
-    // Adjust quality ratio based on network delay and screen changes
+    // 根据网络延迟和屏幕变化调整画质比例
     fn adjust_ratio(&mut self, dynamic_screen: bool) {
         if !self.in_vbr_state() {
             return;
         }
-        // Get maximum delay from all users
+        // 获取所有用户的最大延迟
         let max_delay = self.users.iter().map(|u| u.1.delay.avg_delay()).max();
         let Some(max_delay) = max_delay else {
             return;
         };
-        // Each viewer judges its own delay; the stream takes the most conservative
-        // step any viewer asks for.
+        // 每个观看者只判断自己的延迟；码流采取任何观看者要求的
+        // 最保守的一档。
         let reduction = self
             .users
             .values()
             .filter_map(|u| u.delay.ratio_reduction())
             .reduce(f32::min);
         if reduction.is_none() && max_delay >= DELAY_THRESHOLD_150MS {
-            // Elevated but unconfirmed: no change, and no cooldown either, so a
-            // confirmation on the next reply is acted on at once.
+            // 延迟升高但尚未确认：不做调整，也不进入冷却，因此
+            // 下一次回复中的确认会立即生效。
             self.reset_send_counters();
             return;
         }
@@ -755,7 +755,7 @@ impl VideoQoS {
         let current_ratio = self.ratio;
         let current_bitrate = self.bitrate();
 
-        // Calculate ratio for adding 150kbps bandwidth
+        // 计算增加 150kbps 带宽所对应的比例
         let ratio_add_150kbps = if current_bitrate > 0 {
             Some((current_bitrate + 150) as f32 * current_ratio / current_bitrate as f32)
         } else {
@@ -767,9 +767,9 @@ impl VideoQoS {
 
         let mut v = current_ratio;
 
-        // Three bad replies in a row confirm congestion; with a bitrate-targeted
-        // encoder the bitrate is then the only thing that drains the queue, so it
-        // comes down hard.  Increases need every viewer below the threshold.
+        // 连续三次坏回复即可确认拥塞；在以码率为目标的
+        // 编码器下，码率就成了排空队列的唯一手段，因此它
+        // 会大幅下降。 而提升则需要所有观看者都低于该阈值。
         if let Some(factor) = reduction {
             v = current_ratio * factor;
         } else if max_delay < 50 {
@@ -784,7 +784,7 @@ impl VideoQoS {
             v = current_ratio * 1.05;
         }
 
-        // Limit quality increase rate for better stability
+        // 限制画质提升速率以获得更好的稳定性
         if let Some(ratio_add_150kbps) = ratio_add_150kbps {
             if v > ratio_add_150kbps
                 && ratio_add_150kbps > current_ratio
@@ -799,7 +799,7 @@ impl VideoQoS {
                 if user.delay.needs_bitrate_reduction()
                     && user.delay.replies_after_bitrate_reduction.is_none()
                 {
-                    // One outstanding probe may have started before the bitrate change.
+                    // 某个尚未完成的探测可能是在码率变更之前开始的。
                     user.delay.replies_after_bitrate_reduction =
                         Some(if v.clamp(min, max) < current_ratio {
                             0
@@ -814,10 +814,10 @@ impl VideoQoS {
         self.adjust_ratio_instant = self.now();
     }
 
-    // Adjust fps based on network delay and user response time
+    // 根据网络延迟和用户响应时间调整 fps
     fn adjust_fps(&mut self) {
         let highest_fps = self.highest_fps();
-        // Get minimum fps from all users
+        // 获取所有用户的最小 fps
         let mut fps = self
             .users
             .iter()
@@ -825,8 +825,8 @@ impl VideoQoS {
             .min()
             .unwrap_or(INIT_FPS);
 
-        // Every viewer inside its first second keeps the stream at INIT_FPS to
-        // ensure stability; each viewer carries its own start-up clock.
+        // 每个观看者在其第一秒内都会让码流保持在 INIT_FPS，以
+        // 确保稳定；每个观看者都带着自己的启动时钟。
         if self.users.values().any(|u| {
             u.joined_at
                 .is_some_and(|joined| self.since(joined).as_secs() < 1)
@@ -834,7 +834,7 @@ impl VideoQoS {
             fps = fps.min(INIT_FPS);
         }
 
-        // Ensure fps stays within valid range
+        // 确保 fps 保持在有效范围内
         self.fps = fps.clamp(MIN_FPS, highest_fps);
     }
 }
@@ -866,8 +866,8 @@ impl RttCalculator {
         let (Some(older_min), Some(recent_min)) = (older_min, recent_min) else {
             return;
         };
-        // A rising floor can be a growing queue. Allow 10 ms of probe granularity,
-        // but wait for it to settle before forgetting the old baseline.
+        // 下限上升可能是队列在增长。允许 10 ms 的探测粒度，
+        // 但在遗忘旧的基线之前，要等它稳定下来。
         if recent_min > older_min.saturating_add(10) {
             return;
         }
@@ -953,7 +953,7 @@ mod tests {
         qos.user_network_delay(1, 10);
         qos.user_network_delay(1, 10);
         assert_eq!(qos.fps(), FPS);
-        // The restored level congests at once, so the next restore aims lower.
+        // 恢复到的档位立刻就拥塞，所以下一次恢复要瞄准更低的档位。
         for _ in 0..3 {
             qos.user_network_delay(1, 400);
         }

@@ -21,8 +21,8 @@ class HttpType {
 
 enum UserStatus { kDisabled, kNormal, kUnverified }
 
-// to-do: The UserPayload does not contain all the fields of the user.
-// Is all the fields of the user needed?
+// 待办：UserPayload 并不包含用户的全部字段。
+// 需要用户的全部字段吗？
 class UserPayload {
   String name = '';
   String displayName = '';

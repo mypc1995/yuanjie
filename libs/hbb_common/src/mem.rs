@@ -4,7 +4,7 @@ use std::{
     ptr::NonNull,
 };
 
-/// An owned byte buffer with a caller-specified allocation alignment.
+/// 一个拥有所有权的字节缓冲区，分配时的对齐方式由调用方指定。
 pub struct AlignedU8Vec {
     ptr: NonNull<u8>,
     len: usize,
@@ -12,13 +12,13 @@ pub struct AlignedU8Vec {
     layout: Layout,
 }
 
-// SAFETY: AlignedU8Vec uniquely owns its allocation and exposes mutation only
-// through exclusive access, so moving or sharing it is as safe as Vec<u8>.
+// 安全性：AlignedU8Vec 独占其内存分配，并且只
+// 通过独占访问暴露可变能力，因此移动或共享它与 Vec<u8> 一样安全。
 unsafe impl Send for AlignedU8Vec {}
 unsafe impl Sync for AlignedU8Vec {}
 
 impl AlignedU8Vec {
-    /// Appends bytes without exceeding the capacity requested at allocation.
+    /// 追加字节，且不超过分配时申请的容量。
     pub fn extend_from_slice(&mut self, data: &[u8]) {
         assert!(
             data.len() <= self.capacity - self.len,
@@ -50,7 +50,7 @@ impl Drop for AlignedU8Vec {
     }
 }
 
-/// Allocates an empty byte buffer with the requested capacity and alignment.
+/// 按请求的容量和对齐方式分配一个空的字节缓冲区。
 pub fn aligned_u8_vec(cap: usize, align: usize) -> AlignedU8Vec {
     let layout = Layout::from_size_align(cap.max(1), align)
         .expect("invalid aligned value, must be power of 2");

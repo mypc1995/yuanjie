@@ -84,14 +84,14 @@ fn validate_verified_msi_path(path: &Path) -> ResultType<()> {
     Ok(())
 }
 
-// Reject symlinks, junctions, and other reparse points so verification and
-// execution operate on a regular installer file, not a redirected target.
+// 拒绝符号链接、目录联接和其他重解析点，使校验和
+// 执行都作用于常规的安装程序文件，而不是被重定向的目标。
 fn is_update_file_attributes_trusted(attributes: u32) -> bool {
     attributes & FILE_ATTRIBUTE_REPARSE_POINT == 0
 }
 
-// Open reparse points themselves instead of following them, so the
-// attribute check can reject redirected update paths.
+// 直接打开重解析点本身而不是跟随它们，这样
+// 属性检查才能拒绝被重定向的更新路径。
 fn update_file_open_flags() -> u32 {
     FILE_FLAG_OPEN_REPARSE_POINT
 }
@@ -150,7 +150,7 @@ fn copy_update_file_for_verification(file: &str) -> ResultType<PathBuf> {
     bail!("Failed to create verified update file for {}", file);
 }
 
-// Keep the verified copy open without write/delete sharing until the installer starts.
+// 在安装程序启动之前，保持已验证副本打开且不共享写/删除权限。
 pub fn copy_and_verify_update_file_sha256(
     file: &str,
     expected_sha256: &str,

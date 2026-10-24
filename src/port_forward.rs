@@ -36,8 +36,8 @@ fn run_rdp(port: u16, name: &str) {
             .output()
             .ok();
     }
-    // Keep using /v instead of a generated .rdp file: mstsc then preserves the
-    // user's Default.rdp settings and avoids unsigned-file warnings or policies.
+    // 继续使用 /v 而不是生成 .rdp 文件：这样 mstsc 会保留
+    // 用户的 Default.rdp 设置，并避免未签名文件的警告或策略限制。
     match std::process::Command::new("mstsc")
         .arg(format!("/v:localhost:{}", port))
         .spawn()
@@ -52,7 +52,7 @@ fn run_rdp(port: u16, name: &str) {
     }
 }
 
-// Show the peer identity with its hostname, using the ID when no alias exists.
+// 显示对端身份及其主机名，没有别名时使用 ID。
 fn rdp_display_name(lc: &Arc<RwLock<LoginConfigHandler>>, id: &str) -> String {
     let lc = lc.read().unwrap();
     let alias = lc
@@ -89,17 +89,17 @@ pub async fn listen(
         run_rdp(addr.port(), &rdp_display_name(&lc, &id));
     }
     let mut ui_receiver = ui_receiver;
-    // One tunnel per mapping; the listener drops it on its way out, and that
-    // ends the tunnel.
+    // 每个映射对应一条隧道；监听器在它往外走的过程中把它丢掉，而这
+    // 就结束了隧道。
     let tunnel = Tunnel::new();
     loop {
         tokio::select! {
             Ok((forward, addr)) = listener.accept() => {
                 log::info!("new connection from {:?}", addr);
-                // A multiplexed window takes the connection on the mapping's
-                // tunnel, or probes for one on its first accept. Everything
-                // else, the setting off or a peer without the feature, is the
-                // raw pipe below, as it always was.
+                // 多路复用窗口会在该映射的
+                // 隧道上接管该连接，或在第一次 accept 时探测一条隧道。其他一切
+                // 情况——设置关闭或对端不支持该特性——都走
+                // 下面的 raw pipe，和以前一样。
                 let claim = if lc.read().unwrap().port_forward_mux { tunnel.claim() } else { Claim::Legacy };
                 match claim {
                     Claim::Muxed(handle) => {
@@ -179,7 +179,7 @@ async fn connect_and_login(
     interface.update_direct(Some(direct));
     if !stream.is_secured() && !crate::common::is_direct_ip_access(id) {
         if !confirm_insecure_connection(&interface, ui_receiver).await {
-            *close_port_forward = true;
+            * close_port_forward = true;
             return Ok(None);
         }
     }
@@ -263,11 +263,11 @@ async fn connect_and_login(
 }
 
 
-/// A mapping's login is built from the window's shared handler:
-/// `create_login_msg` reads `port_forward` and `port_forward_multiplex`,
-/// `handle_login_from_ui` reads `hash`. Mappings log in concurrently, so each
-/// fills them and sends under the window's turn lock, or one login carried
-/// another mapping's target or answered another's challenge.
+/// 映射的登录信息由窗口的共享处理器构建：
+/// `create_login_msg` 读取 `port_forward` 和 `port_forward_multiplex`，
+/// `handle_login_from_ui` 读取 `hash`。映射会并发登录，因此每个
+/// 都在窗口的轮次锁下填充并发送，或者一次登录被
+/// 带到了另一个映射的目标上，或应答了另一个映射的质询。
 async fn login_with_hash(
     interface: &impl Interface,
     password: &str,
@@ -287,11 +287,11 @@ async fn login_with_hash(
 
 type UiLogin = (String, String, String, bool);
 
-/// This connection's `Hash`. The window's password prompt is broadcast to
-/// every mapping and can reach this one first, so a password typed while
-/// the `Hash` was on its way is kept and answers it now, rather than being
-/// dropped in the hope that the mapping which prompted has already stored
-/// it in the shared handler.
+/// 该连接的 `Hash`。窗口的密码提示会广播给
+/// 每个映射，且可能先到达这个映射，因此如果密码是在
+/// `Hash` 还在路上时输入的，就会被保留下来并现在就应答它，而不是
+/// 被丢弃，指望发起提示的那个映射已经把它
+/// 存进了共享处理器。
 async fn hash_arrived(
     interface: &impl Interface,
     password: &str,
@@ -311,8 +311,8 @@ async fn hash_arrived(
     }
 }
 
-/// The window's password prompt is broadcast to every mapping; this one
-/// answers it with its own challenge.
+/// 窗口的密码提示会广播给每个映射；这个映射
+/// 用自己的质询来应答它。
 async fn login_from_ui(
     interface: &impl Interface,
     hash: &Hash,
@@ -337,13 +337,13 @@ async fn login_from_ui(
         .await;
 }
 
-/// The first accept of a multiplexed mapping. It logs in asking for the
-/// tunnel, and the peer's answer fixes this listener's mode until it closes:
-/// a peer with the feature gets a tunnel every later accept joins, one
-/// without gets today's raw pipe for this connection and `Legacy` for the
-/// rest. Re-adding the mapping is how a user picks up an upgraded peer;
-/// nothing switches modes underneath live connections. Returns `true` when
-/// the listener should stop.
+/// 多路复用映射的第一次 accept。它登录时索要
+/// 隧道，而对端的回答会固定该监听器的模式直到它关闭：
+/// 支持该特性的对端之后每次 accept 都会接入一条隧道，不支持的
+/// 对端则本连接使用今天的 raw pipe，其余使用 `Legacy`。
+/// 重新添加该映射就是用户接上升级后对端的方式；
+/// 不会在活动连接之下切换模式。返回 `true`，当
+/// 监听器应当停止时。
 async fn establish_tunnel(
     tunnel: &Tunnel,
     id: &str,
@@ -391,12 +391,12 @@ async fn establish_tunnel(
     false
 }
 
-/// `connect_and_login` for a mapping that wants the tunnel: the pre-read
-/// stops at one window rather than growing without bound, and a local EOF
-/// no longer ends the login, since the tunnel may still be wanted. It
-/// reports what the peer answered rather than a raw stream, because the
-/// caller's next step depends on it. The login itself is the raw pipe's,
-/// told to ask for the tunnel.
+/// 为需要隧道的映射调用 `connect_and_login`：预读
+/// 会停在一个窗口大小，而不是无限增长，并且本地 EOF
+/// 不再结束登录，因为隧道可能仍然需要。它
+/// 报告对端的应答内容而不是原始流，因为
+/// 调用方的下一步取决于它。登录本身是 raw pipe 的，
+/// 被告知要索要隧道。
 async fn connect_and_login_mux(
     id: &str,
     password: &str,
@@ -420,7 +420,7 @@ async fn connect_and_login_mux(
     interface.update_direct(Some(direct));
     if !stream.is_secured() && !crate::common::is_direct_ip_access(id) {
         if !confirm_insecure_connection(&interface, ui_receiver).await {
-            *close_port_forward = true;
+            * close_port_forward = true;
             return Ok(None);
         }
     }
@@ -490,9 +490,9 @@ async fn connect_and_login_mux(
                     _ => {}
                 }
             },
-            // Stop pulling once the pre-read buffer is a window deep; the
-            // rest waits in the kernel until the channel opens. A local EOF
-            // no longer aborts the login: the tunnel may still be wanted.
+            // 一旦预读缓冲区达到一个窗口深度就停止拉取；其余的
+            // 在内核中等待，直到通道打开。本地 EOF
+            // 不再中止登录：隧道可能仍然需要。
             res = forward.next(), if !local_eof && buffer.len() < CHANNEL_WINDOW as usize => {
                 if let Some(Ok(bytes)) = res {
                     buffer.extend(bytes);
@@ -510,7 +510,7 @@ async fn connect_and_login_mux(
     }))
 }
 
-/// Today's raw pipe, for peers without multiplexing.
+/// 今天的 raw pipe，用于不支持多路复用的对端。
 fn run_legacy(
     outcome: LoginOutcome,
     forward: Framed<TcpStream, BytesCodec>,
@@ -542,14 +542,14 @@ fn peer_supports_mux(pi: &PeerInfo) -> bool {
     pi.features.as_ref().map(|f| f.port_forward_mux).unwrap_or(false)
 }
 
-/// `into_inner()` would drop bytes the codec pulled but never yielded.
+/// `into_inner()` 会丢掉 codec 已取出但从未交付的字节。
 fn take_socket(forward: Framed<TcpStream, BytesCodec>, mut prebuf: Vec<u8>) -> (TcpStream, Vec<u8>) {
     let parts = forward.into_parts();
     prebuf.extend_from_slice(&parts.read_buf);
     (parts.io, prebuf)
 }
 
-/// The controlling side's `enable-port-forward-mux`: on unless set to `N`.
+/// 控制端的 `enable-port-forward-mux`：除非设为 `N`，否则为开启。
 pub fn mux_enabled() -> bool {
     use hbb_common::config::{option2bool, LocalConfig};
     use base::config::keys;
@@ -594,8 +594,8 @@ mod login_tests {
     };
     use sha2::{Digest, Sha256};
 
-    /// A window's interface over its shared handler. `handle_hash` can pause
-    /// before building the login, where the real one looks passwords up.
+    /// 窗口对其共享处理器的接口。`handle_hash` 可以在
+    /// 构建登录信息之前暂停，真正的实现则在其中查找密码。
     #[derive(Clone)]
     struct Ui {
         lc: Arc<RwLock<LoginConfigHandler>>,
@@ -648,7 +648,7 @@ mod login_tests {
         }
     }
 
-    /// (our end, the peer's end) of one connection.
+    /// 一条连接的两端（我方、对端）。
     async fn loopback() -> (Stream, Stream) {
         let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = l.local_addr().unwrap();
@@ -680,7 +680,7 @@ mod login_tests {
         }
     }
 
-    /// What the peer expects for password `pw` under `hash(challenge)`.
+    /// 在 `hash(challenge)` 下对端期望的密码 `pw` 对应值。
     fn digest(challenge: &str) -> Vec<u8> {
         let mut h = Sha256::new();
         h.update("pw");
@@ -722,7 +722,7 @@ mod login_tests {
             let ui = window();
             let (mut a, mut a_peer) = loopback().await;
             let (mut b, mut b_peer) = loopback().await;
-            // A's hash arrived last, so it is the one the handler holds.
+            // A 的 hash 最后到达，所以处理器持有的是它。
             assert!(login_with_hash(&ui, "pw", hash("a"), "a", 1, false, &mut a).await);
             login_at(&mut a_peer).await;
             let typed = (String::new(), String::new(), "pw".to_owned(), false);

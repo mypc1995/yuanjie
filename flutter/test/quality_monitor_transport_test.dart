@@ -21,7 +21,7 @@ void main() {
     final ffi = _FakeFFI();
     ffi.ffiModel.cachedPeerData.streamType = 'WebRTC';
     final model = QualityMonitorModel(WeakReference(ffi));
-    // Off the web the session tab's tooltip already names the transport.
+    // 在 Web 之外，会话标签页的提示信息已经会标明传输方式。
     expect(isWeb, isFalse);
     expect(model.webrtcTransport, isNull);
   });

@@ -338,7 +338,7 @@ class _PeerTabPageState extends State<PeerTabPage>
           currentValue: model.isVisibleEnabled[tabIndex],
           setter: (show) async {
             model.setTabVisible(tabIndex, show);
-            // Do not hide the current menu (checkbox)
+            // 不要隐藏当前菜单（复选框）
             // cancelFunc();
           },
           enabled: (!isOptVisiableFixed).obs));
@@ -617,7 +617,7 @@ class _PeerTabPageState extends State<PeerTabPage>
       );
     }
 
-    // Always show search, refresh
+    // 始终显示搜索、刷新
     List<Widget> actions = [
       const PeerSearchBar(),
       if (model.currentTab == PeerTabIndex.ab.index)

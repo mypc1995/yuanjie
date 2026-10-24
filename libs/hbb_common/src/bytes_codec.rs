@@ -2,9 +2,9 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::io;
 use tokio_util::codec::{Decoder, Encoder};
 
-// Bound speculative allocation from untrusted frame headers.
+// 限制来自不可信帧头的推测性分配。
 const MAX_PREALLOCATED_PAYLOAD_LEN: usize = 256 * 1024;
-/// Largest payload representable by the four-byte RustDesk frame header.
+/// 四字节 RustDesk 帧头所能表示的最大负载长度。
 pub const MAX_FRAME_LENGTH: usize = 0x3FFF_FFFF;
 
 #[derive(Debug, Clone, Copy)]
@@ -66,8 +66,8 @@ impl BytesCodec {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "Too big packet"));
         }
         src.advance(head_len);
-        // Do not reserve the full header-declared length: a peer can advertise a huge
-        // frame and force excessive allocation before sending the payload.
+        // 不要按帧头声明的完整长度预留空间：对端可能通告一个巨大的
+        // 帧，从而在发送负载之前迫使我们过量分配。
         src.reserve(
             n.saturating_sub(src.len())
                 .min(MAX_PREALLOCATED_PAYLOAD_LEN),
@@ -312,9 +312,9 @@ mod tests {
             codec.decode(&mut buf)
         };
 
-        // At the cap the header is accepted and the payload awaited.
+        // 达到上限时帧头被接受，随后等待负载。
         assert!(matches!(decode_header_for(CAP), Ok(None)));
-        // One byte over, and the frame dies on its header - before any of it has been buffered.
+        // 超出一个字节，该帧就会在帧头处被丢弃——在它被缓冲之前。
         assert!(decode_header_for(CAP + 1).is_err());
     }
 }

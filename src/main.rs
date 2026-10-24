@@ -26,8 +26,8 @@ fn main() -> std::process::ExitCode {
     unsafe {
         winapi::um::shellscalingapi::SetProcessDpiAwareness(2);
     }
-    // Preserve command failures, notably verified macOS offline update failures,
-    // as a non-zero process exit status for CLI callers.
+    // 保留命令失败状态，尤其是已验证的 macOS 离线更新失败，
+    // 以非零的进程退出状态返回给 CLI 调用方。
     let exit_code = match crate::core_main::core_main() {
         Some(crate::core_main::CoreMainAction::StartUi(mut args)) => {
             ui::start(&mut args);

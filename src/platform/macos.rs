@@ -47,16 +47,16 @@ use verified_dmg::{
     VerifiedDmg,
 };
 
-// macOS boolean_t is defined as `int` in <mach/boolean.h>
+// macOS 的 boolean_t 在 <mach/boolean.h> 中定义为 `int`
 type BooleanT = hbb_common::libc::c_int;
 
 static PRIVILEGES_SCRIPTS_DIR: Dir =
     include_dir!("$CARGO_MANIFEST_DIR/src/platform/privileges_scripts");
 static mut LATEST_SEED: i32 = 0;
 const UPDATE_CLEANUP_FAILED_AFTER_COMMIT: &str = "UPDATE_CLEANUP_FAILED_AFTER_COMMIT";
-// `kill -9` may not work without administrator privileges.
-// App-only update transaction used when launchd jobs are absent or intentionally stopped.
-// Keep its verification, staging, bundle rollback, and cleanup aligned with update.scpt.
+// 没有管理员权限时 `kill -9` 可能不起作用。
+// 仅用于应用的更新事务，在 launchd 作业缺失或被有意停止时使用。
+// 它的校验、暂存、bundle 回滚和清理要与 update.scpt 保持一致。
 const PRIVILEGED_UPDATE_BODY: &str = r#"
 	on run {app_name, cur_pid, source_path, user_name, restore_owner, expected_sha256, expected_bundle_id}
 	    set app_bundle to "/Applications/" & app_name & ".app"
@@ -90,9 +90,9 @@ const PRIVILEGED_UPDATE_BODY: &str = r#"
 	end run
 	        "#;
 
-/// Global mutex to serialize CoreGraphics cursor operations.
-/// This prevents race conditions between cursor visibility (hide depth tracking)
-/// and cursor positioning/clipping operations.
+/// 用于串行化 CoreGraphics 光标操作的全局互斥锁。
+/// 这避免了光标可见性（隐藏深度跟踪）
+/// 与光标定位/裁剪操作之间的竞态。
 static CG_CURSOR_MUTEX: Mutex<()> = Mutex::new(());
 
 extern "C" {
@@ -155,11 +155,11 @@ pub fn is_can_screen_recording(prompt: bool) -> bool {
 
 // macOS >= 10.15
 // https://stackoverflow.com/questions/56597221/detecting-screen-recording-settings-on-macos-catalina/
-// remove just one app from all the permissions: tccutil reset All com.carriez.rustdesk
+// 只从所有权限中移除某一个应用：tccutil reset All com.carriez.rustdesk
 fn unsafe_is_can_screen_recording(prompt: bool) -> bool {
-    // we got some report that we show no permission even after set it, so we try to use new api for screen recording check
-    // the new api is only available on macOS >= 10.15, but on stackoverflow, some people said it works on >= 10.16 (crash on 10.15),
-    // but also some said it has bug on 10.16, so we just use it on 11.0.
+    // 我们收到一些报告说即使设置了权限也不显示，所以尝试使用新的 API 来检查屏幕录制权限
+    // 新 API 只在 macOS >= 10.15 上可用，但 stackoverflow 上有人说它在 >= 10.16 上可用（在 10.15 上会崩溃），
+    // 也有人说它在 10.16 上有 bug，所以我们只在 11.0 上使用它。
     unsafe {
         if CanUseNewApiForScreenCaptureCheck() == YES {
             return IsCanScreenRecording(if prompt { YES } else { NO }) == YES;
@@ -190,7 +190,7 @@ fn unsafe_is_can_screen_recording(prompt: bool) -> bool {
                 runningApplicationWithProcessIdentifier: pid
             ];
             if p.is_null() {
-                // ignore processes we don't have access to, such as WindowServer, which manages the windows named "Menubar" and "Backstop Menubar"
+                // 忽略我们无权访问的进程，例如管理名为 "Menubar" 和 "Backstop Menubar" 窗口的 WindowServer
                 continue;
             }
             let url: id = msg_send![p, executableURL];
@@ -200,7 +200,7 @@ fn unsafe_is_can_screen_recording(prompt: bool) -> bool {
             }
             let is_dock: BOOL = msg_send![exe_name, isEqual: dock];
             if is_dock == YES {
-                // ignore the Dock, which provides the desktop picture
+                // 忽略提供桌面壁纸的 Dock
                 continue;
             }
             can_record_screen = true;
@@ -220,15 +220,15 @@ pub fn install_service() -> bool {
     is_installed_daemon(false)
 }
 
-// Remember to check if `update_daemon_agent()` need to be changed if changing `is_installed_daemon()`.
-// No need to merge the existing dup code, because the code in these two functions are too critical.
-// New code should be written in a common function.
+// 记得：如果改动 `is_installed_daemon()`，要检查 `update_daemon_agent()` 是否也需要改。
+// 无需合并现有的重复代码，因为这两个函数中的代码太关键了。
+// 新代码应该写在一个公共函数里。
 pub fn is_installed_daemon(prompt: bool) -> bool {
     let daemon = format!("{}_service.plist", crate::get_full_name());
     let agent = format!("{}_server.plist", crate::get_full_name());
     let agent_plist_file = format!("/Library/LaunchAgents/{}", agent);
     if !prompt {
-        // in macos 13, there is new way to check if they are running or enabled, https://developer.apple.com/documentation/servicemanagement/updating-helper-executables-from-earlier-versions-of-macos#Respond-to-changes-in-System-Settings
+        // 在 macOS 13 上，有新的方式来检查它们是否在运行或已启用，https://developer.apple.com/documentation/servicemanagement/updating-helper-executables-from-earlier-versions-of-macos#Respond-to-changes-in-System-Settings
         if !std::path::Path::new(&format!("/Library/LaunchDaemons/{}", daemon)).exists() {
             return false;
         }
@@ -422,7 +422,7 @@ pub fn write_plists() -> ResultType<()> {
 }
 
 pub fn uninstall_service(show_new_window: bool, sync: bool) -> bool {
-    // to-do: do together with win/linux about refactory start/stop service
+    // 待办：与 win/linux 一起重构启动/停止服务
     if !is_installed_daemon(false) {
         return false;
     }
@@ -455,7 +455,7 @@ pub fn uninstall_service(show_new_window: bool, sync: bool) -> bool {
                 if uninstalled {
                     if !show_new_window {
                         let _ = crate::ipc::close_all_instances();
-                        // leave ipc a little time
+                        // 给 ipc 留一点时间
                         std::thread::sleep(std::time::Duration::from_millis(300));
                     }
                     crate::ipc::set_option("stop-service", "Y");
@@ -469,7 +469,7 @@ pub fn uninstall_service(show_new_window: bool, sync: bool) -> bool {
                             .arg(&format!("/Applications/{}.app", crate::get_app_name()))
                             .spawn()
                             .ok();
-                        // leave open a little time
+                        // 给 open 留一点时间
                         std::thread::sleep(std::time::Duration::from_millis(300));
                     }
                     quit_gui();
@@ -502,19 +502,19 @@ pub fn get_cursor_pos() -> Option<(i32, i32)> {
     */
 }
 
-/// Warp the mouse cursor to the specified screen position.
+/// 把鼠标光标移动到指定的屏幕位置。
 ///
-/// # Thread Safety
-/// This function affects global cursor state and acquires `CG_CURSOR_MUTEX`.
-/// Callers must ensure no nested calls occur while the mutex is held.
+/// # 线程安全
+/// 该函数影响全局光标状态，并会获取 `CG_CURSOR_MUTEX`。
+/// 调用方必须确保持有该互斥锁期间不会发生嵌套调用。
 ///
-/// # Arguments
-/// * `x` - X coordinate in screen points (macOS uses points, not pixels)
-/// * `y` - Y coordinate in screen points
+/// # 参数
+/// * `x` —— 以屏幕点为单位的 X 坐标（macOS 用的是点，不是像素）
+/// * `y` —— 以屏幕点为单位的 Y 坐标
 pub fn set_cursor_pos(x: i32, y: i32) -> bool {
-    // Acquire lock with deadlock detection in debug builds.
-    // In debug builds, try_lock detects re-entrant calls early; on failure we return immediately.
-    // In release builds, we use blocking lock() which will wait if contended.
+    // 在 debug 构建中带死锁检测地获取锁。
+    // 在 debug 构建中，try_lock 能及早发现重入调用；失败时我们立即返回。
+    // 在 release 构建中，我们使用阻塞式 lock()，在有竞争时会等待。
     #[cfg(debug_assertions)]
     let _guard = match CG_CURSOR_MUTEX.try_lock() {
         Ok(guard) => guard,
@@ -546,26 +546,26 @@ pub fn set_cursor_pos(x: i32, y: i32) -> bool {
     }
 }
 
-/// Toggle pointer lock (dissociate/associate mouse from cursor position).
+/// 切换指针锁定（解除/建立鼠标与光标位置的关联）。
 ///
-/// On macOS, cursor clipping is not supported directly like Windows ClipCursor.
-/// Instead, we use CGAssociateMouseAndMouseCursorPosition to dissociate mouse
-/// movement from cursor position, achieving a "pointer lock" effect.
+/// 在 macOS 上，不支持像 Windows ClipCursor 那样直接裁剪光标。
+/// 我们改用 CGAssociateMouseAndMouseCursorPosition 把鼠标
+/// 的移动与光标位置解除关联，从而实现"指针锁定"效果。
 ///
-/// # Thread Safety
-/// This function affects global cursor state and acquires `CG_CURSOR_MUTEX`.
-/// Callers must ensure only one owner toggles pointer lock at a time;
-/// nested Some/None transitions from different call sites may cause unexpected behavior.
+/// # 线程安全
+/// 该函数影响全局光标状态，并会获取 `CG_CURSOR_MUTEX`。
+/// 调用方必须确保同一时刻只有一个持有者切换指针锁定；
+/// 来自不同调用点的 Some/None 嵌套切换可能引发意外行为。
 ///
-/// # Arguments
-/// * `rect` - When `Some(_)`, dissociates mouse from cursor (enables pointer lock).
-///            When `None`, re-associates mouse with cursor (disables pointer lock).
-///            The rect coordinate values are ignored on macOS; only `Some`/`None` matters.
-///            The parameter signature matches Windows for API consistency.
+/// # 参数
+/// * `rect` —— 为 `Some(_)` 时，把鼠标与光标解除关联（启用指针锁定）。
+///            为 `None` 时，重新建立鼠标与光标的关联（禁用指针锁定）。
+///            在 macOS 上 rect 的坐标值会被忽略，只有 `Some`/`None` 才有意义。
+///            参数签名与 Windows 保持一致，以统一 API。
 pub fn clip_cursor(rect: Option<(i32, i32, i32, i32)>) -> bool {
-    // Acquire lock with deadlock detection in debug builds.
-    // In debug builds, try_lock detects re-entrant calls early; on failure we return immediately.
-    // In release builds, we use blocking lock() which will wait if contended.
+    // 在 debug 构建中带死锁检测地获取锁。
+    // 在 debug 构建中，try_lock 能及早发现重入调用；失败时我们立即返回。
+    // 在 release 构建中，我们使用阻塞式 lock()，在有竞争时会等待。
     #[cfg(debug_assertions)]
     let _guard = match CG_CURSOR_MUTEX.try_lock() {
         Ok(guard) => guard,
@@ -578,11 +578,11 @@ pub fn clip_cursor(rect: Option<(i32, i32, i32, i32)>) -> bool {
     };
     #[cfg(not(debug_assertions))]
     let _guard = CG_CURSOR_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-    // CGAssociateMouseAndMouseCursorPosition takes a boolean_t:
-    //   1 (true)  = associate mouse with cursor position (normal mode)
-    //   0 (false) = dissociate mouse from cursor position (pointer lock mode)
-    // When rect is Some, we want pointer lock (dissociate), so associate = false (0).
-    // When rect is None, we want normal mode (associate), so associate = true (1).
+    // CGAssociateMouseAndMouseCursorPosition 接受一个 boolean_t：
+    //   1（true） = 把鼠标与光标位置关联（普通模式）
+    //   0（false）= 把鼠标与光标位置解除关联（指针锁定模式）
+    // 当 rect 为 Some 时，我们需要指针锁定（解除关联），所以 associate = false (0)。
+    // 当 rect 为 None 时，我们需要普通模式（建立关联），所以 associate = true (1)。
     let associate: BooleanT = if rect.is_some() { 0 } else { 1 };
     unsafe {
         let result = CGAssociateMouseAndMouseCursorPosition(associate);
@@ -619,9 +619,9 @@ pub fn get_cursor() -> ResultType<Option<u64>> {
     autoreleasepool(|| unsafe_get_cursor())
 }
 
-// The seed names a change of cursor, not a cursor: the shape is named by its content once
-// captured, as on every platform. A fingerprint of its size, hotspot and two pixels named the open
-// and the closed hand alike, and the arrows with a badge, so a switch between them went unsent.
+// 种子标识的是一次光标变化，而不是某个光标：形状由其内容在
+// 被捕获后命名——在所有平台上都是如此。由尺寸、热点和两个像素构成的指纹无法区分张开的
+// 和握紧的手，也认不出带徽标的箭头，于是在它们之间切换时不会发送变化。
 fn unsafe_get_cursor() -> ResultType<Option<u64>> {
     unsafe {
         let seed = CGSCurrentCursorSeed();
@@ -646,8 +646,8 @@ pub fn get_cursor_data(hcursor: u64) -> ResultType<CursorData> {
 // https://github.com/stweil/OSXvnc/blob/master/OSXvnc-server/mousecursor.c
 fn unsafe_get_cursor_data(hcursor: u64) -> ResultType<CursorData> {
     unsafe {
-        // The cursor shown is captured even if it changed after get_cursor read the seed: the
-        // content names the shape, and that change moved the seed on, so the next poll captures it.
+        // 即使在 get_cursor 读取种子之后光标发生了变化，所捕获的仍是显示中的那个光标：
+        // 内容标识形状，而那次变化已经推进了种子，所以下一次轮询才会捕获到它。
         let c: id = msg_send![class!(NSCursor), currentSystemCursor];
         if c == nil {
             bail!("Failed to call [NSCursor currentSystemCursor]");
@@ -672,7 +672,7 @@ fn unsafe_get_cursor_data(hcursor: u64) -> ResultType<CursorData> {
         */
         let mut colors: Vec<u8> = Vec::new();
         colors.reserve((size.height * size.width) as usize * 4);
-        // TIFF is rgb colorspace, no need to convert
+        // TIFF 是 rgb 色彩空间，无需转换
         // let cs: id = msg_send![class!(NSColorSpace), sRGBColorSpace];
         for y in 0..(size.height as _) {
             for x in 0..(size.width as _) {
@@ -725,9 +725,9 @@ pub fn get_active_userid() -> String {
     get_active_user("-n")
 }
 
-/// Return every UID with a login-window/session entry. Fast user switching
-/// can leave several GUI bootstrap domains alive at once, so updating only
-/// the console user can leave another user's agent on the old bundle.
+/// 返回所有带 login-window/session 条目的 UID。快速用户切换
+/// 可能同时留下多个 GUI bootstrap domain 存活，所以只更新
+/// 控制台用户，可能会让另一个用户的 agent 留在旧的 bundle 上。
 pub(crate) fn get_logged_in_uids() -> Vec<u32> {
     let mut uids = std::collections::BTreeSet::new();
     if let Ok(output) = std::process::Command::new("/usr/bin/who").output() {
@@ -759,8 +759,8 @@ pub(crate) fn get_logged_in_uids() -> Vec<u32> {
     }
     if let Ok(active_uid) = get_active_userid().parse::<u32>() {
         if active_uid == 0 {
-            // UID 0 owns /dev/console while the LoginWindow session is active.
-            // Query that server even when fast-switched GUI domains also exist.
+            // 当 LoginWindow 会话处于活动状态时，/dev/console 归 UID 0 所有。
+            // 即使同时存在快速切换产生的 GUI domain，也要查询该服务器。
             uids.insert(0);
         } else {
             let gui_domain = format!("gui/{}", active_uid);
@@ -774,7 +774,7 @@ pub(crate) fn get_logged_in_uids() -> Vec<u32> {
         }
     }
     if uids.is_empty() {
-        // The login window has no ordinary gui/0 bootstrap domain.
+        // 登录窗口没有普通的 gui/0 bootstrap domain。
         uids.insert(0);
     }
     uids.into_iter().collect()
@@ -796,10 +796,10 @@ pub fn is_prelogin() -> bool {
 }
 
 // https://stackoverflow.com/questions/11505255/osx-check-if-the-screen-is-locked
-// No "CGSSessionScreenIsLocked" can be found when macOS is not locked.
+// macOS 未锁屏时找不到 "CGSSessionScreenIsLocked"。
 //
-// `ioreg -n Root -d1` returns `"CGSSessionScreenIsLocked"=Yes`
-// `ioreg -n Root -d1 -a` returns
+// `ioreg -n Root -d1` 返回 `"CGSSessionScreenIsLocked"=Yes`
+// `ioreg -n Root -d1 -a` 返回
 // ```
 // ...
 //    <key>CGSSessionScreenIsLocked</key>
@@ -815,8 +815,8 @@ pub fn is_locked() -> bool {
     {
         Ok(output) => {
             let output_str = String::from_utf8_lossy(&output.stdout);
-            // Although `"CGSSessionScreenIsLocked"=Yes` was printed on my macOS,
-            // I also check `"CGSSessionScreenIsLocked"=true` for better compability.
+            // 虽然在我的 macOS 上打印出的是 `"CGSSessionScreenIsLocked"=Yes`，
+            // 我还额外检查 `"CGSSessionScreenIsLocked"=true`，以获得更好的兼容性。
             output_str.contains("\"CGSSessionScreenIsLocked\"=Yes")
                 || output_str.contains("\"CGSSessionScreenIsLocked\"=true")
         }
@@ -853,22 +853,22 @@ pub fn lock_screen() {
     .ok();
 }
 
-/// Starts the macOS system service IPC listener and the background
-/// silent auto-update thread.
+/// 启动 macOS 系统服务 IPC 监听器和后台的
+/// 静默自动更新线程。
 pub fn start_os_service() {
     log::info!("Username: {}", crate::username());
-    // Silent auto-update — runs as root via LaunchDaemon, no osascript dialog needed
+    // 静默自动更新 —— 通过 LaunchDaemon 以 root 身份运行，无需 osascript 对话框
     crate::updater::start_auto_update_macos();
     if let Err(err) = crate::ipc::start("_service") {
         log::error!("Failed to start ipc_service: {}", err);
     }
 
-    /* // mouse/keyboard works in prelogin now with launchctl asuser.
-       // below can avoid multi-users logged in problem, but having its own below problem.
-       // Not find a good way to start --cm without root privilege (affect file transfer).
-       // one way is to start with `launchctl asuser <uid> open -n -a /Applications/RustDesk.app/ --args --cm`,
-       // this way --cm is started with the user privilege, but we will have problem to start another RustDesk.app
-       // with open in explorer.
+    /* // 现在借助 launchctl asuser，鼠标/键盘在登录前也可以工作。
+       // 下面这种方式可以避免多用户同时登录的问题，但又有它自己的问题。
+       // 还没找到在没有 root 权限的情况下启动 --cm 的好办法（会影响文件传输）。
+       // 一种方法是用 `launchctl asuser <uid> open -n -a /Applications/RustDesk.app/ --args --cm` 启动，
+       // 这样 --cm 是以用户权限启动的，但我们在访达里用 open 再打开另一个 RustDesk.app 时会有问题
+       // 。
         use std::sync::{
             atomic::{AtomicBool, Ordering},
             Arc,
@@ -974,7 +974,7 @@ fn update_me_from_source(update_source: UpdateSource) -> ResultType<()> {
         &crate::ui_interface::get_option(option_stop_service),
     );
 
-    // Include launchd jobs in the transaction only while the installed service is enabled.
+    // 仅在已安装的服务处于启用状态时，才把 launchd 作业纳入该事务。
     if is_installed_daemon && !is_service_stopped {
         let agent = format!("{}_server.plist", crate::get_full_name());
         let agent_plist_file = format!("/Library/LaunchAgents/{}", agent);
@@ -1029,7 +1029,7 @@ fn update_me_from_source(update_source: UpdateSource) -> ResultType<()> {
         }
         _ => {}
     }
-    // leave open a little time
+    // 给 open 留一点时间
     std::thread::sleep(std::time::Duration::from_millis(300));
     Ok(())
 }
@@ -1059,7 +1059,7 @@ pub fn update_to_verified_dmg(
 ) -> ResultType<()> {
     let verified_dmg = copy_and_verify_dmg_file(file, expected_sha256, expected_size)?;
     update_from_verified_dmg(&verified_dmg)?;
-    // Remove the private DMG copy before this process exits.
+    // 在这个进程退出之前移除私有 DMG 副本。
     drop(verified_dmg);
     quit_gui();
     Ok(())
@@ -1091,8 +1091,8 @@ fn backup_update_plist(source: &str, backup: &str) -> ResultType<()> {
 fn validate_update_tree(path: &Path, framework_root: Option<&Path>) -> ResultType<()> {
     let metadata = std::fs::symlink_metadata(path)?;
     if metadata.file_type().is_symlink() {
-        // Frameworks legitimately use internal symlinks (Resources,
-        // Versions/Current), but never allow a link to leave its framework.
+        // 框架（framework）合法地使用内部符号链接（Resources、
+        // Versions/Current），但绝不允许链接指向其框架之外。
         let Some(framework_root) = framework_root else {
             bail!("[root-update] symlink outside framework: {}", path.display());
         };
@@ -1163,8 +1163,8 @@ fn verify_update_app_identity(installed: &Path, candidate: &Path) -> ResultType<
     Ok(())
 }
 
-/// Performs a silent update from a DMG file without any osascript dialog.
-/// Must be called from a process running as root (e.g. the service binary).
+/// 从 DMG 文件执行静默更新，不显示任何 osascript 对话框。
+/// 必须由以 root 身份运行的进程调用（例如服务二进制）。
 pub fn update_from_dmg_as_root(dmg_path: &str, expected_version: &str) -> ResultType<()> {
     let app_name = crate::get_app_name();
     validate_install_app_name(&app_name)?;
@@ -1187,21 +1187,21 @@ pub fn update_from_dmg_as_root(dmg_path: &str, expected_version: &str) -> Result
     let daemon_plist = format!("/Library/LaunchDaemons/com.carriez.{}_service.plist", app_name);
 
     log::info!("[root-update] Starting silent root update from {}", dmg_path);
-    // Check sessions before extracting to avoid unnecessary work
+    // 解压前先检查会话，避免无谓的工作
     if !crate::updater::has_no_active_conns_ipc() {
         bail!("[root-update] Active session detected, deferring update.");
     }
-    // Extract DMG to temp dir
+    // 把 DMG 解压到临时目录
     extract_dmg_into_existing_dir(dmg_path, &tmp_dir)?;
     let src_app = format!("{}/{}.app", tmp_dir, app_name);
     log::info!("[root-update] DMG extracted to {}", tmp_dir);
     validate_update_tree(Path::new(&src_app), None)?;
     verify_update_app_identity(Path::new(&app_bundle), Path::new(&src_app))?;
 
-    // Bind the downloaded asset to the version returned by the update
-    // service before changing plists or executing anything from the staged
-    // bundle. A release asset with the right filename but the wrong bundle
-    // must not be allowed to replace the installed application.
+    // 把下载到的资源与更新服务返回的版本绑定
+    // ，在改动 plist 或执行暂存 bundle 中的任何东西之前
+    // 。文件名正确但 bundle 错误的发布资源
+    // 绝不能被允许替换已安装的应用。
     let info_plist = format!("{}/Contents/Info.plist", src_app);
     let staged_version_result = (|| -> ResultType<String> {
         let output = Command::new("/usr/libexec/PlistBuddy")
@@ -1248,10 +1248,10 @@ pub fn update_from_dmg_as_root(dmg_path: &str, expected_version: &str) -> Result
         );
     }
 
-    // A leftover backup makes `mv app app.bak` nest the live bundle inside
-    // the old directory instead of creating a transaction backup. Never
-    // overwrite or guess at recovery state left by an earlier interrupted
-    // update; require an administrator to inspect it first.
+    // 残留的备份会让 `mv app app.bak` 把正在使用的 bundle 嵌套到
+    // 旧目录里面，而不是创建一份事务备份。绝不
+    // 覆盖或猜测早期被中断的更新所遗留的恢复状态；
+    // 应先让管理员检查它。
     let app_backup = format!("{}.bak", app_bundle);
     let failed_bundle = format!("{}.failed-update", app_bundle);
     for recovery_path in [&app_backup, &failed_bundle] {
@@ -1271,51 +1271,51 @@ pub fn update_from_dmg_as_root(dmg_path: &str, expected_version: &str) -> Result
         }
     }
 
-    // Backup current plists before overwriting — needed for restore on reload failure
+    // 覆盖前先备份当前的 plist —— 重新加载失败时需要用它恢复
     let daemon_plist_bak = format!("{}/daemon_plist.bak", tmp_dir);
     let agent_plist_bak = format!("{}/agent_plist.bak", tmp_dir);
-    // Backups are part of the update transaction. Do not allow the new
-    // service binary to overwrite either live plist unless both installed
-    // definitions have been captured successfully.
+    // 备份是更新事务的一部分。不允许新的
+    // 服务二进制覆盖任何一个正在使用的 plist，除非两个已安装的
+    // 定义都已成功备份。
     backup_update_plist(&daemon_plist, &daemon_plist_bak)?;
     backup_update_plist(&agent_plist, &agent_plist_bak)?;
 
-    // Ensure the staged release contains the service executable before we
-    // proceed. Plist generation itself is done in this already-root process;
-    // launching a freshly extracted service binary from /tmp is not required.
+    // 在继续之前，确保暂存的发布包中包含服务可执行文件。
+    // plist 的生成本身就在这个已经是 root 的进程中完成；
+    // 不需要从 /tmp 启动刚解压出来的服务二进制。
     let new_service = format!("{}/Contents/MacOS/service", src_app);
     if !std::path::Path::new(&new_service).is_file() {
         bail!("[root-update] staged service binary is missing: {}", new_service);
     }
-    // The new binary writes its own plist definitions after the bundle is
-    // moved into its final root-owned location.  This avoids executing code
-    // directly from /tmp while ensuring the plist matches the new release.
+    // 新二进制会在 bundle 被
+    // 移到最终的 root 所有的位置之后，自己写出它的 plist 定义。这样就避免了执行
+    // 直接从 /tmp 来的代码，同时确保 plist 与新发布版本一致。
 
-    // Final session check after extraction — minimize race window
+    // 解压后的最后一次会话检查 —— 尽量缩小竞态窗口
     if !crate::updater::has_no_active_conns_ipc() {
         let _ = std::fs::remove_dir_all(&tmp_dir);
         bail!("[root-update] Active session detected after extraction, deferring update.");
     }
 
-    // Let the detached-script launch settle before taking the affected-user
-    // snapshot. The final IPC check then happens after the delay and as close
-    // as possible to stopping those exact launchd domains.
+    // 在获取受影响用户的快照之前，先让分离脚本的启动稳定下来。
+    // 之后的最终 IPC 检查则在延迟之后、尽可能接近
+    // 停止那些确切的 launchd domain 的时刻进行。
     std::thread::sleep(std::time::Duration::from_secs(3));
     if !crate::updater::has_no_active_conns_ipc() {
         bail!("[root-update] active session started before update launch");
     }
     let logged_in_uids = get_logged_in_uids();
-    // UIDs are parsed as integers before embedding in the root-run shell
-    // script, so they cannot alter its command structure.
+    // UID 在嵌入以 root 运行的 shell 脚本之前先被解析为整数，
+    // 因此它们无法改变脚本的命令结构。
     let uid_list = logged_in_uids
         .iter()
         .map(u32::to_string)
         .collect::<Vec<_>>()
         .join(" ");
 
-    // Write a shell script that runs detached after this function returns.
-    // We cannot directly replace /Applications/RustDesk.app while it is running,
-    // so we spawn a script that waits, kills processes, copies, and restarts.
+    // 写一个 shell 脚本，在本函数返回后以分离方式运行。
+    // 它运行时我们无法直接替换 /Applications/RustDesk.app，
+    // 所以我们派生一个脚本去等待、结束进程、复制并重启。
     let daemon_label = format!("com.carriez.{}_service", app_name);
     let agent_label = format!("com.carriez.{}_server", app_name);
     let script_path = format!("{}/rustdesk_update.sh", tmp_dir);
@@ -1832,8 +1832,8 @@ rm -rf {tmp_dir}
             return Err(err.into());
         }
     }
-    // Reject session changes observed before launch, but this snapshot is
-    // best-effort: it is not atomic with shutdown in the detached script.
+    // 拒绝在启动之前观察到的会话变化，但这个快照是
+    // 尽力而为的：它与分离脚本中的关闭操作并不是原子的。
     if get_logged_in_uids() != logged_in_uids {
         bail!("[root-update] GUI session set changed before update launch");
     }
@@ -1875,7 +1875,7 @@ fn verified_dmg_update_source(verified_dmg: &VerifiedDmg) -> ResultType<UpdateSo
 }
 
 pub fn get_double_click_time() -> u32 {
-    // to-do: https://github.com/servo/core-foundation-rs/blob/786895643140fa0ee4f913d7b4aeb0c4626b2085/cocoa/src/appkit.rs#L2823
+    // 待办：https://github.com/servo/core-foundation-rs/blob/786895643140fa0ee4f913d7b4aeb0c4626b2085/cocoa/src/appkit.rs#L2823
     500 as _
 }
 
@@ -1924,17 +1924,17 @@ pub fn handle_application_should_open_untitled_file() {
     }
 }
 
-/// Get all resolutions of the display. The resolutions are:
-/// 1. Sorted by width and height in descending order, with duplicates removed.
-/// 2. Filtered out if the width is less than 800 (800x600) if there are too many (e.g., >15).
-/// 3. Contain HiDPI resolutions and the real resolutions.
+/// 获取显示器的所有分辨率。这些分辨率：
+/// 1. 按宽度和高度降序排列，并去除重复项。
+/// 2. 如果数量太多（例如 >15），则过滤掉宽度小于 800（800x600）的项。
+/// 3. 同时包含 HiDPI 分辨率和真实分辨率。
 ///
-/// We don't need to distinguish between HiDPI and real resolutions.
-/// When the controlling side changes the resolution, it will call `change_resolution_directly()`.
-/// `change_resolution_directly()` will try to use the HiDPI resolution first.
-/// This is how teamviewer does it for now.
+/// 我们不需要区分 HiDPI 分辨率和真实分辨率。
+/// 当控制端改变分辨率时，会调用 `change_resolution_directly()`。
+/// `change_resolution_directly()` 会优先尝试使用 HiDPI 分辨率。
+/// teamviewer 目前就是这么做的。
 ///
-/// If we need to distinguish HiDPI and real resolutions, we can add a flag to the `Resolution` struct.
+/// 如果我们需要区分 HiDPI 分辨率和真实分辨率，可以给 `Resolution` 结构体加一个标志位。
 pub fn resolutions(name: &str) -> Vec<Resolution> {
     let mut v = vec![];
     if let Ok(display) = name.parse::<u32>() {
@@ -1962,7 +1962,7 @@ pub fn resolutions(name: &str) -> Vec<Resolution> {
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>();
-                        // Sort by (w, h), desc
+                        // 按 (w, h) 降序排序
                         v.sort_by(|a, b| {
                             if a.width == b.width {
                                 b.height.cmp(&a.height)
@@ -1970,16 +1970,16 @@ pub fn resolutions(name: &str) -> Vec<Resolution> {
                                 b.width.cmp(&a.width)
                             }
                         });
-                        // Remove duplicates
+                        // 去除重复项
                         v.dedup_by(|a, b| a.width == b.width && a.height == b.height);
-                        // Filter out the ones that are less than width 800 (800x600) if there are too many.
-                        // We can also do this filtering on the client side, but it is better not to change the client side to reduce the impact.
+                        // 如果数量太多，过滤掉宽度小于 800（800x600）的项。
+                        // 我们也可以在客户端做这个过滤，但最好不改客户端，以减少影响。
                         if v.len() > 15 {
-                            // Most width > 800, so it's ok to remove the small ones.
+                            // 大多数宽度 > 800，所以去掉小的那些没问题。
                             v.retain(|r| r.width >= 800);
                         }
                         if v.len() > 15 {
-                            // Ignore if the length is still too long.
+                            // 如果长度仍然过长就忽略。
                         }
                     }
                 }

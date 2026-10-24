@@ -1,34 +1,34 @@
-//! Closed-loop network simulation for the QoS controller.
+//! 用于 QoS 控制器的闭环网络仿真。
 //!
-//! The controller is driven the way `Connection` drives it: one TestDelay probe per
-//! second, a single probe outstanding, `user_delay_response_elapsed` on every timer
-//! tick, `update_display_data` once per second.  Video frames and probes share one
-//! FIFO, which stands for the downstream shared path (stream, transport, link): the
-//! probe measures the bytes that were handed to that path in front of it.  It is not
-//! the server's `tx_video` channel, which the probe does not pass through, and the
-//! model does not stall the timer while a send is blocked, as the real loop does.
+//! 控制器的驱动方式与 `Connection` 驱动它的方式相同：每秒一个 TestDelay 探测，
+//! 同时只有一个探测未完成，每个定时器 tick 都调用 `user_delay_response_elapsed`，
+//! 每秒调用一次 `update_display_data`。 视频帧和探测共用同一个
+//! FIFO，它代表下游的共享路径（流、传输、链路）：
+//! 探测测量的是排在它前面交给该路径的字节数。 它不是
+//! 服务端的 `tx_video` 通道（探测并不经过它），而且该
+//! 模型不会像真实循环那样在发送被阻塞时拖住定时器。
 //!
-//! Three independent random streams keep an A/B comparison paired: the network
-//! trace (capacity wobble, stalls, loss events) is generated before the run from the
-//! network stream alone, probe jitter is a per-second table from its own stream,
-//! and scene changes follow the wall clock, so two controllers with the same seed
-//! face the same link, the same jitter and the same content timeline whatever they
-//! decide.  Only the frame size noise depends on how many frames were produced.
+//! 三条独立的随机流保证 A/B 对比是配对的：网络
+//! 轨迹（容量波动、停顿、丢包事件）在运行前由
+//! 网络流单独生成，探测抖动是从它自己的流得到的按秒表格，
+//! 而场景切换跟随挂钟，因此具有相同随机种子的两个控制器
+//! 无论做出什么决定，都会面对相同的链路、相同的抖动和相同的内容时间线。
+//!  只有帧大小噪声取决于产生了多少帧。
 //!
-//! The encoder model conserves its bitrate budget: a scene change costs three
-//! frames' worth of data and the surplus is repaid by the following frames, so the
-//! long-term offered load does not depend on the frame rate under CBR.
+//! 编码器模型守恒其码率预算：一次场景切换的代价相当于三
+//! 帧的数据量，多出的部分由随后的帧偿还，因此
+//! 在 CBR 下长期提供的负载与帧率无关。
 //!
-//! It still is a model, not a network: it does not reproduce a real transport's
-//! congestion control or a real encoder.  Its job is to show how the controller
-//! reacts to the *kind* of behaviour a home Wi-Fi, a stable relay or a saturated
-//! uplink produce, deterministically and over many seeds.
+//! 它仍然只是一个模型，而不是真实网络：它不会重现真实传输的
+//! 拥塞控制或真实编码器。 它的任务是展示控制器
+//! 对家用 Wi-Fi、稳定中继或饱和
+//! 上行链路所产生的*那类*行为会如何反应，且是确定性地、在多个随机种子下进行。
 //!
-//! The CI run uses seeds 1 to 20.  Scenario
-//! parameters are educated guesses until a recorded `qos_trace` calibrates them.
+//! CI 运行使用 1 到 20 号种子。 场景
+//! 参数在有录制的 `qos_trace` 对其校准之前都只是有根据的猜测。
 use super::*;
 
-/// xorshift64* generator, so the tests need no external crate and stay reproducible.
+/// xorshift64* 生成器，因此测试无需外部 crate，且保持可复现。
 struct Rng(u64);
 
 impl Rng {
@@ -45,7 +45,7 @@ impl Rng {
         x.wrapping_mul(0x2545_F491_4F6C_DD1D)
     }
 
-    /// Uniform in `[0, 1)`.
+    /// 在 `[0, 1)` 上均匀分布。
     fn uniform(&mut self) -> f64 {
         (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
     }
@@ -71,20 +71,20 @@ impl Rng {
 
 #[derive(Clone)]
 pub struct Link {
-    /// Step schedule `(from_ms, kbps)`, sorted by time.
+    /// 阶梯调度 `(from_ms, kbps)`，按时间排序。
     pub capacity_kbps: Vec<(u32, f64)>,
-    /// Slow random walk of the capacity, as a fraction of the nominal value.
+    /// 容量相对于标称值的缓慢随机游走。
     pub wobble: f64,
     pub base_rtt_ms: f64,
-    /// Log-normal jitter added to every probe round trip.
+    /// 加到每次探测往返上的对数正态抖动。
     pub jitter_median_ms: f64,
     pub jitter_sigma: f64,
-    /// Loss events per second.  A reliable stream turns a loss into a 200-400 ms
-    /// retransmission stall followed by a second at half rate.
+    /// 每秒的丢包事件数。 可靠的传输会把一次丢包变成 200-400 毫秒的
+    /// 重传停顿，随后有一秒的速率减半。
     pub loss_per_s: f64,
-    /// Mean interval between link stalls in seconds, `0` for none.
+    /// 链路停顿之间的平均间隔（秒），`0` 表示从不停顿。
     pub stall_mean_interval_s: f64,
-    /// Uniform stall duration range in milliseconds.
+    /// 停顿时长的均匀分布范围（毫秒）。
     pub stall_ms: (f64, f64),
 }
 
@@ -98,7 +98,7 @@ impl Link {
             .unwrap_or(self.capacity_kbps[0].1)
     }
 
-    /// Time at which the capacity was last restored to its initial value, if it ever dropped.
+    /// 容量最后一次被恢复到初始值的时刻（如果它曾下降过）。
     fn restore_ms(&self) -> Option<u32> {
         let initial = self.capacity_kbps[0].1;
         let mut dropped = false;
@@ -113,7 +113,7 @@ impl Link {
     }
 }
 
-/// Everything the link does during a run, decided before the run starts.
+/// 链路在一次运行期间会做的一切，全部在运行开始前决定。
 struct LinkTrace {
     capacity_kbps: Vec<f64>, // per tick, wobble and retransmission backoff applied
     stalled: Vec<bool>,      // per tick
@@ -123,7 +123,7 @@ fn mark(flags: &mut [bool], from_ms: f64, to_ms: f64) {
     let from = (from_ms / TICK_MS as f64).max(0.0) as usize;
     let to = ((to_ms / TICK_MS as f64).ceil() as usize).min(flags.len());
     for flag in flags.iter_mut().take(to).skip(from) {
-        *flag = true;
+        * flag = true;
     }
 }
 
@@ -137,7 +137,7 @@ fn link_trace(link: &Link, ticks: usize, rng: &mut Rng) -> LinkTrace {
         if now % 100 == 0 {
             wobble = (wobble + rng.normal() * 0.03).clamp(-link.wobble, link.wobble);
         }
-        *capacity = link.capacity_at(now) * (1.0 + wobble);
+        * capacity = link.capacity_at(now) * (1.0 + wobble);
     }
     if link.stall_mean_interval_s > 0.0 {
         let mut start = rng.exponential(link.stall_mean_interval_s) * 1000.0;
@@ -160,7 +160,7 @@ fn link_trace(link: &Link, ticks: usize, rng: &mut Rng) -> LinkTrace {
     }
     for (capacity, backoff) in capacity_kbps.iter_mut().zip(&backoff) {
         if *backoff {
-            *capacity *= 0.5;
+            * capacity *= 0.5;
         }
     }
     LinkTrace {
@@ -171,22 +171,22 @@ fn link_trace(link: &Link, ticks: usize, rng: &mut Rng) -> LinkTrace {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Content {
-    /// Every frame changes: a video call or a movie.
+    /// 每一帧都在变化：视频通话或电影。
     Video,
-    /// Mostly static: a couple of changed frames per second.
+    /// 基本静止：每秒只有几帧发生变化。
     Office,
 }
 
-/// How the encoder turns a bitrate into frame sizes.
+/// 编码器如何把码率转换成帧大小。
 #[derive(Clone, Copy, PartialEq)]
 pub enum EncoderModel {
-    /// VP8, VP9 and AV1 run CBR against millisecond timestamps: fewer frames per
-    /// second means bigger frames, the bitrate stays.  Only the ratio moves bytes.
+    /// VP8、VP9 和 AV1 针对毫秒级时间戳运行 CBR：每秒更少的帧
+    /// 意味着更大的帧，码率保持不变。 只有比例能改变字节量。
     Cbr,
-    /// Hardware encoders configured for a fixed 30 fps rate-control assumption:
-    /// every frame carries a thirtieth of the bitrate, so fewer frames mean fewer
-    /// bytes.  Actual hardware behaviour is backend dependent (Android's MediaCodec
-    /// path runs VBR).
+    /// 按固定 30 fps 码率控制假设配置的硬件编码器：
+    /// 每一帧携带码率的三十分之一，因此更少的帧意味着更少的
+    /// 字节。 实际的硬件行为取决于后端（Android 的 MediaCodec
+    /// 路径运行 VBR）。
     FixedRate,
 }
 
@@ -203,21 +203,21 @@ pub struct Scenario {
     pub seed: u64,
 }
 
-/// Bitrate at ratio 1.0; balanced quality (0.67) then encodes at about 4 Mbps.
+/// 比例为 1.0 时的码率；均衡画质（0.67）则对应约 4 Mbps。
 const BASE_KBPS: f64 = 6000.0;
-/// The frame rate hardware encoders are configured for.
+/// 硬件编码器所配置的帧率。
 const ENCODER_CONFIGURED_FPS: f64 = 30.0;
-/// Log-normal spread of frame sizes around their budget.
+/// 帧大小围绕其预算的对数正态分布。
 const FRAME_SIZE_SIGMA: f64 = 0.35;
 const TICK_MS: u32 = 10;
-/// Samples taken before this instant belong to the cold start, not the steady state.
+/// 在这一时刻之前取得的采样属于冷启动，而不是稳态。
 const WARM_UP_MS: u32 = 15_000;
-/// A recovery counts once target and queue have held for this long.
+/// 目标与队列保持这么久之后，一次恢复才算数。
 const SUSTAINED_MS: u32 = 5_000;
-/// Seeds every scenario is run with.
+/// 每个场景运行时使用的随机种子。
 pub const SEEDS: std::ops::RangeInclusive<u64> = 1..=20;
 
-/// Frame sizes with a conserved bitrate budget.
+/// 在守恒码率预算下的帧大小。
 struct Encoder {
     model: EncoderModel,
     content: Content,
@@ -226,30 +226,30 @@ struct Encoder {
     debt_bits: f64,
 }
 
-/// A scene change every five seconds of video.
+/// 每五秒视频发生一次场景切换。
 const SCENE_INTERVAL_MS: u32 = 5_000;
 
 impl Encoder {
     fn frame_bits(&mut self, now_ms: u32, bitrate_kbps: f64, produce_rate: f64) -> f64 {
         let target = match (self.content, self.model) {
-            // A changed region of a static screen is small whatever the rate control does.
+            // 无论码率控制怎么做，静止画面中变化的区域都很小。
             (Content::Office, _) => bitrate_kbps * 1000.0 / ENCODER_CONFIGURED_FPS * 0.3,
             (Content::Video, EncoderModel::Cbr) => bitrate_kbps * 1000.0 / produce_rate,
             (Content::Video, EncoderModel::FixedRate) => {
                 bitrate_kbps * 1000.0 / ENCODER_CONFIGURED_FPS
             }
         };
-        // Mean one: the spread must not change the offered load.
+        // 均值为 1：这种离散度不得改变所提供的负载。
         let noise = self.rng.log_normal(1.0, FRAME_SIZE_SIGMA)
             * (-FRAME_SIZE_SIGMA * FRAME_SIZE_SIGMA / 2.0).exp();
         let mut bits = target * noise;
-        // Scene changes follow the wall clock, not the frame count, so every
-        // controller meets the same content timeline.
+        // 场景切换跟随挂钟而不是帧计数，因此每个
+        // 控制器都面对相同的内容时间线。
         let scene_change = self.content == Content::Video && now_ms >= self.next_scene_ms;
         if scene_change {
             self.next_scene_ms += SCENE_INTERVAL_MS;
-            // A scene change costs a few frames' worth of data; rate control claws
-            // it back from the frames that follow.
+            // 一次场景切换的代价相当于几帧的数据；码率控制会从
+            // 随后的帧中把它赚回来。
             bits *= 3.0;
             self.debt_bits += bits - target;
         } else if self.debt_bits > 0.0 {
@@ -272,28 +272,28 @@ pub struct Report {
     pub name: String,
     pub seed: u64,
     pub limit: u32,
-    /// Controller target, sampled every 100 ms after the warm-up.
+    /// 控制器目标，预热之后每 100 毫秒采样一次。
     pub mean_target_fps: f64,
     pub p10_target_fps: u32,
     pub min_target_fps: u32,
-    /// Share of the measured time the target spent below half of the limit.
+    /// 在测量时间内目标低于上限一半所占的比例。
     pub below_half_pct: f64,
-    /// Frames the encoder produced per second.
+    /// 编码器每秒产生的帧数。
     pub produced_fps: f64,
-    /// Frames that left the shared path per second.
+    /// 每秒离开共享路径的帧数。
     pub delivered_fps: f64,
-    /// Time a delivered frame spent in the shared path, 95th percentile.
+    /// 已交付帧在共享路径中停留的时间，取 95 百分位。
     pub frame_age_p95_ms: u32,
     pub queue_p95_ms: u32,
     pub max_delay_ms: u32,
-    /// Whether the link drops and restores its capacity at all.
+    /// 链路是否会下降并恢复其容量。
     pub has_restore: bool,
-    /// Time from the capacity restore until target at the limit and queue below
-    /// 200 ms held for `SUSTAINED_MS`.
+    /// 从容量恢复，到目标达到上限且队列低于
+    /// 200 毫秒并持续 `SUSTAINED_MS` 所用的时间。
     pub recovery_ms: Option<u32>,
-    /// Lowest target during the first `WARM_UP_MS`.
+    /// 最初 `WARM_UP_MS` 期间的目标最低值。
     pub cold_start_min_fps: u32,
-    /// First time the target reached 90% of the limit.
+    /// 目标首次达到上限 90% 的时刻。
     pub time_to_90pct_ms: Option<u32>,
     pub trace: Vec<(u32, u32, u32, f32)>, // (time_ms, target fps, queue_ms, ratio)
 }
@@ -329,8 +329,8 @@ pub fn run(sc: &Scenario) -> Report {
     let total_ms = sc.seconds * 1000;
     let ticks = (total_ms / TICK_MS) as usize;
     let link = link_trace(&sc.link, ticks, &mut network_rng);
-    // Probe jitter indexed by the probe's send second, so the number of probes a
-    // controller manages to send does not change the jitter the next one meets.
+    // 探测抖动按探测发送的秒数索引，因此控制器成功发出的
+    // 探测数量不会改变下一次探测遇到的抖动。
     let probe_jitter_ms: Vec<f64> = (0..=sc.seconds)
         .map(|_| probe_rng.log_normal(sc.link.jitter_median_ms, sc.link.jitter_sigma))
         .collect();
@@ -367,8 +367,8 @@ pub fn run(sc: &Scenario) -> Report {
         qos.advance_ms(TICK_MS as u64);
         let capacity_kbps = link.capacity_kbps[tick];
 
-        // Encoder: frames at the controller's rate, sized by the controller's ratio.
-        // The video loop reports the bitrate as soon as it applies a new ratio.
+        // 编码器：按控制器的速率产生帧，大小由控制器的比例决定。
+        // 视频循环在应用新比例后立即上报码率。
         let fps = qos.fps();
         let ratio = qos.ratio();
         let bitrate_kbps = BASE_KBPS * ratio as f64;
@@ -393,7 +393,7 @@ pub fn run(sc: &Scenario) -> Report {
             queued_bits += bits;
         }
 
-        // Shared path drain: probes are tiny and leave as soon as they reach the head.
+        // 共享路径的排空：探测很小，一旦到达队首就离开。
         if !link.stalled[tick] {
             let mut budget = capacity_kbps * TICK_MS as f64;
             while budget > 0.0 {
@@ -419,7 +419,7 @@ pub fn run(sc: &Scenario) -> Report {
             }
         }
 
-        // Probe replies reach the controller.
+        // 探测回复到达控制器。
         replies.sort_by_key(|r| r.0);
         while replies.first().is_some_and(|r| r.0 <= now) {
             let (_, delay) = replies.remove(0);
@@ -428,7 +428,7 @@ pub fn run(sc: &Scenario) -> Report {
             qos.user_network_delay(1, delay);
         }
 
-        // The connection's one second timer.
+        // 连接的一秒定时器。
         if now % 1000 == 0 {
             if probe_sent.is_none() {
                 probe_sent = Some(now);
@@ -497,7 +497,7 @@ pub fn run(sc: &Scenario) -> Report {
     }
 }
 
-/// One scenario over all seeds, summarised by the statistics the assertions use.
+/// 一个场景在所有种子下的运行结果，按断言所使用的统计量汇总。
 #[derive(Debug)]
 pub struct Summary {
     pub name: String,
@@ -509,10 +509,10 @@ pub struct Summary {
     pub delivered_median: f64,
     pub frame_age_p95_p90: u32,
     pub has_restore: bool,
-    /// Slowest sustained recovery, `None` when any seed never recovered.
+    /// 最慢的持续恢复时间，若有任一种子从未恢复则为 `None`。
     pub recovery_worst_ms: Option<u32>,
     pub cold_start_min_median: u32,
-    /// Slowest time to 90% of the limit, `None` when any seed never got there.
+    /// 达到上限 90% 的最慢时间，若有任一种子从未达到则为 `None`。
     pub time_to_90pct_worst_ms: Option<u32>,
 }
 
@@ -583,9 +583,9 @@ fn clean_link(capacity_kbps: f64) -> Link {
     }
 }
 
-/// Weak-signal home Wi-Fi with ample average capacity: heavy-tailed jitter,
-/// retransmissions, and a link stall of up to 2.5 s every twenty seconds or so.
-/// Deliberately nasty; it isolates "capacity is fine, timing is not".
+/// 平均容量充足但信号弱的家用 Wi-Fi：重尾抖动、
+/// 重传，以及大约每二十秒一次最长 2.5 秒的链路停顿。
+/// 故意做得很糟糕；它专门隔离出「容量没问题、时序有问题」这一情形。
 fn home_wifi_link() -> Link {
     Link {
         capacity_kbps: vec![(0, 20_000.0)],
@@ -612,7 +612,7 @@ fn intercontinental_link() -> Link {
     }
 }
 
-/// 8 Mbps for a minute, 2.5 Mbps for the next, 8 Mbps again.
+/// 一分钟 8 Mbps，接着一分钟 2.5 Mbps，然后再回到 8 Mbps。
 fn halved_link() -> Link {
     Link {
         capacity_kbps: vec![(0, 8_000.0), (60_000, 2_500.0), (120_000, 8_000.0)],
@@ -690,7 +690,7 @@ pub fn scenarios() -> Vec<Scenario> {
     ]
 }
 
-/// Runs every scenario over `SEEDS` and returns the per-scenario summaries.
+/// 在 `SEEDS` 上运行每个场景，并返回各场景的汇总。
 pub fn run_all() -> Vec<(Summary, Vec<Report>)> {
     scenarios()
         .iter()
@@ -753,11 +753,11 @@ fn sim_scenarios() {
     }
 }
 
-/// The bounds every scenario summary has to meet in the CI run over `SEEDS`.
-/// They state what the product needs,
-/// not what one seed produced.  If a new seed or a new scenario violates a bound,
-/// change the design or loosen the bound with a written reason; never tune a
-/// controller constant until the bound passes.
+/// 在 `SEEDS` 上的 CI 运行中，每个场景汇总都必须满足的边界。
+/// 它们表述的是产品所需，
+/// 而不是某一个种子产生的结果。 如果新的种子或新的场景违反了某条边界，
+/// 就修改设计或以书面理由放宽该边界；绝不要为了让边界通过而
+/// 调整某个控制器常量。
 pub fn bound_violations(s: &Summary) -> Vec<&'static str> {
     let name = s.name.as_str();
     let limit = s.limit as f64;
@@ -768,9 +768,9 @@ pub fn bound_violations(s: &Summary) -> Vec<&'static str> {
         }
     };
     if name.starts_with("home_wifi") || name.starts_with("office_home_wifi") {
-        // A jittery but healthy link must stay fast: the whole point of the change.
-        // The target rarely leaves the limit, never collapses, and stalls of up to
-        // 2.5 s leave about a second of queue at worst.
+        // 抖动但健康的链路必须保持快速：这正是本次改动的全部意义。
+        // 目标很少偏离上限，从不崩塌，而最长
+        // 2.5 秒的停顿最坏也只留下大约一秒的队列。
         check(
             s.mean_target_median >= 0.85 * limit,
             "median target below 85%",
@@ -781,16 +781,16 @@ pub fn bound_violations(s: &Summary) -> Vec<&'static str> {
         if name != "office_home_wifi_30" {
             check(s.delivered_median >= 0.8 * limit, "delivered below 80%");
         }
-        // Frame age is the time a delivered frame spent in the shared path: what a
-        // viewer waits for on top of the round trip.  A jittery high-capacity link
-        // contains isolated stalls of up to 2.5 s, and the bound is on the p90 of
-        // per-seed p95 frame age: isolated stalls are tolerated, but they must not
-        // turn into a sustained multi-second backlog.  A regression bound, not a
-        // latency target; set from the scenario, not from a run.
+        // 帧龄是已交付帧在共享路径中停留的时间：也就是
+        // 观看者在往返之外还要等待的时间。 一条抖动的高容量链路
+        // 包含最长 2.5 秒的孤立停顿，而边界针对的是
+        // 每个种子 p95 帧龄的 p90：孤立停顿是可以容忍的，但它们不得
+        // 演变成持续数秒的积压。 这是回归边界，而不是
+        // 延迟目标；它由场景设定，而不是由某次运行得出。
         check(s.frame_age_p95_p90 < 1500, "frame age p95 p90 over 1.5 s");
     } else if name.starts_with("city_relay") {
-        // A clean link is where the developers test; every seed sits at the limit,
-        // and a fresh connection reaches 90% of it within ten seconds.
+        // 干净的链路是开发者测试的环境；每个种子都处在上限上，
+        // 而一条新建连接在十秒内达到该上限的 90%。
         check(s.p10_target_worst == s.limit, "left the limit");
         check(s.queue_p95_p90 < 50, "queue on a clean link");
         check(s.frame_age_p95_p90 < 100, "frame age on a clean link");
@@ -799,7 +799,7 @@ pub fn bound_violations(s: &Summary) -> Vec<&'static str> {
             "cold start over 10 s",
         );
     } else if name == "intercontinental_30" {
-        // High but stable RTT is not congestion, not even during the cold start.
+        // RTT 虽高但稳定并不是拥塞，即便在冷启动期间也不是。
         check(
             s.mean_target_median >= 0.9 * limit,
             "median target below 90%",
@@ -808,19 +808,19 @@ pub fn bound_violations(s: &Summary) -> Vec<&'static str> {
             s.cold_start_min_median >= INIT_FPS,
             "cold start below INIT_FPS",
         );
-        // Frame age excludes the round trip, so a high RTT earns no allowance.
+        // 帧龄不含往返时间，因此高 RTT 得不到任何宽限。
         check(s.frame_age_p95_p90 < 150, "frame age over 150 ms");
         check(
             s.time_to_90pct_worst_ms.is_some_and(|ms| ms <= 10_000),
             "cold start over 10 s",
         );
     } else if let Some((queue_p95_bound_ms, below_half_bound_pct)) = match name {
-        // Real congestion must be detected, drained and recovered from.  With a CBR
-        // encoder only the bitrate drains the queue, and three probe replies at one
-        // second cadence plus a three second ratio cooldown are needed before a
-        // confirmed cut, so a few seconds of queue are inherent there.  Without
-        // ABR nothing drains a CBR queue at all, so that combination is reported
-        // but not asserted.
+        // 真实的拥塞必须被检测、被排空并从中恢复。 在 CBR
+        // 编码器下只有码率能排空队列，而每秒节奏下需要三次探测回复
+        // 再加上三秒的比例冷却期，才能进行一次
+        // 确认后的降档，因此那里必然会有几秒的队列。 如果没有
+        // ABR，就完全没有什么能排空 CBR 的队列，因此这种组合会被上报
+        // 但不做断言。
         "bandwidth_halved_30" => Some((3000, 40.0)),
         "bandwidth_halved_fixed_rate_30" => Some((2000, 10.0)),
         "bandwidth_halved_fixed_rate_no_abr_30" => Some((3000, 30.0)),
@@ -844,15 +844,15 @@ pub fn bound_violations(s: &Summary) -> Vec<&'static str> {
     v
 }
 
-/// Replays `qos_trace` lines through a fresh controller and returns
-/// `(time_ms, id, recorded_fps, replayed_fps)` per line.  Open loop, FPS only:
-/// the recorded delays do not react to the replayed decisions, the session runs
-/// with ABR off, and connections are replayed as separate viewers of one 30 fps
-/// balanced session.  Time advances by the wall-clock delta between consecutive
-/// lines whatever their connection, or by one second per line when a trace
-/// predates the `t=` field.
+/// 把 `qos_trace` 的各行回放给一个全新的控制器，并返回
+/// 每行的 `(time_ms, id, recorded_fps, replayed_fps)`。 开环，仅涉及 FPS：
+/// 录制的延迟不会对回放出的决策作出反应，会话以
+/// 关闭 ABR 的方式运行，各连接被回放为同一个 30 fps
+/// 均衡会话的独立观看者。 时间按相邻两行之间的挂钟差值推进，
+/// 无论它们属于哪个连接；当轨迹
+/// 早于 `t=` 字段时，则每行推进一秒。
 pub fn replay(text: &str) -> Vec<(u64, i32, u64, u32)> {
-    // A present but malformed value is a corrupt trace, not a missing field.
+    // 存在但格式错误的值意味着轨迹损坏，而不是字段缺失。
     let field = |line: &str, key: &str| -> Option<u64> {
         line.split_whitespace()
             .find_map(|kv| kv.strip_prefix(key).and_then(|v| v.strip_prefix('=')))
@@ -891,7 +891,7 @@ pub fn replay(text: &str) -> Vec<(u64, i32, u64, u32)> {
     trace
 }
 
-/// Replays the log named by `RUSTDESK_QOS_TRACE` and prints the result.
+/// 回放 `RUSTDESK_QOS_TRACE` 指定的日志并打印结果。
 #[test]
 fn replay_recorded_trace() {
     let Ok(path) = std::env::var("RUSTDESK_QOS_TRACE") else {

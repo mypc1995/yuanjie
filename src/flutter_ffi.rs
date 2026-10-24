@@ -39,12 +39,12 @@ lazy_static::lazy_static! {
 
 fn initialize(app_dir: &str, custom_client_config: &str) {
     flutter::async_tasks::start_flutter_async_runner();
-    // `APP_DIR` is set in `main_get_data_dir_ios()` on iOS.
+    // 在 iOS 上，`APP_DIR` 由 `main_get_data_dir_ios()` 设置。
     #[cfg(not(target_os = "ios"))]
     {
-        *config::APP_DIR.write().unwrap() = app_dir.to_owned();
+        * config::APP_DIR.write().unwrap() = app_dir.to_owned();
     }
-    // core_main's load_custom_client does not work for flutter since it is only applied to its load_library in main.c
+    // core_main 的 load_custom_client 对 flutter 无效，因为它只作用于 main.c 中的 load_library
     if custom_client_config.is_empty() {
         crate::load_custom_client();
     } else {
@@ -52,7 +52,7 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
     }
     #[cfg(target_os = "android")]
     {
-        // flexi_logger can't work when android_logger initialized.
+        // 初始化 android_logger 后 flexi_logger 无法工作。
         #[cfg(debug_assertions)]
         android_logger::init_once(
             android_logger::Config::default()
@@ -78,7 +78,7 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        // core_main's init_log does not work for flutter since it is only applied to its load_library in main.c
+        // core_main 的 init_log 对 flutter 无效，因为它只作用于 main.c 中的 load_library
         hbb_common::init_log(false, "flutter_ffi");
     }
 }
@@ -96,8 +96,8 @@ pub enum EventToUI {
     Event(String),
     Rgba(usize),
     Texture(usize, bool), // (display, gpu_texture)
-    // A shape's RGBA as bytes: as text it was four times the size and parsed on the UI thread.
-    // The id stays text, since the peer's ids can exceed Dart's int.
+    // 以字节形式表示的形状 RGBA：作为文本时体积是四倍，而且要在 UI 线程上解析。
+    // id 保持为文本，因为对端的 id 可能超出 Dart 的 int 范围。
     Cursor {
         id: String,
         hotx: i32,
@@ -113,7 +113,7 @@ pub fn host_stop_system_key_propagate(_stopped: bool) {
     crate::platform::windows::stop_system_key_propagate(_stopped);
 }
 
-// This function is only used to count the number of control sessions.
+// 此函数仅用于统计控制会话的数量。
 pub fn peer_get_sessions_count(id: String, conn_type: i32) -> SyncReturn<usize> {
     let conn_type = if conn_type == ConnType::VIEW_CAMERA as i32 {
         ConnType::VIEW_CAMERA
@@ -172,8 +172,8 @@ pub fn session_add_sync(
         is_shared_password,
         conn_token,
     );
-    // We can't put the remove call together with `std::env::var("IS_TERMINAL_ADMIN")`.
-    // Because there are some `bail!` in `session_add()`, we must make sure `IS_TERMINAL_ADMIN` is removed at last.
+    // 不能把 remove 调用与 `std::env::var("IS_TERMINAL_ADMIN")` 放在一起。
+    // 因为 `session_add()` 中有一些 `bail!`，必须确保 `IS_TERMINAL_ADMIN` 最后才被移除。
     if is_terminal {
         std::env::remove_var("IS_TERMINAL_ADMIN");
     }
@@ -210,7 +210,7 @@ pub fn session_start_with_displays(
     Ok(())
 }
 
-// A cursor shape the core keeps, as RGBA, for a window that has to draw it again.
+// 核心保存的以 RGBA 形式存在的光标形状，供需要再次绘制它的窗口使用。
 pub struct CursorShape {
     pub hotx: i32,
     pub hoty: i32,
@@ -301,8 +301,8 @@ pub fn will_session_close_close_session(session_id: SessionID) -> SyncReturn<boo
 pub fn session_close(session_id: SessionID) {
     if let Some(session) = sessions::remove_session_by_session_id(&session_id) {
         crate::keyboard::shortcuts::clear_session_state(&session_id);
-        // `release_remote_keys` is not required for mobile platforms in common cases.
-        // But we still call it to make the code more stable.
+        // 在常见情况下，移动平台不需要 `release_remote_keys`。
+        // 但我们仍然调用它，以使代码更稳定。
         #[cfg(any(target_os = "android", target_os = "ios"))]
         crate::keyboard::release_remote_keys("map");
         session.close_event_stream(session_id);
@@ -651,16 +651,16 @@ pub fn session_handle_flutter_raw_key_event(
     }
 }
 
-// If the cursor jumps between remote page of two connections, leave view and enter view will be called.
-// session_enter_or_leave() will be called then.
-// As Rust is multi-threaded, enter() can be called before leave().
-// The Rust-side grab ownership state filters stale transitions.
+// 如果光标在两个连接的远端页面之间跳转，就会调用 leave view 和 enter view。
+// 那时会调用 session_enter_or_leave()。
+// 由于 Rust 是多线程的，enter() 可能在 leave() 之前被调用。
+// Rust 侧的抓取归属状态会过滤掉过期的状态切换。
 pub fn session_enter_or_leave(_session_id: SessionID, _enter: bool) -> SyncReturn<()> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     if let Some(session) = sessions::get_session_by_session_id(&_session_id) {
         let keyboard_mode = session.get_keyboard_mode();
-        // Use the full per-window UUID (not lc.session_id which is per-connection)
-        // so that two windows viewing the same peer get distinct grab owners.
+        // 使用完整的按窗口的 UUID（而不是按连接的 lc.session_id）
+        // 这样查看同一对端的两个窗口会得到各自不同的抓取归属者。
         let window_id = _session_id.as_u128();
         if _enter {
             set_cur_session_id_(_session_id, &keyboard_mode);
@@ -710,7 +710,7 @@ pub fn session_send_chat(session_id: SessionID, text: String) {
     }
 }
 
-// Terminal functions
+// 终端功能
 pub fn session_open_terminal(session_id: SessionID, terminal_id: i32, rows: u32, cols: u32) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.open_terminal(terminal_id, rows, cols);
@@ -759,7 +759,7 @@ pub fn session_input_os_password(session_id: SessionID, value: String) {
     }
 }
 
-// File Action
+// 文件操作
 pub fn session_read_remote_dir(session_id: SessionID, path: String, include_hidden: bool) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.read_remote_dir(path, include_hidden);
@@ -892,7 +892,7 @@ pub fn session_load_last_transfer_jobs(session_id: SessionID) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         return session.load_last_jobs();
     } else {
-        // a tip for flutter dev
+        // 给 flutter 开发者的提示
         eprintln!(
             "cannot load last transfer job from non-existed session. Please ensure session \
         is connected before calling load last transfer jobs."
@@ -1046,9 +1046,9 @@ pub fn main_set_option(key: String, value: String) {
         );
     }
 
-    // If `is_allow_tls_fallback` and https proxy is used, we need to restart rendezvous mediator.
-    // No need to check if https proxy is used, because this option does not change frequently
-    // and restarting mediator is safe even https proxy is not used.
+    // 如果设置了 `is_allow_tls_fallback` 且使用了 https 代理，就需要重启 rendezvous mediator。
+    // 无需检查是否使用了 https 代理，因为该选项不会经常变化
+    // 而且即使没有使用 https 代理，重启 mediator 也是安全的。
     let is_allow_tls_fallback = key.eq(keys::OPTION_ALLOW_INSECURE_TLS_FALLBACK);
     if is_allow_tls_fallback
         || key.eq("custom-rendezvous-server")
@@ -1227,11 +1227,11 @@ pub fn main_get_env(key: String) -> SyncReturn<String> {
     SyncReturn(std::env::var(key).unwrap_or_default())
 }
 
-// Dart does not support changing environment variables.
-// `Platform.environment['MY_VAR'] = 'VAR';` will throw an error
-// `Unsupported operation: Cannot modify unmodifiable map`.
+// Dart 不支持修改环境变量。
+// `Platform.environment['MY_VAR'] = 'VAR';` 会抛出错误
+// `Unsupported operation: Cannot modify unmodifiable map`。
 //
-// And we need to share the environment variables between rust and dart isolates sometimes.
+// 而且我们有时需要在 rust 和 dart 的 isolate 之间共享环境变量。
 pub fn main_set_env(key: String, value: Option<String>) -> SyncReturn<()> {
     let is_valid_key = !key.is_empty() && !key.contains('=') && !key.contains('\0');
     debug_assert!(is_valid_key, "Invalid environment variable key: {}", key);
@@ -1283,10 +1283,10 @@ pub fn main_set_local_option(key: String, value: String) {
     }
 }
 
-// We do use use `main_get_local_option` and `main_set_local_option`.
+// 我们确实使用 `main_get_local_option` 和 `main_set_local_option`。
 //
-// 1. For get, the value is stored in the server process.
-// 2. For clear, we need to need to return the error mmsg from the server process to flutter.
+// 1. 对于 get，值保存在服务端进程中。
+// 2. 对于 clear，需要把服务端进程返回的错误消息传给 flutter。
 pub fn main_handle_wayland_screencast_restore_token(_key: String, _value: String) -> String {
     #[cfg(not(target_os = "linux"))]
     {
@@ -1333,15 +1333,15 @@ pub fn main_set_input_source(session_id: SessionID, value: String) {
     }
 }
 
-/// Set cursor position (for pointer lock re-centering).
+/// 设置光标位置（用于 pointer lock 重新居中）。
 ///
-/// # Returns
-/// - `true`: cursor position was successfully set
-/// - `false`: operation failed or not supported
+/// # 返回值
+/// - `true`：光标位置设置成功
+/// - `false`：操作失败或不支持
 ///
-/// # Platform behavior
-/// - Windows/macOS/Linux: attempts to move the cursor to (x, y)
-/// - Android/iOS: no-op, always returns `false`
+/// # 各平台行为
+/// - Windows/macOS/Linux：尝试把光标移动到 (x, y)
+/// - Android/iOS：空操作，始终返回 `false`
 pub fn main_set_cursor_position(x: i32, y: i32) -> SyncReturn<bool> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
@@ -1354,22 +1354,22 @@ pub fn main_set_cursor_position(x: i32, y: i32) -> SyncReturn<bool> {
     }
 }
 
-/// Clip cursor to a rectangle (for pointer lock).
+/// 把光标限制在一个矩形内（用于 pointer lock）。
 ///
-/// When `enable` is true, the cursor is clipped to the rectangle defined by
-/// `left`, `top`, `right`, `bottom`. When `enable` is false, the rectangle
-/// values are ignored and the cursor is unclipped.
+/// 当 `enable` 为 true 时，光标被限制在由
+/// `left`、`top`、`right`、`bottom` 定义的矩形内。当 `enable` 为 false 时，矩形
+/// 参数被忽略，光标不受限制。
 ///
-/// # Returns
-/// - `true`: operation succeeded or no-op completed
-/// - `false`: operation failed
+/// # 返回值
+/// - `true`：操作成功或空操作完成
+/// - `false`：操作失败
 ///
-/// # Platform behavior
-/// - Windows: uses ClipCursor API to confine cursor to the specified rectangle
-/// - macOS: uses CGAssociateMouseAndMouseCursorPosition for pointer lock effect;
-///   the rect coordinates are ignored (only Some/None matters)
-/// - Linux: no-op, always returns `true`; use pointer warping for similar effect
-/// - Android/iOS: no-op, always returns `false`
+/// # 各平台行为
+/// - Windows：使用 ClipCursor API 把光标限制在指定矩形内
+/// - macOS：使用 CGAssociateMouseAndMouseCursorPosition 实现 pointer lock 效果；
+///   矩形坐标会被忽略（只有 Some/None 起作用）
+/// - Linux：空操作，始终返回 `true`；可用 pointer warping 实现类似效果
+/// - Android/iOS：空操作，始终返回 `false`
 pub fn main_clip_cursor(
     left: i32,
     top: i32,
@@ -1409,8 +1409,8 @@ pub fn main_get_peer_option_sync(id: String, key: String) -> SyncReturn<String> 
     SyncReturn(get_peer_option(id, key))
 }
 
-// Sometimes we need to get the flutter option of a peer by reading the file.
-// Because the session may not be established yet.
+// 有时我们需要通过读取文件来获取某个对端的 flutter option。
+// 因为该会话可能尚未建立。
 pub fn main_get_peer_flutter_option_sync(id: String, k: String) -> SyncReturn<String> {
     SyncReturn(get_peer_flutter_option(id, k))
 }
@@ -1466,8 +1466,8 @@ fn load_recent_peers(
         None
     };
     let mut peers_next = PeerConfig::batch_peers(vec_id_modified_time_path, from, to);
-    // There may be less peers than the batch size.
-    // But no need to consider this case, because it is a rare case.
+    // 对端数量可能少于批处理大小。
+    // 但无需考虑这种情况，因为它是罕见情况。
     let peers = peers_next.0.drain(..).map(|(id, _, p)| peer_to_map(id, p));
     all_peers.extend(peers);
     peers_next.1
@@ -1516,7 +1516,7 @@ pub fn main_load_recent_peers() {
         } else {
             let _ = load_recent_peers(&vec_id_modified_time_path, true, &mut all_peers, 0);
         }
-        // Don't check if `all_peers` is empty, because we need this message to update the state in the flutter side.
+        // 不要检查 `all_peers` 是否为空，因为我们需要这条消息来更新 flutter 侧的状态。
         push_to_flutter(
             serde_json::ser::to_string(&all_peers).unwrap_or("".to_owned()),
             None,
@@ -1659,7 +1659,7 @@ pub fn main_get_main_display() -> SyncReturn<String> {
 
         if !is_linux_wayland {
             if let Ok(displays) = crate::display_service::try_get_displays() {
-                // to-do: Need to detect current display index.
+                // 待办：需要检测当前的显示器索引。
                 if let Some(display) = displays.iter().next() {
                     display_info = serde_json::to_string(&HashMap::from([
                         ("w", display.width()),
@@ -1688,8 +1688,8 @@ pub fn main_get_main_display() -> SyncReturn<String> {
     SyncReturn(display_info)
 }
 
-// No need to check if is on Wayland in this function.
-// The Flutter side gets display information on Wayland using a different method.
+// 在此函数中无需检查是否运行在 Wayland 上。
+// Flutter 侧在 Wayland 上用另一种方式获取显示器信息。
 pub fn main_get_displays() -> SyncReturn<String> {
     #[cfg(target_os = "ios")]
     let display_info = "".to_owned();
@@ -1837,11 +1837,11 @@ pub fn main_init(app_dir: String, custom_client_config: String) {
 }
 
 pub fn main_device_id(id: String) {
-    *crate::common::DEVICE_ID.lock().unwrap() = id;
+    * crate::common::DEVICE_ID.lock().unwrap() = id;
 }
 
 pub fn main_device_name(name: String) {
-    *crate::common::DEVICE_NAME.lock().unwrap() = name;
+    * crate::common::DEVICE_NAME.lock().unwrap() = name;
 }
 
 pub fn main_remove_peer(id: String) {
@@ -1880,7 +1880,7 @@ pub fn main_start_dbus_server() {
     #[cfg(target_os = "linux")]
     {
         use crate::dbus::start_dbus_server;
-        // spawn new thread to start dbus server
+        // 派生新线程来启动 dbus 服务
         std::thread::spawn(|| {
             let _ = start_dbus_server();
         });
@@ -1927,57 +1927,57 @@ pub fn session_send_pointer(session_id: SessionID, msg: String) {
     super::flutter::session_send_pointer(session_id, msg);
 }
 
-/// Send mouse event from Flutter to the remote peer.
+/// 从 Flutter 向远端对端发送鼠标事件。
 ///
-/// # Relative Mouse Mode Message Contract
+/// # 相对鼠标模式消息约定
 ///
-/// When the message contains a `relative_mouse_mode` field, this function validates
-/// and filters activation/deactivation markers.
+/// 当消息包含 `relative_mouse_mode` 字段时，此函数会校验
+/// 并过滤激活/停用标记。
 ///
-/// **Mode Authority:**
-/// The Flutter InputModel is authoritative for relative mouse mode activation/deactivation.
-/// The server (via `input_service.rs`) only consumes forwarded delta movements and tracks
-/// relative movement processing state, but does NOT control mode activation/deactivation.
+/// **模式归属：**
+/// Flutter 的 InputModel 是相对鼠标模式激活/停用的权威来源。
+/// 服务端（通过 `input_service.rs`）只消费转发过来的增量移动，并跟踪
+/// 相对移动的处理状态，但并不控制模式的激活/停用。
 ///
-/// **Deactivation Markers are Local-Only:**
-/// Deactivation markers (`relative_mouse_mode: "0"`) are NEVER forwarded to the server.
-/// They are handled entirely on the client side to reset local UI state (cursor visibility,
-/// pointer lock, etc.). The server does not rely on deactivation markers and should not
-/// expect to receive them.
+/// **停用标记仅限本地：**
+/// 停用标记（`relative_mouse_mode: "0"`）绝不转发给服务端。
+/// 它们完全在客户端处理，用于重置本地 UI 状态（光标可见性、
+/// pointer lock 等）。服务端不依赖停用标记，也不应该
+/// 指望收到它们。
 ///
-/// **Contract (Flutter side MUST adhere to):**
-/// 1. `relative_mouse_mode` field is ONLY present on activation/deactivation marker messages,
-///    NEVER on normal pointer events (move, button, scroll).
-/// 2. Deactivation marker: `{"relative_mouse_mode": "0"}` - local-only, never forwarded.
-/// 3. Activation marker: `{"relative_mouse_mode": "1", "type": "move_relative", "x": "0", "y": "0"}`
-///    - MUST use `type="move_relative"` with `x="0"` and `y="0"` (safe no-op).
-///    - Any other combination is dropped to prevent accidental cursor movement.
+/// **约定（Flutter 侧必须遵守）：**
+/// 1. `relative_mouse_mode` 字段只出现在激活/停用标记消息中，
+///    绝不出现在正常的指针事件（移动、按键、滚轮）中。
+/// 2. 停用标记：`{"relative_mouse_mode": "0"}` - 仅限本地，绝不转发。
+/// 3. 激活标记：`{"relative_mouse_mode": "1", "type": "move_relative", "x": "0", "y": "0"}`
+///    - 必须使用 `type="move_relative"` 且 `x="0"`、`y="0"`（安全的空操作）。
+///    - 其他任何组合都会被丢弃，以防止意外移动光标。
 ///
-/// If these assumptions are violated (e.g., `relative_mouse_mode` is added to normal events),
-/// legitimate mouse events may be silently dropped by the early-return logic below.
+/// 如果违反这些假设（例如把 `relative_mouse_mode` 加到正常事件中），
+/// 合法的鼠标事件可能会被下面的提前返回逻辑静默丢弃。
 pub fn session_send_mouse(session_id: SessionID, msg: String) {
     if let Ok(m) = serde_json::from_str::<HashMap<String, String>>(&msg) {
-        // Relative mouse mode marker validation (Flutter-only).
-        // This only validates and filters markers; the server tracks per-connection
-        // relative-movement processing state but not mode activation/deactivation.
-        // See doc comment above for the message contract.
+        // 相对鼠标模式标记校验（仅 Flutter 侧）。
+        // 这里只校验并过滤标记；服务端跟踪的是按连接的
+        // 相对移动处理状态，而不是模式激活/停用。
+        // 消息约定参见上方的文档注释。
         if let Some(v) = m.get("relative_mouse_mode") {
             let active = matches!(v.as_str(), "1" | "Y" | "on");
 
-            // Disable marker: local-only, never forwarded to the server.
-            // The server does not track mode deactivation; it simply stops receiving
-            // relative move events when the client exits relative mouse mode.
+            // 停用标记：仅限本地，绝不转发给服务端。
+            // 服务端不跟踪模式停用；它只是不再接收
+            // 客户端退出相对鼠标模式时的相对移动事件。
             if !active {
                 #[cfg(not(any(target_os = "android", target_os = "ios")))]
                 crate::keyboard::set_relative_mouse_mode_state(false);
                 return;
             }
 
-            // Enable marker: validate BEFORE setting state to avoid desync.
-            // This ensures we only mark as active if the marker will actually be forwarded.
+            // 激活标记：先校验再设置状态，以避免失步。
+            // 这确保只有在该标记确实会被转发时，我们才把它标记为已激活。
 
-            // Enable marker is allowed to go through only if it's a safe no-op relative move.
-            // This avoids accidentally moving the remote cursor (e.g. if type/x/y are missing).
+            // 只有当激活标记是安全的空操作相对移动时，才允许它通过。
+            // 这样可以避免意外移动远端光标（例如 type/x/y 缺失时）。
             let msg_type = m.get("type").map(|t| t.as_str());
             if msg_type != Some("move_relative") {
                 log::warn!(
@@ -2002,7 +2002,7 @@ pub fn session_send_mouse(session_id: SessionID, msg: String) {
                 return;
             }
 
-            // Guard against unexpected fields that could turn this no-op into a real event.
+            // 防止意外出现的字段把这个空操作变成真实事件。
             if m.contains_key("buttons")
                 || m.contains_key("alt")
                 || m.contains_key("ctrl")
@@ -2015,7 +2015,7 @@ pub fn session_send_mouse(session_id: SessionID, msg: String) {
                 return;
             }
 
-            // All validation passed - marker will be forwarded as a no-op relative move.
+            // 所有校验均通过 —— 该标记将作为空操作的相对移动被转发。
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             crate::keyboard::set_relative_mouse_mode_state(true);
         }
@@ -2090,7 +2090,7 @@ pub fn session_get_last_audit_note(session_id: SessionID) -> SyncReturn<String> 
 
 pub fn session_set_audit_guid(session_id: SessionID, guid: String) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
-        *session.audit_guid.lock().unwrap() = guid;
+        * session.audit_guid.lock().unwrap() = guid;
     }
 }
 
@@ -2151,13 +2151,13 @@ pub fn session_printer_response(
 pub fn main_set_home_dir(_home: String) {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
-        *config::APP_HOME_DIR.write().unwrap() = _home;
+        * config::APP_HOME_DIR.write().unwrap() = _home;
     }
 }
 
-// This is a temporary method to get data dir for ios
+// 这是一个为 ios 获取数据目录的临时方法
 pub fn main_get_data_dir_ios(app_dir: String) -> SyncReturn<String> {
-    *config::APP_DIR.write().unwrap() = app_dir;
+    * config::APP_DIR.write().unwrap() = app_dir;
     let data_dir = config::Config::path("data");
     if !data_dir.exists() {
         if let Err(e) = std::fs::create_dir_all(&data_dir) {
@@ -2245,8 +2245,8 @@ pub fn cm_close_connection(conn_id: i32) {
     crate::ui_cm_interface::close(conn_id);
 }
 
-/// The CM window closed. On Linux that is ambiguous - a logout closes it the same way a person
-/// does - so it ends the session without the no-retry reason; elsewhere it is a plain close.
+/// CM 窗口已关闭。在 Linux 上这种情况有歧义 —— 注销会像用户手动
+/// 关闭一样结束会话，因此不会带上不重试的原因；在其他平台上它就是普通的关闭。
 pub fn cm_close_connection_window(conn_id: i32) {
     #[cfg(target_os = "linux")]
     crate::ui_cm_interface::close_window(conn_id);
@@ -2463,7 +2463,7 @@ pub fn main_account_auth_result() -> String {
 }
 
 pub fn main_on_main_window_close() {
-    // may called more than one times
+    // 可能会被调用多次
     #[cfg(windows)]
     crate::portable_service::client::drop_portable_service_shared_memory();
 }
@@ -2496,10 +2496,10 @@ pub fn cm_init() {
     crate::flutter::connection_manager::cm_init();
 }
 
-/// Start an ipc server for receiving the url scheme.
+/// 启动一个 ipc 服务来接收 url scheme。
 ///
-/// * Should only be called in the main flutter window.
-/// * macOS only
+/// * 只应在主 flutter 窗口中调用。
+/// * 仅 macOS
 pub fn main_start_ipc_url_server() {
     #[cfg(target_os = "macos")]
     std::thread::spawn(move || crate::server::start_ipc_url_server());
@@ -2549,30 +2549,30 @@ pub fn is_disable_group_panel() -> SyncReturn<bool> {
     SyncReturn(LocalConfig::get_option("disable-group-panel") == "Y")
 }
 
-// windows only
+// 仅 windows
 pub fn is_disable_installation() -> SyncReturn<bool> {
     SyncReturn(config::is_disable_installation())
 }
 
 pub fn is_preset_password() -> bool {
-    // On desktop, service owns the authoritative config; query it via IPC and return only a boolean.
+    // 在桌面上，服务持有权威配置；通过 IPC 查询它并只返回布尔值。
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     return crate::ipc::is_permanent_password_preset();
 
-    // On mobile, we have no service IPC; verify against local storage.
+    // 在移动端没有服务 IPC；改为对照本地存储进行校验。
     #[cfg(any(target_os = "android", target_os = "ios"))]
     return config::Config::is_using_preset_password();
 }
 
-// Don't call this function for desktop version.
-// We need this function because we want a sync return for mobile version.
+// 不要在桌面版本中调用此函数。
+// 我们需要这个函数，因为移动端需要同步返回。
 pub fn is_preset_password_mobile_only() -> SyncReturn<bool> {
     SyncReturn(is_preset_password())
 }
 
-/// Send a url scheme through the ipc.
+/// 通过 ipc 发送 url scheme。
 ///
-/// * macOS only
+/// * 仅 macOS
 #[allow(unused_variables)]
 pub fn send_url_scheme(_url: String) {
     #[cfg(target_os = "macos")]
@@ -2773,8 +2773,8 @@ pub fn main_get_common_sync(key: String) -> SyncReturn<String> {
         };
         return SyncReturn(response.to_string());
     }
-    // Metadata verification performs blocking network requests. Keep this key on
-    // the asynchronous FFI path to avoid blocking the calling Flutter isolate.
+    // 元数据校验会执行阻塞式的网络请求。把该 key 放在
+    // 异步 FFI 路径上，避免阻塞发起调用的 Flutter isolate。
     if key.starts_with("verified-download-url-") {
         return SyncReturn("error:unsupported".to_owned());
     }
@@ -2815,8 +2815,8 @@ pub fn main_set_common(_key: String, _value: String) {
                 }
             };
             if success {
-                // Use `ipc` to notify the server process to update the install option in the registry.
-                // Because `install_update_printer()` may prompt for permissions, there is no need to prompt again here.
+                // 用 `ipc` 通知服务端进程更新注册表中的安装选项。
+                // 因为 `install_update_printer()` 可能会提示权限，这里无需再次提示。
                 if let Err(e) = crate::ipc::set_install_option(
                     crate::platform::REG_NAME_INSTALL_PRINTER.to_string(),
                     "1".to_string(),
@@ -3018,10 +3018,10 @@ pub mod server_side {
         log::debug!("startServer from jvm");
         let mut env = env;
         if let Ok(app_dir) = env.get_string(&app_dir) {
-            *config::APP_DIR.write().unwrap() = app_dir.into();
+            * config::APP_DIR.write().unwrap() = app_dir.into();
         }
         if let Ok(home_dir) = env.get_string(&home_dir) {
-            *config::APP_HOME_DIR.write().unwrap() = home_dir.into();
+            * config::APP_HOME_DIR.write().unwrap() = home_dir.into();
         }
         if let Ok(custom_client_config) = env.get_string(&custom_client_config) {
             if !custom_client_config.is_empty() {
@@ -3064,8 +3064,8 @@ pub mod server_side {
         crate::server::video_service::refresh()
     }
 
-    /// Close outgoing sessions when the UI goes away but the process may not,
-    /// so a session cannot outlive the UI that is able to close it.
+    /// 当界面消失但进程可能仍在运行时，关闭向外发起的会话，
+    /// 这样会话就不会比能够关闭它的界面活得更久。
     #[no_mangle]
     pub unsafe extern "system" fn Java_ffi_FFI_closeAllSessions(_env: JNIEnv, _class: JClass) {
         let closed = crate::flutter::sessions::close_all_sessions();

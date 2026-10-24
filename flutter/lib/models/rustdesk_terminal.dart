@@ -23,7 +23,7 @@ class RustDeskTerminal extends Terminal {
 
   static const _clipboardOscCode = '52';
   static const _systemClipboardSelection = 'c';
-  // Match the terminal helper's existing payload safety ceiling.
+  // 与终端辅助函数现有的负载安全上限保持一致。
   static const _maxClipboardWriteBytes = 16 * 1024 * 1024;
   static const _base64InputBytesPerBlock = 3;
   static const _base64EncodedCharsPerBlock = 4;
@@ -109,7 +109,7 @@ class RustDeskTerminal extends Terminal {
     final scrollBack = buffer.scrollBack;
     if (scrollBack == 0) return;
 
-    // Selection anchors require retained buffer lines to be reindexed.
+    // 选区锚点需要重新索引被保留的缓冲区行。
     buffer.lines.remove(0, scrollBack);
   }
 }

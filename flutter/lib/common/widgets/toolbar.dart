@@ -78,13 +78,13 @@ bool _isWindowsMode1PrivacyImpl(String privacyModeImpl) {
       privacyModeImpl == kPrivacyModeImplExcludeFromCapture;
 }
 
-// macOS privacy mode blacks out all online displays. Windows Mode 1 also
-// covers every local monitor with privacy overlay windows, so remote display
-// switching does not weaken local privacy protection.
+// macOS 隐私模式会黑屏所有在线显示器。Windows 的 Mode 1 同样会
+// 用隐私遮罩窗口覆盖每一个本地显示器，因此远程显示
+// 切换并不会削弱本地的隐私保护。
 //
-// Keep this separate from the capture backend capability. The legacy Windows
-// magnifier capturer is not reliable for multi-monitor capture; WebRTC's
-// screen_capturer_win_magnifier also disables it when SM_CMONITORS != 1:
+// 这一点要与采集后端能力区分开。旧版 Windows
+// 的 magnifier 采集器在多显示器采集下并不可靠；WebRTC 的
+// screen_capturer_win_magnifier 在 SM_CMONITORS != 1 时同样会禁用它：
 // https://webrtc.googlesource.com/src/+/1845922d5a1bf9c27deeffb4a8c8daea124434c1/modules/desktop_capture/win/screen_capturer_win_magnifier.cc
 bool allowDisplaySwitchInPrivacyMode(PeerInfo pi, String privacyModeImpl) {
   return pi.platform == kPeerPlatformMacOS ||
@@ -93,11 +93,11 @@ bool allowDisplaySwitchInPrivacyMode(PeerInfo pi, String privacyModeImpl) {
           versionCmp(pi.version, '1.4.8') >= 0);
 }
 
-/// Action IDs that `toolbarControls` is the sole registrar for. Wiped on
-/// every call so stale closures don't outlive the menu entry that owned
-/// them. Actions registered by `registerSessionShortcutActions` MUST NOT
-/// appear here. `kShortcutActionToggleRecording` is platform-conditional
-/// and handled separately in the unregister pass below.
+/// 仅由 `toolbarControls` 唯一注册的 Action IDs。每次调用都会清空，
+/// 避免过期的闭包比拥有它的菜单项活得更久。
+/// 由 `registerSessionShortcutActions` 注册的 Action 绝不能
+/// 出现在这里。`kShortcutActionToggleRecording` 依赖平台，
+/// 在下面的注销流程中单独处理。
 const _kToolbarOwnedActionIds = <String>[
   kShortcutActionSendCtrlAltDel,
   kShortcutActionRestartRemote,
@@ -207,8 +207,8 @@ class TToggleMenu {
       this.actionId});
 }
 
-/// Register each tagged entry's `onChanged` with the session [ShortcutModel].
-/// Passthrough — returns [menus] so a caller can wrap `return [...]` directly.
+/// 将每个带标签条目的 `onChanged` 注册到会话的 [ShortcutModel]。
+/// 直接透传 —— 返回 [menus]，便于调用方直接包上 `return [...]`。
 List<TToggleMenu> _registerToggleMenuShortcuts(
   FFI ffi,
   List<TToggleMenu> menus, {
@@ -231,7 +231,7 @@ List<TToggleMenu> _registerToggleMenuShortcuts(
   return menus;
 }
 
-/// Radio variant of [_registerToggleMenuShortcuts].
+/// [_registerToggleMenuShortcuts] 的单选变体。
 List<TRadioMenu<T>> _registerRadioMenuShortcuts<T>(
   FFI ffi,
   List<TRadioMenu<T>> menus, {
@@ -336,12 +336,12 @@ void showWaylandKeyboardInputWarningDialog(
           debugPrint('Failed to persist Wayland keyboard input consent: $e');
         }
       }
-      // Always suppress prompt for current connection after explicit consent.
+      // 用户明确同意后，当前连接始终不再提示。
       setWaylandKeyboardPromptSuppressedForConnection(connectionId, true);
       closeDialog();
       if (remember && !rememberPersisted) {
-        // It's a rare edge case that persisting the user's choice fails.
-        // Failed to persist the user's choice, but still allow keyboard input for current session.
+        // 持久化用户选择失败是很少见的边缘情况。
+        // 持久化用户选择失败，但仍允许当前会话进行键盘输入。
         showToast(translate('Failed'));
       }
     }
@@ -390,9 +390,9 @@ void showWaylandKeyboardInputWarningDialog(
                     try {
                       final opened = await openWaylandKeyboardIssueUrl();
                       if (!opened) {
-                        // Opening this optional help link almost never fails in
-                        // normal desktop environments. Keep the result handled
-                        // for review hygiene, but avoid a low-value user toast.
+                        // 在常规桌面环境下，打开这个可选的帮助链接几乎不会失败。
+                        // 保持对结果的处理，
+                        // 以便代码审查更规范，但不要给出价值不高的用户提示。
                         debugPrint('Failed to open Wayland keyboard issue URL');
                       }
                     } catch (e) {
@@ -452,19 +452,19 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
   final isDefaultConn = ffi.connType == ConnType.defaultConn;
   final isWaylandPeer = pi.platform == kPeerPlatformLinux && pi.isWayland;
 
-  // Wipe stale registrations from previous menu builds before re-registering
-  // below; runs unconditionally so mid-session enable works without reconnect.
+  // 在下面重新注册之前，先清除此前构建菜单时留下的过期注册，
+  // 该过程无条件执行，这样会话中途启用无需重新连接。
   for (final actionId in _kToolbarOwnedActionIds) {
     ffi.shortcutModel.unregister(actionId);
   }
-  // toggle_recording is mobile-only here; desktop's registration is owned by
-  // `registerSessionShortcutActions` and must not be touched.
+  // 这里的 toggle_recording 仅用于移动端；桌面端的注册由
+  // `registerSessionShortcutActions` 负责，不能改动。
   if (!(isDesktop || isWeb)) {
     ffi.shortcutModel.unregister(kShortcutActionToggleRecording);
   }
 
   List<TTextMenu> v = [];
-  // elevation
+  // 提权
   if (isDefaultConn &&
       perms['keyboard'] != false &&
       ffi.elevationModel.showRequestMenu) {
@@ -498,7 +498,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
       ),
     );
   }
-  // paste
+  // 粘贴
   if (isDefaultConn &&
       pi.platform != kPeerPlatformAndroid &&
       perms['keyboard'] != false) {
@@ -562,7 +562,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
           showToast(translate(persistedCleared ? 'Successful' : 'Failed'));
         }));
   }
-  // reset canvas
+  // 重置画布
   if (isDefaultConn && isMobile) {
     v.add(TTextMenu(
         child: Text(translate('Reset canvas')),
@@ -571,7 +571,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
   }
 
   // https://github.com/rustdesk/rustdesk/pull/9731
-  // Does not work for connection established by "accept".
+  // 对通过 "accept" 建立的连接无效。
   connectWithToken(
       {bool isFileTransfer = false,
       bool isViewCamera = false,
@@ -608,7 +608,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
           onPressed: () => connectWithToken(isTcpTunneling: true)),
     );
   }
-  // note
+  // 备注
   if (isDefaultConn && !bind.isDisableAccount()) {
     v.add(
       TTextMenu(
@@ -619,9 +619,9 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
             if (!isLogin) {
               final res = await loginDialog();
               if (res != true) return;
-              // Desktop: send message to main window to refresh login status
-              // Web: login is required before connection, so no need to refresh
-              // Mobile: same isolate, no need to send message
+              // 桌面端：向主窗口发送消息以刷新登录状态
+              // Web：连接前需要先登录，所以无需刷新
+              // 移动端：同一个 isolate，无需发送消息
               if (isDesktop) {
                 rustDeskWinManager.call(
                     WindowType.Main, kWindowRefreshCurrentUser, "");
@@ -631,7 +631,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
           }),
     );
   }
-  // divider
+  // 分隔线
   if (isDefaultConn && (isDesktop || isWebDesktop)) {
     v.add(TTextMenu(child: Offstage(), onPressed: () {}, divider: true));
   }
@@ -647,7 +647,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
           actionId: kShortcutActionSendCtrlAltDel),
     );
   }
-  // restart
+  // 重启
   if (isDefaultConn &&
       perms['restart'] != false &&
       (pi.platform == kPeerPlatformLinux ||
@@ -701,7 +701,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
             showConfirmSwitchSidesDialog(sessionId, id, ffi.dialogManager),
         actionId: kShortcutActionSwitchSides));
   }
-  // refresh
+  // 刷新
   if (pi.version.isNotEmpty) {
     v.add(TTextMenu(
       child: Text(translate('Refresh')),
@@ -709,7 +709,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
       actionId: kShortcutActionRefresh,
     ));
   }
-  // record
+  // 录制
   if (!(isDesktop || isWeb) &&
       bind.mainGetLocalOption(key: kOptionHideRecordingButton) != 'Y' &&
       (ffi.recordingModel.start || (perms["recording"] != false))) {
@@ -734,8 +734,8 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
   }
 
   // to-do:
-  // 1. Web desktop
-  // 2. Mobile, copy the image to the clipboard
+  // 1. Web 桌面端
+  // 2. 移动端，将图片复制到剪贴板
   if ((isDefaultConn || ffi.connType == ConnType.viewCamera) && isDesktop) {
     final isScreenshotSupported = bind.sessionGetCommonSync(
         sessionId: sessionId, key: 'is_screenshot_supported', param: '');
@@ -747,13 +747,13 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
         onPressed: ffi.ffiModel.timerScreenshot != null
             ? null
             : () {
-                // Live cooldown check: the menu rebuilds onPressed=null
-                // whenever toolbarControls runs and finds timerScreenshot
-                // != null, but the keyboard-shortcut callback holds onto
-                // the originally-enabled closure across cooldown periods
-                // (toolbarControls only re-runs on menu open). Without
-                // this guard the second shortcut press during the 30s
-                // cooldown still fires sessionTakeScreenshot.
+                // 实时冷却检查：每次 toolbarControls 运行时菜单都会重建 onPressed=null
+                // 当 toolbarControls 运行并发现 timerScreenshot
+                // != null 时，但键盘快捷键回调仍持有
+                // 最初启用的那个闭包，跨越多个冷却周期
+                // （toolbarControls 只在菜单打开时重新运行）。没有
+                // 这道保护，在 30 秒
+                // 冷却期内第二次按快捷键仍会触发 sessionTakeScreenshot。
                 if (ffi.ffiModel.timerScreenshot != null) return;
                 if (pi.currentDisplay == kAllDisplayValue) {
                   msgBox(
@@ -783,8 +783,8 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
       onPressed: () => onCopyFingerprint(FingerprintState.find(id).value),
     ));
   }
-  // Register tagged TTextMenu callbacks. The else-unregister is defense in
-  // depth for actionIds tagged but missing from `_kToolbarOwnedActionIds`.
+  // 注册带标签的 TTextMenu 回调。else 分支中的注销是针对
+  // 已打标签但未出现在 `_kToolbarOwnedActionIds` 中的 actionIds 的纵深防御。
   for (final menu in v) {
     final actionId = menu.actionId;
     if (actionId == null) continue;
@@ -937,7 +937,7 @@ Future<List<TToggleMenu>> toolbarCursor(
   final pi = ffiModel.pi;
   final sessionId = ffi.sessionId;
 
-  // show remote cursor
+  // 显示远程光标
   if (pi.platform != kPeerPlatformAndroid &&
       !ffi.canvasModel.cursorEmbedded &&
       !pi.isWayland) {
@@ -963,7 +963,7 @@ Future<List<TToggleMenu>> toolbarCursor(
               }
             : null));
   }
-  // follow remote cursor
+  // 跟随远程光标
   if (pi.platform != kPeerPlatformAndroid &&
       !ffi.canvasModel.cursorEmbedded &&
       !pi.isWayland &&
@@ -1004,7 +1004,7 @@ Future<List<TToggleMenu>> toolbarCursor(
           }
         }));
   }
-  // follow remote window focus
+  // 跟随远程窗口焦点
   if (pi.platform != kPeerPlatformAndroid &&
       !ffi.canvasModel.cursorEmbedded &&
       !pi.isWayland &&
@@ -1026,7 +1026,7 @@ Future<List<TToggleMenu>> toolbarCursor(
               sessionId: sessionId, arg: option);
         }));
   }
-  // zoom cursor
+  // 缩放光标
   final viewStyle = await bind.sessionGetViewStyle(sessionId: sessionId) ?? '';
   if (!isMobile &&
       pi.platform != kPeerPlatformAndroid &&
@@ -1058,7 +1058,7 @@ Future<List<TToggleMenu>> toolbarDisplayToggle(
   final sessionId = ffi.sessionId;
   final isDefaultConn = ffi.connType == ConnType.defaultConn;
 
-  // show quality monitor
+  // 显示画质监视器
   final option = 'show-quality-monitor';
   v.add(TToggleMenu(
       value: bind.sessionGetToggleOptionSync(sessionId: sessionId, arg: option),
@@ -1069,7 +1069,7 @@ Future<List<TToggleMenu>> toolbarDisplayToggle(
         ffi.qualityMonitorModel.checkShowQualityMonitor(sessionId);
       },
       child: Text(translate('Show quality monitor'))));
-  // mute
+  // 静音
   if (isDefaultConn && perms['audio'] != false) {
     final option = 'disable-audio';
     final value =
@@ -1083,12 +1083,12 @@ Future<List<TToggleMenu>> toolbarDisplayToggle(
         },
         child: Text(translate('Mute'))));
   }
-  // file copy and paste
-  // If the version is less than 1.2.4, file copy and paste is supported on Windows only.
+  // 文件复制和粘贴
+  // 如果版本低于 1.2.4，文件复制和粘贴仅在 Windows 上受支持。
   final isSupportIfPeer_1_2_3 = versionCmp(pi.version, '1.2.4') < 0 &&
       isWindows &&
       pi.platform == kPeerPlatformWindows;
-  // If the version is 1.2.4 or later, file copy and paste is supported when kPlatformAdditionsHasFileClipboard is set.
+  // 如果版本为 1.2.4 或更高，当设置了 kPlatformAdditionsHasFileClipboard 时支持文件复制和粘贴。
   final isSupportIfPeer_1_2_4 = versionCmp(pi.version, '1.2.4') >= 0 &&
       bind.mainHasFileClipboard() &&
       pi.platformAdditions.containsKey(kPlatformAdditionsHasFileClipboard);
@@ -1111,7 +1111,7 @@ Future<List<TToggleMenu>> toolbarDisplayToggle(
             : null,
         child: Text(translate('Enable file copy and paste'))));
   }
-  // disable clipboard
+  // 禁用剪贴板
   if (isDefaultConn && ffiModel.keyboard && perms['clipboard'] != false) {
     final enabled = !ffiModel.viewOnly;
     final option = 'disable-clipboard';
@@ -1129,7 +1129,7 @@ Future<List<TToggleMenu>> toolbarDisplayToggle(
             : null,
         child: Text(translate('Disable clipboard'))));
   }
-  // lock after session end
+  // 会话结束后锁定
   if (isDefaultConn && ffiModel.keyboard && !ffiModel.isPeerAndroid) {
     final enabled = !ffiModel.viewOnly;
     final option = 'lock-after-session-end';
@@ -1203,7 +1203,7 @@ Future<List<TToggleMenu>> toolbarDisplayToggle(
     v.addAll(toolbarKeyboardToggles(ffi));
   }
 
-  // view mode (mobile only, desktop is in keyboard menu)
+  // 视图模式（仅移动端，桌面端在键盘菜单中）
   if (isDefaultConn && isMobile && versionCmp(pi.version, '1.2.0') >= 0) {
     v.add(TToggleMenu(
         value: ffiModel.viewOnly,
@@ -1229,9 +1229,9 @@ List<TToggleMenu> toolbarPrivacyMode(
   final hasPrivacyModePermission =
       ffiModel.permissions['privacy_mode'] != false;
 
-  // Backend revocation already attempts to turn privacy mode off.
-  // Still keep this menu when privacy mode is active, so users can turn it off
-  // if there is a sync delay, version mismatch, or off attempt failure.
+  // 后端撤销已经尝试关闭隐私模式。
+  // 隐私模式启用时仍保留该菜单，以便用户在
+  // 存在同步延迟、版本不匹配或关闭失败时仍能将其关闭。
   if (!hasPrivacyModePermission && privacyModeState.isEmpty) {
     return []; // No permission and not active, hide options.
   }
@@ -1329,7 +1329,7 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
   final isDefaultConn = ffi.connType == ConnType.defaultConn;
   List<TToggleMenu> v = [];
 
-  // swap key
+  // 交换按键
   if (ffiModel.keyboard &&
       ((isMacOS && pi.platform != kPeerPlatformMacOS) ||
           (!isMacOS && pi.platform == kPeerPlatformMacOS))) {
@@ -1349,12 +1349,12 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
         child: Text(translate('Swap control-command key'))));
   }
 
-  // Relative mouse mode (gaming mode).
-  // Only show when server supports MOUSE_TYPE_MOVE_RELATIVE (version >= 1.4.5)
-  // Note: This feature is only available in Flutter client. Sciter client does not support this.
-  // Web client is not supported yet due to Pointer Lock API integration complexity with Flutter's input system.
-  // Wayland is not supported due to cursor warping limitations.
-  // Mobile: This option is now in GestureHelp widget, shown only when joystick is visible.
+  // 相对鼠标模式（游戏模式）。
+  // 仅当服务端支持 MOUSE_TYPE_MOVE_RELATIVE（版本 >= 1.4.5）时显示
+  // 注意：该功能仅在 Flutter 客户端可用，Sciter 客户端不支持。
+  // 由于 Pointer Lock API 与 Flutter 输入系统的集成较为复杂，Web 客户端暂不支持。
+  // 受光标 warp 限制，暂不支持 Wayland。
+  // 移动端：该选项现在位于 GestureHelp 控件中，仅在摇杆可见时显示。
   final isWayland = isDesktop && isLinux && bind.mainCurrentIsWayland();
   if (isDesktop &&
       isDefaultConn &&
@@ -1370,14 +1370,14 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
           final previousValue = ffi.inputModel.relativeMouseMode.value;
           final success = ffi.inputModel.setRelativeMouseMode(value);
           if (!success) {
-            // Revert the observable toggle to reflect the actual state
+            // 回退 observable 开关以反映实际状态
             ffi.inputModel.relativeMouseMode.value = previousValue;
           }
         },
         child: Text(translate('Relative mouse mode'))));
   }
 
-  // reverse mouse wheel
+  // 反转鼠标滚轮
   if (ffiModel.keyboard) {
     var optionValue =
         bind.sessionGetReverseMouseWheelSync(sessionId: sessionId) ?? '';
@@ -1397,7 +1397,7 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
         child: Text(translate('Reverse mouse wheel'))));
   }
 
-  // swap left right mouse
+  // 交换鼠标左右键
   if (ffiModel.keyboard) {
     final option = 'swap-left-right-mouse';
     final value =
@@ -1418,14 +1418,14 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
       ownedActionIds: _kToolbarKeyboardToggleActionIds);
 }
 
-/// Drive each toolbar helper for its registration side effect, so a shortcut
-/// fires from the first keystroke without needing the user to open the
-/// matching submenu. Mobile gets `toolbarKeyboardToggles` via
-/// `toolbarDisplayToggle`'s `isMobile` branch — calling it explicitly there
-/// would double-register.
+/// 驱动每个 toolbar helper 以产生注册副作用，这样快捷键
+/// 在第一次按键时就能触发，而无需用户打开对应的子菜单。
+/// 移动端通过 `toolbarKeyboardToggles` 获得
+/// `toolbarDisplayToggle` 的 `isMobile` 分支 —— 在那里显式调用它
+/// 会导致重复注册。
 void registerToolbarShortcuts(BuildContext context, String id, FFI ffi) {
-  // Rebuild only the triggered action's menu, so permission/capability changes
-  // and temporary disabled states take effect without opening the toolbar.
+  // 只重建被触发动作对应的菜单，这样权限/能力变化
+  // 和临时禁用状态无需打开工具栏即可生效。
   void register(List<String> actions, FutureOr<Object> Function() refresh) {
     ffi.shortcutModel.registerRefresher(actions, () async {
       if (!context.mounted || ffi.closed) {

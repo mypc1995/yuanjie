@@ -7,11 +7,11 @@ import 'package:flutter/services.dart';
 
 bool _loadRequested = false;
 
-/// When Google CDNs are unreachable, `index.html` sets
-/// `window.rustdeskLocalFonts` and `GoogleFonts.robotoMono()` cannot download
-/// the terminal font. Load the copy bundled with the web app instead,
-/// registered under the family name google_fonts gives the terminal's
-/// TextStyle ('RobotoMono_regular').
+/// 当 Google CDN 不可达时，`index.html` 会设置
+/// `window.rustdeskLocalFonts`，而 `GoogleFonts.robotoMono()` 无法下载
+/// 终端字体。此时改为加载随 Web 应用打包的那份副本，
+/// 它以 google_fonts 提供的字体族名注册，终端的
+/// TextStyle（'RobotoMono_regular'）使用该字体。
 Future<void> loadLocalTerminalFontIfNeeded() async {
   if (_loadRequested || js.context['rustdeskLocalFonts'] != true) {
     return;

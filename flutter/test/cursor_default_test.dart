@@ -9,9 +9,9 @@ import 'package:flutter_hbb/native/custom_cursor.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uuid/uuid.dart';
 
-// A file of its own: nothing else in this isolate has made the default cursor before the model.
+// 单独一个文件：在 model 之前，这个 isolate 中没有其他东西创建过默认光标。
 
-/// A core that keeps no shape.
+/// 一个不保留任何图形的 core。
 class _Cursor extends CursorModel {
   _Cursor(FFI ffi) : super(WeakReference(ffi));
   @override
@@ -54,7 +54,7 @@ void main() {
     final evt = {'id': '2'};
     ffi.ffiModel.updateLastCursorId(evt);
     ffi.ffiModel.handleCursorId(evt);
-    // Not a wait for the default cursor itself: asking for it would make it.
+    // 不是等待默认光标本身：请求它反而会把它创建出来。
     await Future<void>.delayed(const Duration(milliseconds: 500));
     expect(cursor.cache, isNull);
     final built = _key(buildCursorOfCache(

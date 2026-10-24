@@ -254,7 +254,7 @@ Future<void> _checkResizeLimits(
       registrations.single, Platform.isLinux ? (maxSide, maxSide) : raster);
   expect((registrations.single['hotX'], registrations.single['hotY']),
       expectedHotspot);
-  // Fail on a small allocation before reaching unsafe sizes without the guard.
+  // 如果没有这层保护，就会在达到不安全的尺寸之前先因一次小分配而失败。
   for (final scale in [
     (maxSide + 1) / sourceLongEdge,
     double.maxFinite,

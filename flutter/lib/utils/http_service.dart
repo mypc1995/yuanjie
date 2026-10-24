@@ -17,13 +17,13 @@ class HttpService {
   }) async {
     headers ??= {'Content-Type': 'application/json'};
 
-    // Use Rust HTTP implementation for non-web platforms for consistency.
+    // 在非 Web 平台上使用 Rust 的 HTTP 实现以保持一致性。
     var useFlutterHttp = (isWeb || kIsWeb);
     if (!useFlutterHttp) {
       final enableFlutterHttpOnRust =
           mainGetLocalBoolOptionSync(kOptionEnableFlutterHttpOnRust);
-      // Use flutter http if:
-      // Not `enableFlutterHttpOnRust` and no proxy is set
+      // 在以下情况使用 Flutter 的 http：
+      // 未设置 `enableFlutterHttpOnRust` 且没有设置代理
       useFlutterHttp =
           !(enableFlutterHttpOnRust || await bind.mainGetProxyStatus());
     }
@@ -44,11 +44,11 @@ class HttpService {
     return _parseHttpResponse(resJson);
   }
 
-  // Bounds only the pure-Dart branch below, which the OS would otherwise
-  // let hang forever (e.g. a black-holed TLS handshake), see #15700.
-  // The Rust branch has its own 12s-per-attempt timeouts and must be
-  // awaited to completion: a Dart-side timeout there would race the
-  // URL-keyed ASYNC_HTTP_STATUS entry of the abandoned request.
+  // 仅对下面的纯 Dart 分支设置界限，否则操作系统会
+  // 让它永久挂起（例如被黑洞掉的 TLS 握手），参见 #15700。
+  // Rust 分支自带每次尝试 12s 的超时，并且必须
+  // 被完整 await：Dart 侧的超时会与
+  // 被放弃请求的、以 URL 为键的 ASYNC_HTTP_STATUS 条目产生竞态。
   static const _requestTimeout = Duration(seconds: 30);
 
   Future<http.Response> _pollFlutterHttp(

@@ -6,7 +6,7 @@ use tfc::{traits::*, Context as TFC_Context, Key as TFC_Key};
 pub type CustomKeyboard = Box<dyn KeyboardControllable + Send>;
 pub type CustomMouce = Box<dyn MouseControllable + Send>;
 
-/// The main struct for handling the event emitting
+/// 用于处理事件发出的主结构体
 // #[derive(Default)]
 pub struct Enigo {
     xdo: EnigoXdo,
@@ -17,39 +17,39 @@ pub struct Enigo {
 }
 
 impl Enigo {
-    /// Get delay of xdo implementation.
+    /// 获取 xdo 实现的延迟。
     pub fn delay(&self) -> u64 {
         self.xdo.delay()
     }
-    /// Set delay of xdo implementation.
+    /// 设置 xdo 实现的延迟。
     pub fn set_delay(&mut self, delay: u64) {
         self.xdo.set_delay(delay)
     }
-    /// Set custom keyboard.
+    /// 设置自定义键盘。
     pub fn set_custom_keyboard(&mut self, custom_keyboard: CustomKeyboard) {
         self.custom_keyboard = Some(custom_keyboard)
     }
-    /// Set custom mouse.
+    /// 设置自定义鼠标。
     pub fn set_custom_mouse(&mut self, custom_mouse: CustomMouce) {
         self.custom_mouse = Some(custom_mouse)
     }
-    /// Get custom keyboard.
+    /// 获取自定义键盘。
     pub fn get_custom_keyboard(&mut self) -> &mut Option<CustomKeyboard> {
         &mut self.custom_keyboard
     }
-    /// Get custom mouse.
+    /// 获取自定义鼠标。
     pub fn get_custom_mouse(&mut self) -> &mut Option<CustomMouce> {
         &mut self.custom_mouse
     }
 
-    /// Override the display server guessed in `Default::default`: on "x11" every method here
-    /// routes to `xdo`, and a null xdo context makes all of them silent no-ops. A caller
-    /// installing custom devices knows better than the guess.
+    /// 覆盖 `Default::default` 中猜测的显示服务器：在 "x11" 上这里的每个方法
+    /// 都会路由到 `xdo`，而空的 xdo context 会让它们全部变成静默的空操作。调用方
+    /// 安装自定义设备时比这种猜测更清楚该怎么做。
     pub fn set_is_x11(&mut self, is_x11: bool) {
         self.is_x11 = is_x11;
     }
 
-    /// Clear remapped keycodes
+    /// 清除被重映射的键码
     pub fn tfc_clear_remapped(&mut self) {
         if let Some(tfc) = &mut self.tfc {
             tfc.recover_remapped_keycodes();
@@ -261,7 +261,7 @@ impl KeyboardControllable for Enigo {
         }
     }
 
-    /// Warning: Get 6^ in French.
+    /// 警告：在法语键盘上获取 6^。
     fn key_sequence(&mut self, sequence: &str) {
         if self.is_x11 {
             self.xdo.key_sequence(sequence)
@@ -307,7 +307,7 @@ impl KeyboardControllable for Enigo {
     }
     fn key_click(&mut self, key: Key) {
         if self.is_x11 {
-            // X11: try tfc first, then fallback to key_down/key_up
+            // X11：先尝试 tfc，失败则回退到 key_down/key_up
             if self.tfc_key_click(key).is_err() {
                 self.key_down(key).ok();
                 self.key_up(key);
@@ -391,7 +391,7 @@ fn convert_to_tfc_key(key: Key) -> Option<TFC_Key> {
     Some(key)
 }
 
-/// Both directions: the failure is silent, so a one-directional test passes against the bug.
+/// 两个方向都要测：失败是静默的，因此单向测试在存在该缺陷时也会通过。
 #[test]
 fn test_custom_mouse_dispatch_follows_is_x11() {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -430,7 +430,7 @@ fn test_custom_mouse_dispatch_follows_is_x11() {
         "custom mouse was not reached on the non-x11 branch"
     );
 
-    // Negative control: on the x11 branch the custom device must be bypassed entirely.
+    // 反向对照：在 x11 分支上必须完全绕过自定义设备。
     en.set_is_x11(true);
     en.mouse_move_to(30, 40);
     assert_eq!(

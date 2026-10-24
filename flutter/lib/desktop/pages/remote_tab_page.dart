@@ -233,7 +233,7 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
         : Obx(() => SubWindowDragToResizeArea(
               key: contentKey,
               child: tabWidget,
-              // Specially configured for a better resize area and remote control.
+              // 专门配置，以获得更好的缩放区域和远端控制体验。
               childPadding: kDragToResizeAreaPadding,
               resizeEdgeSize: stateGlobal.resizeEdgeSize.value,
               enableResizeEdges: subWindowManagerEnableResizeEdges,
@@ -241,7 +241,7 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
             ));
   }
 
-  // Note: Some dup code to ../widgets/remote_toolbar
+  // 注意：与 ../widgets/remote_toolbar 存在部分重复代码
   Widget _tabMenuBuilder(String key, CancelFunc cancelFunc) {
     final List<MenuEntryBase<String>> menu = [];
     const EdgeInsets padding = EdgeInsets.only(left: 8.0, right: 5.0);
@@ -360,11 +360,11 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
 
   void onRemoveId(String id) async {
     if (tabController.state.value.tabs.isEmpty) {
-      // Keep calling until the window status is hidden.
+      // 持续调用直到窗口状态隐藏。
       //
-      // Workaround for Windows:
-      // If you click other buttons and close in msgbox within a very short period of time, the close may fail.
-      // `await WindowController.fromWindowId(windowId()).close();`.
+      // Windows 上的变通方案：
+      // 如果你在很短的时间内点击其他按钮并在 msgbox 中关闭，关闭操作可能会失败。
+      // `await WindowController.fromWindowId(windowId()).close();`。
       Future<void> loopCloseWindow() async {
         int c = 0;
         final windowController = WindowController.fromWindowId(windowId());
@@ -380,7 +380,7 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
       loopCloseWindow();
     }
     ConnectionTypeState.delete(id);
-    // Clean up relative mouse mode state for this peer.
+    // 清理该 peer 的相对鼠标模式状态。
     stateGlobal.relativeMouseModeState.remove(id);
     _update_remote_count();
   }
@@ -425,7 +425,7 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
         "[Remote Page] call ${call.method} with args ${call.arguments} from window $fromWindowId");
 
     dynamic returnValue;
-    // for simplify, just replace connectionId
+    // 为简化实现，仅替换 connectionId
     if (call.method == kWindowEventNewRemoteDesktop) {
       final args = jsonDecode(call.arguments);
       final id = args['id'];
@@ -509,7 +509,7 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
           .toList()
           .join(';');
     } else if (call.method == kWindowEventGetCachedSessionData) {
-      // Ready to show new window and close old tab.
+      // 准备显示新窗口并关闭旧标签页。
       final args = jsonDecode(call.arguments);
       final id = args['id'];
       final close = args['close'];
@@ -559,8 +559,8 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
   }
 }
 
-/// A widget that displays a hint in the tab bar when relative mouse mode is active.
-/// This helps users remember how to exit relative mouse mode.
+/// 在相对鼠标模式激活时于标签栏显示提示的组件。
+/// 帮助用户记住如何退出相对鼠标模式。
 class _RelativeMouseModeHint extends StatelessWidget {
   final DesktopTabController tabController;
 
@@ -570,12 +570,12 @@ class _RelativeMouseModeHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      // Check if there are any tabs
+      // 检查是否存在标签页
       if (tabController.state.value.tabs.isEmpty) {
         return const SizedBox.shrink();
       }
 
-      // Get current selected tab's RemotePage
+      // 获取当前选中标签页的 RemotePage
       final selectedTabInfo = tabController.state.value.selectedTabInfo;
       if (selectedTabInfo.page is! RemotePage) {
         return const SizedBox.shrink();
@@ -584,8 +584,8 @@ class _RelativeMouseModeHint extends StatelessWidget {
       final remotePage = selectedTabInfo.page as RemotePage;
       final String peerId = remotePage.id;
 
-      // Use global state to check relative mouse mode (synced from InputModel).
-      // This avoids timing issues with FFI registration.
+      // 使用全局状态检查相对鼠标模式（从 InputModel 同步）。
+      // 这样可避免与 FFI 注册相关的时序问题。
       final isRelativeMouseMode =
           stateGlobal.relativeMouseModeState[peerId] ?? false;
 

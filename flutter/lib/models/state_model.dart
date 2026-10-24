@@ -19,7 +19,7 @@ class StateGlobal {
   final svcStatus = SvcStatus.notReady.obs;
   final RxInt videoConnCount = 0.obs;
   final RxBool isFocused = false.obs;
-  // for mobile and web
+  // 适用于移动端和 Web
   bool isInMainPage = true;
   bool isWebVisible = true;
 
@@ -29,12 +29,12 @@ class StateGlobal {
 
   String _inputSource = '';
 
-  // Track relative mouse mode state for each peer connection.
-  // Key: peerId, Value: true if relative mouse mode is active.
-  // Note: This is session-only runtime state, NOT persisted to config.
+  // 跟踪每个对端连接的相对鼠标模式状态。
+  // 键：peerId，值：相对鼠标模式已激活时为 true。
+  // 注意：这是仅存在于会话期间的运行时状态，不会持久化到配置。
   final RxMap<String, bool> relativeMouseModeState = <String, bool>{}.obs;
 
-  // Use for desktop -> remote toolbar -> resolution
+  // 用于 desktop -> remote 工具栏 -> 分辨率
   final Map<String, Map<int, String?>> _lastResolutionGroupValues = {};
 
   int get windowId => _windowId;
@@ -108,7 +108,7 @@ class StateGlobal {
     if (procWnd) {
       final wc = WindowController.fromWindowId(windowId);
       wc.setFullscreen(_fullscreen.isTrue).then((_) {
-        // We remove the redraw (width + 1, height + 1), because this issue cannot be reproduced.
+        // 我们移除了重绘（width + 1, height + 1），因为该问题无法复现。
         // https://github.com/rustdesk/rustdesk/issues/9675
       });
     }
@@ -143,5 +143,5 @@ class StateGlobal {
   static final StateGlobal instance = StateGlobal._();
 }
 
-// This final variable is initialized when the first time it is accessed.
+// 该 final 变量在首次访问时才完成初始化。
 final stateGlobal = StateGlobal.instance;

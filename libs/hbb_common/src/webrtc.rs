@@ -1,20 +1,20 @@
-//! WebRTC transport for RustDesk streams.
+//! RustDesk 流的 WebRTC 传输。
 //!
-//! # Bumping the webrtc crate
+//! # 升级 webrtc crate
 //!
-//! This module depends on webrtc-rs internals its public API does not promise. Re-verify each
-//! against the new sources (last checked: webrtc 0.13, -data 0.11, -sctp 0.12), then run
-//! `cargo test --features webrtc webrtc::tests`.
+//! 本模块依赖 webrtc-rs 的内部实现，而其公共 API 并未对此作出承诺。
+//! 请对照新的源码重新核验（最后核验于：webrtc 0.13、-data 0.11、-sctp 0.12），然后运行
+//! `cargo test --features webrtc webrtc::tests`。
 //!
-//! - `DataChannel::write` parks on a full PendingQueue instead of buffering without bound.
-//! - SCTP max message size is 65536: `MAX_FRAGMENT_PAYLOAD` + 1 must stay below it.
-//! - `read_sctp` does not await after dequeuing, so a dropped `next()` cannot lose a fragment.
-//! - `detach()` is an idempotent Arc clone that does not close on drop.
-//! - `on_*` handlers live in the pc: one holding a strong `Arc<RTCPeerConnection>` leaks it.
-//! - `close()` latches `is_closed` before its first await, so a cancelled close is unretryable.
-//! - `Disconnected` is transient; only `Failed`/`Closed` are terminal.
-//! - `RTCIceCandidatePair`'s `Display` layout — `is_relayed()` parses it because 0.13 keeps the
-//!   candidates private. 0.17+ exposes them; switch and delete the parse.
+//! - `DataChannel::write` 在 PendingQueue 满时会挂起，而不是无限制地缓冲。
+//! - SCTP 最大消息长度为 65536：`MAX_FRAGMENT_PAYLOAD` + 1 必须小于它。
+//! - `read_sctp` 在出队后不再 await，因此被丢弃的 `next()` 不会丢失分片。
+//! - `detach()` 是幂等的 Arc 克隆，drop 时不会关闭。
+//! - `on_*` 处理器存活在 pc 中：持有强引用 `Arc<RTCPeerConnection>` 的处理器会造成泄漏。
+//! - `close()` 在首次 await 之前就锁定 `is_closed`，因此被取消的关闭无法重试。
+//! - `Disconnected` 是暂时的；只有 `Failed`/`Closed` 才是终止状态。
+//! - `RTCIceCandidatePair` 的 `Display` 布局——`is_relayed()` 之所以要解析它，是因为 0.13 把
+//!   candidates 保持为私有。0.17+ 公开了它们；届时改用新接口并删掉这段解析。
 
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
@@ -59,11 +59,11 @@ enum WebRTCConnectionState {
     Closed(String),
 }
 
-/// A shared handle, not an owner: every clone points at the same `pc`, and `SESSIONS` holds one
-/// of those clones. Hence no `Drop` — closing per clone would kill a live session as soon as a
-/// losing race future is dropped, and closing on the last clone would wait on the very close
-/// that evicts the cache entry. Ownership is `OffererGuard` until a connection attempt adopts
-/// the stream and `Stream::WebRTC` after; holding one outside those two means closing it by hand.
+/// 一个共享句柄，而不是所有者：每个克隆都指向同一个 `pc`，而 `SESSIONS` 持有其中
+/// 一个克隆。因此没有 `Drop`——按克隆逐个关闭会在落败的竞态 future 被丢弃时
+/// 直接杀死一个仍存活的会话，而在最后一个克隆上关闭又会去等待那个
+/// 负责驱逐缓存条目的关闭。所有权在连接尝试接管之前属于 `OffererGuard`，
+/// 之后属于 `Stream::WebRTC`；在这两者之外持有它就意味着要手动关闭。
 pub struct WebRTCStream {
     pc: Arc<RTCPeerConnection>,
     stream: Arc<Mutex<Arc<RTCDataChannel>>>,
@@ -71,96 +71,96 @@ pub struct WebRTCStream {
     local_ice_rx: Arc<StdMutex<Option<mpsc::UnboundedReceiver<String>>>>,
     session_key: String,
     send_timeout: u64,
-    // Built with Relay-only ICE policy (force_relay): every selected pair goes through TURN.
+    // 以仅 Relay 的 ICE 策略（force_relay）构建：每个被选中的候选对都经由 TURN。
     relay_only: bool,
-    // Detached data channel, cached after the first `detach()` so send/recv do not re-lock and
-    // re-fetch it per message. Shared across clones; `detach()` is idempotent.
+    // 分离的数据通道，在首次 `detach()` 之后缓存，这样 send/recv 不必反复加锁，
+    // 也不必为每条消息重新获取。所有克隆共享它；`detach()` 是幂等的。
     detached: Arc<Mutex<Option<Arc<DetachedDataChannel>>>>,
-    // Serialize a complete logical message across clones. Each fragment is a separate SCTP
-    // message, so serializing only individual writes would allow two large messages to interleave.
+    // 在多个克隆之间串行化一条完整的逻辑消息。每个分片都是一条独立的 SCTP
+    // 消息，因此只对单次写入做串行化会让两条大消息交错。
     send_gate: Arc<Semaphore>,
-    // Behind the Arc, not in the future, so a cancelled `next()` keeps the partial message.
-    // SINGLE READER ONLY: reassembly spans calls and the fragment header carries no length or
-    // sequence number, so two readers splice unrelated fragments into one wrong-but-valid message.
+    // 放在 Arc 之后而不是放在 future 里，这样被取消的 `next()` 也能保留部分消息。
+    // 仅允许单一读取者：重组跨越多次调用，而分片头不携带长度或
+    // 序列号，因此两个读取者会把无关的分片拼接成一条错误却看似合法的消息。
     recv_state: Arc<Mutex<RecvState>>,
-    // True once the controller has completed the RustDesk identity binding (DTLS fingerprint
-    // matched to the signed peer id, via `set_key`). DTLS always encrypts; this flag mirrors TCP's
-    // "secured after key exchange" so key-less / unbound WebRTC is not shown as peer-authenticated.
+    // 当控制器完成 RustDesk 身份绑定（DTLS 指纹
+    // 通过 `set_key` 与已签名的对端 id 匹配）后为 true。DTLS 始终加密；该标志与 TCP 的
+    // 「密钥交换后即安全」保持一致，从而不会把无密钥/未绑定的 WebRTC 显示为已完成对端鉴权。
     peer_verified: Arc<AtomicBool>,
-    // Whether anyone still wants this pc — see `HandoffState`. Shared by every clone, the
-    // `SESSIONS` entry included, because that question is about the pc, not about one handle.
+    // 是否还有人需要这个 pc——参见 `HandoffState`。由每个克隆共享，包括
+    // `SESSIONS` 条目，因为这个问题问的是 pc，而不是某一个句柄。
     handoff: Arc<HandoffState>,
-    // Taken once at construction: `pc.local_description()` grows with every gathered candidate
-    // and this must not (why: `UDP_ENDPOINT_BUDGET`). Shared so cloning the struct stays cheap.
+    // 在构造时取一次：`pc.local_description()` 会随每个收集到的 candidate 增长，
+    // 而它不能增长（原因见 `UDP_ENDPOINT_BUDGET`）。共享起来，这样克隆该结构体依然廉价。
     local_endpoint: Arc<String>,
-    // Counts arriving fragments, which `recv_state` cannot answer for: that lock is deliberately
-    // held across the whole reassembly (see the field), so a sampler would block on it.
+    // 统计到达的分片，`recv_state` 无法回答这个问题：那把锁是刻意
+    // 在整个重组过程中一直持有（见该字段），因此采样器会在其上阻塞。
     rx_probe: RxProbe,
-    // ICE has stopped hearing from the peer but the connection is not terminal yet. Kept out of
-    // `state_notify` on purpose - see where it is set.
+    // ICE 已停止收到对端数据，但连接尚未进入终止状态。刻意不放进
+    // `state_notify`——参见它被设置的位置。
     disconnected: Arc<AtomicBool>,
-    // The largest message this stream will reassemble, lowered while the peer is unauthenticated.
-    // Shared by every clone, the `SESSIONS` entry included, because the receive path runs off a
-    // clone and the bound is about the pc, not about one handle.
+    // 该流将要重组的最大消息长度，在对端未鉴权期间会被调低。
+    // 由每个克隆共享，包括 `SESSIONS` 条目，因为接收路径是运行在
+    // 某个克隆之上的，而这个上限针对的是 pc，而不是某一个句柄。
     max_recv_message: Arc<AtomicUsize>,
 }
 
-/// Whether a pc `new_inner` built is still wanted, shared by every `NewStreamHandoff` handed out
-/// for it. `new_inner` caches the pc before its `new()` returns, so the builder's handoff and any
-/// number of cache hits are in flight at once; a pc is abandoned only when the last of them is
-/// dropped with none adopted, and closing on any single Drop would kill a live caller's session.
+/// `new_inner` 构建出的 pc 是否仍被需要，由发出的每个 `NewStreamHandoff` 共享
+/// 。`new_inner` 会在它的 `new()` 返回之前缓存 pc，因此 builder 的 handoff 与任何
+/// 数量的缓存命中会同时在途；只有当它们全部
+/// 被丢弃且无一被接管时，pc 才算被放弃，而在任何单个 Drop 上关闭都会杀死某个存活调用方的会话。
 #[derive(Default)]
 struct HandoffState {
-    // Handoffs handed out and neither adopted nor dropped yet. Incremented under the `SESSIONS`
-    // lock so a hit that is still arriving cannot be overtaken by the abandon-close below.
+    // 已发出、但既未被接管也未被丢弃的 handoff 数量。在 `SESSIONS`
+    // 锁内递增，这样仍在到达过程中的命中不会被下面的放弃关闭抢先。
     pending: AtomicUsize,
-    // Latched by the first `into_inner`: some caller owns the stream, and since `WebRTCStream`
-    // has no `Drop` there is nothing that could un-own it. Abandoning any later hit is then a
-    // no-op, which is what keeps a cached pc alive across a cancelled caller.
+    // 由第一次 `into_inner` 锁定：某个调用方已拥有该流，而由于 `WebRTCStream`
+    // 没有 `Drop`，没有任何东西能取消它的所有权。因此之后任何命中的放弃都只是
+    // 空操作，这正是让缓存的 pc 在调用方被取消后依然存活的原因。
     adopted: AtomicBool,
-    // Set under the `SESSIONS` lock once the abandon-close commits, so a hit that locks the map
-    // afterwards (eviction only happens later, from the state handler) rejects the entry instead
-    // of adopting a pc that is already going away.
+    // 在放弃关闭提交后于 `SESSIONS` 锁内设置，因此之后才加锁命中该 map 的
+    // （驱逐只会更晚发生，来自状态处理器）会拒绝该条目，而不是
+    // 接管一个已经要被丢弃的 pc。
     closing: AtomicBool,
 }
 
 #[derive(Default)]
 struct RecvState {
-    // Accumulated payload of the logical message currently being reassembled. Only multi-fragment
-    // messages reach it; a message that arrives whole is split straight out of `scratch`.
+    // 当前正在重组的逻辑消息的已累积负载。只有多分片
+    // 消息才会到达这里；完整到达的消息会直接从 `scratch` 中切分出来。
     acc: BytesMut,
-    // Read buffer, refilled in `SCRATCH_REFILL` chunks rather than per read. A whole-message
-    // fragment is handed to the caller with `split_to`, which shares this allocation instead of
-    // copying, so the buffer is consumed from the front and re-initialized only when what is left
-    // can no longer hold one fragment — amortizing that cost over many small messages.
+    // 读缓冲，按 `SCRATCH_REFILL` 分块补充而不是每次读取都补充。整条消息
+    // 分片通过 `split_to` 交给调用方，它共享这块内存而不是
+    // 复制，因此缓冲区从头部被消耗，只有当剩余部分
+    // 再也装不下一个分片时才重新初始化——把这笔开销摊到许多小消息上。
     scratch: BytesMut,
 }
 
-// The SCTP data channel's 65536-byte max message size is handled by
-// splitting a logical message into fragments carrying a 1-byte header. Fragment payload is kept
-// well under the limit so header+payload never reaches the exact-65536 boundary that the
-// receiver's reassembly would truncate with data loss.
+// SCTP 数据通道 65536 字节的最大消息长度通过以下方式处理：
+// 把逻辑消息拆分成带 1 字节头的分片。分片负载被保持在
+// 远低于该上限，因此头+负载永远不会达到那个正好 65536 的边界，而接收方
+// 的重组会在那里截断并丢数据。
 const MAX_FRAGMENT_PAYLOAD: usize = 60000;
-/// Receive scratch size: must be >= 1 (fragment header) + `MAX_FRAGMENT_PAYLOAD` and fit the
-/// negotiated SCTP max message size.
+/// 接收暂存区大小：必须 >= 1（分片头）+ `MAX_FRAGMENT_PAYLOAD`，并且要能容纳
+/// 协商出的 SCTP 最大消息长度。
 const RECV_BUF_SIZE: usize = 64 * 1024;
-/// How much read buffer to initialize at a time. Whole messages are split out of it without
-/// copying, so it is consumed rather than reused; refilling in chunks spreads the one cost that
-/// remains — zeroing — across every small message that fits. Slices handed to the caller keep the
-/// whole chunk alive, so this trades a bounded amount of retention for the copy.
+/// 每次初始化多少读缓冲。完整消息会从中直接切分出来而不需要
+/// 复制，因此它是被消耗而不是被复用；分块补充能把唯一剩下的开销
+/// （清零）摊到每个装得下的小消息上。交给调用方的切片会保留
+/// 整个分块，因此这是用有界的保留量来换取免于复制。
 const SCRATCH_REFILL: usize = 4 * RECV_BUF_SIZE;
-/// Fragment header byte: more fragments follow for this logical message.
+/// 分片头字节：这条逻辑消息后面还有更多分片。
 const FRAG_MORE: u8 = 1;
-/// Fragment header byte: final (or only) fragment of a logical message.
+/// 分片头字节：一条逻辑消息的最后一个（或唯一）分片。
 const FRAG_END: u8 = 0;
-/// Largest logical message this transport will send or reassemble, and the memory an
-/// unauthenticated peer can make a receiver hold. Kept at parity with TCP on purpose: one session
-/// moves between both paths, so a transport-specific ceiling would kill it on the other one.
+/// 该传输将要发送或重组的最大逻辑消息长度，也是一个
+/// 未鉴权对端能让接收方占用的内存量。刻意与 TCP 保持一致：一个会话
+/// 会在两条路径之间切换，因此针对某一传输设置的上限会在另一条路径上要了它的命。
 const MAX_RECV_MESSAGE: usize = crate::bytes_codec::MAX_FRAME_LENGTH;
-// Four networks, not four names: webrtc-ice queries each URL from its own socket, so entries
-// sharing a host buy no redundancy - the two this list used to carry failed together, in the same
-// millisecond, on a peer whose route to that one host was down. Two anycast, two unicast; the 443
-// entry is for networks that pass no other UDP port.
+// 是四个网络，而不是四个名字：webrtc-ice 用各自的 socket 查询每个 URL，因此
+// 共用同一主机的条目并不能带来冗余——这个列表原先带的两个就是一起失败的，在同一
+// 毫秒内，在一条通往那个主机的路由已断的对端上。两个 anycast、两个 unicast；443
+// 那一条是给不放开其他 UDP 端口的网络用的。
 static DEFAULT_ICE_SERVERS: [&str; 4] = [
     "stun:stun.cloudflare.com:3478",
     "stun:stun.l.google.com:19302",
@@ -171,20 +171,20 @@ static DEFAULT_ICE_SERVERS: [&str; 4] = [
 lazy_static::lazy_static! {
     static ref SESSIONS: Arc::<Mutex<HashMap<String, WebRTCStream>>> = Default::default();
 
-    // The process-lifetime runtime that owns ALL WebRTC I/O. A pc's UDP sockets register with
-    // the reactor — and its ICE/DTLS/SCTP pump tasks spawn on the runtime — that is current
-    // while `new_inner` and the handlers it installs execute; if that were a session's
-    // `#[tokio::main]` runtime (dropped the moment io_loop returns), the sockets and pumps
-    // would die with it and even a close driven elsewhere would "succeed" without ever putting
-    // close_notify on the wire — the peer then waits out ICE decay. So `new()` runs its body
-    // here, and detached closes run here too: as independent tasks (a deadline-free `close()`
-    // must not head-of-line block other sessions' teardown) that are never cancelled (a close
-    // cancelled after `RTCPeerConnection::close` latches `is_closed` is unretryable, stranding
-    // the pc in SESSIONS). Data-plane futures (send/recv/close) may be polled from any caller
-    // runtime — cross-runtime polling is fine; only the OWNING driver must stay alive. Two
-    // workers so one busy session cannot starve the rest. This is the one deliberate exception
-    // to AGENTS.md's no-runtime-in-libraries rule: a single lazily-built runtime for I/O whose
-    // lifetime exceeds any caller's.
+    // 拥有全部 WebRTC I/O 的进程级运行时。pc 的 UDP socket 在其中注册，
+    // 而它的 ICE/DTLS/SCTP 泵任务也生成在该运行时上——这个运行时在
+    // `new_inner` 及其安装的处理器执行期间是当前有效的；如果它是某个会话的
+    // `#[tokio::main]` 运行时（io_loop 返回的瞬间就被 drop），那么这些 socket 和泵
+    // 会随之消亡，连在别处驱动的关闭也会「成功」，却从未把
+    // close_notify 放到链路上——于是对端只能等 ICE 衰减结束。因此 `new()` 在这里执行其函数体，
+    // 分离的关闭也在这里运行：作为独立任务（没有截止时间的 `close()`
+    // 不能头阻塞其他会话的拆除）且永不被取消（在
+    // `RTCPeerConnection::close` 锁定 `is_closed` 之后被取消的关闭无法重试，会让
+    // pc 滞留在 SESSIONS 中）。数据面的 future（send/recv/close）可以在任何调用方的
+    // 运行时上被 poll——跨运行时 poll 没问题；只有拥有它的驱动者必须保持存活。用两个
+    // 工作线程，这样一个繁忙的会话不会饿死其余会话。这是对 AGENTS.md 中
+    // 「库中不得有运行时」这条规则唯一一处有意的例外：一个惰性构建、用于 I/O 且
+    // 生命周期超过任何调用方的运行时。
     static ref WEBRTC_RT: Option<tokio::runtime::Runtime> = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .thread_name("webrtc-io")
@@ -194,19 +194,19 @@ lazy_static::lazy_static! {
         .ok();
 }
 
-/// Hands a stream from `new_inner` (running detached on `WEBRTC_RT`) back to its `new()`
-/// caller. If that caller was cancelled while awaiting, the runtime drops the task's output —
-/// this guard — and an unanswered offerer never reaches a terminal ICE state on its own, so
-/// without the Drop-close its pc, sockets and pump tasks would sit in SESSIONS forever. Claims
-/// are counted in the shared `HandoffState`, so only the last one dropped with the stream still
-/// unadopted closes it; a hit another caller is already using is left alone.
+/// 把 `new_inner`（在 `WEBRTC_RT` 上分离运行）产生的流交回它的 `new()`
+/// 调用方。如果该调用方在 await 期间被取消，运行时就会丢弃该任务的输出——
+/// 就是这个 guard——而且一个没人应答的 offerer 自身永远不会进入终止性 ICE 状态，所以
+/// 没有这个 Drop 关闭，它的 pc、socket 和泵任务就会永远留在 SESSIONS 中。认领
+/// 在共享的 `HandoffState` 中计数，因此只有最后一个在流仍未被接管时被丢弃的认领
+/// 才会关闭它；已被其他调用方使用的命中则不予处理。
 struct NewStreamHandoff {
     stream: Option<WebRTCStream>,
 }
 
 impl NewStreamHandoff {
-    /// Take a claim on `stream`. Call under the `SESSIONS` lock: a claim registered after the map
-    /// is unlocked can land behind the abandon-close of the claim that was last outstanding.
+    /// 对 `stream` 取得一个认领。必须在 `SESSIONS` 锁内调用：在该 map
+    /// 解锁之后才登记的认领，可能落在最后一个未结认领的放弃关闭之后。
     fn claim(stream: WebRTCStream) -> Self {
         stream.handoff.pending.fetch_add(1, Ordering::AcqRel);
         Self {
@@ -216,8 +216,8 @@ impl NewStreamHandoff {
 
     fn into_inner(mut self) -> Option<WebRTCStream> {
         let stream = self.stream.take()?;
-        // Before releasing the claim, or a concurrent Drop can see the count reach zero without
-        // seeing that this caller took ownership.
+        // 在释放认领之前，否则并发的 Drop 可能看到计数归零，却没看到
+        // 这个调用方已接管所有权。
         stream.handoff.adopted.store(true, Ordering::Release);
         stream.handoff.pending.fetch_sub(1, Ordering::AcqRel);
         Some(stream)
@@ -261,16 +261,16 @@ impl Clone for WebRTCStream {
 impl WebRTCStream {
     #[inline]
     fn get_remote_offer(endpoint: &str) -> ResultType<String> {
-        // Ensure the endpoint starts with the "webrtc://" prefix
+        // 确保 endpoint 以 "webrtc://" 开头
         if !endpoint.starts_with("webrtc://") {
             return Err(
                 Error::new(ErrorKind::InvalidInput, "Invalid WebRTC endpoint format").into(),
             );
         }
 
-        // Extract the Base64-encoded SDP part
+        // 提取 Base64 编码的 SDP 部分
         let encoded_sdp = &endpoint["webrtc://".len()..];
-        // Decode the Base64 string
+        // 解码 Base64 字符串
         let decoded_bytes = BASE64_STANDARD
             .decode(encoded_sdp)
             .map_err(|_| Error::new(ErrorKind::InvalidInput, "Failed to decode Base64 SDP"))?;
@@ -288,10 +288,10 @@ impl WebRTCStream {
         format!("webrtc://{}", encoded_sdp)
     }
 
-    // Envelope JSON key carrying the local description's ICE transport policy, alongside the
-    // RTCSessionDescription fields (see `local_endpoint`).
-    // `'static` spelled out: an elided lifetime here is a warn-by-default future hard error on
-    // the 1.75 toolchain CI pins (elided_lifetimes_in_associated_constant).
+    // 信封 JSON 中携带本地描述 ICE 传输策略的键，与
+    // RTCSessionDescription 字段并列（参见 `local_endpoint`）。
+    // 显式写出 `'static`：这里省略生命周期在 CI 固定的 1.75 工具链上是
+    // 默认警告、未来会变成硬错误的写法（elided_lifetimes_in_associated_constant）。
     const ICE_POLICY_KEY: &'static str = "ice_policy";
     const ICE_POLICY_ALL: &'static str = "all";
 
@@ -299,7 +299,7 @@ impl WebRTCStream {
     fn get_key_for_sdp(sdp: &RTCSessionDescription) -> ResultType<String> {
         let binding = sdp.unmarshal()?;
         let Some(fingerprint) = binding.attribute("fingerprint") else {
-            // find fingerprint attribute in media descriptions
+            // 在媒体描述中查找 fingerprint 属性
             for media in &binding.media_descriptions {
                 if media.media_name.media != "application" {
                     continue;
@@ -318,10 +318,10 @@ impl WebRTCStream {
         Ok(fingerprint.to_string())
     }
 
-    /// Process-local SESSIONS-map key: the DTLS fingerprint prefixed by role. An offerer and an
-    /// answerer that share a fingerprint (a single process connecting to its own id) would
-    /// otherwise collide, handing the offerer back as the answerer. The wire-level `session_key`
-    /// used for ICE-candidate routing stays the bare fingerprint so both peers still match.
+    /// 进程内 SESSIONS map 的键：加上角色前缀的 DTLS 指纹。一个 offerer 和一个
+    /// 共享同一指纹的 answerer（同一进程连接到自己的 id）否则
+    /// 会发生冲突，把 offerer 当作 answerer 返回。链路层的 `session_key`
+    /// 仍用于 ICE candidate 路由，保持为不带前缀的指纹，这样两个对端依然能匹配。
     #[inline]
     fn cache_key(fingerprint: &str, is_offerer: bool) -> String {
         format!(
@@ -331,9 +331,9 @@ impl WebRTCStream {
         )
     }
 
-    /// Reject a data channel from inside `on_data_channel`, where closing it directly does not
-    /// work: webrtc-rs runs that handler to completion BEFORE `handle_open` binds the SCTP stream,
-    /// so `close()` only flips the ready state and `handle_open` then sets it back to Open.
+    /// 在 `on_data_channel` 内部拒绝一个数据通道，在那里直接关闭它并不
+    /// 奏效：webrtc-rs 会先让该处理器完整跑完，然后 `handle_open` 才绑定 SCTP 流，
+    /// 因此 `close()` 只是翻转就绪状态，之后 `handle_open` 又把它设回 Open。
     fn close_unbound_channel(dc: Arc<RTCDataChannel>) {
         let dc_for_close = dc.clone();
         dc.on_open(Box::new(move || {
@@ -346,18 +346,18 @@ impl WebRTCStream {
         }));
     }
 
-    /// Whether a cached `SESSIONS` entry may be handed to a caller asking for `force_relay`: it
-    /// was built for the first caller, so its ICE policy may not match, and the state handler
-    /// evicts late enough that dead entries linger. Both the lookup and the insert must use it.
+    /// 缓存的 `SESSIONS` 条目是否可以交给要求 `force_relay` 的调用方：它
+    /// 是为第一个调用方构建的，因此其 ICE 策略可能并不匹配，而状态处理器
+    /// 驱逐得足够晚，死条目会滞留。查询和插入两处都必须使用它。
     fn is_reusable_for(&self, force_relay: bool) -> bool {
         self.relay_only == force_relay
             && !self.handoff.closing.load(Ordering::Acquire)
-            // ICE has stopped hearing from the peer on this one. Not terminal, so nothing else
-            // rejects it, but handing it to a caller that is about to judge liveness starts them
-            // off already suspecting a pc they never used.
+            // 这一个上 ICE 已停止收到对端数据。不是终止状态，因此其他任何地方都
+            // 不会拒绝它，但把它交给正要判断存活状态的调用者，会让对方一开始就
+            // 怀疑一个自己从未用过的 pc。
             && !self.is_disconnected()
             && !matches!(
-                *self.state_notify.borrow(),
+                * self.state_notify.borrow(),
                 WebRTCConnectionState::Closed(_)
             )
     }
@@ -404,9 +404,9 @@ impl WebRTCStream {
         if !matches!(u.scheme(), "turn" | "turns" | "stun" | "stuns") {
             return None;
         }
-        // Two accepted spellings parse differently: `turn://user:pass@host:port` has an authority
-        // and is the only form that can carry credentials, while the RFC 7065 `turn:host:port` is
-        // cannot-be-a-base, so `host_str()` is None and the whole `host:port` lands in the path.
+        // 两种被接受的写法解析结果不同：`turn://user:pass@host:port` 带 authority，
+        // 也是唯一能携带凭据的形式；而 RFC 7065 的 `turn:host:port` 是
+        // cannot-be-a-base，因此 `host_str()` 为 None，整个 `host:port` 都落到了 path 中。
         let (host, port) = match u.host_str() {
             Some(host) => (host.to_owned(), u.port().unwrap_or(3478)),
             None => Self::split_host_port(u.path())?,
@@ -414,19 +414,19 @@ impl WebRTCStream {
         if host.is_empty() {
             return None;
         }
-        // `Url` hands userinfo back percent-encoded; the TURN server expects the value,
-        // so `p%40ss` must reach it as `p@ss` for the long-term credential to verify.
+        // `Url` 返回的 userinfo 是百分号编码的；TURN 服务器期望的是原始值，
+        // 因此 `p%40ss` 必须以 `p@ss` 的形式送达，长期凭据才能校验通过。
         let username = percent_decode_str(u.username())
             .decode_utf8_lossy()
             .into_owned();
         let credential = percent_decode_str(u.password().unwrap_or_default())
             .decode_utf8_lossy()
             .into_owned();
-        // A TURN server without credentials is not merely useless: webrtc-rs validates every
-        // configured server in `new_peer_connection`, so one credential-less entry makes EVERY
-        // peer connection fail — including plain non-relay ones that never wanted TURN. The
-        // RFC 7065 spelling has nowhere to put credentials, so drop such entries here rather
-        // than let them poison the whole configuration; `turn://user:pass@host:port` carries them.
+        // 没有凭据的 TURN 服务器不只是无用：webrtc-rs 会校验每一个
+        // 在 `new_peer_connection` 中配置的服务器，因此一个缺少凭据的条目会让**每一个**
+        // peer connection 失败——包括那些根本不需要 TURN 的普通非中继连接。RFC
+        // 7065 的写法没有地方放凭据，因此在这里丢弃这类条目，而不是
+        // 让它们污染整份配置；`turn://user:pass@host:port` 才能携带凭据。
         if matches!(u.scheme(), "turn" | "turns") && (username.is_empty() || credential.is_empty())
         {
             log::warn!(
@@ -446,8 +446,8 @@ impl WebRTCStream {
         })
     }
 
-    /// Split `host[:port]` from an RFC 7065 URL path, defaulting the port. Bracketed IPv6
-    /// literals keep their brackets, which is the form webrtc-rs re-parses.
+    /// 从 RFC 7065 的 URL path 中切分出 `host[:port]`，并给端口默认值。加括号的 IPv6
+    /// 字面量保留其方括号，这正是 webrtc-rs 重新解析时所用的形式。
     fn split_host_port(path: &str) -> Option<(String, u16)> {
         let rest = path.split(['?', '#']).next().unwrap_or_default();
         if rest.is_empty() {
@@ -461,9 +461,9 @@ impl WebRTCStream {
                 .unwrap_or(3478);
             return Some((format!("[{host}]"), port));
         }
-        // An unbracketed IPv6 literal has no unambiguous split point — `2001:db8::1` would be cut
-        // at its last colon into host `2001:db8:` port `1` — so require the bracketed form for
-        // those rather than emit a host webrtc-ice cannot resolve.
+        // 不加括号的 IPv6 字面量没有无歧义的切分点——`2001:db8::1` 会在
+        // 最后一个冒号处被切成主机 `2001:db8:` 和端口 `1`——因此这类地址要求使用加括号的形式，
+        // 而不是输出一个 webrtc-ice 无法解析的主机。
         if rest.matches(':').count() > 1 {
             log::warn!("Ignoring ICE server {rest}: bracket IPv6 literals as [addr]:port");
             return None;
@@ -471,9 +471,9 @@ impl WebRTCStream {
         match rest.rsplit_once(':') {
             Some((host, port)) if !host.is_empty() => match port.parse() {
                 Ok(port) => Some((host.to_owned(), port)),
-                // A port that is present but unusable is a typo, not a host: folding it back in
-                // would produce `host:99999:3478`, which webrtc-ice rejects outright — taking
-                // every peer connection down with it, not just this server.
+                // 存在但不可用的端口是笔误，不是主机：把它折回去
+                // 会产生 `host:99999:3478`，webrtc-ice 会直接拒绝它——连带着
+                // 拖垮每一个 peer connection，而不只是这一个服务器。
                 Err(_) => {
                     log::warn!("Ignoring ICE server {rest}: invalid port");
                     None
@@ -483,14 +483,14 @@ impl WebRTCStream {
         }
     }
 
-    /// Whether the ICE configuration contains a usable TURN server. A Relay-policy peer
-    /// connection (force_relay) can only gather relay candidates, so without a TURN server it can
-    /// never connect — callers use this to skip building a guaranteed-dead pc.
+    /// ICE 配置中是否包含可用的 TURN 服务器。Relay 策略的 peer
+    /// connection（force_relay）只能收集 relay candidate，因此没有 TURN 服务器时它
+    /// 永远连不上——调用方用这一点来跳过构建一个注定失败的 pc。
     pub fn has_turn_server() -> bool {
-        // `get_ice_server_from_url` is what makes a bare scheme test sufficient: it drops entries
-        // with no host and TURN entries with no credentials, i.e. exactly the ones that would
-        // answer `true` here while being unusable — which is worse than answering `false`, since
-        // the caller skips its "don't build a guaranteed-dead Relay-only pc" guard on our word.
+        // 正是 `get_ice_server_from_url` 让只检查 scheme 就足够了：它会丢弃
+        // 没有主机的条目和没有凭据的 TURN 条目，也就是那些
+        // 在这里会回答 `true` 却又无法使用的条目——这比回答 `false` 更糟，因为
+        // 调用方会听信我们的话而跳过「不要构建注定失败的仅 Relay pc」这道保护。
         Self::get_ice_servers().iter().any(|s| {
             s.urls
                 .iter()
@@ -511,7 +511,7 @@ impl WebRTCStream {
         ))
     }
 
-    /// The default UDP STUN servers as bare `host:port`, for application-level address probes.
+    /// 默认的 UDP STUN 服务器，格式为裸的 `host:port`，用于应用层的地址探测。
     pub fn default_stun_servers() -> Vec<String> {
         DEFAULT_ICE_SERVERS
             .iter()
@@ -519,16 +519,16 @@ impl WebRTCStream {
             .collect()
     }
 
-    /// Split out from `get_ice_servers` so parsing can be exercised without touching the
-    /// process-global, on-disk-persisted option — the tests run in parallel threads of one
-    /// process, so a test that rewrote it raced every peer connection another test was building.
+    /// 从 `get_ice_servers` 中拆出来，这样无需触碰
+    /// 进程级、持久化到磁盘的选项就能测试解析——测试在同一个
+    /// 进程的并行线程中运行，因此一个改写它的测试会与另一个测试正在构建的每个 peer connection 发生竞态。
     fn parse_ice_servers(cfg: &str) -> Vec<RTCIceServer> {
         let mut ice_servers = Vec::new();
         let mut has_stun = false;
 
         for url in cfg.split(',').map(str::trim) {
             if let Some(ice_server) = Self::get_ice_server_from_url(url) {
-                // Detect STUN in user config
+                // 在用户配置中检测 STUN
                 if ice_server
                     .urls
                     .iter()
@@ -541,7 +541,7 @@ impl WebRTCStream {
             }
         }
 
-        // If there is no STUN (either TURN-only or empty config) → prepend defaults
+        // 如果没有 STUN（只有 TURN 或配置为空）→ 在前面加上默认值
         if !has_stun {
             ice_servers.insert(
                 0,
@@ -554,21 +554,21 @@ impl WebRTCStream {
         ice_servers
     }
 
-    /// How many binding requests the answerer's ICE agent sends on a pair without a response
-    /// before giving up on it: 74 at the 200ms check interval is ~14.8s, just inside the 15s
-    /// persistence libwebrtc gives a pair (`CONNECTION_WRITE_TIMEOUT`), so both ends of a
-    /// browser session keep checking for about the same time. The ICE crate's default of 7
-    /// (~1.4s) is a server-side choice that assumes the other side keeps knocking; behind an
-    /// address-restricted NAT those requests are also what keep this side's mapping open to
-    /// the remote's checks, so stopping early closes the door on a pair that would have
-    /// connected once the path cleared, however long the remote keeps trying. Bounded by
-    /// `CONNECT_TIMEOUT` (18s).
+    /// 响应方的 ICE agent 在某个候选对没有响应时发送多少个 binding request
+    /// 才放弃它：按 200ms 的检查间隔，74 次约为 14.8 秒，刚好落在 15 秒
+    /// 持久化窗口（libwebrtc 给候选对的 `CONNECTION_WRITE_TIMEOUT`）之内，因此会话两端
+    /// 以浏览器端会话也会在差不多的时间里继续检查。ICE crate 的默认值 7
+    /// （约 1.4 秒）是服务端的选择，假定对端会持续敲门；在
+    /// 地址受限的 NAT 后面，这些请求同时也是让本端的映射对
+    /// 远端的检查保持开放的原因，因此过早停止就等于对某个本来会
+    /// 在路径疏通后连上的候选对关上了门，无论远端尝试多久。其上限由
+    /// `CONNECT_TIMEOUT`（18 秒）限定。
     const ICE_MAX_BINDING_REQUESTS: u16 = 74;
 
-    /// Built and driven on `WEBRTC_RT`: every socket and background task the pc creates must
-    /// belong to a runtime that outlives the session (see `WEBRTC_RT`). A caller that abandons
-    /// this future mid-await leaves the setup task to finish there; the abandoned result then
-    /// closes a freshly built pc (and leaves a shared cache hit alone) — see `NewStreamHandoff`.
+    /// 在 `WEBRTC_RT` 上构建和驱动：pc 创建的每个 socket 和后台任务都必须
+    /// 属于一个生命周期超过会话的运行时（参见 `WEBRTC_RT`）。一个在
+    /// await 中途放弃这个 future 的调用方，会让设置任务在那里跑完；被放弃的结果随后
+    /// 会关闭一个刚构建好的 pc（而共享的缓存命中则不动）——参见 `NewStreamHandoff`。
     pub async fn new(
         remote_endpoint: &str,
         force_relay: bool,
@@ -590,8 +590,8 @@ impl WebRTCStream {
         force_relay: bool,
         ms_timeout: u64,
     ) -> ResultType<NewStreamHandoff> {
-        // The endpoint contains a Base64-encoded SDP with host addresses and live ICE
-        // credentials. Log only its size so debug logs cannot disclose that information.
+        // 该 endpoint 含有 Base64 编码的 SDP，其中带有主机地址和实时的 ICE
+        // 凭据。只记录它的大小，这样调试日志不会泄露这些信息。
         log::debug!(
             "New webrtc stream (remote endpoint: {} bytes)",
             remote_endpoint.len()
@@ -605,8 +605,8 @@ impl WebRTCStream {
         let mut key = Self::get_key_for_sdp_json(&remote_offer)?;
         let start_local_offer = remote_offer.is_empty();
         if !key.is_empty() {
-            // Claim inside the lock: `close_if_abandoned` commits under it too, so this hit
-            // either registers in time to call that close off, or finds the entry already rejected.
+            // 在锁内认领：`close_if_abandoned` 也在该锁内提交，因此这个命中
+            // 要么及时登记以取消那次关闭，要么发现该条目已被拒绝。
             let cached = {
                 let sessions_lock = SESSIONS.lock().await;
                 match sessions_lock.get(&Self::cache_key(&key, start_local_offer)) {
@@ -629,33 +629,33 @@ impl WebRTCStream {
                 return Ok(handoff);
             }
         }
-        // Create a SettingEngine and enable Detach
+        // 创建 SettingEngine 并启用 Detach
         let mut s = SettingEngine::default();
         s.detach_data_channels();
         s.set_ice_multicast_dns_mode(MulticastDnsMode::Disabled);
-        // Answerer only: `remote_endpoint` is empty when this side is the offerer. The
-        // desktop controller keeps the crate default so it stays an unchanged comparison
-        // point while the persistence experiment runs on the controlled side.
+        // 仅响应方：本端是 offerer 时 `remote_endpoint` 为空。桌面
+        // 控制器保持 crate 的默认值，以便在持久化实验运行于受控端时，它仍是一个
+        // 不变的对照点。
         if !remote_endpoint.is_empty() {
             s.set_ice_max_binding_requests(Some(Self::ICE_MAX_BINDING_REQUESTS));
         }
-        // fe80::/10 can only be bound together with a scope id, which `IpAddr` cannot carry, so
-        // gathering one never yields a candidate - only a failed bind and a warning per address.
-        // Spelled out because `is_unicast_link_local` is not stable on our MSRV.
+        // fe80::/10 只能与 scope id 一起绑定，而 `IpAddr` 无法携带它，因此
+        // 收集它永远得不到 candidate——只会得到一次绑定失败和每个地址一条警告。
+        // 之所以写出来，是因为 `is_unicast_link_local` 在我们的 MSRV 上尚未稳定。
         s.set_ip_filter(Box::new(|ip: IpAddr| match ip {
             IpAddr::V6(v6) => v6.segments()[0] & 0xffc0 != 0xfe80,
             IpAddr::V4(_) => true,
         }));
 
-        // KCP's nc=1 profile by default, with the same opt-in to a congestion window as
-        // `allow-kcp-congestion-control`, for the reason given at `get_kcp_cc_enabled`. Set per
-        // connection so the option takes effect on the next session, not the next start.
+        // 默认使用 KCP 的 nc=1 配置，并且与
+        // `allow-kcp-congestion-control` 一样可选择开启拥塞窗口，原因见 `get_kcp_cc_enabled`。按连接设置，
+        // 这样该选项对下一个会话生效，而不是等到下次启动。
         webrtc::sctp::association::set_no_congestion_control(!Self::get_cc_enabled());
 
-        // Create the API object
+        // 创建 API 对象
         let api = APIBuilder::new().with_setting_engine(s).build();
 
-        // Prepare the configuration, get ICE servers from config
+        // 准备配置，从配置中获取 ICE 服务器
         let config = RTCConfiguration {
             ice_servers: Self::get_ice_servers(),
             ice_transport_policy: if force_relay {
@@ -668,14 +668,14 @@ impl WebRTCStream {
 
         let (notify_tx, notify_rx) = watch::channel(WebRTCConnectionState::Pending);
         let (ice_tx, ice_rx) = mpsc::unbounded_channel::<String>();
-        // Create a new RTCPeerConnection
+        // 创建新的 RTCPeerConnection
         let pc = Arc::new(api.new_peer_connection(config).await?);
-        // `on_*` handlers are never cleared — not by `close()`, not by `SESSIONS` eviction — so
-        // this sender outlives the pc and would park a caller's ICE forwarder on `recv()` forever,
-        // holding the pc with it. Gathering complete (`None`) is the agent's last word short of an
-        // ICE restart, which nothing here does, so the sender goes with it and the forwarder ends
-        // there rather than with the session; the terminal-state handler below drops this closure
-        // for a pc that dies before it gets that far.
+        // `on_*` 处理器永远不会被清除——`close()` 不会，`SESSIONS` 驱逐也不会——因此
+        // 这个发送者的存活期长于 pc，会让调用方的 ICE 转发器永远阻塞在 `recv()` 上，
+        // 并把 pc 一起吊住。收集完成（`None`）是该 agent 在发生
+        // ICE 重启（这里没做）之前的最后一句话，因此发送者也随之结束，而转发器
+        // 在那里结束，而不是随会话结束；下面的终止状态处理器会丢弃这个闭包，
+        // 以应对在到达那一步之前就死掉的 pc。
         let mut local_ice_tx = Some(ice_tx);
         pc.on_ice_candidate(Box::new(move |candidate| {
             let Some(candidate) = candidate else {
@@ -704,11 +704,11 @@ impl WebRTCStream {
 
         let bootstrap_dc = if start_local_offer {
             let dc_open_notify = notify_tx.clone();
-            // Create a data channel with label "bootstrap"
+            // 创建一个标签为 "bootstrap" 的数据通道
             let dc = match pc.create_data_channel("bootstrap", None).await {
                 Ok(dc) => dc,
                 Err(e) => {
-                    // Close before propagating: the pc is live and would otherwise leak.
+                    // 在向外传播之前先关闭：pc 还活着，否则会泄漏。
                     pc.close().await.ok();
                     return Err(e.into());
                 }
@@ -720,17 +720,17 @@ impl WebRTCStream {
             }));
             dc
         } else {
-            // Wait for the data channel to be created by the remote peer
-            // Here we create a dummy data channel to satisfy the type system
+            // 等待远端对端创建数据通道
+            // 这里创建一个虚拟数据通道以满足类型系统
             Arc::new(RTCDataChannel::default())
         };
 
         let stream = Arc::new(Mutex::new(bootstrap_dc));
         if !start_local_offer {
-            // Register data channel creation handling
+            // 注册数据通道创建的处理
             let dc_open_notify = notify_tx.clone();
             let stream_for_dc = stream.clone();
-            // The remote may open any number of channels; only the first is ever bound.
+            // 远端可能打开任意数量的通道，但只有第一个会被绑定。
             let dc_bound = Arc::new(AtomicBool::new(false));
             pc.on_data_channel(Box::new(move |dc: Arc<RTCDataChannel>| {
                 let d_label = dc.label().to_owned();
@@ -738,9 +738,9 @@ impl WebRTCStream {
                 let stream_for_dc_clone = stream_for_dc.clone();
                 let dc_bound = dc_bound.clone();
                 Box::pin(async move {
-                    // Reassembly is sound only on an ordered, fully-reliable channel: the fragment
-                    // header has no sequence number, so a reorder or a loss silently merges
-                    // messages. webrtc-rs takes these from the unauthenticated REMOTE's DCEP OPEN.
+                    // 重组只有在有序且完全可靠的通道上才正确：分片
+                    // 头没有序列号，因此乱序或丢失会悄无声息地混合
+                    // 消息。webrtc-rs 从未鉴权的远端 DCEP OPEN 中取用这些属性。
                     if !dc.ordered()
                         || dc.max_retransmits().is_some()
                         || dc.max_packet_lifetime().is_some()
@@ -752,11 +752,11 @@ impl WebRTCStream {
                         Self::close_unbound_channel(dc);
                         return;
                     }
-                    // Bind the first channel only. `detached` caches the first detached handle
-                    // for the life of the stream, so rebinding would leave teardown closing a
-                    // channel that send/recv no longer use; worse, a second channel's `on_open`
-                    // would push Open onto the same watch and re-arm a session already latched
-                    // Closed — and that watch gates both `send_bytes_inner` and `next()`.
+                    // 只绑定第一个通道。`detached` 缓存第一个分离句柄，
+                    // 其生命周期与该流相同，因此重新绑定会让拆除过程去关闭一个
+                    // send/recv 已经不再使用的通道；更糟的是，第二个通道的 `on_open`
+                    // 会把 Open 推到同一个 watch 上，从而重新武装一个已经锁定为
+                    // Closed 的会话——而那个 watch 同时把守 `send_bytes_inner` 和 `next()`。
                     if dc_bound.swap(true, Ordering::SeqCst) {
                         log::warn!("Ignoring extra WebRTC data channel {}", d_label);
                         Self::close_unbound_channel(dc);
@@ -764,7 +764,7 @@ impl WebRTCStream {
                     }
                     log::debug!("Remote data channel {} ready", d_label);
                     let mut stream_lock = stream_for_dc_clone.lock().await;
-                    *stream_lock = dc.clone();
+                    * stream_lock = dc.clone();
                     drop(stream_lock);
                     dc.on_open(Box::new(move || {
                         let _ = dc_open_notify2.send(WebRTCConnectionState::Open);
@@ -774,18 +774,18 @@ impl WebRTCStream {
             }));
         }
 
-        // This will notify you when the peer has connected/disconnected
+        // 这会在对端连接/断开时通知你
         let stream_for_close = stream.clone();
-        // Weak, not strong: a handler stored inside the pc that captured a strong
-        // `Arc<RTCPeerConnection>` forms a pc -> internal -> handler -> pc cycle that `close()`
-        // never breaks (it only fires the handler) and no `Drop` clears, permanently leaking every
-        // pc and the ICE-candidate sender's forwarding task. Upgrade inside the handler; if the pc
-        // is already gone there is nothing left in SESSIONS to evict.
+        // 用弱引用而非强引用：存放在 pc 内部、捕获了强引用
+        // `Arc<RTCPeerConnection>` 的处理器会形成 pc -> 内部 -> 处理器 -> pc 的环，而 `close()`
+        // 从不打破它（它只是触发处理器），也没有 `Drop` 去清理，会永久泄漏每一个
+        // pc 以及 ICE candidate 发送者的转发任务。在处理器内部再升级；如果该 pc
+        // 已经不在了，SESSIONS 里就没有可驱逐的东西了。
         let pc_for_close = Arc::downgrade(&pc);
-        // Deliberately NOT a `WebRTCConnectionState` variant: that enum gates send and receive
-        // readiness (`wait_for_connect_result`) and session-cache admissibility, so a fourth state
-        // would have to be given a meaning at each of those. `Disconnected` is transient and must
-        // change neither, so it is reported beside them instead of through them.
+        // 刻意**不**做成 `WebRTCConnectionState` 的一个变体：该枚举把守发送和接收的
+        // 就绪状态（`wait_for_connect_result`）以及 session 缓存的可接纳性，因此第四个状态
+        // 必须在这两处都被赋予含义。`Disconnected` 是暂时的，不能
+        // 改变其中任何一个，因此在它们旁边单独上报，而不是通过它们上报。
         let disconnected = Arc::new(AtomicBool::new(false));
         let disconnected_for_state = disconnected.clone();
         pc.on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
@@ -797,10 +797,10 @@ impl WebRTCStream {
                 log::debug!("WebRTC session peer connection state: {}", s);
                 Self::note_health(&disconnected_for_state, s);
                 match s {
-                    // `Disconnected` is a transient, recoverable ICE state (webrtc-ice fires it
-                    // after ~5s without consent and returns to `Connected` when traffic resumes).
-                    // Only tear down on the terminal states so a short network blip (Wi-Fi roam,
-                    // sleep/wake, cell handover) does not permanently kill an established session.
+                    // `Disconnected` 是一种暂时的、可恢复的 ICE 状态（webrtc-ice 在
+                    // 约 5 秒收不到 consent 时触发，并在流量恢复后回到 `Connected`）。
+                    // 只在终止状态下才拆除，这样短暂的网络抖动（Wi-Fi 漫游、
+                    // 睡眠/唤醒、基站切换）不会永久杀死一个已建立的会话。
                     RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed => {
                         let _ =
                             on_connection_notify.send(WebRTCConnectionState::Closed(s.to_string()));
@@ -813,13 +813,13 @@ impl WebRTCStream {
                             return;
                         };
 
-                        // Nothing else ever drops this sender (`close()` clears no handler), so
-                        // replace the handler to close the channel: a caller's forwarder loop then
-                        // ends instead of parking on `recv()` and holding this pc alive.
+                        // 没有任何其他地方会丢弃这个发送者（`close()` 不会清除任何处理器），因此
+                        // 要通过替换处理器来关闭该通道：调用方的转发循环随后会
+                        // 结束，而不是阻塞在 `recv()` 上把这个 pc 一直吊着。
                         pc_for_close2.on_ice_candidate(Box::new(|_| Box::pin(async {})));
 
-                        // By pc identity, not by re-deriving the key: a duplicate offer shares
-                        // the key with the live winner, and this must not evict that one.
+                        // 按 pc 的身份判断，而不是重新推导键：重复的 offer 会与
+                        // 存活的那个共享同一个键，而这里绝不能把后者驱逐掉。
                         let mut sessions_lock = SESSIONS.lock().await;
                         for key in Self::remove_sessions_for_peer(
                             &mut sessions_lock,
@@ -833,17 +833,17 @@ impl WebRTCStream {
             })
         }));
 
-        // Trickle ICE: local-only work, no gathering wait — the controlled side awaits answer
-        // creation inline on its punch-reply critical path. A failure below leaves a live pc whose
-        // state handler only fires on a terminal ICE state, so close before propagating.
-        // Encode each endpoint before `set_local_description`, which is what starts gathering, so
-        // there is nothing for `trickle_endpoint` to strip in the first place.
+        // Trickle ICE：只做本地工作，不等待收集——受控端在
+        // 打洞响应的关键路径上内联等待 answer 创建。下面的失败会留下一个存活的 pc，
+        // 而它的状态处理器只在终止性 ICE 状态时才触发，因此在向外传播之前先关闭。
+        // 在 `set_local_description` 之前对每个 endpoint 编码，正是它启动了收集，因此
+        // `trickle_endpoint` 一开始就没有东西可以剥离。
         let offer_answer: ResultType<(String, String)> = async {
             if start_local_offer {
                 let sdp = pc.create_offer(None).await?;
                 let endpoint = Self::trickle_endpoint(&sdp, force_relay)?;
                 pc.set_local_description(sdp.clone()).await?;
-                // SDP carries host/srflx IPs and ICE ufrag/pwd; log only its size, not the body.
+                // SDP 带有 host/srflx 地址和 ICE ufrag/pwd；只记录它的大小，不记录内容。
                 log::debug!(
                     "local offer SDP built ({} bytes, endpoint {} bytes)",
                     sdp.sdp.len(),
@@ -876,9 +876,9 @@ impl WebRTCStream {
                 return Err(e);
             }
         };
-        // Only the UDP leg has a ceiling, and which leg carries this is the rendezvous server's
-        // to decide, so this reports rather than refuses: over a TCP/WS route a larger endpoint is
-        // delivered fine, and failing here would cost WebRTC for no reason.
+        // 只有 UDP 这条链路有上限，而承载它的是哪条链路由 rendezvous 服务器
+        // 决定，因此这里只做上报而不拒绝：走 TCP/WS 路径时更大的 endpoint
+        // 也能顺利送达，在这里失败只会白白葬送 WebRTC。
         if local_endpoint.len() > Self::UDP_ENDPOINT_BUDGET {
             log::warn!(
                 "WebRTC endpoint is {} bytes, over the {} byte UDP budget; a peer reached over UDP \
@@ -907,18 +907,18 @@ impl WebRTCStream {
             disconnected,
             max_recv_message: Arc::new(AtomicUsize::new(MAX_RECV_MESSAGE)),
         };
-        // Insert into the session cache, but never `await pc.close()` while holding this lock:
-        // `close()` fires the peer-connection-state handler inline, which itself locks SESSIONS,
-        // self-deadlocking the whole process. Resolve any duplicate off-lock.
+        // 插入 session 缓存，但绝不要在持有该锁时 `await pc.close()`：
+        // `close()` 会就地触发 peer-connection-state 处理器，而该处理器自身会锁 SESSIONS，
+        // 从而让整个进程自死锁。任何重复项都要在锁外解决。
         let cache_key = Self::cache_key(&key, start_local_offer);
-        // Claim inside the lock, the insert included: with the pc cached but unclaimed, a hit
-        // could take the only claim on it and release it again, closing it under this caller.
+        // 在锁内认领，插入也包括在内：如果 pc 已缓存但未被认领，一个命中
+        // 可能取走它唯一的认领又把它释放，从而在这个调用方脚下把它关掉。
         let mut duplicate = None;
         let handoff = {
             let mut final_lock = SESSIONS.lock().await;
-            // Same admissibility test as the lookup above, or that lookup is dead code: an entry
-            // rejected there is still in the map when we get here, so returning it unconditionally
-            // would discard the pc we just built precisely because the cached one was unusable.
+            // 与上面的查询相同的可接纳性判断，否则那个查询就是死代码：一个
+            // 在那里被拒绝的条目到这里时仍在 map 中，因此无条件返回它
+            // 就会恰恰因为缓存的那个不可用而丢弃我们刚构建的 pc。
             match final_lock.get(&cache_key) {
                 Some(session) if session.is_reusable_for(force_relay) => {
                     duplicate = Some(webrtc_stream.clone());
@@ -931,24 +931,24 @@ impl WebRTCStream {
             }
         };
         if let Some(loser) = duplicate {
-            // A concurrent `new()` already cached an equivalent stream; discard this pc's
-            // resources (on the closer thread — awaiting here would strand the pc if this
-            // `new()` were cancelled mid-close) and return the cached one.
+            // 并发的 `new()` 已经缓存了一个等价的流；丢弃这个 pc 的
+            // 资源（在关闭线程上——在这里 await 会在这个
+            // `new()` 于关闭中途被取消时搁浅 pc），并返回缓存的那个。
             loser.close_detached();
         }
         Ok(handoff)
     }
 
-    /// One-shot endpoint: waits for ICE gathering so the SDP already carries the candidates.
-    /// The wait is deliberately unbounded — a deadline here would return a half-gathered SDP and
-    /// defeat the contract; callers needing one should wrap the call or use the trickle variant,
-    /// which both rustdesk signaling paths do. Remaining callers are the loopback tests and
-    /// `examples/webrtc.rs`, neither of which bounds it.
+    /// 一次性 endpoint：等待 ICE 收集完成，使 SDP 已经带上 candidates。
+    /// 这个等待刻意没有上限——这里的截止时间会返回只收集了一半的 SDP，
+    /// 从而破坏约定；需要截止时间的调用方应当自己包装这次调用或改用 trickle 变体，
+    /// rustdesk 的两条信令路径都这么做。剩余的调用方是回环测试和
+    /// `examples/webrtc.rs`，两者都不设上限。
     #[inline]
     pub async fn get_local_endpoint(&self) -> ResultType<String> {
-        // Preserve the original one-shot endpoint contract: callers that only exchange this SDP
-        // do not have a separate path for `take_local_ice_rx`, so their endpoint must contain the
-        // gathered host/srflx/relay candidates.
+        // 保持原有的一次性 endpoint 约定：只交换这份 SDP 的调用方
+        // 没有针对 `take_local_ice_rx` 的独立路径，因此它们的 endpoint 必须包含
+        // 已收集到的 host/srflx/relay candidates。
         let mut gather_complete = self.pc.gathering_complete_promise().await;
         let _gathering_channel_closed = gather_complete.recv().await;
         let Some(local_desc) = self.pc.local_description().await else {
@@ -957,43 +957,43 @@ impl WebRTCStream {
         Self::encode_endpoint(local_desc.sdp_type, &local_desc.sdp, self.relay_only)
     }
 
-    /// The offer/answer exactly as it was created, for callers that signal candidates via
-    /// `take_local_ice_rx`. Taken at construction, so this cannot fail and cannot block — unlike
-    /// `get_local_endpoint`, which reads the live description and waits for gathering.
+    /// 与创建时完全一致的 offer/answer，供那些通过
+    /// `take_local_ice_rx` 传递 candidate 的调用方使用。在构造时取得，因此它不会失败也不会阻塞——不同于
+    /// `get_local_endpoint`，后者读取实时描述并等待收集完成。
     ///
-    /// Deliberately not `pc.local_description()`, which runs `populate_local_candidates` and so
-    /// returns the SDP plus every candidate gathered up to that moment — and callers read this a
-    /// network round trip after `new`, by which time gathering has filled it in. Why the size
-    /// matters: `UDP_ENDPOINT_BUDGET`.
+    /// 刻意不使用 `pc.local_description()`，它会执行 `populate_local_candidates`，因而
+    /// 返回 SDP 加上截至那一刻收集到的每个 candidate——而调用方是在
+    /// `new` 之后经过一个网络往返才读取它，那时收集早已把它填满。为什么大小
+    /// 很重要：`UDP_ENDPOINT_BUDGET`。
     #[inline]
     pub fn local_endpoint(&self) -> &str {
         self.local_endpoint.as_str()
     }
 
-    /// The size a trickle endpoint must stay under for the UDP leg of its route to be safe. It is
-    /// the one signaling message that can grow: a peer registered over UDP receives it inside
-    /// `PunchHole` — with the mangled addresses and the permission blobs — as a single datagram,
-    /// and one that needs IP fragmentation is dropped without a trace on paths that discard
-    /// fragments. The candidates that follow are one small message each and never approach it.
+    /// trickle endpoint 必须小于的大小，才能保证其路径的 UDP 链路安全。它是
+    /// 唯一会增长的信令消息：注册在 UDP 上的对端会在
+    /// `PunchHole`（带着变形后的地址和权限数据）内以单个数据报的形式收到它，
+    /// 而需要 IP 分片的会在丢弃分片的路径上无声无息地被丢掉。
+    /// 随后到达的 candidates 各自只是一条小消息，永远不会接近这个大小。
     ///
-    /// Not an MTU calculation: `PunchHole`'s other fields are not bounded here, so a value near
-    /// this number could still fragment. It is a tripwire on a quantity `trickle_endpoint` pins at
-    /// ~700 bytes, sized to leave that headroom while still catching a regression that lets
-    /// candidates back in — as a log line rather than another silent drop. Nothing enforces it: a
-    /// TCP/WS leg has no packet ceiling.
+    /// 这不是 MTU 计算：`PunchHole` 的其他字段在这里并没有上限，因此接近
+    /// 这个值的消息仍然可能分片。它是一个绊线，监视着 `trickle_endpoint` 固定在
+    /// 约 700 字节的量，这个大小既留出了余量，又仍能捕获让
+    /// candidates 混回来的回归——以一行日志的形式报告，而不是又一次静默丢弃。没有任何机制强制它：
+    /// TCP/WS 链路没有包大小上限。
     const UDP_ENDPOINT_BUDGET: usize = 1024;
 
-    /// The endpoint a trickling peer signals: the session parameters needed to start ICE and DTLS
-    /// (ice-ufrag, ice-pwd, fingerprint, setup, the sctp m-line), without the candidates — those
-    /// ride `take_local_ice_rx` and arrive as individual `IceCandidate` messages.
+    /// trickling 对端所信令的 endpoint：启动 ICE 和 DTLS 所需的会话参数
+    /// （ice-ufrag、ice-pwd、fingerprint、setup、sctp m-line），不含 candidates——那些
+    /// 通过 `take_local_ice_rx` 送出，并以一条条 `IceCandidate` 消息到达。
     ///
-    /// Candidates are the only part of a local description that grows. Stripping them makes the
-    /// size a property of the value rather than of when it was taken, so it cannot drift with
-    /// gathering however this is later refactored.
+    /// candidates 是本地描述中唯一会增长的部分。把它们剥离掉就让
+    /// 大小成为值本身的属性，而不是取值时刻的属性，因此它不会随
+    /// 收集过程而漂移，无论以后如何重构。
     fn trickle_endpoint(local_desc: &RTCSessionDescription, relay_only: bool) -> ResultType<String> {
         let mut sdp = String::with_capacity(local_desc.sdp.len());
         for line in local_desc.sdp.lines() {
-            // `end-of-candidates` would tell the remote agent to stop waiting for the trickle.
+            // `end-of-candidates` 会告诉远端 agent 不要再等待 trickle。
             if line.starts_with("a=candidate:") || line.starts_with("a=end-of-candidates") {
                 continue;
             }
@@ -1003,18 +1003,18 @@ impl WebRTCStream {
         Self::encode_endpoint(local_desc.sdp_type, &sdp, relay_only)
     }
 
-    /// Base64 envelope of a local description, carrying its ICE transport policy unless the pc is
-    /// Relay-only (see `ICE_POLICY_KEY`).
-    /// Built from the two fields a session description serializes rather than from the value, so
-    /// a caller that rewrote the SDP cannot leave a stale `parsed` tree riding along with it.
+    /// 本地描述的 Base64 信封，除非该 pc 是
+    /// 仅 Relay 的（参见 `ICE_POLICY_KEY`），否则会携带其 ICE 传输策略。
+    /// 由会话描述所序列化的两个字段构建，而不是由该值本身构建，因此
+    /// 改写了 SDP 的调用方不会让一棵过时的 `parsed` 树跟着一起走。
     fn encode_endpoint(sdp_type: RTCSdpType, sdp: &str, relay_only: bool) -> ResultType<String> {
         let mut envelope = serde_json::Map::new();
         envelope.insert("type".to_owned(), serde_json::to_value(sdp_type)?);
         envelope.insert("sdp".to_owned(), serde_json::Value::from(sdp));
         if !relay_only {
-            // Rides in the envelope, not a proto field the rendezvous server would forward,
-            // because it is the offer's own property: the receiver must know whether
-            // force_relay was policy (stay Relay-only) or transport. Older peers ignore it.
+            // 它随信封走，而不是作为一个 rendezvous 服务器会转发的 proto 字段，
+            // 因为它是 offer 自身的属性：接收方必须知道
+            // force_relay 是策略（保持仅 Relay）还是传输方式。旧版对端会忽略它。
             envelope.insert(
                 Self::ICE_POLICY_KEY.to_owned(),
                 serde_json::Value::from(Self::ICE_POLICY_ALL),
@@ -1023,10 +1023,10 @@ impl WebRTCStream {
         Ok(Self::sdp_to_endpoint(&serde_json::to_string(&envelope)?))
     }
 
-    /// Whether the peer's endpoint declares it was built with ICE transport policy `all`
-    /// (W3C RTCIceTransportPolicy), i.e. it gathers host/srflx/relay candidates and a direct
-    /// pair may form even though the request carries force_relay. Absent key, foreign format
-    /// or parse failure all mean "not declared" — the old Relay-only reading.
+    /// 对端的 endpoint 是否声明它是以 ICE 传输策略 `all`
+    /// （W3C RTCIceTransportPolicy）构建的，即它会收集 host/srflx/relay candidates 并且直连
+    /// 候选对可能形成，即使请求中带有 force_relay。键缺失、格式不符
+    /// 或解析失败都表示「未声明」——也就是旧有的仅 Relay 解读。
     pub fn endpoint_declares_all_ice(endpoint: &str) -> bool {
         let Ok(sdp_json) = Self::get_remote_offer(endpoint) else {
             return false;
@@ -1050,25 +1050,25 @@ impl WebRTCStream {
         Ok(())
     }
 
-    /// DTLS certificate fingerprint of the local description (this endpoint's own cert).
+    /// 本地描述的 DTLS 证书指纹（该 endpoint 自己的证书）。
     #[inline]
     pub async fn local_dtls_fingerprint(&self) -> ResultType<String> {
         Self::get_key_for_peer(&self.pc, true).await
     }
 
-    /// DTLS certificate fingerprint of the remote description (the peer's cert). webrtc-rs
-    /// verifies the negotiated peer certificate against this fingerprint during the DTLS
-    /// handshake, so once the channel is open a matching fingerprint identifies the peer's cert.
+    /// 远端描述的 DTLS 证书指纹（对端的证书）。webrtc-rs
+    /// 在 DTLS 握手期间用这个指纹校验协商出的对端证书，
+    /// 因此一旦通道打开，匹配的指纹就标识出对端的证书。
     #[inline]
     pub async fn remote_dtls_fingerprint(&self) -> ResultType<String> {
         Self::get_key_for_peer(&self.pc, false).await
     }
 
-    /// Whether the connection runs through a TURN relay; feeds the UI's direct/relayed flag.
-    /// Under Relay policy the answer is known by construction, so that arm returns `Some(true)`
-    /// without consulting ICE — including before a pair is selected, unlike the `None` the other
-    /// arm returns then. Both callers ask post-connection, where the arms agree; making the relay
-    /// arm await a pair would only add a stats round trip.
+    /// 连接是否经由 TURN 中继；用于 UI 的直连/中继标志。
+    /// 在 Relay 策略下答案由构造方式决定，因此该分支直接返回 `Some(true)`，
+    /// 不查询 ICE——包括在选出候选对之前，而另一个分支返回的是 `None`。
+    /// 两个调用方都是在连接之后询问，那时两个分支结果一致；让 relay
+    /// 分支去等待候选对只会多一次 stats 往返。
     pub async fn is_relayed(&self) -> Option<bool> {
         if self.relay_only {
             return Some(true);
@@ -1076,9 +1076,9 @@ impl WebRTCStream {
         let dtls = self.pc.sctp().transport();
         let pair = dtls.ice_transport().get_selected_candidate_pair().await?;
 
-        // Not the stats report's `nominated` flag: webrtc-ice never clears it per checklist entry,
-        // so after a pair switch several entries carry it and map order decides the answer.
-        // 0.13 keeps the candidates private, so read the types out of `Display` by position.
+        // 不是 stats 报告里的 `nominated` 标志：按检查清单条目，webrtc-ice 从不清除它，
+        // 因此在候选对切换后会有多个条目带着它，map 的顺序决定了答案。
+        // 0.13 把 candidates 保持为私有，因此按位置从 `Display` 中读出类型。
         let relay = RTCIceCandidateType::Relay.to_string();
         Some(
             pair.to_string()
@@ -1088,15 +1088,15 @@ impl WebRTCStream {
         )
     }
 
-    /// Whether the nominated pair reaches the peer over IPv6 — `None` before one is selected.
-    /// The remote side on purpose: it is the address the peer is actually reached at, which the
-    /// rendezvous-observed address the session is otherwise identified by cannot report.
+    /// 被选中的候选对是否通过 IPv6 到达对端——选出之前为 `None`。
+    /// 刻意取远端一侧：它才是对端实际被到达的地址，而
+    /// 会话通常据以识别的 rendezvous 观测地址无法报告这一点。
     pub async fn is_remote_ipv6(&self) -> Option<bool> {
         let dtls = self.pc.sctp().transport();
         let pair = dtls.ice_transport().get_selected_candidate_pair().await?;
-        // Same `Display` parse as `is_relayed`, one token over: a side renders as
-        // `(remote) <protocol> <typ> <address>:<port>`, and `protocol` is only udp/tcp, so the
-        // family has to come from the address — an IPv6 literal is the only one with two colons.
+        // 与 `is_relayed` 相同的 `Display` 解析，只是多一个 token：一侧渲染为
+        // `(remote) <protocol> <typ> <address>:<port>`，而 `protocol` 只有 udp/tcp，因此
+        // 地址族只能从地址本身推断——只有 IPv6 字面量带两个冒号。
         let pair = pair.to_string();
         let remote = pair.split(" <-> ").nth(1)?;
         Some(remote.split_whitespace().nth(3)?.matches(':').count() > 1)
@@ -1134,23 +1134,23 @@ impl WebRTCStream {
         Ok(())
     }
 
-    /// Explicitly tear down the peer connection. Dropping the handle is not enough: `SESSIONS`
-    /// holds a clone, so the pc and its ICE/DTLS resources survive until it happens to reach a
-    /// terminal ICE state. Closing fires the state handler, which evicts the `SESSIONS` entry —
-    /// callers that abandon a stream (e.g. an offerer that lost the transport race) must call it.
+    /// 显式拆除 peer connection。仅 drop 句柄是不够的：`SESSIONS`
+    /// 持有一个克隆，因此 pc 及其 ICE/DTLS 资源会一直存活，直到它碰巧进入
+    /// 终止性 ICE 状态。关闭会触发状态处理器，它会驱逐 `SESSIONS` 条目——
+    /// 放弃某个流的调用方（例如在传输竞态中落败的 offerer）必须调用它。
     #[inline]
     pub async fn close(&self) {
         self.pc.close().await.ok();
     }
 
-    /// Tear the pc down as an independent task on `WEBRTC_RT` — the runtime that owns the
-    /// pc's sockets and pump tasks, so the close can actually reach the wire no matter which
-    /// caller runtimes have died — keeping `keep` alive until the teardown finishes. Callable
-    /// from any context, `Drop` on a runtime-less thread included, and never cancelled, so
-    /// `close()`'s `is_closed` latch is only ever set by a close that finishes. The send path
-    /// passes its permit as `keep`.
+    /// 在 `WEBRTC_RT` 上作为独立任务拆除 pc——这个运行时拥有
+    /// pc 的 socket 和泵任务，因此无论哪些
+    /// 调用方运行时已经消亡，关闭都能真正到达链路上——同时让 `keep` 存活到拆除完成。可从
+    /// 任何上下文调用，包括在没有运行时的线程上执行 `Drop`，而且永不被取消，因此
+    /// `close()` 的 `is_closed` 锁定只会被真正完成的关闭设置。发送路径
+    /// 把自己的 permit 作为 `keep` 传下去。
     pub fn close_detached_with<T: Send + 'static>(&self, keep: T) {
-        // If the runtime never built, no pc exists either (`new` fails first); nothing to close.
+        // 如果运行时根本没有构建出来，那 pc 也不存在（`new` 会先失败）；没什么可关闭的。
         let Some(rt) = WEBRTC_RT.as_ref() else {
             return;
         };
@@ -1168,10 +1168,10 @@ impl WebRTCStream {
         self.close_detached_with(());
     }
 
-    /// Close a pc no caller ever took. Spawned on `WEBRTC_RT` like `close_detached`, but the
-    /// decision is remade under the `SESSIONS` lock that a cache hit claims under: either the hit
-    /// registers first and this call stands down, or `closing` commits first and
-    /// `is_reusable_for` rejects the entry, which the state handler evicts only later.
+    /// 关闭一个从未被任何调用方接管的 pc。像 `close_detached` 一样在 `WEBRTC_RT` 上生成，但
+    /// 这个决定要在缓存命中认领所用的那把 `SESSIONS` 锁下重新做出：要么该命中
+    /// 先登记而本次调用退让，要么 `closing` 先提交，
+    /// 由 `is_reusable_for` 拒绝该条目，而状态处理器只是更晚才驱逐它。
     fn close_if_abandoned(&self) {
         let Some(rt) = WEBRTC_RT.as_ref() else {
             return;
@@ -1187,7 +1187,7 @@ impl WebRTCStream {
                 }
                 stream.handoff.closing.store(true, Ordering::Release);
             }
-            // Off-lock: `close()` fires the state handler inline and that handler locks SESSIONS.
+            // 在锁外：`close()` 会就地触发状态处理器，而该处理器会锁 SESSIONS。
             if let Err(err) = stream.pc.close().await {
                 log::debug!("WebRTC close of an abandoned peer failed: {}", err);
             }
@@ -1199,8 +1199,8 @@ impl WebRTCStream {
         // not-supported
     }
 
-    /// See `Stream::set_max_packet_length`. Clamped to `MAX_RECV_MESSAGE`: the send path checks
-    /// against that constant, so a bound above it would only accept what no peer will ever send.
+    /// 参见 `Stream::set_max_packet_length`。会被钳制到 `MAX_RECV_MESSAGE`：发送路径是按
+    /// 该常量检查的，因此高于它的上限只会接受没有任何对端会发送的内容。
     #[inline]
     pub fn set_max_packet_length(&mut self, n: usize) {
         self.max_recv_message
@@ -1217,16 +1217,16 @@ impl WebRTCStream {
         self.send_timeout = ms;
     }
 
-    /// See `Stream::rx_progress`.
+    /// 参见 `Stream::rx_progress`。
     #[inline]
     pub fn rx_progress(&self) -> u64 {
         self.rx_probe.get()
     }
 
-    /// Track whether ICE still hears from the peer. `Disconnected` is raised about 5s after it
-    /// stops and is cleared again when traffic resumes, so it is a hint to be acted on by whoever
-    /// asks, never a terminal state; the terminal ones are handled by the caller of this and
-    /// deliberately leave the flag alone, since a closed session has no use for a hint.
+    /// 跟踪 ICE 是否仍能收到对端数据。`Disconnected` 在停止后约 5 秒
+    /// 被置起，流量恢复时又被清除，因此它只是一个提示，由提出询问的人
+    /// 自行处理，而绝不是终止状态；终止状态由本函数的调用方处理，而它
+    /// 刻意不去动这个标志，因为已关闭的会话用不上提示。
     fn note_health(disconnected: &AtomicBool, s: RTCPeerConnectionState) {
         match s {
             RTCPeerConnectionState::Disconnected => disconnected.store(true, Ordering::SeqCst),
@@ -1235,7 +1235,7 @@ impl WebRTCStream {
         }
     }
 
-    /// See `Stream::webrtc_disconnected`.
+    /// 参见 `Stream::webrtc_disconnected`。
     #[inline]
     pub fn is_disconnected(&self) -> bool {
         self.disconnected.load(Ordering::SeqCst)
@@ -1243,10 +1243,10 @@ impl WebRTCStream {
 
     #[inline]
     pub fn set_key(&mut self, _key: Key) {
-        // WebRTC traffic is DTLS-encrypted regardless; the secretbox key is unused.
-        // Callers invoke set_key only after the controller has bound the DTLS fingerprint to the
-        // verified peer identity (or the controlled side has completed the matching handshake).
-        // Mark peer-verified so is_secured() matches TCP's post-key-exchange meaning.
+        // 无论怎样 WebRTC 流量都由 DTLS 加密；secretbox 密钥并未使用。
+        // 调用方只有在控制器已把 DTLS 指纹绑定到
+        // 已验证的对端身份（或受控端已完成对应的握手）之后才调用 set_key。
+        // 标记为已完成对端验证，使 is_secured() 与 TCP 在密钥交换之后的含义一致。
         self.peer_verified.store(true, Ordering::Release);
     }
 
@@ -1279,8 +1279,8 @@ impl WebRTCStream {
         }
     }
 
-    /// Fetch (and cache) the detached data channel. `detach()` is idempotent and returns a
-    /// clone of the same underlying channel, so caching it just avoids re-locking per message.
+    /// 获取（并缓存）分离的数据通道。`detach()` 是幂等的，返回的是
+    /// 同一个底层通道的克隆，因此缓存它只是避免为每条消息反复加锁。
     async fn detached_dc(&self) -> ResultType<Arc<DetachedDataChannel>> {
         {
             let cache = self.detached.lock().await;
@@ -1291,32 +1291,32 @@ impl WebRTCStream {
         let raw = self.stream.lock().await.clone();
         let dc = raw.detach().await?;
         let mut cache = self.detached.lock().await;
-        // Another task may have cached it while we were detaching.
+        // 在我们分离期间，另一个任务可能已经缓存了它。
         if let Some(existing) = cache.as_ref() {
             return Ok(existing.clone());
         }
-        *cache = Some(dc.clone());
+        * cache = Some(dc.clone());
         Ok(dc)
     }
 
-    /// NOT cancel-safe: dropping this future mid-message (e.g. wrapping it in `select!`/`timeout`)
-    /// can leave a partial fragment sequence on the wire, corrupting reassembly of every later
-    /// message on this stream. A caller that abandons a send must treat the stream as dead and
-    /// close it; the built-in `send_timeout` path below already does (it closes the pc).
+    /// **不**具备取消安全性：在消息中途丢弃这个 future（例如把它包进 `select!`/`timeout`）
+    /// 可能在链路上留下一段不完整的分片序列，破坏此后该流上每一条
+    /// 消息的重组。放弃一次发送的调用方必须把该流视为已死并
+    /// 关闭它；下面内置的 `send_timeout` 路径已经这么做了（它会关闭 pc）。
     pub async fn send_bytes(&mut self, bytes: Bytes) -> ResultType<()> {
         let send_timeout = self.send_timeout;
         let send_gate = self.send_gate.clone();
-        // Bound the WHOLE send (wait-for-open, queueing behind another clone, every write) by
-        // send_timeout: otherwise a write parks indefinitely on SCTP backpressure and
-        // connection.rs's timer never runs. That parking is also what bounds sender memory —
-        // PendingQueue admits 128 KiB and inflight is cwnd/rwnd-capped — so this timeout is the
-        // TCP-send-timeout equivalent. See the checklist entry on send backpressure.
+        // 用 send_timeout 限制整个发送过程（等待打开、在另一个克隆后排队、每一次写入）：
+        // 否则一次写入会因 SCTP 背压而无限期挂起，而
+        // connection.rs 的定时器根本不会运行。这种挂起同时也限制了发送方的内存——
+        // PendingQueue 允许 128 KiB，in-flight 受 cwnd/rwnd 限制——因此这个超时就是
+        // TCP 发送超时的等价物。参见检查清单中关于发送背压的条目。
         if send_timeout > 0 {
-            // Waiting for the connection to open is not this message's progress. Charging it to
-            // the send clock meant that on the first send after signaling, a slow ICE/DTLS
-            // completion ate most of the budget and the write inherited the remainder — then
-            // timed out and closed a peer connection that was an RTT from working. Give it its
-            // own budget and start the send clock once the channel is actually usable.
+            // 等待连接打开不算这条消息的进度。把它算到
+            // 发送计时上会导致，在信令之后的第一次发送时，缓慢的 ICE/DTLS
+            // 握手完成会吃掉大部分预算，写入只能继承剩下的部分——然后
+            // 超时并关闭一个只差一个 RTT 就能工作的 peer connection。应当给它
+            // 自己的预算，并在通道真正可用之后再启动发送计时。
             timeout(
                 Duration::from_millis(send_timeout),
                 self.wait_for_connect_result(),
@@ -1335,24 +1335,24 @@ impl WebRTCStream {
                     .into());
                 }
                 Err(_) => {
-                    // Deliberately no teardown: this task never held the permit, so all that
-                    // happened is that another clone is legitimately mid-message. Closing from
-                    // here would abort a healthy sender's fragment sequence — precisely the
-                    // corruption the permit exists to prevent.
+                    // 刻意不做拆除：这个任务从未持有该 permit，所以
+                    // 发生的只是另一个克隆正合法地处于消息中间。从这里
+                    // 关闭会中止一个健康发送者的分片序列——而这正是
+                    // 该 permit 存在的目的所要防止的破坏。
                     return Err(Error::new(ErrorKind::TimedOut, "WebRTC send gate timeout").into());
                 }
             };
-            // Fresh budget once the permit is held: queueing behind another clone's message is
-            // not this message's progress, so charging it here meant a caller that only just lost
-            // the gate race got a few milliseconds to write in — and then tore the whole peer
-            // connection down for missing them. The narrower the miss, the more certain the
-            // teardown, which is precisely backwards.
+            // 拿到 permit 后使用全新的预算：在另一个克隆的消息后排队
+            // 不算这条消息的进度，因此在这里计费意味着一个刚刚才输掉
+            // 闸门竞态的调用方只获得了寥寥几毫秒的写入时间——然后
+            // 就因错失这点时间而拆掉了整个 peer connection。错失得越少，
+            // 拆除就越确定，而这恰好是弄反了。
             let write_deadline = Instant::now() + Duration::from_millis(send_timeout);
             let mut desynced = false;
             match timeout_at(write_deadline, self.send_bytes_inner(bytes, &mut desynced)).await {
-                // A write that failed part-way leaves the same orphaned prefix a timeout does, so
-                // it needs the same teardown — and the same handoff of the permit, or a waiting
-                // clone appends its message to that prefix while the close is still in flight.
+                // 一次中途失败的写入会留下与超时相同的孤立前缀，因此
+                // 它需要同样的拆除——以及同样把 permit 交出去，否则一个正在等待的
+                // 克隆会在关闭还在进行时把它的消息追加到那个前缀上。
                 Ok(res) => {
                     if desynced {
                         self.close_detached_with(send_permit);
@@ -1360,9 +1360,9 @@ impl WebRTCStream {
                     res
                 }
                 Err(_) => {
-                    // Hand the logical-message permit to the teardown so no waiting clone can
-                    // append a new message after a partially-written fragment sequence. Holding
-                    // it across an awaited close would drop both on cancellation.
+                    // 把逻辑消息的 permit 交给拆除过程，这样任何等待中的克隆都无法
+                    // 在一段只写了一部分的分片序列之后追加新消息。在一次 await 的
+                    // 关闭期间持有它，会在取消时把两者都丢掉。
                     self.close_detached_with(send_permit);
                     Err(Error::new(ErrorKind::TimedOut, "WebRTC send timeout").into())
                 }
@@ -1383,11 +1383,11 @@ impl WebRTCStream {
         }
     }
 
-    /// `desynced` is set when the failure left a partial fragment sequence on the wire, i.e. when
-    /// the stream can no longer be made consistent and the caller must close it.
+    /// 当失败在链路上留下不完整的分片序列时设置 `desynced`，也就是当
+    /// 该流再也无法恢复一致、调用方必须关闭它时。
     async fn send_bytes_inner(&mut self, bytes: Bytes, desynced: &mut bool) -> ResultType<()> {
-        // Same bound the receiver enforces, so we never emit a message a same-version peer
-        // would have to kill the connection over.
+        // 与接收方强制执行的上限相同，因此我们绝不会发出同版本对端
+        // 不得不因此断开连接的消息。
         if bytes.len() > MAX_RECV_MESSAGE {
             return Err(Error::new(ErrorKind::InvalidInput, "Overflow").into());
         }
@@ -1395,9 +1395,9 @@ impl WebRTCStream {
         let dc = self.detached_dc().await?;
         let data = bytes.as_ref();
         let mut offset = 0;
-        // Always emit at least one fragment (a lone FRAG_END header for an empty message), so a
-        // zero-length data-channel message — which the receiver cannot distinguish from EOF — is
-        // never sent.
+        // 总是至少发出一个分片（空消息则是一个单独的 FRAG_END 头），这样
+        // 零长度的 data channel 消息（接收方无法与 EOF 区分）就
+        // 永远不会被发出。
         let mut wrote_any = false;
         loop {
             let end = (offset + MAX_FRAGMENT_PAYLOAD).min(data.len());
@@ -1407,10 +1407,10 @@ impl WebRTCStream {
             framed.put_u8(if is_last { FRAG_END } else { FRAG_MORE });
             framed.put_slice(chunk);
             if let Err(err) = dc.write(&framed.freeze()).await {
-                // Fragments already on the wire leave the peer an unterminated prefix, and this
-                // framing has no length for it to notice with, so the next message is appended
-                // to it. Callers wrap sends in `allow_err!`, so the error alone is not enough.
-                *desynced = wrote_any;
+                // 已经上了链路的分片会给对端留下一个未终结的前缀，而这种
+                // 分帧格式没有长度可供它察觉，因此下一条消息会被追加
+                // 到它上面。调用方把发送包在 `allow_err!` 里，所以仅有错误还不够。
+                * desynced = wrote_any;
                 return Err(err.into());
             }
             wrote_any = true;
@@ -1435,11 +1435,11 @@ impl WebRTCStream {
                 return Some(Err(Error::new(ErrorKind::Other, err.to_string())));
             }
         };
-        // Held across `dc.read().await` on purpose, against the usual "no locks across await"
-        // rule: it is what makes the single reader this reassembly requires (see the field) an
-        // exclusion rather than a convention. Releasing it around the read would admit exactly
-        // the second reader that corrupts `acc`. The cost — a would-be second reader blocking
-        // until a packet arrives — is a state the design does not permit anyway.
+        // 刻意在 `dc.read().await` 期间持有，违背通常「不要跨 await 持锁」
+        // 的规则：正是它让这次重组所要求的单一读取者（见该字段）成为
+        // 一种互斥而不是一种约定。在读取前后释放它就正好会放进
+        // 那个破坏 `acc` 的第二个读取者。代价——一个潜在的第二个读取者阻塞
+        // 直到有包到达——本来就是这套设计所不允许的状态。
         let mut st = self.recv_state.lock().await;
         loop {
             let RecvState { acc, scratch } = &mut *st;
@@ -1449,10 +1449,10 @@ impl WebRTCStream {
             let n = match dc.read(&mut scratch[..RECV_BUF_SIZE]).await {
                 Ok(n) => n,
                 Err(err) => {
-                    // Release the partial message, as the framing-violation paths below do: the
-                    // buffer can hold up to the cap and `recv_state` outlives this call through
-                    // the `SESSIONS` clone.
-                    *acc = BytesMut::new();
+                    // 释放部分消息，就像下面那些分帧违规路径所做的那样：
+                    // 缓冲区最多可持有上限大小的数据，而 `recv_state` 通过
+                    // `SESSIONS` 克隆比这次调用活得更久。
+                    * acc = BytesMut::new();
                     self.close_detached();
                     return Some(Err(Error::new(
                         ErrorKind::Other,
@@ -1460,23 +1460,23 @@ impl WebRTCStream {
                     )));
                 }
             };
-            // Before the framing checks below: a fragment that turns out to be malformed still
-            // proves the peer sent it, which is all this counter claims.
+            // 在下面的分帧检查之前：一个后来被发现是畸形的分片仍然
+            // 证明了是对端发来的，而这正是这个计数器所声称的全部。
             if n > 0 {
                 self.rx_probe.add(n);
             }
             if n == 0 {
-                // Not exclusively a stream reset: webrtc-data maps the empty-message PPIDs to
-                // n == 0 as well and `read` drops the flag that would separate them. Both mean
-                // nothing frameable follows, so treat them alike but not as a clean remote close.
+                // 这不仅仅是流重置：webrtc-data 把空消息的 PPID 映射为
+                // n == 0，并且 `read` 丢掉了本可区分两者的标志。两者都意味着
+                // 后面没有可分帧的内容，因此一视同仁，但不要当成对端的正常关闭。
                 log::debug!("WebRTC data channel ended (reset or empty message)");
-                *acc = BytesMut::new();
+                * acc = BytesMut::new();
                 self.close_detached();
                 return None;
             }
-            // Both would otherwise read as "more fragments". The payload-less FRAG_MORE is the
-            // nastier one: it adds nothing to `acc`, so the cap below never trips and the loop
-            // spins for as long as the peer keeps sending.
+            // 否则两者都会被读成「还有更多分片」。其中没有负载的 FRAG_MORE 更
+            // 麻烦：它不会往 `acc` 里添任何东西，因此下面的上限永远不会触发，循环会
+            // 在对端持续发送期间一直空转。
             let header = scratch[0];
             let bad = match header {
                 FRAG_END => None,
@@ -1487,37 +1487,37 @@ impl WebRTCStream {
                 )),
             };
             if let Some(why) = bad {
-                *acc = BytesMut::new();
+                * acc = BytesMut::new();
                 self.close_detached();
                 return Some(Err(Error::new(
                     ErrorKind::InvalidData,
                     format!("WebRTC {why}"),
                 )));
             }
-            // Bound BEFORE growing: this framing carries no length, so an oversize message is only
-            // discovered by accumulating it, and checking after the append would let `BytesMut`'s
-            // reallocate-and-copy hold the old and the new buffer at once.
+            // 在扩容**之前**设限：这种分帧不携带长度，因此超大的消息只有
+            // 在累积之后才被发现，而在追加之后再检查会让 `BytesMut` 的
+            // 重新分配并复制同时持有旧缓冲和新缓冲。
             if acc.len() + (n - 1) > self.max_recv_message.load(Ordering::Relaxed) {
-                // Release the buffer, don't just truncate it: by definition it is near the cap
-                // here, and `recv_state` outlives this call through the `SESSIONS` clone.
-                *acc = BytesMut::new();
+                // 释放缓冲区，而不只是截断它：按定义它已接近上限，
+                // 而 `recv_state` 通过 `SESSIONS` 克隆比这次调用活得更久。
+                * acc = BytesMut::new();
                 self.close_detached();
                 return Some(Err(Error::new(
                     ErrorKind::InvalidData,
                     "WebRTC reassembled message exceeded maximum frame size",
                 )));
             }
-            // A message that arrived whole is handed over as a slice of the read buffer: no
-            // allocation and no copy, which is every input event and most audio packets.
+            // 完整到达的消息以读缓冲的一个切片交出：既没有
+            // 分配也没有复制，而每个输入事件和大多数音频包都属于这种情况。
             if header == FRAG_END && acc.is_empty() {
                 scratch.advance(1);
                 return Some(Ok(scratch.split_to(n - 1)));
             }
             acc.extend_from_slice(&scratch[1..n]);
             if header == FRAG_END {
-                // Split, not take: the caller has dropped the message by the time the next
-                // fragment lands, so `reserve` reclaims this allocation instead of regrowing it
-                // from nothing for every fragmented frame.
+                // 用 split 而不是 take：到下一个
+                // 分片到达时调用方已经丢掉了该消息，因此 `reserve` 会回收这块内存，
+                // 而不是为每个分片帧从零开始重新增长。
                 let msg = acc.split();
                 return Some(Ok(msg));
             }
@@ -1534,7 +1534,7 @@ impl WebRTCStream {
 }
 
 pub fn is_webrtc_endpoint(endpoint: &str) -> bool {
-    // use sdp base64 json string as endpoint, or prefix webrtc:
+    // 用 sdp base64 json 字符串作为 endpoint，或加上前缀 webrtc:
     endpoint.starts_with("webrtc://")
 }
 
@@ -1567,17 +1567,17 @@ mod tests {
             "turn:example.com:3478"
         );
 
-        // Userinfo arrives percent-encoded from the URL parser; the TURN server wants the
-        // value, so a password written `p%40ss` authenticates as `p@ss`.
+        // userinfo 从 URL 解析器出来时是百分号编码的；TURN 服务器要的是
+        // 原始值，因此写成 `p%40ss` 的密码会以 `p@ss` 认证。
         let encoded =
             WebRTCStream::get_ice_server_from_url("turn://us%20er:p%40s%2Fs%25@example.com")
                 .expect("encoded credentials are usable");
         assert_eq!(encoded.username, "us er");
         assert_eq!(encoded.credential, "p@s/s%");
 
-        // TURN without both halves of the credential is dropped rather than passed on:
-        // webrtc-rs validates every configured server when the peer connection is built, so
-        // one such entry fails EVERY connection, including those that never wanted TURN.
+        // 缺少凭据两半的 TURN 会被丢弃而不是继续传递：
+        // webrtc-rs 在构建 peer connection 时会校验每一个配置的服务器，因此
+        // 这样一个条目会让**每一个**连接失败，包括那些根本不需要 TURN 的连接。
         for missing in [
             "turn://example.com:3478",
             "turn://example.com",
@@ -1592,7 +1592,7 @@ mod tests {
             );
         }
 
-        // STUN needs no credentials, so both spellings stay usable.
+        // STUN 不需要凭据，因此两种写法都仍然可用。
         assert_eq!(
             WebRTCStream::get_ice_server_from_url("stun://example.com:3478")
                 .unwrap_or_default()
@@ -1605,9 +1605,9 @@ mod tests {
             None
         );
 
-        // RFC 7065 spelling (`scheme:host:port`, no authority) — what STUN/TURN docs hand out.
-        // `url` cannot-be-a-base's it, so host and port come out of the path; getting this wrong
-        // produced a hostless "stun::3478" no ICE agent can resolve.
+        // RFC 7065 的写法（`scheme:host:port`，没有 authority）——STUN/TURN 文档给出的就是它。
+        // `url` 是 cannot-be-a-base，因此主机和端口都来自 path；这里搞错
+        // 就会产生一个没有主机的 "stun::3478"，任何 ICE agent 都无法解析。
         for (input, expected) in [
             ("stun:example.com:19302", "stun:example.com:19302"),
             ("stun:example.com", "stun:example.com:3478"),
@@ -1627,9 +1627,9 @@ mod tests {
             );
         }
 
-        // Malformed entries are dropped, never repaired into something webrtc-ice will choke
-        // on: a folded-in bad port ("host:99999:3478") or an unbracketed IPv6 split at its last
-        // colon fails peer-connection construction outright, taking every server down with it.
+        // 畸形的条目会被丢弃，绝不会被「修补」成让 webrtc-ice 难以招架的
+        // 东西：折进去的坏端口（"host:99999:3478"）或未加括号的 IPv6 在其最后一个
+        // 冒号处被切分，都会直接让 peer connection 的构建失败，连带把每个服务器都拖垮。
         for bad in [
             "stun:",
             "stun:example.com:99999",
@@ -1644,9 +1644,9 @@ mod tests {
         }
     }
 
-    // Parsing is exercised through `parse_ice_servers`, never by rewriting the global
-    // `ice-servers` option: `set_option` persists to the real config file and the tests share
-    // one process, so mutating it raced every peer connection the loopback tests were building.
+    // 解析通过 `parse_ice_servers` 来验证，而不是通过改写全局的
+    // `ice-servers` 选项：`set_option` 会持久化到真实的配置文件，而测试共享
+    // 同一个进程，因此改写它会与回环测试正在构建的每个 peer connection 发生竞态。
     #[test]
     fn test_webrtc_ice_server_list() {
         assert_eq!(
@@ -1654,7 +1654,7 @@ mod tests {
             DEFAULT_ICE_SERVERS[0].to_string()
         );
 
-        // Unusable entries drop out of the list; the rest of the config still applies.
+        // 不可用的条目会从列表中掉出去；配置的其他部分仍然生效。
         let parsed = WebRTCStream::parse_ice_servers(
             ",stun://example.com,turn://u:p@example.com,turn://nocreds.example.com,sdf",
         );
@@ -1662,7 +1662,7 @@ mod tests {
         assert_eq!(parsed[1].urls[0], "turn:example.com:3478");
         assert_eq!(parsed.len(), 2);
 
-        // TURN-only config still gets the default STUN servers prepended.
+        // 仅 TURN 的配置仍然会在前面加上默认的 STUN 服务器。
         let turn_only = WebRTCStream::parse_ice_servers("turn://u:p@example.com:3478");
         assert_eq!(turn_only[0].urls[0], DEFAULT_ICE_SERVERS[0].to_string());
         assert_eq!(turn_only[1].urls[0], "turn:example.com:3478");
@@ -1670,8 +1670,8 @@ mod tests {
 
     #[test]
     fn test_endpoint_ice_policy_declaration() {
-        // An envelope with the marker declares full ICE; everything else — no marker,
-        // wrong value, foreign scheme, garbage — reads as the old Relay-only semantics.
+        // 带标记的信封声明的是完整 ICE；其他一切——没有标记、
+        // 值不对、外来的 scheme、垃圾内容——都按旧有的仅 Relay 语义解读。
         let marked =
             WebRTCStream::sdp_to_endpoint(r#"{"type":"offer","sdp":"v=0","ice_policy":"all"}"#);
         assert!(WebRTCStream::endpoint_declares_all_ice(&marked));
@@ -1691,7 +1691,7 @@ mod tests {
             "https://example.com"
         ));
 
-        // The marker must be invisible to the plain RTCSessionDescription parse old peers do.
+        // 该标记必须对旧版对端所做的普通 RTCSessionDescription 解析不可见。
         let sdp_json = WebRTCStream::get_remote_offer(&marked).unwrap();
         serde_json::from_str::<
             webrtc::peer_connection::sdp::session_description::RTCSessionDescription,
@@ -1699,13 +1699,13 @@ mod tests {
         .expect("extra envelope key must not break RTCSessionDescription parsing");
     }
 
-    /// The live description once it has gathered something. Polls instead of awaiting
-    /// `gathering_complete_promise`: a stream sits in the global `SESSIONS` for the whole wait, and
-    /// waiting out gathering there is long enough to trip `test_cancelled_new_does_not_leak_the_pc`
-    /// when the suite runs its tests in parallel. One candidate is all these tests need.
-    /// Returns `None` on timeout rather than panicking: the caller must get to `close()` before
-    /// it asserts, or a stranded pc fails `test_cancelled_new_does_not_leak_the_pc` as well and
-    /// one root failure is reported as two.
+    /// 收集到内容之后的实时描述。轮询而不是 await
+    /// `gathering_complete_promise`：一个流在整个等待期间都留在全局 `SESSIONS` 中，而
+    /// 在那里耗着等收集完成，足够长到会触发 `test_cancelled_new_does_not_leak_the_pc`
+    /// （当测试套件并行运行测试时）。这些测试只需要一个 candidate。
+    /// 超时时返回 `None` 而不是 panic：调用方必须先走到 `close()`，然后
+    /// 才能断言，否则一个滞留在外的 pc 同样会让 `test_cancelled_new_does_not_leak_the_pc` 失败，
+    /// 一个根因失败就被报成两个。
     async fn first_gathered_description(stream: &WebRTCStream) -> Option<RTCSessionDescription> {
         timeout(Duration::from_secs(10), async {
             loop {
@@ -1721,10 +1721,10 @@ mod tests {
         .ok()
     }
 
-    /// The signalled endpoint and the live description must diverge. `pc.local_description()`
-    /// appends every candidate gathered so far; the endpoint the peer is handed must not grow with
-    /// them, because the rendezvous server delivers it to a UDP-registered peer as one datagram
-    /// and a fragmented one is dropped without a trace on paths that discard fragments.
+    /// 被信令的 endpoint 与实时描述必须有所分歧。`pc.local_description()`
+    /// 会追加截至目前收集到的每个 candidate；交给对端的 endpoint 不能随之增长，
+    /// 因为 rendezvous 服务器会把它作为一个数据报交付给注册在 UDP 上的对端，
+    /// 而分片的会在丢弃分片的路径上无声无息地被丢掉。
     #[tokio::test]
     async fn test_stored_endpoint_does_not_grow_with_the_live_description() {
         let offerer = WebRTCStream::new("", false, 20000).await.unwrap();
@@ -1732,8 +1732,8 @@ mod tests {
         let endpoint = offerer.local_endpoint().to_owned();
         offerer.close().await;
 
-        // Some(_) is the assertion that the live description grew: the helper only returns once it
-        // carries a candidate, so the endpoint below really had something to grow by.
+        // `Some(_)` 就是「实时描述增长了」这一断言：该辅助函数只有在
+        // 带上了一个 candidate 之后才返回，因此下面的 endpoint 确实有东西可长。
         live.expect("no ICE candidate gathered within 10s");
         assert!(
             !WebRTCStream::get_remote_offer(&endpoint)
@@ -1749,8 +1749,8 @@ mod tests {
         );
     }
 
-    /// The split itself: candidates out, everything ICE and DTLS need to start in. A stripped
-    /// endpoint the peer cannot consume would trade a silent drop for a silent failure.
+    /// 拆分本身：把 candidates 拿出去，把启动 ICE 和 DTLS 所需的一切留下来。一个被剥掉
+    /// 候选、让对端无法消费的 endpoint，会把静默丢弃换成静默失败。
     #[tokio::test]
     async fn test_trickle_endpoint_splits_candidates_off() {
         let offerer = WebRTCStream::new("", false, 20000).await.unwrap();
@@ -1781,17 +1781,17 @@ mod tests {
             "stripped endpoint is {} bytes",
             endpoint.len()
         );
-        // `parsed` is #[serde(skip)], so deserializing alone would accept any string as the SDP
-        // body. Unmarshal it, which is also what the peer does, and require the fingerprint the
-        // session key is derived from to have survived.
+        // `parsed` 是 #[serde(skip)] 的，因此仅靠反序列化会把任何字符串都当成 SDP
+        // 主体接受下来。要反序列化它（对端也是这么做的），并要求会话键所派生的
+        // 那个 fingerprint 仍然存在。
         let desc: RTCSessionDescription =
             serde_json::from_str(&json).expect("a stripped endpoint must deserialize");
         WebRTCStream::get_key_for_sdp(&desc)
             .expect("a stripped endpoint must still parse as SDP and keep its fingerprint");
 
-        // `encode_endpoint`, which `get_local_endpoint` also goes through, holds the opposite
-        // contract: carry whatever it is handed, candidates included. (What `get_local_endpoint`
-        // adds on top — the gathering wait — is covered by test_webrtc_loopback_gathered_endpoints.)
+        // `encode_endpoint`（`get_local_endpoint` 也要经过它）持有的是相反的
+        // 约定：原样传递交给它的一切，包括 candidates。（`get_local_endpoint`
+        // 额外加上的东西——等待收集完成——由 test_webrtc_loopback_gathered_endpoints 覆盖。）
         let kept = WebRTCStream::encode_endpoint(gathered.sdp_type, &gathered.sdp, false).unwrap();
         assert!(
             WebRTCStream::get_remote_offer(&kept)
@@ -1959,8 +1959,8 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         let stream = WebRTCStream::new("", false, 10000)
             .await
             .expect("local webrtc endpoint should ok");
-        // A raw WebRTCStream has no Drop: close it, or its session stays cached in SESSIONS
-        // and pollutes cross-test assertions about the cache.
+        // 原始的 WebRTCStream 没有 Drop：要关闭它，否则它的会话会一直缓存在 SESSIONS 中，
+        // 并污染关于该缓存的跨测试断言。
         stream.close().await;
 
         endpoint = "webrtc://eyJ0eXBlIjoiYW5zd2VyIiwic2RwIjoidj0wXHJcbm89LSA0MTA1NDk3NTY2NDgyMTQzODEwIDYwMzk1NzQw\
@@ -2030,7 +2030,7 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         let answer = answerer.local_endpoint().to_owned();
         offerer.set_remote_endpoint(&answer).await.unwrap();
 
-        // Bridge trickle candidates directly between the two peers, both directions.
+        // 在两个对端之间直接桥接 trickle candidates，双向进行。
         let mut off_ice = offerer.take_local_ice_rx().unwrap();
         let mut ans_ice = answerer.take_local_ice_rx().unwrap();
         let answerer_for_ice = answerer.clone();
@@ -2052,9 +2052,9 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         (offerer, answerer)
     }
 
-    // next()'s teardown must not be cancellable: an awaited close that loses the select! race
-    // against a consumer's timer strands the pc (is_closed already latched) and its SESSIONS
-    // entry. `close_detached` is non-async, so what needs proving is that the handoff completes.
+    // next() 的拆除过程不能被取消：一个在 select! 竞态中落败的 await 关闭
+    // 会搁浅 pc（is_closed 已经锁定）以及它的 SESSIONS
+    // 条目。`close_detached` 不是 async，因此需要证明的是交接能够完成。
     #[tokio::test]
     async fn test_close_detached_completes_without_the_caller() {
         let (offerer, answerer) = connect_loopback().await;
@@ -2077,16 +2077,16 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         panic!("detached close never evicted the peer connection from SESSIONS");
     }
 
-    // Whole messages are split out of the read buffer instead of copied, so the buffer is
-    // consumed from the front and periodically re-initialized. Alternating whole and fragmented
-    // messages exercises that against the accumulator path, and running well past one refill
-    // exercises the refill itself — a boundary the fixed-size buffer never had.
+    // 完整消息是从读缓冲中切分出来而不是被复制的，因此缓冲区
+    // 从头部被消耗，并定期重新初始化。完整消息与分片消息交替
+    // 可以对照累积路径检验这一点，而运行远超一次补充的量
+    // 也能检验补充本身——这是定长缓冲区从未有过的边界。
     #[tokio::test]
     async fn test_webrtc_mixed_message_sizes_survive_scratch_refill() {
         let (mut offerer, mut answerer) = connect_loopback().await;
 
-        // Sized either side of MAX_FRAGMENT_PAYLOAD, and enough rounds to consume several
-        // SCRATCH_REFILL chunks.
+        // 大小分别落在 MAX_FRAGMENT_PAYLOAD 两侧，并且轮数足以消耗好几个
+        // SCRATCH_REFILL 分块。
         let sizes = [1usize, 64, 60_000, 60_001, 130_000, 7];
         for round in 0..40u8 {
             for &len in &sizes {
@@ -2111,9 +2111,9 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         answerer.close().await;
     }
 
-    // Owning the Stream owns the peer connection: dropping it must close the pc and evict the
-    // session, without the owner having to remember to. Every exit path used to carry that
-    // obligation, and the controlled side never honoured it.
+    // 拥有该 Stream 就等于拥有该 peer connection：drop 它必须关闭 pc 并驱逐
+    // 该会话，而无需拥有者记着去做。以前每个退出路径都带着这个
+    // 义务，而受控端从未遵守过。
     #[tokio::test]
     async fn dropping_the_stream_closes_the_peer_connection() {
         let offerer = WebRTCStream::new("", false, 20000).await.unwrap();
@@ -2123,8 +2123,8 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             "offerer should be cached while live"
         );
 
-        // No explicit close anywhere: the stream simply goes out of scope, as it does on the
-        // exits that forget.
+        // 任何地方都没有显式关闭：该流只是离开作用域，就像在那些
+        // 忘记关闭的退出路径上一样。
         drop(crate::Stream::WebRTC(offerer));
 
         for _ in 0..200 {
@@ -2136,10 +2136,10 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         panic!("dropping the stream left the peer connection in SESSIONS");
     }
 
-    // A replayed offer asking for a different ICE policy must not be handed the cached peer
-    // connection. The lookup and the insert-time duplicate check read the same key, so the test
-    // fails if either one stops applying `is_reusable_for` — which is how the guard was dead
-    // code: the lookup rejected the entry, and the insert handed back the very same one.
+    // 一个要求不同 ICE 策略的重放 offer 不能拿到缓存的那个 peer
+    // connection。查询和插入时的重复检查读的是同一个键，因此这个测试
+    // 在两者中任一个不再应用 `is_reusable_for` 时就会失败——当年这道保护就是死
+    // 代码：查询拒绝了该条目，而插入又把同一个条目交了回来。
     #[tokio::test]
     async fn test_cached_peer_is_not_reused_across_ice_policies() {
         let offerer = WebRTCStream::new("", false, 20000).await.unwrap();
@@ -2159,18 +2159,18 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         offerer.close().await;
     }
 
-    // The local-candidate channel must close when the pc does. Its only sender lives inside the
-    // on_ice_candidate handler, which close() does not clear, so without the teardown the
-    // receiver stays open forever — and the forwarder loop this API asks callers to write holds
-    // a stream clone while parked on recv(), keeping the pc alive past its own close. Gathering
-    // complete drops the sender as well, and may beat the close here; a pc closed before that
-    // has only the teardown, which is what this pins.
+    // 本地 candidate 通道必须随 pc 一起关闭。它唯一的发送者位于
+    // on_ice_candidate 处理器中，而 close() 不会清除它，因此没有拆除的话
+    // 接收端会永远保持打开——而这个 API 要求调用方编写的转发循环会
+    // 在阻塞于 recv() 时持有一个流的克隆，让 pc 在自身关闭之后依然存活。收集
+    // 完成同样会丢弃发送者，而且可能抢在这里的关闭之前；在这之前就被关闭的 pc
+    // 只剩下拆除过程，这正是这里要钉住的行为。
     #[tokio::test]
     async fn test_local_ice_channel_closes_with_the_peer_connection() {
         let offerer = WebRTCStream::new("", false, 20000).await.unwrap();
         let mut ice_rx = offerer.take_local_ice_rx().unwrap();
 
-        // Exactly the loop every consumer writes, holding a clone of the stream.
+        // 正是每个消费者都会写的那个循环，持有一个流的克隆。
         let forwarder_stream = offerer.clone();
         let forwarder = tokio::spawn(async move {
             while let Some(candidate) = ice_rx.recv().await {
@@ -2187,10 +2187,10 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             .unwrap();
     }
 
-    // The channel must close when gathering does, with the pc still open: nothing can follow the
-    // agent's last candidate, and a forwarder parked on recv() until the session ends holds its
-    // signaling connection for that whole time — long after the server's idle close, as a socket
-    // left in CLOSE_WAIT.
+    // 通道必须在收集完成时关闭，而此时 pc 仍然打开：不会有任何东西跟在
+    // agent 最后一个 candidate 之后，而一个阻塞在 recv() 上直到会话结束的转发器会
+    // 在这整段时间里持有其信令连接——远早于服务器的空闲关闭，作为一个 socket
+    // 被留在 CLOSE_WAIT 状态。
     #[tokio::test]
     async fn test_local_ice_channel_closes_when_gathering_completes() {
         let offerer = WebRTCStream::new("", false, 20000).await.unwrap();
@@ -2199,21 +2199,21 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             while ice_rx.recv().await.is_some() {}
         })
         .await;
-        // Close before asserting, or a failure here strands the pc and fails
-        // `test_cancelled_new_does_not_leak_the_pc` as well.
+        // 在断言之前先关闭，否则这里的失败会搁浅 pc 并让
+        // `test_cancelled_new_does_not_leak_the_pc` 同样失败。
         offerer.close().await;
         drained.expect("local ICE channel outlived gathering");
     }
 
-    // Extra channels must not displace the bound one: the newcomer's on_open would push Open onto
-    // the watch that gates send and recv, re-arming a session already latched Closed. Only the
-    // bind-once guard is exercised; the ordered+reliable check cannot decide anything here.
+    // 额外的通道不能顶替已绑定的那个：新来的 on_open 会把 Open 推到
+    // 把守 send 和 recv 的那个 watch 上，从而重新武装一个已锁定为 Closed 的会话。只有
+    // 只绑定一次的守卫被检验到；有序+可靠的检查在这里无法决定任何事情。
     #[tokio::test]
     async fn test_webrtc_answerer_binds_only_the_first_data_channel() {
         use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
 
         let mut offerer = WebRTCStream::new("", false, 20000).await.unwrap();
-        // Replace the bootstrap channel's siblings: an unordered one and a duplicate.
+        // 替换 bootstrap 通道的兄弟通道：一个无序的和一个重复的。
         let unordered = offerer
             .pc
             .create_data_channel(
@@ -2255,7 +2255,7 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         let mut answerer = answerer;
         answerer.wait_connected(20000).await.unwrap();
 
-        // The bootstrap channel still carries data: the rejected siblings did not displace it.
+        // bootstrap 通道仍在承载数据：被拒绝的兄弟通道没有顶替它。
         let payload = Bytes::from_static(b"bootstrap still bound");
         offerer.send_bytes(payload.clone()).await.unwrap();
         let got = tokio::time::timeout(Duration::from_secs(10), answerer.next())
@@ -2271,7 +2271,7 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         answerer.close().await;
     }
 
-    // One-shot callers exchange only the endpoints and never consume `take_local_ice_rx`.
+    // 一次性调用方只交换 endpoint，从不消费 `take_local_ice_rx`。
     #[tokio::test]
     async fn test_webrtc_loopback_gathered_endpoints() {
         let connect = async {
@@ -2291,9 +2291,9 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             .expect("gathered-endpoint WebRTC loopback did not complete in time");
     }
 
-    // The state mapping the health flag is built from. ICE raises `Disconnected` only on a real
-    // consent failure, which an in-process loopback cannot produce, so this drives the mapping
-    // directly; the loopback test below covers the wiring from the flag out to callers.
+    // 健康标志所依据的状态映射。ICE 只在真正的
+    // consent 失败时才置起 `Disconnected`，而进程内回环无法产生这种情况，因此这里直接驱动该映射，
+    // 下面的回环测试覆盖从该标志到调用方的接线。
     #[test]
     fn test_note_health_maps_only_the_transient_states() {
         use crate::webrtc::RTCPeerConnectionState;
@@ -2306,8 +2306,8 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         WebRTCStream::note_health(&flag, RTCPeerConnectionState::Connected);
         assert!(!flag.load(Ordering::SeqCst), "Connected must clear it");
 
-        // The terminal states have their own path and must not touch the hint: a session that
-        // ends has no use for one, and clearing it here would hide a peer that went silent first.
+        // 终止状态有各自的路径，不能去动这个提示：一个
+        // 结束的会话用不上它，而在这里清除会掩盖掉先一步陷入沉默的对端。
         for terminal in [
             RTCPeerConnectionState::Failed,
             RTCPeerConnectionState::Closed,
@@ -2322,8 +2322,8 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         }
     }
 
-    // Pins the wiring and the polarity of the health flag: a pair that just connected must not
-    // look suspect.
+    // 钉住接线和健康标志的极性：刚刚连上的候选对绝不能
+    // 显得可疑。
     #[tokio::test]
     async fn test_webrtc_disconnected_is_false_on_a_live_pair() {
         let body = async {
@@ -2338,9 +2338,9 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             .expect("WebRTC loopback did not complete in time");
     }
 
-    // A message far above the fragment size must show as activity while it is still arriving:
-    // `next()` yields nothing until the last fragment, so a receiver watching only completed
-    // messages cannot tell a peer mid-transfer from one that died.
+    // 一条远大于分片大小的消息在仍在到达时必须表现为有活动：
+    // `next()` 在最后一个分片到达前什么都不产出，所以只看完整
+    // 消息的接收方无法区分正在传输中的对端和已经掉线的对端。
     #[tokio::test]
     async fn test_webrtc_rx_progress_moves_before_a_large_message_completes() {
         let body = async {
@@ -2350,15 +2350,15 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             assert_eq!(&answerer.next().await.unwrap().unwrap()[..], b"warmup");
             let baseline = answerer.rx_progress();
 
-            // Large enough that it cannot land inside one poll of the loop below, so a probe
-            // that only counted whole messages would leave the counter untouched throughout.
+            // 足够大，无法在下面循环的一次 poll 内落地，因此一个
+            // 只统计完整消息的探针会让计数器自始至终纹丝不动。
             let big = vec![0x5Au8; 4 * 1024 * 1024];
             let expected = big.len();
             let sender = tokio::spawn(async move { offerer.send_raw(big).await.map(|_| offerer) });
 
-            // `next_timeout` returning None leaves the partial message in place, so the counter
-            // is read at a point where nothing has been delivered. No select and no sleeping
-            // sibling: the assertion cannot turn on which branch a poll happened to take.
+            // `next_timeout` 返回 None 会把部分消息留在原处，因此计数器
+            // 是在什么都还没交付的时候被读取的。既不用 select，也不用 sleep
+            // 这种写法：断言不能依赖某次 poll 恰好走了哪个分支。
             let mut moved_early = false;
             let mut got = None;
             for _ in 0..600 {
@@ -2384,8 +2384,8 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
                 expected
             );
             let offerer = sender.await.unwrap().expect("send");
-            // `WebRTCStream` has no `Drop`, so both pcs stay in `SESSIONS` unless closed here;
-            // `test_cancelled_new_does_not_leak_the_pc` scans that map and would report them.
+            // `WebRTCStream` 没有 `Drop`，因此除非在这里关闭，否则两个 pc 都会留在 `SESSIONS` 中；
+            // `test_cancelled_new_does_not_leak_the_pc` 会扫描那个 map 并把它们报出来。
             offerer.close().await;
             answerer.close().await;
         };
@@ -2394,9 +2394,9 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             .expect("WebRTC loopback did not complete in time");
     }
 
-    // The bound `Stream::set_max_packet_length` lowers before authorization: a message above it
-    // must end the connection as it arrives, not be reassembled. Only the receiver's bound moves,
-    // so the sender still puts it on the wire, exactly as an unauthenticated peer would.
+    // 上限 `Stream::set_max_packet_length` 会在鉴权前被调低：超过它的消息
+    // 必须在到达时就终结连接，而不是被重组。只有接收方的上限会变，
+    // 因此发送方仍会把它放到链路上，与未鉴权的对端一模一样。
     #[tokio::test]
     async fn test_webrtc_max_packet_length_bounds_reassembly() {
         let body = async {
@@ -2427,8 +2427,8 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             .expect("WebRTC loopback did not complete in time");
     }
 
-    // The other half of the same lifecycle: what was refused while the bound was low arrives once
-    // it is lifted, which is what authorization does on the server.
+    // 同一生命周期的另一半：上限较低时被拒绝的内容，在
+    // 上限被抬高后就会到达，这正是服务端鉴权所做的事。
     #[tokio::test]
     async fn test_webrtc_max_packet_length_restores() {
         let body = async {
@@ -2456,28 +2456,28 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             .expect("WebRTC loopback did not complete in time");
     }
 
-    // In-process offerer<->answerer loopback exercising the send/next data plane that the framing,
-    // empty-message, and EOF fixes live in. Connects over host candidates (works offline; any
-    // configured/default STUN just fails in the background without blocking the host pair).
+    // 进程内的 offerer<->answerer 回环，检验 send/next 数据面，而分帧、
+    // 空消息和 EOF 的修复都在其中。通过 host candidates 连接（离线可用；任何
+    // 配置/默认的 STUN 只是在后台失败，不会阻塞 host 候选对）。
     #[tokio::test]
     async fn test_webrtc_loopback_roundtrip() {
         let connect = async {
             let (mut offerer, mut answerer) = connect_loopback().await;
 
-            // Host-candidate loopback is direct, never TURN-relayed.
+            // host candidate 回环是直连，绝不经过 TURN 中继。
             assert_eq!(offerer.is_relayed().await, Some(false));
 
-            // Small message.
+            // 小消息。
             offerer.send_raw(b"hello".to_vec()).await.unwrap();
             let got = answerer.next().await.unwrap().unwrap();
             assert_eq!(&got[..], b"hello");
 
-            // Empty message: must round-trip as an empty frame, not be seen as EOF.
+            // 空消息：必须以空帧往返，不能被当成 EOF。
             offerer.send_raw(Vec::new()).await.unwrap();
             let got = answerer.next().await.unwrap().unwrap();
             assert_eq!(got.len(), 0, "empty message must not be treated as EOF");
 
-            // Payload far above the 64KB single-message cap: must be fragmented and reassembled.
+            // 负载远超 64KB 单消息上限：必须被分片并重组。
             let big = vec![0xABu8; 200_000];
             offerer.send_raw(big.clone()).await.unwrap();
             let got = answerer.next().await.unwrap().unwrap();
@@ -2488,12 +2488,12 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             );
             assert_eq!(&got[..], &big[..]);
 
-            // Reverse direction.
+            // 反方向。
             answerer.send_raw(b"world".to_vec()).await.unwrap();
             let got = offerer.next().await.unwrap().unwrap();
             assert_eq!(&got[..], b"world");
 
-            // Peer close: the other side observes a clean EOF (None) or a close error, never a hang.
+            // 对端关闭：另一侧应观察到干净的 EOF（None）或一个关闭错误，绝不能挂起。
             offerer.close().await;
             match timeout(Duration::from_secs(10), answerer.next()).await {
                 Ok(None) | Ok(Some(Err(_))) => {}
@@ -2507,11 +2507,11 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             .expect("webrtc loopback did not complete in time");
     }
 
-    // A client session runs on its own `#[tokio::main(flavor = "current_thread")]` runtime that
-    // is dropped the moment io_loop returns, so a close spawned or awaited there can be killed
-    // before (or worse, after) `close()` latches `is_closed`. Pin the production sequence over
-    // `Stream::WebRTC`: `close_webrtc()` from a thread with no runtime at all, then Drop; the
-    // peer must still see EOF — the closer thread, not any caller runtime, delivers it.
+    // 客户端会话运行在自己的 `#[tokio::main(flavor = "current_thread")]` 运行时上，而它在
+    // io_loop 返回的瞬间就被 drop，因此在那里生成或 await 的关闭可能会在
+    // `close()` 锁定 `is_closed` 之前（更糟的是之后）被杀。要把生产序列固定在
+    // `Stream::WebRTC` 上：在一个完全没有运行时的线程里调用 `close_webrtc()`，然后 Drop；
+    // 对端仍必须看到 EOF——由关闭线程而不是任何调用方运行时来交付。
     #[tokio::test(flavor = "multi_thread")]
     async fn test_session_end_close_reaches_the_peer() {
         let (offerer, mut answerer) = connect_loopback().await;
@@ -2531,9 +2531,9 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         answerer.close().await;
     }
 
-    // The shared count, not any one handoff, decides: with a second claim outstanding on a pc
-    // no one has adopted, dropping the first must leave it open for that caller, and dropping
-    // the last must close it — an unanswered offerer never reaches a terminal ICE state itself.
+    // 起决定作用的是共享计数，而不是任何单个交接：当一个 pc 上还有第二个认领未结时，
+    // 由于没人接管，drop 掉第一个必须让它为那个调用方保持打开，而 drop 掉
+    // 最后一个必须关闭它——一个没人应答的 offerer 自身永远不会进入终止性 ICE 状态。
     #[tokio::test(flavor = "multi_thread")]
     async fn test_last_abandoned_claim_closes_an_unadopted_pc() {
         let builder = WEBRTC_RT
@@ -2568,14 +2568,14 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         panic!("the last abandoned claim never closed the unadopted pc");
     }
 
-    // `new_inner` caches the pc BEFORE its own `new()` returns, so a concurrent caller can hit
-    // that cache and adopt the stream while the builder's handoff is still outstanding. Closing
-    // on the builder's Drop then tears down a connection another caller is already using, so
-    // abandonment has to be a property of the pc, not of one handoff.
+    // `new_inner` 在它自己的 `new()` 返回**之前**就缓存了 pc，因此并发的调用方可能命中
+    // 该缓存并接管该流，而 builder 的交接仍未结。此时在 builder 的 Drop 上关闭
+    // 就会拆掉另一个调用方正在使用的连接，因此
+    // 放弃必须是 pc 的属性，而不是某个交接的属性。
     #[tokio::test(flavor = "multi_thread")]
     async fn test_abandoned_builder_handoff_spares_an_adopted_pc() {
-        // Exactly what `new()` does, minus the adoption: the setup task runs on WEBRTC_RT and
-        // hands back a fresh, still-unadopted handoff.
+        // 正是 `new()` 所做的事，只是不接管：设置任务在 WEBRTC_RT 上运行，
+        // 交回一个全新的、仍未被接管的交接。
         let builder = WEBRTC_RT
             .as_ref()
             .expect("WebRTC I/O runtime")
@@ -2594,11 +2594,11 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             "new_inner must cache the pc it built"
         );
 
-        // The concurrent `new()`: a cache hit that takes the stream and goes on using it.
+        // 并发的 `new()`：一个命中缓存、拿走该流并继续使用的情形。
         let adopted = NewStreamHandoff::claim(stream)
             .into_inner()
             .expect("a cache hit hands the stream back");
-        // ...and now the builder's `new()` is cancelled, so the runtime drops its handoff.
+        // ……现在 builder 的 `new()` 被取消了，于是运行时丢弃了它的交接。
         drop(builder);
 
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -2609,27 +2609,27 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         adopted.close_detached();
     }
 
-    // End-to-end: cancel `new()` itself after its first poll (the spawn is already in flight)
-    // and every session it transiently created must be closed and evicted again.
+    // 端到端：在 `new()` 第一次 poll 之后取消它（spawn 已经在进行中），
+    // 它临时创建的所有会话都必须再次被关闭并驱逐。
     //
-    // The cancelled attempt's own key is unknowable here — its DTLS fingerprint is generated
-    // inside the task that was abandoned — so what is watched for is a key that OUTLASTS the
-    // window, not an instant with no new keys at all. Concurrent tests each close what they
-    // create, so their keys come and go and drop out of the running intersection; a leaked pc
-    // never does. Waiting for an empty difference instead made this test depend on the suite
-    // having an idle moment, which `--test-threads=2` never gives it: one lane is this test for
-    // the whole wait while the other keeps starting sessions.
+    // 在这里无法知道被取消那次尝试自己的键——它的 DTLS 指纹是在
+    // 那个被放弃的任务内部生成的——因此要观察的是一个比
+    // 该窗口更长寿的键，而不是一个完全没有新键的瞬间。并发的测试各自关闭它们
+    // 创建的会话，所以它们的键时有时无，会从运行中的交集里掉出去；而泄漏的 pc
+    // 永远不会。改成等待一个空差集反而让这个测试依赖测试套件
+    // 有空闲时刻，而 `--test-threads=2` 从不给它空闲：一条通道整个等待期间
+    // 都是这个测试，另一条则不断开启会话。
     #[tokio::test(flavor = "multi_thread")]
     async fn test_cancelled_new_does_not_leak_the_pc() {
         use std::collections::HashSet;
         let before: HashSet<String> = SESSIONS.lock().await.keys().cloned().collect();
-        // Zero timeout: polls the future exactly once (spawning new_inner), then cancels it —
-        // usually. The setup task runs on its own runtime and can finish inside that single poll,
-        // and then `new()` hands back a live stream instead. `WebRTCStream` has no `Drop`, so
-        // discarding that one is itself a leak, and this test would go on to report it as the
-        // cancelled attempt's. Close what comes back and try for a real cancellation. Fewer test
-        // threads make the setup task likelier to win, which is why this surfaced under
-        // `--test-threads=2` and not at the default.
+        // 零超时：恰好 poll 一次该 future（从而 spawn 出 new_inner），然后取消它——
+        // 通常如此。设置任务在自己的运行时上运行，可能在那一次 poll 内就完成，
+        // 然后 `new()` 交回一个活的流。`WebRTCStream` 没有 `Drop`，因此
+        // 丢弃它本身就是一次泄漏，而这个测试会继续把它报告成
+        // 被取消那次尝试的泄漏。把返回的东西关掉，再尝试一次真正的取消。更少的测试
+        // 线程会让设置任务更可能赢，这就是为什么这个问题是在
+        // `--test-threads=2` 下暴露的，而不是在默认设置下。
         let mut cancelled = false;
         for _ in 0..20 {
             match timeout(Duration::ZERO, WebRTCStream::new("", false, 20000)).await {
@@ -2642,9 +2642,9 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             }
         }
         assert!(cancelled, "new() never lost the race with its own cancellation");
-        // Let the detached setup task finish (and insert its session) before sampling, or the
-        // first sample is taken before the leak has formed and every later one intersects to
-        // nothing.
+        // 在采样前先让分离的设置任务跑完（并插入它的会话），否则
+        // 第一次采样会在泄漏形成之前就取到，之后每一次相交都是
+        // 空集。
         tokio::time::sleep(Duration::from_millis(500)).await;
         const ATTEMPTS: usize = 600; // 30s
         let mut persisted: Option<HashSet<String>> = None;
@@ -2659,8 +2659,8 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
             if persisted_keys == 0 {
                 return;
             }
-            // Positional, not an inline `{persisted:?}`: on edition 2018 a lone-literal `panic!`
-            // does not go through format_args and would print the placeholder verbatim.
+            // 采用位置参数，而不是内联的 `{persisted:?}`：在 edition 2018 上，单个字面量的 `panic!`
+            // 不会走 format_args，会原样打印出占位符。
             assert!(
                 attempt < ATTEMPTS,
                 "cancelled new() left a pc cached in SESSIONS (persisted: {:?})",
@@ -2670,18 +2670,18 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         }
     }
 
-    // The production shape of a controller session end: the offerer was created on a session's
-    // own current-thread runtime, the session queues its detached close and the runtime is
-    // destroyed immediately after (io_loop returning drops it). The pc's sockets and its
-    // ICE/DTLS/SCTP pump tasks must not die with that runtime, or the queued close completes
-    // without ever putting close_notify on the wire and the peer waits out ICE decay. Gathered
-    // (non-trickle) endpoints keep the cross-runtime signaling to two string handoffs.
+    // 控制器会话结束时的生产形态：offerer 是在某个会话的
+    // 自己的 current_thread 运行时上创建的，会话把它的分离关闭排入队列，而该运行时
+    // 紧接着就被销毁（io_loop 返回会 drop 掉它）。pc 的 socket 及其
+    // ICE/DTLS/SCTP 泵任务不能随那个运行时一起消亡，否则排队的关闭会
+    // 在从未把 close_notify 放到链路上就完成，而对端只能等 ICE 衰减结束。已收集
+    // （非 trickle）的 endpoint 把跨运行时信令保持为两次字符串交接。
     #[tokio::test(flavor = "multi_thread")]
     async fn test_close_survives_creator_runtime_destruction() {
-        // tokio oneshots for every handoff: their sends are synchronous, and the session side
-        // awaits them INSIDE block_on — a current_thread runtime only drives its tasks while
-        // being block_on-driven, and the offerer's SCTP/ICE pumps must stay live until the
-        // answerer has confirmed the channel is open.
+        // 每次交接都使用 tokio oneshot：它们的发送是同步的，而会话一侧
+        // 在 block_on **内部** await 它们——current_thread 运行时只有在
+        // 被 block_on 驱动时才会推进自己的任务，而 offerer 的 SCTP/ICE 泵必须保持存活直到
+        // 响应方确认通道已打开。
         let (offer_tx, offer_rx) = tokio::sync::oneshot::channel::<String>();
         let (answer_tx, answer_rx) = tokio::sync::oneshot::channel::<String>();
         let (go_tx, go_rx) = tokio::sync::oneshot::channel::<()>();
@@ -2698,13 +2698,13 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
                 let answer = answer_rx.await.unwrap();
                 offerer.set_remote_endpoint(&answer).await.unwrap();
                 offerer.wait_connected(20000).await.unwrap();
-                // Keep driving the runtime until the answerer confirms open, so the EOF
-                // assertion — not connection setup — is what discriminates.
+                // 持续驱动该运行时直到响应方确认已打开，这样 EOF
+                // 断言（而不是连接建立）才是区分点。
                 go_rx.await.unwrap();
                 offerer
             });
-            // The session ends: queue the close, then destroy the runtime the pc was created
-            // on — exactly what io_loop returning does.
+            // 会话结束：把关闭排入队列，然后销毁创建该 pc 时所用的运行时
+            // ——这正是 io_loop 返回所做的事。
             drop(crate::Stream::WebRTC(offerer));
             drop(rt);
         });
@@ -2726,10 +2726,10 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         answerer.close().await;
     }
 
-    // The peer-initiated end: `next()` hits EOF and fires its own `close_detached` before the
-    // session's final close (here via `Stream`'s Drop) is issued. Both land on the serialized
-    // closer thread, so the first runs to completion and the second is a benign no-op — the pc
-    // must end up closed and evicted, never stranded by one closer cancelling the other.
+    // 由对端发起的结束：`next()` 遇到 EOF 并触发自己的 `close_detached`，早于
+    // 会话的最终关闭（这里通过 `Stream` 的 Drop）发出。两者都落在串行化的
+    // 关闭线程上，因此第一个会跑完，第二个只是一个无害的空操作——这个 pc
+    // 最终必须处于已关闭并被驱逐的状态，绝不会被一个关闭者取消另一个而搁浅。
     #[tokio::test(flavor = "multi_thread")]
     async fn test_eof_close_then_drop_still_evicts() {
         let (mut offerer, answerer) = connect_loopback().await;
@@ -2751,13 +2751,13 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         panic!("pc still cached after EOF close + Drop close");
     }
 
-    // Both framing violations must end the stream. The empty-FRAG_MORE case is the one that
-    // cannot be caught downstream: it adds nothing to the accumulator, so the MAX_FRAME_LENGTH
-    // cap never trips and `next()` would otherwise spin for as long as the peer keeps writing.
-    // The bad frame is injected mid-message so the branch's `acc` reset is exercised too.
+    // 两种分帧违规都必须终结该流。空 FRAG_MORE 这种情况是那个
+    // 无法在下游被发现的：它不会往累加器里添任何东西，因此 MAX_FRAME_LENGTH
+    // 上限永远不会触发，而 `next()` 本来会随对端持续写入一直空转。
+    // 坏帧是在消息中途注入的，因此该分支对 `acc` 的重置也会被检验到。
     #[tokio::test]
     async fn test_webrtc_rejects_bad_fragment_framing() {
-        // (raw frame, expected substring)
+        // (原始帧, 期望的子串)
         let cases: [(&[u8], &str); 2] = [
             (&[0x2A, b'x'], "fragment header 42"),
             (&[FRAG_MORE], "carries no payload"),
@@ -2767,9 +2767,9 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
                 let (offerer, mut answerer) = connect_loopback().await;
                 let dc = offerer.detached_dc().await.unwrap();
 
-                // Leave a partial message in the accumulator first, so the rejection has
-                // something to discard. `send_bytes` only ever emits valid headers, so the bad
-                // frame itself has to be written through the raw channel below it.
+                // 先在累加器里留下一条部分消息，让这次拒绝有
+                // 东西可丢弃。`send_bytes` 只会发出合法的头，因此这个坏
+                // 帧本身必须通过下面的原始通道写出。
                 let mut lead = BytesMut::with_capacity(1 + 8);
                 lead.put_u8(FRAG_MORE);
                 lead.put_slice(b"leading!");

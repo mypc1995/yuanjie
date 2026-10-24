@@ -20,7 +20,7 @@ impl SincAudioResampler {
             ));
         }
         let mut error = 0;
-        // SAFETY: src_new allocates independent state; this owner releases it in Drop.
+        // 安全性：src_new 分配独立的 state；这个 owner 在 Drop 中释放它。
         let state = unsafe {
             sys::src_new(
                 sys::SRC_SINC_BEST_QUALITY as _,
@@ -83,7 +83,7 @@ impl SincAudioResampler {
         };
         output.resize(end, 0.0);
         data.data_out = output[start..].as_mut_ptr();
-        // SAFETY: state is exclusively owned; disjoint slices cover the declared frame counts.
+        // 安全性：state 由该 owner 独占；互不相交的切片覆盖声明的帧数。
         let error = unsafe { sys::src_process(self.state.as_ptr(), &mut data) };
         let generated = data.output_frames_gen as usize * channels;
         output.truncate(start + generated);
@@ -96,7 +96,7 @@ impl SincAudioResampler {
 
 impl Drop for SincAudioResampler {
     fn drop(&mut self) {
-        // SAFETY: this owner holds the only handle returned by src_new.
+        // 安全性：这个 owner 持有 src_new 返回的唯一句柄。
         unsafe { sys::src_delete(self.state.as_ptr()) };
     }
 }

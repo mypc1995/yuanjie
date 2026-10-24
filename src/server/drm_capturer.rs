@@ -1,5 +1,5 @@
-// Unprivileged consumer of the root `--service`'s DRM/KMS capture stream: the service does the
-// privileged export (open + grab the scanout dma-buf fd), the EGL detile / RGBA convert runs here.
+// 以非特权方式消费 root `--service` 的 DRM/KMS 采集流：该服务负责
+// 特权的导出（打开并抓取 scanout 的 dma-buf fd），EGL detile / RGBA 转换在这里进行。
 
 use crate::ipc::{connect_drm, Data, DrmDisplayInfo};
 use hbb_common::{anyhow::anyhow, bail, log, tokio, ResultType};
@@ -16,29 +16,29 @@ use std::time::{Duration, Instant};
 
 const HANDSHAKE_TIMEOUT_MS: u64 = 3000;
 const DRM_CONNECT_TIMEOUT_MS: u64 = 1000;
-/// The service may hold the list back while it wakes sleeping displays: ~3.6s (DRM_WAKE_*).
+/// 该服务在唤醒休眠显示器的过程中可能会暂缓给出列表：约 3.6 秒（DRM_WAKE_*）。
 const DISPLAY_LIST_TIMEOUT_MS: u64 = HANDSHAKE_TIMEOUT_MS + 4000;
-/// Covers the connect timeout plus `recv_msg_timeout2` applying DISPLAY_LIST_TIMEOUT_MS TWICE
-/// (first byte, then body). The render-node open and the DrmStart send can still overrun it.
+/// 涵盖了连接超时，加上 `recv_msg_timeout2` 两次应用 DISPLAY_LIST_TIMEOUT_MS
+/// （先是一个字节，然后是消息体）。打开渲染节点和发送 DrmStart 仍有可能超过它。
 const HANDSHAKE_WAIT_MS: u64 = DRM_CONNECT_TIMEOUT_MS + DISPLAY_LIST_TIMEOUT_MS * 2 + 500;
-/// Only the header read rechecks `stop`, so bound the body read here rather than relying on
-    /// `next_raw_into`'s own cap.
+/// 只有读取头部时会重新检查 `stop`，因此消息体的读取要在这里设上限，而不是依赖
+    /// `next_raw_into` 自身的上限。
 const BODY_READ_TIMEOUT: Duration = Duration::from_secs(5);
-/// A repeat of the frame returned last goes out anyway once this much time has passed since
-/// then: a frame whose encode failed reaches the encoder again, even if nothing moves.
+/// 自上次以来经过这么长时间后，上一帧的重复帧仍会被发出，
+/// 因为编码失败的帧会再次到达编码器，即使画面没有任何变化。
 const REPEAT_EVERY: Duration = Duration::from_secs(1);
-/// After this long without a new frame the screen reads as still, and the producer is asked for at
-/// most STILL_FPS, its old 33 ms tick: grabbing a still screen faster only feeds frame() repeats to
-/// drop. Three of those ticks, so a producer paced at STILL_FPS in motion never reads as still.
+/// 这么久没有新帧时，屏幕就被视为静止，生产者被要求的频率最多为
+/// STILL_FPS，即它原本的 33 毫秒节拍：更快地抓取静止画面只会给 frame() 送来重复帧，
+/// 然后被丢弃。有三个这样的节拍，因此以 STILL_FPS 节奏输出运动画面的生产者永远不会被视为静止。
 const STILL_AFTER: Duration = Duration::from_millis(100);
 const STILL_FPS: u8 = 30;
 
 struct FrameSlot {
-    // Row stride is `pixels.len() / height`, possibly padded; the format and the plane rotation
-    // the producer read for this frame (`DmabufDesc::plane_rotation`) are per frame.
+    // 行跨度是 `pixels.len() / height`，可能有填充；格式和该帧的平面旋转
+    // 是生产者为这一帧读取的（`DmabufDesc::plane_rotation`），逐帧不同。
     latest: Option<(usize, usize, Pixfmt, Option<u32>, Vec<u8>)>,
-    // TWO slots: two buffers can be idle at once -- the receive path takes one and publishes in two
-    // SEPARATE acquisitions, so the encoder can hand its borrow back in between.
+    // 两个槽位：可以同时有两个缓冲区处于空闲——接收路径取走一个，并以两次
+    // 独立的获取来发布，因此编码器可以在中间归还它的借用。
     free: [Option<Vec<u8>>; 2],
     ended: Option<String>,
 }
@@ -60,7 +60,7 @@ impl FrameSlot {
 
     fn recycle(&mut self, buf: Vec<u8>) {
         if let Some(slot) = self.free.iter_mut().find(|s| s.is_none()) {
-            *slot = Some(buf);
+            * slot = Some(buf);
         }
     }
 
@@ -69,37 +69,37 @@ impl FrameSlot {
     }
 }
 
-/// `Shared.cursor_transform` before new() stores the real value: a cursor arriving this early is
-/// held back and replayed once the session transform is in, because the producer will not resend
-/// it until the shape changes.
+/// 在 new() 存入真实值之前的 `Shared.cursor_transform`：这么早到的光标会被
+/// 暂缓，并在会话变换就位后重放，因为生产者不会在形状变化之前重发
+/// 它。
 const TRANSFORM_PENDING: i32 = i32::MIN;
 
 struct Shared {
     slot: Mutex<FrameSlot>,
     cv: Condvar,
-    // The output's real transform, TRANSFORM_PENDING until new() stores it post-handshake. Only
-    // the cursor needs it across threads: it differs from the angle the FRAME is turned by on a
-    // hardware-rotated 180 output, where the primary plane scans out upright but the compositor
-    // still pre-rotates the sprite (measured on i915 + mutter: the frame arrived upright and the
-    // sprite upside down). The frame's own angle is not shared: `frame()` computes it per frame
-    // from the output transform and the plane rotation stamped on the frame. The receive thread
-    // defers any cursor that races the store.
+    // 输出真实的变换，在 new() 于握手之后存入之前一直是 TRANSFORM_PENDING。只有
+    // 光标需要跨线程使用它：它与帧被旋转的角度不同，在
+    // 硬件旋转 180 的输出上，主平面正立扫描输出，但合成器
+    // 仍会预先旋转精灵图（在 i915 + mutter 上实测：帧是正立到达的，而
+    // 精灵图是上下颠倒的）。帧自身的角度不共享：`frame()` 逐帧计算它，
+    // 依据输出变换和帧上标记的平面旋转。接收线程
+    // 会暂缓任何与该写入竞争的到来的光标。
     cursor_transform: std::sync::atomic::AtomicI32,
-    // The cursor calibration geometry, from the same snapshot as the transform and stored before
-    // it: a receive thread that has seen the transform sees this too. `None` means this stream
-    // never measures. Read once per shape arrival, never on the frame path.
+    // 光标校准用的几何信息，与变换取自同一份快照，并在
+    // 它之前存入：看到了变换的接收线程也会看到它。`None` 表示这条流
+    // 从不测量。每个形状到达时读取一次，绝不在帧路径上读取。
     cal_context: Mutex<Option<CalContext>>,
-    // The rate the encoder takes frames at, carried on every ack so the producer grabs no faster.
-    // 0 until the first frame() call, which keeps the producer on its old 33 ms tick.
+    // 编码器取帧的速率，随每次 ack 传递，这样生产者不会抓得更快。
+    // 在第一次 frame() 调用之前为 0，这让生产者保持其原本的 33 毫秒节拍。
     demand_fps: std::sync::atomic::AtomicU8,
     pace: Mutex<EncoderPace>,
 }
 
-/// The encoder's own time per frame: from a frame() call that returned a frame to the next call,
-/// less what the call spent waiting for it, smoothed. Work inside frame() (a rotation) counts; the
-/// wait does not, so a late producer cannot talk its own demand down. A call that returned no frame
-/// (a dropped repeat, a timeout) left the encoder nothing to do, so the time after it is no sample.
-/// The samples also hold the sleep video_service paces itself with, so a shorter spf starts over.
+/// 编码器自身的每帧耗时：从一次返回了帧的 frame() 调用到下一次调用，
+/// 减去该调用等待它所花的时间，并做平滑。frame() 内部的工作（一次旋转）计入；
+/// 等待不计入，因此一个迟到的生产者无法把自己的需求说低。返回了空帧的调用
+/// （被丢弃的重复帧、超时）让编码器无事可做，因此它之后的时间不作为样本。
+/// 这些样本还保存着 video_service 用来控制节奏的休眠时长，因此更短的 spf 会重新开始。
 #[derive(Default)]
 struct EncoderPace {
     last_call: Option<Instant>,
@@ -109,11 +109,11 @@ struct EncoderPace {
 }
 
 impl EncoderPace {
-    /// The rate to ask the producer for at a frame() call at `now` with `spf`, the last frame
-    /// having been returned at `returned_at`.
+    /// 在 `now` 时刻、带 `spf` 的一次 frame() 调用中，向生产者请求的速率，上一帧
+    /// 是在 `returned_at` 返回的。
     fn demand(&mut self, now: Instant, returned_at: Instant, spf: Duration) -> u8 {
         if spf < self.spf {
-            // The sample that spans the change holds the old sleep too.
+            // 跨越该变化的样本也保存着旧的休眠时长。
             self.busy = None;
             self.last_call = None;
         }
@@ -136,7 +136,7 @@ impl EncoderPace {
     }
 }
 
-/// Records how long a frame() call waited for a frame, on every way out of the wait.
+/// 在等待的每一种出口上，记录一次 frame() 调用等待一帧花了多久。
 struct WaitStamp<'a>(&'a Mutex<EncoderPace>, Instant);
 
 impl Drop for WaitStamp<'_> {
@@ -147,14 +147,14 @@ impl Drop for WaitStamp<'_> {
     }
 }
 
-/// The rate to grab at for an encoder that asks for `spf` and is busy `busy` per frame: what it
-/// asks for, or what it achieves when that is less.
+/// 对于要求 `spf` 且每帧忙碌 `busy` 的编码器，应当以什么速率抓取：它
+/// 要求的速率，或当要求更高时它实际达到的速率。
 fn demand_fps_of(spf: Duration, busy: Option<Duration>) -> u8 {
     let max = f64::from(super::video_qos::MAX_FPS);
     let asked = if spf.is_zero() {
         max
     } else {
-        // f32 makes 1/60 read 59.99999: round, or 60 would be asked as 59.
+        // f32 会让 1/60 读成 59.99999：需要四舍五入，否则 60 会被当成 59 来请求。
         (1.0 / spf.as_secs_f64()).round().clamp(1.0, max)
     };
     let achieved = match busy {
@@ -169,35 +169,35 @@ pub struct IpcDrmCapturer {
     stop: Arc<AtomicBool>,
     display: i32,
     connector: Option<String>,
-    // What the encoder was sized from: CapturerInfo{width,height} is read once, at build time.
-    // With a rotated output these are the ROTATED dimensions, matching the frames delivered.
+    // 编码器尺寸的依据：CapturerInfo{width,height} 只在构建时读取一次。
+    // 输出被旋转时，这些就是旋转后的尺寸，与交付的帧一致。
     session_size: Option<(usize, usize)>,
-    // Output transform in degrees, from the wayland snapshot; each frame is turned back by it
-    // unless the plane rotated the scanout (`frame_transform`). Fixed per session; a rotation
-    // rebuilds the capturer.
+    // 来自 wayland 快照的输出变换（角度）；每一帧都会被它转回，
+    // 除非平面旋转了 scanout（`frame_transform`）。每个会话固定；一次旋转
+    // 会重建采集器。
     transform: i32,
-    // The wayland snapshot generation this session was built from: a later invalidation means
-    // the layout (a rotation included) may have changed, and frame() asks for a rebuild.
+    // 本次会话构建时所依据的 wayland 快照代际：之后一旦失效就意味着
+    // 布局（旋转也包括在内）可能已经改变，而 frame() 会请求重建。
     snapshot_gen: u64,
     cur: Vec<u8>,
     cur_w: usize,
     cur_h: usize,
     cur_fmt: Pixfmt,
     got_frame: bool,
-    // A rotated output turns each frame into here first, to compare it with `cur`.
+    // 输出被旋转时，每一帧会先被转到这里，以便与 `cur` 比较。
     spare: Vec<u8>,
-    // When frame() last returned a frame; see REPEAT_EVERY.
+    // frame() 上次返回一帧的时间；参见 REPEAT_EVERY。
     returned_at: Instant,
 }
 
-/// A list index is NOT an identity: `drm_enumerate_all_displays` concatenates per-card lists.
+/// 列表索引并不等同于身份标识：`drm_enumerate_all_displays` 会把各张卡的列表拼接起来。
 fn connector_key(d: &DrmDisplayInfo) -> String {
     format!("{}:{}", d.device, d.name)
 }
 
-/// The transform whose dimensions the delivered frames have: a plane rotated 90/270 in hardware
-/// already hands over the transposed scanout (and `frame_transform` then turns nothing), whatever
-/// the output transform says; otherwise the output transform is undone in software.
+/// 交付帧所具有的尺寸所对应的变换：平面在硬件中旋转 90/270 时
+/// 交出的就已经是转置后的 scanout（此时 `frame_transform` 什么都不转），无论
+/// 输出变换怎么说；否则输出变换就在软件中被撤销。
 fn delivered_transform(d: &DrmDisplayInfo, wl_transform: i32) -> i32 {
     if d.plane_transposed {
         90
@@ -206,7 +206,7 @@ fn delivered_transform(d: &DrmDisplayInfo, wl_transform: i32) -> i32 {
     }
 }
 
-/// Frame dimensions after undoing `transform` degrees of output rotation.
+/// 撤销 `transform` 度的输出旋转之后的帧尺寸。
 fn rotated_dims(transform: i32, w: usize, h: usize) -> (usize, usize) {
     if transform == 90 || transform == 270 {
         (h, w)
@@ -215,8 +215,8 @@ fn rotated_dims(transform: i32, w: usize, h: usize) -> (usize, usize) {
     }
 }
 
-/// Hotspot of a rotated cursor bitmap: the same point mapping `unrotate_bgra` applies to
-/// pixels, applied to the one coordinate that must keep naming the click point.
+/// 旋转后的光标位图上的热点：与 `unrotate_bgra` 作用于
+/// 像素时相同的那个点映射，作用于那个必须始终指明点击点的坐标。
 fn unrotate_hotspot(transform: i32, w: i32, h: i32, hotx: i32, hoty: i32) -> (i32, i32) {
     match transform {
         90 => (h - 1 - hoty, hotx),
@@ -226,9 +226,9 @@ fn unrotate_hotspot(transform: i32, w: i32, h: i32, hotx: i32, hoty: i32) -> (i3
     }
 }
 
-/// Turn a 4-byte-pixel frame upright into tightly packed `dst`, undoing `transform` degrees;
-/// padded `src` rows ok (stride = len/h). Direction pinned by the tests to the measured anchor
-/// of rustdesk#15886; libyuv walks pixels, so channel order does not matter.
+/// 把一个 4 字节像素的帧转正并紧凑地写入 `dst`，撤销 `transform` 度；
+/// 允许 `src` 的行有填充（stride = len/h）。方向由测试固定为实测的锚点
+/// rustdesk#15886；libyuv 逐像素处理，因此通道顺序无关紧要。
 fn unrotate_bgra(src: &[u8], w: usize, h: usize, transform: i32, dst: &mut Vec<u8>) {
     const PX: usize = 4;
     let stride = if h > 0 { src.len() / h } else { 0 };
@@ -260,9 +260,9 @@ fn unrotate_bgra(src: &[u8], w: usize, h: usize, transform: i32, dst: &mut Vec<u
     }
 }
 
-/// Transform and augmented origin for one wire entry, derived from ONE wayland snapshot so both
-/// reflect the same output assignment; two `get_displays()` reads could straddle a cache
-/// invalidation. `None` origin means nothing to augment with (caller keeps the DRM origin).
+/// 某条 wire 条目的变换与增强后的原点，取自同一份 wayland 快照，因此两者
+/// 反映的是同一个输出分配；两次 `get_displays()` 读取可能跨越一次缓存
+/// 失效。`None` 原点表示没有可用来增强的内容（调用方保留 DRM 原点）。
 fn transform_and_origin(
     drm: &[DrmDisplayInfo],
     wire_idx: usize,
@@ -270,9 +270,9 @@ fn transform_and_origin(
 ) -> (i32, Option<(i32, i32)>) {
     if wl.displays.is_empty() || (wl.displays.len() == 1 && drm.len() > 1) {
         if wl.displays.is_empty() && !drm.is_empty() {
-            // A later successful enumeration refills the cache and hides this state from
-            // wayland_snapshot_missing, so the layout poll needs this durable record to know a
-            // capturer was built blind and owes a rebuild.
+            // 之后一次成功的枚举会重新填充缓存，并把这个状态对
+            // wayland_snapshot_missing 隐藏起来，因此布局轮询需要这份持久记录来知道某个
+            // 采集器是在没有快照的情况下构建的，欠一次重建。
             UNROTATED_SNAPSHOT_PENDING.store(true, Ordering::Release);
             log::warn!(
                 "drm: no wayland snapshot at capturer build for display {:?}; assuming unrotated",
@@ -282,10 +282,10 @@ fn transform_and_origin(
         return (0, None);
     }
     let assignment = assign_wayland_outputs(drm, &wl.displays);
-    // The transform comes ONLY from an identity match (name, or unique resolution), through the
-    // SAME progressive-taken pass the advertise side keys its swap off: the layout-order
-    // fallback is fine for an origin guess, but a rotation pinned on a guess splits the
-    // advertised dimensions from the delivered ones.
+    // 变换只来自身份匹配（名称，或唯一的分辨率），并且要走
+    // 与公布方用来确定交换的同一个渐进 taken 过程：按布局顺序
+    // 的回退用来猜原点没问题，但把旋转钉在猜测上会让公布的
+    // 尺寸与实际交付的尺寸对不上。
     let transform = identity_matches(drm, &wl.displays)
         .get(wire_idx)
         .copied()
@@ -298,23 +298,23 @@ fn transform_and_origin(
     (transform, origin)
 }
 
-/// The DRM `rotation` value of a plane that did not rotate or reflect anything.
+/// 没有旋转也没有做镜像的平面所对应的 DRM `rotation` 值。
 const PLANE_ROTATE_0: u32 = 0x1;
 
-/// The angle the FRAME has to be turned back by.
+/// 帧需要被转回的角度。
 ///
-/// A compositor rotates an output either in hardware, setting the primary plane's `rotation`
-/// (i915 + mutter at 180, measured: the scanout is upright and the plane reports rotate-180), or
-/// in software, drawing the scanout already turned (virtio-gpu and vmwgfx have no such property,
-/// KWin leaves the amdgpu plane at rotate-0; measured: 180 comes out upside down and 90/270
-/// sideways inside the native mode). `wl_output` cannot tell the two apart; `plane_rotation` can.
-/// A plane that rotated scans out the logical desktop whatever the output transform says: the
-/// compositor programs it from the CRTC transform, which also folds in the connector's panel
-/// orientation that `wl_output` never carries, so the two are not subtracted. A plane at rotate-0
-/// (a plane without the property arrives as rotate-0, see `DrmReader::plane_rotation`) scanned
-/// out what the compositor drew, and the frame is turned by the whole transform. `None` (a
-/// libdrmtap before 0.5.8, or nothing the library could read) keeps the pre-0.5.8 rule: 90/270
-/// turned, 180 left alone. The cursor does not go through this: see `Shared::cursor_transform`.
+/// 合成器要么在硬件中旋转输出（设置主平面的 `rotation`），
+/// （在 i915 + mutter 上 180 度时实测：scanout 是正立的，而平面报告 rotate-180），要么
+/// 在软件中旋转（virtio-gpu 和 vmwgfx 没有这样的属性，
+/// KWin 让 amdgpu 平面保持 rotate-0；实测：180 度出来是上下颠倒的，而 90/270 度
+/// 在原生模式下是横躺的）。`wl_output` 分不出这两种情况；`plane_rotation` 可以。
+/// 做了旋转的平面无论输出变换怎么说都会扫描输出逻辑桌面：
+/// 合成器根据 CRTC 变换对它编程，而该变换还把连接器的面板
+/// 方向（`wl_output` 从不携带）也算在内，因此两者不会相减。rotate-0 的平面
+/// （没有该属性的平面会作为 rotate-0 到达，参见 `DrmReader::plane_rotation`）扫描
+/// 输出合成器绘制的内容，帧则按整个变换旋转。`None`（
+/// 0.5.8 之前的 libdrmtap，或者库读不到任何东西）沿用 0.5.8 之前的规则：90/270
+/// 会旋转，180 不动。光标不走这条路径：参见 `Shared::cursor_transform`。
 fn frame_transform(wl_transform: i32, plane_rotation: Option<u32>) -> i32 {
     match plane_rotation {
         Some(mask) if mask != PLANE_ROTATE_0 => 0,
@@ -329,7 +329,7 @@ fn frame_transform(wl_transform: i32, plane_rotation: Option<u32>) -> i32 {
     }
 }
 
-/// Takes DRM_STATE: never call it while holding one of the per-display maps below.
+/// 会获取 DRM_STATE：绝不要在持有下面某个按显示器的 map 时调用它。
 fn display_info_of(display: i32) -> Option<DrmDisplayInfo> {
     match &*DRM_STATE.lock().unwrap() {
         ProbeState::Available(_, list) => list.get(display.max(0) as usize).cloned(),
@@ -337,8 +337,8 @@ fn display_info_of(display: i32) -> Option<DrmDisplayInfo> {
     }
 }
 
-/// A delivered frame resets the streak verdicts (`zero_frame_streak`, `demotes`, `since`) and
-    /// nothing else.
+/// 交付的一帧会重置连续计数相关的判定（`zero_frame_streak`、`demotes`、`since`），并且
+    /// 不做别的。
 #[derive(Clone, Copy)]
 struct DisplayHealth {
     zero_frame_streak: u32,
@@ -346,11 +346,11 @@ struct DisplayHealth {
     demotes: u32,
     last_build: Option<Instant>,
     rapid_builds: u32,
-    /// The dma-buf convert failed for this display. The COMMON cause is multi-GPU: our render node
-    /// is not the GPU that exported the scanout. Follows the monitor for the process run.
+    /// 这个显示器的 dma-buf 转换失败了。最常见的原因是多 GPU：我们的渲染节点
+    /// 并不是导出 scanout 的那块 GPU。对应于整个进程运行期间的显示器。
     prefer_cpu: bool,
-    /// The PipeWire fallback for this display was rejected on geometry (a transposed stream), so
-    /// the lone-display carve-out in `mark_demoted_displays` must not keep advertising it online.
+    /// 这个显示器的 PipeWire 回退因几何原因被拒绝（流是转置的），因此
+    /// `mark_demoted_displays` 中的单显示器豁免不能继续把它公布为在线。
     fallback_rejected: bool,
 }
 
@@ -380,8 +380,8 @@ const DEMOTE_BACKOFF_MAX_SHIFT: u32 = 4;
 const RAPID_REBUILD_WINDOW: Duration = Duration::from_secs(3);
 const RAPID_REBUILD_MAX: u32 = 6;
 
-/// Doubling per demotion up to `DEMOTE_BACKOFF_MAX_SHIFT`; a delivered frame zeroes the demote
-/// count (see `frame()`), not decayed by time.
+/// 每次降级都翻倍，最多到 `DEMOTE_BACKOFF_MAX_SHIFT`；交付一帧会把降级
+/// 计数清零（参见 `frame()`），而不是按时间衰减。
 fn demote_cooldown(demotes: u32) -> Duration {
     DEMOTE_COOLDOWN * (1u32 << demotes.saturating_sub(1).min(DEMOTE_BACKOFF_MAX_SHIFT))
 }
@@ -391,11 +391,11 @@ enum RefreshOutcome {
     Publish,
     Unavailable,
     Restamp,
-    /// The evidence is about the PRODUCER, not the hardware: give the verdict up to `Unknown`.
+    /// 证据针对的是生产者而不是硬件：判定最多给到 `Unknown`。
     GiveUp,
 }
 
-/// `failures` counts consecutive failures INCLUDING this one, so it is 1 on the first.
+/// `failures` 统计连续失败次数且包含本次，因此第一次失败时它是 1。
 fn refresh_outcome(probe: Option<usize>, failures: u32) -> RefreshOutcome {
     match probe {
         Some(0) => RefreshOutcome::Unavailable,
@@ -442,8 +442,8 @@ fn render_node_count() -> usize {
 }
 
 static UINPUT_REFRESH_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-/// A capturer was built with no wayland snapshot and runs unrotated; the layout poll consumes
-/// this to bump the generation once a live snapshot exists.
+/// 某个采集器在没有 wayland 快照的情况下构建，且以未旋转方式运行；布局轮询消费
+/// 它，一旦有了当前快照就递增代际。
 static UNROTATED_SNAPSHOT_PENDING: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
@@ -453,8 +453,8 @@ pub(super) fn take_unrotated_snapshot_pending() -> bool {
 static UINPUT_REFRESH_BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 impl IpcDrmCapturer {
-    /// The service resolves indices against ITS OWN enumeration, so the receive thread re-resolves
-    /// `expected` by connector identity and returns the index geometry must be read at.
+    /// 该服务是针对它自己的枚举来解析索引的，因此接收线程会重新解析
+    /// `expected`（按连接器身份），并返回几何信息必须读取的索引。
     pub fn new(
         display: i32,
         expected: Option<DrmDisplayInfo>,
@@ -484,26 +484,26 @@ impl IpcDrmCapturer {
         let (displays, wire_idx) = match rx.recv_timeout(Duration::from_millis(HANDSHAKE_WAIT_MS)) {
             Ok(res) => res?,
             Err(_) => {
-                // A handshake completing later would stream unowned: Drop never runs here.
+                // 稍后才完成的握手会导致流无归属：这里不会运行 Drop。
                 stop.store(true, Ordering::SeqCst);
                 bail!("drm capture handshake timed out");
             }
         };
-        // One snapshot for the session: transform, origin and the advertised swap must all
-        // reflect the same output assignment. The generation is read BEFORE the snapshot, so a
-        // clear racing the build rebuilds once instead of running a session on stale geometry.
+        // 整个会话使用一份快照：变换、原点和公布的交换必须都
+        // 反映同一个输出分配。代际是在快照之前读取的，因此与构建
+        // 竞争的清缓存会导致重建一次，而不是用过期几何运行一个会话。
         let snapshot_gen = scrap::wayland::display::wayland_snapshot_generation();
         let wl = scrap::wayland::display::get_displays();
         let (wl_transform, origin) = transform_and_origin(&displays, wire_idx, &wl);
-        // Same snapshot as the transform, stored BEFORE the transform's Release store below.
+        // 与变换取自同一份快照，存储在下面对变换的 Release 写入之前。
         let cal = calibration_context(&displays, wire_idx, &wl, snapshot_gen);
         log::info!(
             "drm: cursor calibration for display {display} ({}): {cal:?}",
             displays.get(wire_idx).map(|d| d.name.as_str()).unwrap_or("?")
         );
-        *shared.cal_context.lock().unwrap() = cal.ok();
-        // This capturer now shows that layout. If the session init's own wayland query failed it
-        // saved an empty baseline, so this is the only record of what the stream is built on.
+        * shared.cal_context.lock().unwrap() = cal.ok();
+        // 这个采集器现在显示的就是那个布局。如果会话初始化时自己的 wayland 查询失败了，它
+        // 保存的是一个空的 baseline，因此这份记录是这条流构建依据的唯一记录。
         super::display_service::note_capturer_layout(&wl.displays, snapshot_gen);
         shared
             .cursor_transform
@@ -537,8 +537,8 @@ impl IpcDrmCapturer {
         ))
     }
 
-    /// Without an identity, skip rather than record under "", which get_capturer_info reads back
-    /// as the same key: one unidentifiable display would demote the next.
+    /// 没有身份标识时直接跳过，而不是记在 "" 下面，get_capturer_info 会把它读回来
+    /// 当成同一个键：一个无法识别的显示器会连带降级下一个。
     fn note_session_without_frame(&self) {
         let Some(key) = self.connector.clone() else {
             log::debug!(
@@ -574,8 +574,8 @@ impl Drop for IpcDrmCapturer {
 
 impl TraitCapturer for IpcDrmCapturer {
     fn frame<'a>(&'a mut self, timeout: Duration) -> io::Result<Frame<'a>> {
-        // video_service passes its spf as the timeout: that, and how busy it is between calls, is
-        // the rate the producer is asked for.
+        // video_service 把它的 spf 作为超时时间传进来：它以及两次调用之间的忙碌程度决定了
+        // 向生产者请求的速率。
         let demand =
             self.shared
                 .pace
@@ -602,9 +602,9 @@ impl TraitCapturer for IpcDrmCapturer {
             if let Some((w, h, fmt, plane_rotation, buf)) = slot.latest.take() {
                 drop(slot);
                 drop(waited);
-                // A layout change bumps the generation and is otherwise invisible here (mode
-                // and framebuffer keep their size). Rebuild for the new transform; not counted
-                // against health: the layout moved, the display did not fail.
+                // 布局变化会递增代际，除此之外在这里看不出来（mode
+                // 和 framebuffer 保持尺寸不变）。为新的变换重建；这不计入
+                // 健康度：布局移动了，显示器并没有故障。
                 if scrap::wayland::display::wayland_snapshot_generation() != self.snapshot_gen {
                     self.shared.slot.lock().unwrap().recycle(buf);
                     return Err(io::Error::new(
@@ -612,14 +612,14 @@ impl TraitCapturer for IpcDrmCapturer {
                         format!("drm: display {} layout changed; rebuilding", self.display),
                     ));
                 }
-                // The angle this frame still has to be turned by: the output transform, unless
-                // the plane rotated the scanout itself (per frame, since only the producer can
-                // see the plane). Frames arrive in scanout orientation, the session was
-                // sized rotated, so the guard compares rotated dims: a plane that rotated 90 in
-                // hardware hands over a portrait scanout and `t` is 0, a plane that did not hands
-                // over the landscape mode and `t` is 90; both land on the session size.
-                // convert_to_yuv only refuses a LARGER source (a smaller one leaves stale edges);
-                // first frame: CRTC mode vs scanout fb.
+                // 这一帧仍需旋转的角度：输出变换，除非
+                // 平面自己旋转了 scanout（逐帧判断，因为只有生产者能
+                // 看到平面）。帧以 scanout 方向到达，而会话是
+                // 按旋转后的尺寸设定的，因此这个守卫比较的是旋转后的尺寸：在硬件中旋转了 90 度的
+                // 平面交出的是竖向的 scanout 而 `t` 为 0；没有旋转的平面交出的是
+                // 横向模式而 `t` 为 90；两者最终都落在会话尺寸上。
+                // convert_to_yuv 只会拒绝更大的源（更小的源会留下过期的边缘）；
+                // 第一帧：CRTC mode 与 scanout fb 的对比。
                 let t = frame_transform(self.transform, plane_rotation);
                 let (fw, fh) = rotated_dims(t, w, h);
                 if self.session_size.is_some_and(|(sw, sh)| (fw, fh) != (sw, sh)) {
@@ -641,18 +641,18 @@ impl TraitCapturer for IpcDrmCapturer {
                         ),
                     ));
                 }
-                // The producer grabs on a timer, so a still screen arrives as the same bytes every
-                // tick. `cur` still holds the previous frame; the same bytes in another format are
-                // another picture.
+                // 生产者按定时器抓取，因此静止的画面每个
+                // 周期都以相同的字节到达。`cur` 仍然保存着上一帧；相同字节换一种格式就是
+                // 另一幅图像。
                 let repeat = if t == 0 {
                     let repeat = fmt == self.cur_fmt && buf == self.cur;
                     let previous = std::mem::replace(&mut self.cur, buf);
                     self.shared.slot.lock().unwrap().recycle(previous);
                     repeat
                 } else if !matches!(fmt, Pixfmt::BGRA | Pixfmt::RGBA) {
-                    // Unreachable with today's producers (the convert path emits 4-byte pixels
-                    // and the CPU path hardcodes BGRA); kept so a future non-4-byte producer
-                    // fails the session instead of shearing the image.
+                    // 以今天的生产者来说不可达（转换路径输出 4 字节像素
+                    // 而 CPU 路径硬编码为 BGRA）；保留它是为了让将来非 4 字节的生产者
+                    // 直接让会话失败，而不是把图像拉斜。
                     self.shared.slot.lock().unwrap().recycle(buf);
                     if !self.got_frame {
                         self.note_session_without_frame();
@@ -675,8 +675,8 @@ impl TraitCapturer for IpcDrmCapturer {
                 self.cur_h = fh;
                 self.cur_fmt = fmt;
                 if !self.got_frame {
-                    // Clear ONLY the streak: `rapid_builds` is for a display that delivers a first
-                    // frame then fails, and `prefer_cpu` is written on the recv thread.
+                    // 只清除连续计数：`rapid_builds` 是给那种先交付了第一帧
+                    // 随后又失败的显示器用的，而 `prefer_cpu` 是在 recv 线程上写入的。
                     self.got_frame = true;
                     if let Some(key) = &self.connector {
                         if let Some(h) = DRM_DISPLAY_HEALTH.lock().unwrap().get_mut(key) {
@@ -747,8 +747,8 @@ async fn recv_thread(
             return;
         }
     };
-    // Our monitor's index IN THIS CONNECTION'S LIST; `display` indexes the CLIENT's. Measured on a
-    // T2: a woken 2880x1800 panel re-enters ahead of the Touch Bar, flipping index 0.
+    // 我们的显示器在本次连接列表中的索引；`display` 是客户端列表中的索引。在一台
+    // T2 上实测：被唤醒的 2880x1800 面板排到了 Touch Bar 前面，颠倒了索引 0。
     let wire_idx = match &expected {
         Some(e) => {
             match displays
@@ -773,7 +773,7 @@ async fn recv_thread(
             return;
         }
     };
-    // (device, crtc_id) survives a topology change; list indices do not.
+    // （device, crtc_id）能挺过拓扑变化；列表索引不能。
     let bound_to = displays
         .get(wire_idx)
         .map(|d| (d.device.clone(), d.crtc_id));
@@ -783,9 +783,9 @@ async fn recv_thread(
         .or_else(|| displays.first())
         .map(|d| d.render_node.clone())
         .unwrap_or_default();
-    // An unnamed exporter on a multi-render-node host fails SILENTLY: on a Jetson
-    // (scanout nvidia-drm, first render node tegra) the wrong device's import SUCCEEDS and corrupts
-    // the pixels, so there is no convert error for prefer_cpu to learn from.
+    // 在有多个渲染节点的主机上，未命名的导出方会悄无声息地失败：在 Jetson 上
+    // （scanout 是 nvidia-drm，第一个渲染节点是 tegra），导入错误的设备反而成功了，并且破坏了
+    // 像素，因此没有可供 prefer_cpu 参考的转换错误。
     let ambiguous_gpu = render_node.is_empty() && render_node_count() > 1;
     let force_cpu = drm_prefer_cpu(&our_key) || ambiguous_gpu;
     let mut converter = if force_cpu {
@@ -823,10 +823,10 @@ async fn recv_thread(
     }
     let _ = tx.send(Ok((displays, wire_idx)));
 
-    // A cursor that arrived before new() stored the session transform, held for replay. Only the
-    // newest matters; the 200 ms recv timeout guarantees this is retried even on an idle wire.
+    // 在 new() 存入会话变换之前到达的光标会被保留以备重放。只有
+    // 最新的那个有意义；200 毫秒的 recv 超时保证即使链路空闲也会重试。
     let mut pending_cursor: Option<(u64, u32, u32, i32, i32, bool, Vec<u8>)> = None;
-    // The shape being measured, or None: hidden, kernel-measured, or no context for this stream.
+    // 正在测量的形状，或者 None：隐藏的、内核测量的，或这条流没有上下文。
     let mut cal: Option<CursorCal> = None;
     let end_reason = loop {
         if stop.load(Ordering::SeqCst) {
@@ -867,7 +867,7 @@ async fn recv_thread(
                     Some(c) => c,
                     None => break "no DRM render node; cannot convert dma-buf frame".to_owned(),
                 };
-                // Valid in THIS process; -1 is an import-once cache hit on `fb_id`.
+                // 在本进程内有效；-1 表示对 `fb_id` 的一次性导入缓存命中。
                 let received_fd: RawFd = if desc.has_fd {
                     match recv_fd.as_ref() {
                         Some(f) => f.as_raw_fd(),
@@ -885,8 +885,8 @@ async fn recv_thread(
                     format: desc.format,
                     modifier: desc.modifier,
                     fb_id: desc.fb_id,
-                    // RAW: `drm_render::convert` REJECTS an out-of-range count rather than
-                    // clamping, so the count the C reads is the one that was validated.
+                    // RAW：`drm_render::convert` 会拒绝超范围的数量，而不是
+                    // 做截断，因此 C 读到的数量就是经过校验的那个。
                     num_planes: desc.num_planes,
                     offsets: desc.offsets,
                     pitches: desc.pitches,
@@ -895,9 +895,9 @@ async fn recv_thread(
                 };
                 match conv.convert(&mut ddesc, received_fd) {
                     Ok((data, w, h, fmt)) => {
-                        // Borrowed from the render context, valid only until the next convert.
-                        // Copy into a recycled buffer, and OUTSIDE the slot lock, so a
-                        // multi-megabyte memcpy never holds the encoder off the slot.
+                        // 从渲染上下文借用而来，只在下一次转换之前有效。
+                        // 复制到一个可复用的缓冲区中，并且在槽位锁之外进行，这样
+                        // 几兆字节的 memcpy 永远不会让编码器占着槽位不放。
                         let mut buf = shared.slot.lock().unwrap().take_free().unwrap_or_default();
                         buf.clear();
                         buf.extend_from_slice(data);
@@ -911,9 +911,9 @@ async fn recv_thread(
                         break format!("convert: {err}");
                     }
                 }
-                // `recv_fd` closes at the end of this iteration, AFTER convert imported it.
-                // Ack so the producer RELEASES ONE SEND CREDIT and forwards the next; this bounds
-                // the socket to a couple of in-flight frames instead of a stale backlog.
+                // `recv_fd` 在本次迭代结束时关闭，在 convert 导入它之后。
+                // 发出 ack，让生产者释放一个发送额度并转发下一帧；这样把
+                // 套接字限制在几帧在途，而不是堆积过期的积压。
                 if let Err(err) = conn.send_frame_ack(shared.demand_fps.load(Ordering::Relaxed)).await {
                     break format!("frame ack: {err}");
                 }
@@ -937,8 +937,8 @@ async fn recv_thread(
                         cursor_epoch,
                     );
                 }
-                // `frame()` hands this to PixelBuffer::new, which derives the stride as
-                // `data.len() / height`: height==0 would DIVIDE BY ZERO.
+                // `frame()` 把它交给 PixelBuffer::new，后者按如下方式推导跨度
+                // `data.len() / height`：height==0 会导致除以零。
                 if width == 0 || height == 0 {
                     break format!("cpu frame: degenerate geometry {width}x{height}");
                 }
@@ -967,7 +967,7 @@ async fn recv_thread(
                     }
                     Ok(Err(err)) => break format!("frame body: {err}"),
                 }
-                // Ack this CPU frame too (flow control; see the dma-buf arm above).
+                // 这一帧 CPU 帧也要发 ack（流控；参见上面的 dma-buf 分支）。
                 if let Err(err) = conn.send_frame_ack(shared.demand_fps.load(Ordering::Relaxed)).await {
                     break format!("frame ack: {err}");
                 }
@@ -980,10 +980,10 @@ async fn recv_thread(
                 hoty,
                 hot_measured,
             } => {
-                // get_cursor_data() hands `colors` straight to the client, which renders
-                // width*height*4 RGBA bytes: a short body would make it READ PAST THE BUFFER. A
-                // hidden-cursor sentinel arrives as 1x1 with a 4-byte body, so `need` is 4 and the
-                // check is live.
+                // get_cursor_data() 把 `colors` 直接交给客户端，客户端会渲染
+                // width*height*4 个 RGBA 字节：响应体过短会让它越界读取缓冲区。隐藏光标
+                // 哨兵以 1x1、4 字节响应体到达，因此 `need` 是 4，而这项
+                // 检查是有效的。
                 let need = (width as usize)
                     .saturating_mul(height as usize)
                     .saturating_mul(4);
@@ -1023,14 +1023,14 @@ async fn recv_thread(
                 }
             }
             Data::DrmDisplaysChanged(list) => {
-                // `display` (the CLIENT's index) and NOT `wire_idx`, deliberately. `bound_to` is an
-                // identity `(device, crtc_id)`, not a position, so this asks "does that slot still
-                // name MY monitor"; and the swap below installs this list as DRM_STATE, which is the
-                // client-space list display_service re-advertises and input is mapped through.
-                // Probing `wire_idx` stays quiet in exactly the case this guard exists for: a stream
-                // whose wire_idx differs from display keeps running while the client's index comes to
-                // mean another monitor. Checked BEFORE the swap, against the topology this stream
-                // started on.
+                // 是 `display`（客户端的索引）而不是 `wire_idx`，这是有意为之。`bound_to` 是一个
+                // 身份标识 `(device, crtc_id)`，不是位置，所以这里问的是「那个槽位是否仍然
+                // 是我的显示器」；而下面的交换会把这份列表作为 DRM_STATE 安装，
+                // 也就是 display_service 重新公布、输入也据此映射的客户端空间列表。
+                // 探测 `wire_idx` 在这个守卫存在的那个场景下恰好保持沉默：一条
+                // wire_idx 与 display 不同的流继续运行，而客户端的索引最终会指向
+                // 另一台显示器。这个检查在交换之前进行，依据的是这条流
+                // 启动时的拓扑。
                 let now_at_our_index = list
                     .get(display.max(0) as usize)
                     .map(|d| (d.device.clone(), d.crtc_id));
@@ -1048,9 +1048,9 @@ async fn recv_thread(
                 scrap::wayland::display::clear_wayland_displays_cache();
                 UINPUT_REFRESH_GEN.fetch_add(1, Ordering::AcqRel);
                 if !UINPUT_REFRESH_BUSY.swap(true, Ordering::AcqRel) {
-                    // Taken BEFORE the spawn and moved in: `Builder::spawn` can FAIL with EAGAIN after
-                    // the swap, so a guard built inside the closure would never exist and the flag
-                    // would stay set for the PROCESS LIFETIME.
+                    // 在创建线程之前取得并移进去：`Builder::spawn` 可能在
+                    // 交换之后以 EAGAIN 失败，因此建在闭包内部的守卫根本不会存在，那个标志
+                    // 会在整个进程生命周期里一直置位。
                     let mut busy = UinputRefreshGuard(true);
                     let spawned = std::thread::Builder::new()
                         .name("drm-uinput-refresh".into())
@@ -1093,8 +1093,8 @@ async fn recv_thread(
         }
     };
     log::info!("drm capture stream ended: {end_reason}");
-    // Drop the render context on THIS thread: its EGL state + cached imports are thread-local and
-    // a cross-thread close strands them. Never in `Drop`, which runs on the encoder thread.
+    // 在本线程上释放渲染上下文：它的 EGL 状态和缓存的导入是线程本地的，
+    // 跨线程关闭会把它们搁置在那里。绝不要放在 `Drop` 里，因为那是在编码器线程上运行的。
     drop(converter);
     remove_drm_cursor(display, cursor_epoch);
     let mut slot = shared.slot.lock().unwrap();
@@ -1102,8 +1102,8 @@ async fn recv_thread(
     shared.cv.notify_one();
 }
 
-// Keyed by display index: the cursor lives on whichever CRTC the pointer is over and every other
-// stream reports a hidden sentinel, which under a single global would clobber it.
+// 以显示器索引为键：光标存在于指针所在的 CRTC 上，而其他每一条
+// 流都报告一个隐藏哨兵，若用一个全局变量就会把它冲掉。
 #[derive(Clone)]
 pub struct DrmCursorData {
     pub id: u64,
@@ -1115,48 +1115,48 @@ pub struct DrmCursorData {
 }
 
 
-// The kernel only exposes a cursor hotspot on DRIVER_CURSOR_HOTSPOT drivers (VMs); on bare metal
-// the wire carries `infer_hotspot`'s guess, which the bitmap alone cannot get right for a shape
-// whose click point the theme put where the alpha does not mark it. But
-// `plane_origin = pointer_tip - hotspot`, this process injects the tip itself, and the plane
-// position rides every frame: once both sit still, the difference IS the hotspot.
+// 内核只在 DRIVER_CURSOR_HOTSPOT 驱动上（虚拟机）暴露光标热点；在物理机上
+// 线路上传的是 `infer_hotspot` 的猜测，对于某些形状，仅凭位图无法算对，
+// 因为主题把点击点放在了 alpha 没有标出的位置。但是
+// `plane_origin = pointer_tip - hotspot`，本进程注入的是尖端本身，而平面
+// 位置会随每一帧移动：一旦两者都静止下来，它们的差就是热点。
 
 type Pos = (i32, i32);
 type Hotspot = (i32, i32);
 
-/// The plane must hold one position this many consecutive frames, not counting the frame that
-/// first reported it, before a measurement is taken ...
+/// 平面必须连续这么多帧保持同一个位置，且不计入最初报告该位置的
+/// 那一帧，然后才进行测量……
 const CURSOR_CAL_STABLE_TICKS: u32 = 3;
-/// ... and a position still for longer than this is not measured any more: the peer point that
-/// would be subtracted is that much staler.
+/// ……而一个保持静止超过这个时长的位置就不再测量：将要被减去
+/// 的那个对端点也就陈旧了那么多。
 const CURSOR_CAL_WINDOW_TICKS: u32 = 33;
-/// Two measurements this close agree; a correction this close to what is drawn is jitter. The
-/// peer coordinate is quantized to logical px, so at a fractional scale a measurement wobbles by
-/// ceil(scale) physical px between positions.
+/// 相距这么近的两次测量就是一致的；与实际绘制内容相差这么小的修正就是抖动。
+/// 对端坐标是按逻辑像素量化的，所以在有缩放比例时，测量值会抖动
+/// ceil(scale) 个物理像素。
 const CURSOR_CAL_TOLERANCE: i32 = 2;
-/// The last absolute peer move must be at least this old (the compositor consumed it) ...
+/// 上一次对端绝对移动至少要这么旧（合成器已经消费掉了它）……
 const CURSOR_CAL_MIN_INPUT_AGE_MS: u64 = 150;
-/// ... and at most this old: a local user may have moved the pointer since.
+/// ……且最多这么旧：本地用户可能在此期间移动过指针。
 const CURSOR_CAL_MAX_INPUT_AGE_MS: u64 = 10_000;
 
-/// The calibration geometry of one stream, resolved once when the capturer is built, from the
-/// wayland snapshot the frame transform comes from. Immutable for the session; a layout change
-/// bumps the snapshot generation, which stops measurement, and rebuilds the capturer.
+/// 一条流的校准几何信息，在采集器构建时一次性确定，取自
+/// 帧变换所来源的那份 wayland 快照。会话期间不可变；布局变化
+/// 会递增快照代际，从而停止测量，并重建采集器。
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct CalContext {
-    /// This output's rect in the logical layout the peer's absolute coordinates live in.
+    /// 该输出在逻辑布局中的矩形，对端的绝对坐标就存在于这个逻辑布局中。
     rect: (i32, i32, i32, i32),
-    /// The scanout size the cursor plane position is expressed in.
+    /// 光标平面位置所采用的 scanout 尺寸。
     physical_size: (i32, i32),
-    /// The snapshot generation this was built from.
+    /// 此对象构建时所依据的快照代际。
     built_gen: u64,
 }
 
-/// Every eligibility check at once, on one snapshot. A partial snapshot cannot be trusted (the
-/// same rule `transform_and_origin` applies before it trusts a match), the output must be an
-/// identity match and never the layout-order guess, any rotation declines because the plane is
-/// unrotated scanout space while the injected point is the oriented layout (180 included, so the
-/// UNFOLDED transform is read), and the geometry must be usable.
+/// 在一份快照上一次做完所有资格检查。部分快照不可信（
+/// 与 `transform_and_origin` 在信任某个匹配之前遵循同样的规则），输出必须是
+/// 身份匹配，绝不能是按布局顺序的猜测；有任何旋转都要拒绝，因为平面处于
+/// 未旋转的 scanout 空间，而注入的点是在已定向的布局中（180 也包括在内，因此读取的是
+/// UNFOLDED 变换），并且几何信息必须可用。
 fn calibration_context(
     drm: &[DrmDisplayInfo],
     wire_idx: usize,
@@ -1187,12 +1187,12 @@ fn calibration_context(
     })
 }
 
-/// Pure geometry. The injected point is in the logical layout (`logical_rects_of`: a lone output
-/// at its oriented physical size, several outputs at their logical sizes) and the plane origin is
-/// in this CRTC's scanout px, so the point is required to fall inside this output's rect (else
-/// the pointer is on another monitor and that stream measures), scaled into scanout space, and
-/// only then is the plane subtracted. An answer outside the bitmap is a race, an edge clip or a
-/// local user having moved the pointer, not a hotspot.
+/// 纯几何判断。注入的点位于逻辑布局中（`logical_rects_of`：单独的输出
+/// 按其定向后的物理尺寸，多个输出则按各自的逻辑尺寸），而平面原点
+/// 以这个 CRTC 的 scanout 像素表示，因此要求该点落在该输出的矩形内（否则
+/// 说明指针在另一台显示器上，该测量由那条流来做），缩放到 scanout 空间，并且
+/// 只有之后才减去平面。落在位图之外的答案是竞态、边缘裁剪或者
+/// 本地用户移动了指针，而不是热点。
 fn measure_hotspot(
     ctx: &CalContext,
     injected: Pos,
@@ -1214,35 +1214,35 @@ fn measure_hotspot(
     Some(h)
 }
 
-/// What one stream knows about the shape it is currently showing.
+/// 一条流对当前显示的形状所了解的全部信息。
 struct CursorCal {
-    /// The wire id: what the cache is keyed by, and what a corrected id is remixed from.
+    /// wire id：缓存的键，以及修正后的 id 重新混合的来源。
     id: u64,
     width: u32,
     height: u32,
-    /// Kept so a confirmed measurement can re-deliver the same pixels under the new hotspot.
+    /// 保留下来，这样一次被确认的测量就能在新的热点下重新交付同样的像素。
     raw: Vec<u8>,
     ctx: CalContext,
-    /// What the producer reported.
+    /// 生产者报告的内容。
     wire_hot: Hotspot,
-    /// What the client is being served: the cache's confirmed value, else the wire's.
+    /// 提供给客户端的内容：缓存中已确认的值，否则用线路上的值。
     current_hot: Hotspot,
-    /// An unconfirmed measurement, with the peer sample it was taken against and the
-    /// input-mapping epoch of that sample.
+    /// 一次未经确认的测量，连同它所对照的对端样本以及
+    /// 该样本的输入映射 epoch。
     candidate: Option<(Hotspot, u64, u64)>,
     plane: Option<Pos>,
     stable_ticks: u32,
     measured_this_position: bool,
 }
 
-/// Only a hotspot the producer guessed is measured; kernel truth is never overridden. A producer
-/// that predates the provenance field arrives as measured (`legacy_hot_measured`), so it is never
-/// measured over either.
+/// 只测量生产者猜测出来的热点；内核给出的真值永远不会被覆盖。生产者
+/// 若早于 provenance 字段存在，就作为已测量到达（`legacy_hot_measured`），因此它
+/// 绝不会被两者中的任何一个测量。
 fn calibratable(id: u64, hot_measured: bool) -> bool {
     id != scrap::drm_reader::HIDDEN_CURSOR_ID && !hot_measured
 }
 
-/// One frame reported where the plane is.
+/// 一帧报告了平面的位置。
 fn update_plane_stability(c: &mut CursorCal, p: Pos) {
     if c.plane != Some(p) {
         c.plane = Some(p);
@@ -1253,21 +1253,21 @@ fn update_plane_stability(c: &mut CursorCal, p: Pos) {
     c.stable_ticks = c.stable_ticks.saturating_add(1);
 }
 
-/// Each stable plane position yields at most one measurement, and only inside the window.
+/// 每个稳定的平面位置最多产生一次测量，而且只在那个窗口内。
 fn settled_unmeasured(c: &CursorCal) -> bool {
     !c.measured_this_position
         && (CURSOR_CAL_STABLE_TICKS..=CURSOR_CAL_WINDOW_TICKS).contains(&c.stable_ticks)
 }
 
-/// The peer sample a measurement may subtract from, or none: the layout must not have moved
-/// since the context was built (the remap flag is a secondary guard for the window in which the
-/// promotion is still owed), the device must run the uinput range of that layout and the sample
-/// must have been injected after it adopted that range (a stale range maps the point elsewhere,
-/// and two stops share the error), the sample must have been mapped against that same layout,
-/// and it must be old enough to have been consumed and young enough to still describe the
-/// pointer. The generation and the flag are both advanced by the display service's layout poll,
-/// so a monitor moved mid-session is seen up to one check interval late; a measurement inside
-/// that window is bounded by the bitmap and cached under its generation only.
+/// 测量可以据以相减的对端样本，或者没有：布局自上下文构建以来
+/// 不能移动过（重映射标志是次级保护，覆盖的是
+/// 提升尚未完成的那段窗口），设备必须运行该布局的 uinput 范围，而且样本
+/// 必须是在它采纳该范围之后注入的（过期的范围会把点映射到别处，
+/// 而两次停止共用这个误差），样本必须是对着同一个布局映射的，
+/// 并且它必须足够老以已经被消费，又足够新以仍然能描述
+/// 指针。代际和该标志都由显示服务的布局轮询推进，
+/// 因此会话中途移动的显示器最多会晚一个检查间隔才被发现；窗口内的测量
+/// 以位图为界，并且只在其代际下缓存。
 fn usable_sample(
     ctx: &CalContext,
     s: Option<super::input_service::PeerAbsSample>,
@@ -1293,12 +1293,12 @@ fn near(a: Hotspot, b: Hotspot) -> bool {
     (a.0 - b.0).abs() <= CURSOR_CAL_TOLERANCE && (a.1 - b.1).abs() <= CURSOR_CAL_TOLERANCE
 }
 
-/// The confirmation policy. `Some` only when a second measurement agrees with the candidate,
-/// and then it IS the candidate, never the second raw value. Two measurements against the same
-/// peer sample are not independent: the plane moved and the peer did not, which is what a local
-/// hand on the mouse looks like, so they never confirm each other. Nor do two taken under
-/// different input mappings: the device adopted a new range in between, and the candidate was
-/// measured against the old one.
+/// 确认策略。只有当第二次测量与候选值一致时才返回 `Some`，
+/// 而且此时返回的就是那个候选值，绝不是第二次的原始值。针对同一个
+/// 对端样本的两次测量并不独立：平面动了而对端没动，这正是本地
+/// 用户把手放在鼠标上的样子，所以它们永远不会互相确认。在不同
+/// 输入映射下测得的两次也不会：设备在中间采纳了新的范围，而候选值是
+/// 对着旧范围测得的。
 fn observe_measurement(c: &mut CursorCal, m: Hotspot, seq: u64, map_epoch: u64) -> Option<Hotspot> {
     match c.candidate {
         Some((_, kseq, _)) if kseq == seq => None,
@@ -1313,16 +1313,16 @@ fn observe_measurement(c: &mut CursorCal, m: Hotspot, seq: u64, map_epoch: u64) 
     }
 }
 
-/// Both decisions are taken on the one accepted value. What is served is compared first: near
-/// it, nothing visible changes and the served value stays cached. That includes a value that is
-/// also near the wire, which a correction 3 or 4 px from the wire makes possible, and comparing
-/// the wire first there would flap the served hotspot and the id on every confirmation. Near the
-/// wire otherwise, the producer's guess was right: the wire value is served and a correction
-/// cached earlier for this shape is dropped. Otherwise the accepted value is cached and served.
+/// 两个决策都基于那一个被采纳的值。先比较提供出去的值：与之接近时
+/// 什么可见变化都不会发生，提供出去的值仍留在缓存中。这也包括那些
+/// 同样接近线路值的值——相差 3 或 4 像素的修正就会造成这种情况——而在那种情况下
+/// 先比较线路值会让提供出去的热点和 id 在每次确认时来回抖动。除非
+/// 接近线路值，否则说明生产者的猜测是对的：此时提供线路上的值，并丢弃
+/// 之前为该形状缓存的修正值。否则就缓存并提供那个被采纳的值。
 fn apply_confirmed_hotspot(c: &mut CursorCal, accepted: Hotspot, display: i32, cursor_epoch: u64) {
     if near(accepted, c.current_hot) {
         if c.current_hot == c.wire_hot {
-            // The wire is served and was right: nothing of ours stays cached for this shape.
+            // 提供线路上的值，而且它是对的：我们这边不会为该形状保留任何缓存。
             forget_cursor_cal(c.id, c.ctx.built_gen);
         } else if cached_cursor_cal(c.id, c.ctx.built_gen) != Some(c.current_hot) {
             store_cursor_cal(c.id, c.current_hot, c.ctx.built_gen);
@@ -1361,17 +1361,17 @@ fn apply_confirmed_hotspot(c: &mut CursorCal, accepted: Hotspot, display: i32, c
     );
 }
 
-/// Confirmed hotspots per wire cursor id, so a shape the compositor reuses (arrow, beam, arrow)
-/// is served right from its first frame, each with the layout generation it was confirmed under:
-/// a value measured against a layout the poll had not yet seen move is served only to streams
-/// of that generation, never to the one rebuilt after the promotion. Bounded by clearing what
-/// the writer's generation or an older one confirmed; ids churn on theme or size changes and
-/// re-measuring is cheap. Read in one place, behind the context gate.
+/// 按 wire 光标 id 保存的已确认热点，这样合成器复用的形状（箭头、光束、箭头）
+/// 从第一帧起就能被正确提供，每个都带着它被确认时的布局代际：
+/// 对着轮询尚未看到移动的布局测出的值，只提供给该代际的流，
+/// 绝不会提供给提升之后重建的那条流。其边界通过清除以下内容来限定：
+/// 写入者代际或更早代际上已确认的值；id 会因主题或尺寸变化而不断变动，
+/// 重新测量的代价很低。只在一处读取，且位于上下文闸门之后。
 static CURSOR_CAL_CACHE: Mutex<BTreeMap<u64, (Hotspot, u64)>> = Mutex::new(BTreeMap::new());
 const CURSOR_CAL_CACHE_CAP: usize = 64;
 
-/// An entry is replaced or dropped only by its own generation or a newer one: a receive thread
-/// still running on the old layout cannot undo what the rebuilt stream confirmed.
+/// 一个条目只会被它自己那一代或更新一代的条目替换或删除：仍在旧布局上
+/// 运行的接收线程无法撤销重建后的流所确认的内容。
 fn store_cursor_cal(wire_id: u64, h: Hotspot, gen: u64) {
     let mut cache = CURSOR_CAL_CACHE.lock().unwrap();
     if cache.get(&wire_id).is_some_and(|(_, g)| *g > gen) {
@@ -1391,8 +1391,8 @@ fn forget_cursor_cal(wire_id: u64, gen: u64) {
         cache.remove(&wire_id);
     }
 }
-/// The correction confirmed for this shape under this generation, if any. A stream of another
-/// generation gets none and serves the wire hotspot until a pair confirms one.
+/// 该形状在这一代下已确认的修正值（如果有）。另一代的流
+/// 得不到修正值，会一直提供线路上的热点，直到有一对测量确认了一个。
 fn cached_cursor_cal(wire_id: u64, gen: u64) -> Option<Hotspot> {
     CURSOR_CAL_CACHE
         .lock()
@@ -1402,10 +1402,10 @@ fn cached_cursor_cal(wire_id: u64, gen: u64) -> Option<Hotspot> {
         .map(|(h, _)| *h)
 }
 
-/// Mixes the hotspot into the wire id on top of the reader's fold, so `run_cursor` sees the
-/// corrected shape as a change and caches it under its own key; the id a peer sees is the content
-/// hash made in input_service, which covers the hotspot by itself. A collision is as unlikely as
-/// between any two 64-bit ids and would serve one cached bitmap for another until the next change.
+/// 在读取方的折叠之上，把热点混入 wire id，于是 `run_cursor` 把
+/// 修正后的形状当作一次变化，并按它自己的键缓存；对端看到的 id 是在 input_service 中
+/// 计算出的内容哈希，它本身就涵盖了热点。发生冲突的可能性和
+/// 任意两个 64 位 id 之间冲突的可能性一样低，一旦发生就会在下一次变化之前把一个缓存的位图错发给另一个。
 fn remix_cursor_id(wire_id: u64, hotx: i32, hoty: i32) -> u64 {
     let mut id = wire_id ^ 0x9e37_79b9_7f4a_7c15;
     for v in [hotx as u32 as u64, hoty as u32 as u64] {
@@ -1415,10 +1415,10 @@ fn remix_cursor_id(wire_id: u64, hotx: i32, hoty: i32) -> u64 {
     id
 }
 
-/// A shape arrived. Publish it as the producer sent it, or under a confirmed correction the
-/// cache holds for it, and start measuring it when there is a context and it is a guess. The
-/// cache is consulted here and nowhere else, so without a context a correction measured on an
-/// upright output can never reach a rotated one.
+/// 一个形状到达。按生产者发送的样子发布它，或者按缓存为它保存的已确认修正值发布，
+/// 并且在存在上下文且它是猜测时才开始测量它。缓存
+/// 只在这里被查询，别处没有，因此没有上下文时，在正向输出上测得的修正值
+/// 永远到不了旋转的输出上。
 #[allow(clippy::too_many_arguments)]
 fn on_cursor_shape(
     display: i32,
@@ -1462,8 +1462,8 @@ fn on_cursor_shape(
     cal
 }
 
-/// A frame reported where the plane is. The sample is read only once the plane has settled, so
-/// most frames cost one comparison and no lock.
+/// 一帧报告了平面的位置。只有在平面稳定之后才读取样本，因此
+/// 大多数帧只花一次比较，而且不涉及加锁。
 #[allow(clippy::too_many_arguments)]
 fn on_cursor_plane(
     cal: &mut Option<CursorCal>,
@@ -1500,17 +1500,17 @@ fn on_cursor_plane(
 }
 
 static DRM_CURSOR: Mutex<BTreeMap<i32, (u64, DrmCursorData)>> = Mutex::new(BTreeMap::new());
-// Monotonic per-stream tag: a rebuilt stream reuses the display index, so a torn-down stream drops
-// its entry ONLY if the epoch still matches.
+// 按流单调递增的标签：重建后的流会复用显示器索引，因此被拆除的流只会
+// 在 epoch 仍然匹配时才删除自己的条目。
 static DRM_CURSOR_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 fn next_cursor_epoch() -> u64 {
     DRM_CURSOR_EPOCH.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
-// Compare-and-set: a still-draining predecessor stream (older epoch) must not overwrite the entry a
-// replacement stream (newer epoch) already published. Only accept a write whose epoch is at least
-// the stored one.
+// 比较并设置：仍在排空的上一条流（较旧的 epoch）不能覆盖替代流
+// （较新的 epoch）已经发布的条目。只接受 epoch 至少
+// 等于已存储那个的写入。
 fn set_drm_cursor(display: i32, epoch: u64, c: DrmCursorData) {
     let mut map = DRM_CURSOR.lock().unwrap();
     match map.get(&display) {
@@ -1528,13 +1528,13 @@ fn remove_drm_cursor(display: i32, epoch: u64) {
     }
 }
 
-/// Unrotate a wire cursor into the session orientation and publish it. The compositor
-/// pre-rotates the bitmap it programs into the cursor plane, so over the unrotated video the
-/// cursor alone would stay turned and its hotspot transposed (review finding 11 on
-/// rustdesk#15889). The wire id hashes only the plane pixels and geometry, so a stream rebuilt
-/// under a new transform resends the SAME id and the client's by-id cursor cache would keep the
-/// old orientation: fold the transform in (the producer's own FNV step) so id and orientation
-/// can never disagree. The hidden sentinel must survive untouched.
+/// 把 wire 上的光标反旋转到会话方向并发布。合成器
+/// 会预先旋转它编程到光标平面中的位图，因此在未旋转的视频上，
+/// 光标本身会保持旋转状态、热点被转置（评审意见 11，见
+/// rustdesk#15889）。wire id 只对平面像素和几何做哈希，因此在新的变换下
+/// 重建的流会重发同一个 id，而客户端按 id 缓存光标会继续保留
+/// 旧的方向：把变换折叠进去（用生产者自己的 FNV 步骤），这样 id 和方向
+/// 永远不会互相矛盾。隐藏哨兵必须原样保留。
 #[allow(clippy::too_many_arguments)]
 fn deliver_drm_cursor(
     display: i32,
@@ -1548,19 +1548,19 @@ fn deliver_drm_cursor(
     raw: Vec<u8>,
     t: i32,
 ) {
-    // Every non-zero angle, 180 included. Measured on i915 + mutter with the output at 180: the
-    // frame arrived upright and the sprite upside down, so the compositor had pre-rotated the
-    // sprite by the full transform while the plane scanned out already turned. wl_output cannot
-    // say which of the two happened, so the sprite is treated as pre-rotated at every angle.
+    // 每一个非零角度，180 也包括在内。在 i915 + mutter 上输出为 180 度时实测：
+    // 帧是正立到达的而精灵图是上下颠倒的，说明合成器按完整的变换预先旋转了
+    // 精灵图，而平面扫描输出时已经转过。wl_output 无法
+    // 判断这两种情况中发生的是哪一种，所以在每个角度上都把精灵图当作已预先旋转。
     let (width, height, hotx, hoty, colors) = if t != 0 {
         let mut turned = Vec::new();
         unrotate_bgra(&raw, width as usize, height as usize, t, &mut turned);
         let (dw, dh) = rotated_dims(t, width as usize, height as usize);
-        // A hotspot the driver measured is a point on the scanout sprite and maps like a pixel.
-        // A guessed one was guessed on the ROTATED sprite - top-left of an arrow's box - and
-        // the tip of a turned arrow is some other corner, so it is guessed again on the upright
-        // one. The old flow was off at every angle; what differs is the size of the error, which
-        // is why only one of them got reported.
+        // 驱动测得的热点是 scanout 精灵图上的一个点，像像素一样映射。
+        // 猜测得到的热点是在旋转后的精灵图上猜的——箭头的框的左上角——而
+        // 转过之后的箭头尖端是另一个角，所以要在正立的
+        // 精灵图上再猜一次。旧流程在每个角度上都是偏的；区别只在于误差的大小，这正是
+        // 为什么当时只报告了其中一种情况。
         let (hx, hy) = if hot_measured {
             unrotate_hotspot(t, width as i32, height as i32, hotx, hoty)
         } else {
@@ -1586,14 +1586,14 @@ fn deliver_drm_cursor(
     );
 }
 
-/// Last provenance seen PER DISPLAY. Not one global: several streams run at once and their
-/// provenance can differ and still be stable -- one output publishing HOTSPOT_X/Y while another
-/// does not is a normal multi-GPU host -- and a single slot would read that as an endless
-/// alternation and log on every cursor message.
+/// 按显示器分别保存的最近一次 provenance。不是全局的一个：多条流同时运行，它们的
+/// provenance 可能不同但都是稳定的——一个输出发布 HOTSPOT_X/Y，而另一个
+/// 不发布，在多 GPU 主机上很正常——而单个槽位会把这读成无尽的
+/// 来回交替，从而每条光标消息都打一条日志。
 static LAST_RECEIVED_PROVENANCE: Mutex<BTreeMap<i32, bool>> = Mutex::new(BTreeMap::new());
 
-/// Whether this display's provenance changed, recording the new value. Its own function so the
-/// per-display behaviour can be asserted without reading a log.
+/// 该显示器的 provenance 是否变化，并记录新值。它是独立函数，因此
+/// 按显示器的行为可以在不读日志的情况下断言。
 fn provenance_is_news_for(display: i32, hot_measured: bool) -> bool {
     LAST_RECEIVED_PROVENANCE
         .lock()
@@ -1602,14 +1602,14 @@ fn provenance_is_news_for(display: i32, hot_measured: bool) -> bool {
         != Some(hot_measured)
 }
 
-/// Say once per display, and again only on a change, what the producer told us about the hotspot.
+/// 每个显示器说一次，之后只在发生变化时再说，内容是生产者告诉我们的热点信息。
 ///
-/// The counterpart of the producer's own provenance line, and it exists for the case that line
-/// cannot cover: a message that arrives with no `hot_measured` field at all, where what happens is
-/// decided by the field's serde default and is otherwise invisible on a running box.
+/// 它与生产者自己的 provenance 日志相对应，存在的目的正是为了覆盖那行日志
+/// 覆盖不到的情况：一条完全没有 `hot_measured` 字段的消息，此时发生的事
+/// 由该字段的 serde 默认值决定，在运行中的机器上完全看不出来。
 ///
-/// The hidden-cursor sentinel is skipped. It is sent with `hot_measured: false` because there is no
-/// hotspot to describe, so recording it would make every hide/show look like a provenance change.
+/// 隐藏光标哨兵会被跳过。它带有 `hot_measured: false` 发送，因为没有
+/// 可描述的热点，记录它会让每次隐藏/显示看起来都像一次 provenance 变化。
 fn note_received_provenance(display: i32, id: u64, hot_measured: bool) {
     if id == scrap::drm_reader::HIDDEN_CURSOR_ID {
         return;
@@ -1651,8 +1651,8 @@ pub fn drm_cursor_id() -> Option<u64> {
     with_drm_cursor(|c| c.id)
 }
 
-/// Snapshot of the DRM hardware cursor, or None. The pixels are premultiplied ARGB and are passed
-/// through as-is, like the XFixes path, so the client sees one cursor format from either backend.
+/// DRM 硬件光标的快照，或者 None。像素是预乘的 ARGB，并原样传递
+/// 过去，就像 XFixes 路径那样，这样客户端从任一后端看到的都是同一种光标格式。
 pub fn drm_cursor() -> Option<DrmCursorData> {
     with_drm_cursor(|c| c.clone())
 }
@@ -1667,7 +1667,7 @@ static DRM_STATE: Mutex<ProbeState> = Mutex::new(ProbeState::Unknown);
 const NEGATIVE_TTL: Duration = Duration::from_secs(30);
 const POSITIVE_TTL: Duration = Duration::from_secs(15);
 
-/// Runs on a throwaway thread: a nested `#[tokio::main]` panics if called from inside a runtime.
+/// 在一个一次性线程上运行：在运行时内部调用嵌套的 `#[tokio::main]` 会 panic。
 fn query_displays(wake: bool) -> ResultType<Vec<DrmDisplayInfo>> {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::Builder::new()
@@ -1700,21 +1700,21 @@ static DRM_PROBE_FAILURES: std::sync::atomic::AtomicU32 = std::sync::atomic::Ato
 const DRM_PROBE_MAX_FAILURES: u32 = 5;
 static DRM_REFRESH_FAILURES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 const DRM_REFRESH_MAX_FAILURES: u32 = 3;
-// Single-flight, so is_available() never calls query_displays() (~4s of IPC) holding DRM_STATE.
+// 单飞（single-flight），这样 is_available() 就绝不会在持有 DRM_STATE 时调用 query_displays()（约 4 秒的 IPC）。
 static DRM_PROBE_IN_FLIGHT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Advanced by every publish, so a slow UNLOCKED probe can tell a newer verdict landed meanwhile.
+/// 每次发布都会推进它，因此一个缓慢的未加锁探测能察觉到期间落下了更新的判定。
 static DRM_STATE_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-/// EVERY verdict change to DRM_STATE goes through here so the generation stays truthful; the TTL
-    /// restamp in `refresh_available_async` is the one direct write.
+/// 对 DRM_STATE 的每一次判定变更都走这里，这样代际才保持真实；而 TTL
+    /// 在 `refresh_available_async` 中的重新打戳是唯一的直接写入。
 #[inline]
 fn publish_probe_state(st: &mut ProbeState, next: ProbeState) {
-    *st = next;
+    * st = next;
     DRM_STATE_GEN.fetch_add(1, Ordering::Release);
 }
 
-/// Releases DRM_PROBE_IN_FLIGHT on EVERY exit; a leaked release wedges all future probes.
+/// 在每一种出口上释放 DRM_PROBE_IN_FLIGHT；一次泄漏的释放会让之后所有探测都卡死。
 struct ProbeInFlightGuard;
 impl Drop for ProbeInFlightGuard {
     fn drop(&mut self) {
@@ -1722,8 +1722,8 @@ impl Drop for ProbeInFlightGuard {
     }
 }
 
-/// Ownership of `UINPUT_REFRESH_BUSY`, released on every exit. It is handed back and re-taken
-/// mid-loop, so releasing on drop unconditionally would clear a flag a REPLACEMENT worker owns.
+/// `UINPUT_REFRESH_BUSY` 的所有权，在每一种出口上释放。它会被交还并重新获取，
+/// 而且是在循环中途，因此无条件在 drop 时释放会清掉一个由替代 worker 持有的标志。
 struct UinputRefreshGuard(bool);
 impl UinputRefreshGuard {
     fn release(&mut self) {
@@ -1743,14 +1743,14 @@ impl Drop for UinputRefreshGuard {
     }
 }
 
-/// Never probes or blocks. Use in hot paths such as `wayland::clear()`, `is_inited()`, and display
-/// enumeration, where seconds of IPC would trip "deadline has elapsed".
+/// 绝不探测也不阻塞。用于 `wayland::clear()`、`is_inited()` 以及显示器
+/// 枚举这类热路径，因为几秒的 IPC 会触发 "deadline has elapsed"。
 pub(crate) fn is_available_cached() -> bool {
     matches!(&*DRM_STATE.lock().unwrap(), ProbeState::Available(..))
 }
 
-/// A tri-state assessment of DRM capture availability.
-/// `Unsettled` means a probe is in flight or failures have not reached the disable threshold.
+/// 对 DRM 采集可用性的三态评估。
+/// `Unsettled` 表示有探测正在进行，或者失败次数尚未达到禁用阈值。
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Availability {
     Available,
@@ -1758,14 +1758,14 @@ pub(crate) enum Availability {
     Unsettled,
 }
 
-/// MAY BLOCK for seconds: never on an async executor (a login with no verdict runs it on the
-/// blocking pool). This blocking form serves the capture-side callers through
-/// `is_available`, where waiting out a settle is acceptable.
+/// 可能会阻塞数秒：绝不要在异步执行器上使用（没有判定的登录会把它放在
+/// 阻塞线程池上运行）。这种阻塞形式服务于采集侧的调用方，通过
+/// `is_available` 调用，在那里等待一个稳定结论是可以接受的。
 fn availability() -> Availability {
     let (verdict, stale_no) = {
         let st = DRM_STATE.lock().unwrap();
-        // Keep a settled "no" while an off-thread probe re-verifies it, avoiding a transient
-        // Unsettled result whenever the negative cache expires.
+        // 在线程外的探测重新验证期间，保持那个已经确定的「否」，避免出现一个瞬时的
+        // 在负缓存过期时变成 Unsettled 的结果。
         let stale_no =
             matches!(&*st, ProbeState::Unavailable(since) if since.elapsed() >= NEGATIVE_TTL);
         let verdict = match &*st {
@@ -1787,7 +1787,7 @@ fn availability() -> Availability {
         return answer;
     }
     if DRM_PROBE_IN_FLIGHT.swap(true, Ordering::AcqRel) {
-        // Someone else is mid-probe: their result is not in yet, and "not yet" is not "no".
+        // 别人正在探测：他们的结果还没出来，而「还没」不等于「否」。
         return match &*DRM_STATE.lock().unwrap() {
             ProbeState::Available(..) => Availability::Available,
             ProbeState::Unavailable(_) => Availability::Unavailable,
@@ -1798,8 +1798,8 @@ fn availability() -> Availability {
     probe_and_publish()
 }
 
-/// Non-blocking login-path assessment.
-/// Unknown starts a probe off-thread; callers require `Available` before admitting a session.
+/// 非阻塞的登录路径评估。
+/// Unknown 会在线程外启动一次探测；调用方在接纳会话之前要求 `Available`。
 pub(crate) fn availability_cached() -> Availability {
     let (verdict, stale_no) = {
         let st = DRM_STATE.lock().unwrap();
@@ -1831,7 +1831,7 @@ pub(crate) fn availability_cached() -> Availability {
                 let _in_flight = in_flight;
                 probe_and_publish();
             });
-        // On error the guard moved into the dropped closure and released the flag already.
+        // 出错时守卫已被移入被丢弃的闭包，因此标志已经释放了。
         if let Err(err) = spawned {
             log::warn!("drm: could not spawn the availability probe thread: {err}");
         }
@@ -1839,7 +1839,7 @@ pub(crate) fn availability_cached() -> Availability {
     Availability::Unsettled
 }
 
-/// Probe synchronously and publish the outcome. The caller must hold DRM_PROBE_IN_FLIGHT.
+/// 同步探测并发布结果。调用方必须持有 DRM_PROBE_IN_FLIGHT。
 fn probe_and_publish() -> Availability {
     let t = Instant::now();
     let result = query_displays(true);
@@ -1870,7 +1870,7 @@ fn probe_and_publish() -> Availability {
                 log::info!(
                     "drm: availability probe failed ({err}), attempt {n}/{DRM_PROBE_MAX_FAILURES}; will retry"
                 );
-                // Deliberately still Unknown in DRM_STATE: this is a retry window, not a verdict.
+                // 在 DRM_STATE 中刻意仍是 Unknown：这是一个重试窗口，不是判定。
                 Availability::Unsettled
             }
         }
@@ -1879,15 +1879,15 @@ fn probe_and_publish() -> Availability {
     answer
 }
 
-/// The boolean form for capture-path callers, where an unsettled probe and a definitive "no"
-/// route the same way (into the non-DRM fallback).
+/// 给采集路径调用方使用的布尔形式，在那里未定的探测和确定的「否」
+/// 走同一条路（进入非 DRM 回退）。
 pub(crate) fn is_available() -> bool {
     availability() == Availability::Available
 }
 
-/// The negative mirror of `refresh_available_async`: re-verify a stale Unavailable without ever
-/// answering Unknown in the meantime. A failed or empty re-probe re-confirms the "no" with a
-/// fresh timestamp; only a non-empty display list flips the verdict.
+/// `refresh_available_async` 的反面镜像：重新验证一个过期的 Unavailable，全程不会
+/// 回答 Unknown。重新探测失败或为空时，会用一个新的时间戳重新确认那个「否」；
+/// 只有非空的显示器列表才会翻转判定。
 fn refresh_unavailable_async() {
     if DRM_PROBE_IN_FLIGHT.swap(true, Ordering::AcqRel) {
         return;
@@ -1922,12 +1922,12 @@ fn refresh_unavailable_async() {
                     scrap::wayland::display::clear_wayland_displays_cache();
                 }
                 _ => {
-                    // Restamp: a failed or empty re-probe is a fresh confirmation of "no".
+                    // 重新打戳：重新探测失败或为空，就是对「否」的一次新确认。
                     publish_probe_state(&mut st, ProbeState::Unavailable(Instant::now()));
                 }
             }
         });
-    // Nothing to release on error: the guard moved into the closure and drops with it either way.
+    // 出错时没有什么要释放：守卫已移入闭包，无论如何都会随它一起被丢弃。
     if let Err(err) = spawned {
         log::warn!("drm: could not spawn the unavailability re-probe thread: {err}");
     }
@@ -1978,10 +1978,10 @@ fn refresh_available_async() {
                     log::info!("drm: refresh -> 0 displays, marking DRM unavailable");
                     publish_probe_state(&mut st, ProbeState::Unavailable(Instant::now()));
                 }
-                // Only the TTL stamp moves, so this does NOT go through publish_probe_state.
+                // 只有 TTL 时间戳变了，因此这里不经过 publish_probe_state。
                 RefreshOutcome::Restamp => {
                     if let ProbeState::Available(since, _) = &mut *st {
-                        *since = Instant::now();
+                        * since = Instant::now();
                     }
                 }
                 RefreshOutcome::GiveUp => {
@@ -1995,8 +1995,8 @@ fn refresh_available_async() {
                 }
             }
         });
-    // Nothing to release: the guard moved into the closure and drops with it. Clearing the flag
-    // explicitly would let TWO PROBES RUN AT ONCE, since another refresh may already hold it.
+    // 没有什么要释放：守卫已移入闭包并随之丢弃。清除该标志
+    // 会变成两个探测同时运行，因为另一个刷新可能已经持有它。
     if let Err(err) = spawned {
         log::warn!(
             "drm: could not spawn the availability refresh thread: {err}; the cached verdict \
@@ -2006,9 +2006,9 @@ fn refresh_available_async() {
 }
 
 pub(super) fn warm_availability() {
-    // The gate is INSIDE the loop because `get_display_server()` answers "x11" whenever loginctl
-    // cannot yet name the seat0 session. `is_x11_for_drm()` is that form minus the greeter
-    // blind spot, where plain `is_x11()` is permanently true.
+    // 闸门放在循环内部，因为 `get_display_server()` 只要 loginctl
+    // 还无法指出 seat0 会话，就会回答 "x11"。`is_x11_for_drm()` 就是那个形式，只是去掉了欢迎界面
+    // 这一盲区，在那里普通的 `is_x11()` 永远是 true。
     for _ in 0..10 {
         if crate::platform::linux::is_x11_for_drm() {
             std::thread::sleep(Duration::from_millis(300));
@@ -2024,7 +2024,7 @@ pub(super) fn warm_availability() {
         match query_displays(false) {
             Ok(list) if !list.is_empty() => {
                 let mut st = DRM_STATE.lock().unwrap();
-                // A login probe that published while this query ran keeps its newer list.
+                // 在本次查询运行期间发布的登录探测会保留它那份更新的列表。
                 if DRM_STATE_GEN.load(Ordering::Acquire) == sampled_gen {
                     log::info!("drm: consumer cache warmed ({} displays) at startup", list.len());
                     publish_probe_state(&mut st, ProbeState::Available(Instant::now(), list));
@@ -2041,8 +2041,8 @@ pub(super) fn warm_availability() {
     log::info!("drm: consumer cache warm found no producer at startup (will probe lazily)");
 }
 
-/// With no verdict yet, a login probes now instead of answering "not yet"; that may wake displays.
-/// A login that finds another probe running does not wait for it.
+/// 还没有任何判定时，登录会立即探测而不是回答「还没」；这可能会唤醒显示器。
+/// 登录发现另一次探测正在运行时不会等待它。
 pub(super) async fn settle_unknown_availability() {
     let unknown = matches!(&*DRM_STATE.lock().unwrap(), ProbeState::Unknown);
     if unknown {
@@ -2052,7 +2052,7 @@ pub(super) async fn settle_unknown_availability() {
     }
 }
 
-/// The service holds its answer until the topology settles. Replaces only an `Available` verdict.
+/// 该服务会一直持有自己的答案，直到拓扑稳定。它只替换 `Available` 判定。
 pub(super) async fn refresh_displays_for_login() {
     let sampled_gen = {
         let st = DRM_STATE.lock().unwrap();
@@ -2102,10 +2102,10 @@ pub(super) async fn refresh_displays_for_login() {
     }
 }
 
-/// Mirrors get_display_infos: only a MULTI-display host advertises a demoted display.
+/// 与 get_display_infos 对应：只有多显示器的主机才会公布被降级的显示器。
 pub(super) fn display_count_and_any_demoted() -> Option<(usize, bool)> {
-    // Snapshot the identity keys under DRM_STATE, then consult health with DRM_STATE RELEASED --
-    // same order as get_display_infos: never hold DRM_STATE while taking a per-display map.
+    // 在 DRM_STATE 下对身份键做快照，然后在释放 DRM_STATE 的情况下查询健康状态——
+    // 顺序与 get_display_infos 相同：绝不要在获取按显示器的 map 时持有 DRM_STATE。
     let (len, keys): (usize, Vec<String>) = match &*DRM_STATE.lock().unwrap() {
         ProbeState::Available(_, list) => (
             list.len(),
@@ -2127,10 +2127,10 @@ pub(super) fn display_count_and_any_demoted() -> Option<(usize, bool)> {
     Some((len, any_demoted))
 }
 
-// A multi-display portal stream cannot replace one demoted connector. Keep its index but mark it
-// offline; a single connector remains usable through the whole-desktop fallback - unless that
-// fallback itself was rejected on geometry, in which case advertising the lone display online
-// would restart-loop the video service against a stream nothing can serve.
+// 一条多显示器的 portal 流无法替代某个被降级的连接器。保留它的索引，但把它标记为
+// 离线；单个连接器仍可通过整个桌面的回退使用——除非那个
+// 回退本身因几何原因被拒绝，那样的话把唯一的显示器公布为在线
+// 会让视频服务对着一条什么都提供不了的流陷入重启循环。
 fn mark_demoted_displays(list: &[DrmDisplayInfo], infos: &mut [DisplayInfo]) {
     let health = DRM_DISPLAY_HEALTH.lock().unwrap();
     if list.len() <= 1 {
@@ -2154,9 +2154,9 @@ fn mark_demoted_displays(list: &[DrmDisplayInfo], infos: &mut [DisplayInfo]) {
     }
 }
 
-/// The PipeWire fallback for this display was rejected on geometry; recorded so the lone-display
-/// carve-out above stops advertising a display nothing can serve. Cleared by a delivered frame
-/// and by the demote-cooldown re-arm.
+/// 这个显示器的 PipeWire 回退因几何原因被拒绝；记录下来是为了让单显示器的
+/// 豁免不再公布什么都提供不了的显示器。交付一帧会清除它，
+/// 降级冷却的重新武装也会清除它。
 pub(super) fn mark_fallback_rejected(display_idx: usize) {
     let Some(expected) = display_info_of(display_idx as i32) else {
         return;
@@ -2176,7 +2176,7 @@ fn primary_index_from_assignment(assignment: &[Option<usize>], primary: usize) -
         .unwrap_or(0)
 }
 
-/// Releases DRM_STATE before taking the Wayland and health locks.
+/// 在获取 Wayland 锁和健康状态锁之前释放 DRM_STATE。
 pub(super) fn get_display_infos_and_primary() -> Option<(Vec<DisplayInfo>, usize)> {
     let list = match &*DRM_STATE.lock().unwrap() {
         ProbeState::Available(_, list) => list.clone(),
@@ -2186,7 +2186,7 @@ pub(super) fn get_display_infos_and_primary() -> Option<(Vec<DisplayInfo>, usize
     let assignment = assign_wayland_outputs(&list, &wl.displays);
     let mut infos = augment_with_wayland_geometry_from(&list, &wl, &assignment);
     mark_demoted_displays(&list, &mut infos);
-    // Primary and geometry must use the same connector assignment snapshot.
+    // 主显示器和几何信息必须使用同一份连接器分配快照。
     let primary = primary_index_from_assignment(&assignment, wl.primary);
     Some((infos, primary))
 }
@@ -2201,12 +2201,12 @@ pub(super) fn get_display_infos() -> Option<Vec<DisplayInfo>> {
     Some(infos)
 }
 
-/// DRM reports every monitor at physical size and origin (0,0), stacking a multi-monitor client.
+/// DRM 把每台显示器都按物理尺寸、原点 (0,0) 上报，多显示器客户端就会叠在一起。
 ///
-/// Asked at login screens too, on purpose: a greeter runs a compositor, and the socket fallback in
-/// hbb_common lets the enumerator reach it with no environment variables. Where that fallback
-/// cannot answer, the list comes back empty and everything stays unaugmented, which is what the
-/// old is-login-screen gate produced unconditionally.
+/// 有意在登录界面也这样问：欢迎界面会运行一个合成器，而 hbb_common 中的套接字回退
+/// 让枚举器无需环境变量就能接触到它。在那个回退
+/// 无法给出答案的地方，列表会返回空，一切都不做增强，这正是旧的
+/// is-login-screen 闸门无条件产生的结果。
 fn augment_with_wayland_geometry(drm: &[DrmDisplayInfo]) -> Vec<DisplayInfo> {
     let wl = scrap::wayland::display::get_displays();
     let assignment = assign_wayland_outputs(drm, &wl.displays);
@@ -2219,19 +2219,19 @@ fn augment_with_wayland_geometry_from(
     matched: &[Option<usize>],
 ) -> Vec<DisplayInfo> {
     let mut infos: Vec<DisplayInfo> = drm.iter().map(display_info_from_drm).collect();
-    // A single display is still augmented: on a multi-GPU host the one connector this service can
-    // open may sit at a non-zero origin in the compositor layout, and DRM alone reports (0,0).
+    // 单个显示器仍然会被增强：在多 GPU 主机上，这个服务唯一能
+    // 打开的连接器在合成器布局中可能位于非零原点，而单独的 DRM 只上报 (0,0)。
     if drm.is_empty() {
         return infos;
     }
     if wl.displays.is_empty() {
         return infos;
     }
-    // One connector against one output is the origin-only case: the lone output can still sit at
-    // a non-zero origin this side cannot see, but it keeps the scale-1 convention — a single
-    // display is advertised at physical size (see `logical_rects_of`), so its logical size must
-    // not be adopted. More connectors than the one output is an inconsistent snapshot, and the
-    // layout-order fallback in `assign_wayland_outputs` would plant that origin on a guess.
+    // 一个连接器对应一个输出就是只看原点的情况：这个单独的输出仍可能位于
+    // 本端看不到的非零原点，但它保持 scale 为 1 的约定——单个
+    // 显示器是按物理尺寸公布的（参见 `logical_rects_of`），所以它的逻辑尺寸
+    // 不能被采纳。连接器比那个输出多，就说明快照不一致，而
+    // `assign_wayland_outputs` 中按布局顺序的回退会把那个原点安在猜测上。
     let origin_only = wl.displays.len() == 1;
     if origin_only && drm.len() > 1 {
         return infos;
@@ -2243,14 +2243,14 @@ fn augment_with_wayland_geometry_from(
         };
         info.x = w.x;
         info.y = w.y;
-        // Rotated size before the origin-only cut: a lone rotated output still delivers rotated
-        // frames, so it must advertise them; only the logical-scale adoption stays multi-output.
-        // original_resolution follows in the same motion, or the client reads the transposed
-        // current size against an untransposed original as a third-party resolution change.
-        // Identity matches ONLY, the same rule the capturer's transform follows: swapping on a
-        // layout-order guess advertises dimensions the capturer will not deliver.
+        // 在看原点之前先算旋转后的尺寸：单独的旋转输出仍然交付旋转过的
+        // 帧，因此必须按旋转后的尺寸公布；只有逻辑缩放的采纳才限定于多输出。
+        // original_resolution 也在同一步随之改变，否则客户端会把转置后的
+        // 当前尺寸与未转置的原始尺寸对比，误判为第三方的分辨率变化。
+        // 只做身份匹配，与采集器变换遵循同样的规则：按
+        // 布局顺序猜测交换，会公布采集器并不会交付的尺寸。
         let is_identity = identity[i].is_some() && identity[i] == matched[i];
-        // A plane-transposed display was already swapped by `display_info_from_drm`.
+        // 平面转置的显示器已经由 `display_info_from_drm` 交换过了。
         if is_identity && !drm[i].plane_transposed && (w.transform == 90 || w.transform == 270) {
             std::mem::swap(&mut info.width, &mut info.height);
             info.original_resolution = super::display_service::get_original_resolution(
@@ -2264,8 +2264,8 @@ fn augment_with_wayland_geometry_from(
         }
         if let Some((lw, lh)) = w.logical_size {
             if lw > 0 && lh > 0 {
-                // Post-swap width over logical width, which arrives already swapped when rotated:
-                // the unrotated numerator made a rotated 1:1 monitor advertise scale 16/9.
+                // 交换后的宽度除以逻辑宽度，旋转时它到达时就已经交换过了：
+                // 未旋转的分子会让一个旋转的 1:1 显示器公布出 16/9 的缩放。
                 info.scale = info.width as f64 / lw as f64;
                 info.original_resolution = super::display_service::get_original_resolution(
                     &drm[i].name,
@@ -2278,16 +2278,16 @@ fn augment_with_wayland_geometry_from(
     infos
 }
 
-/// Each output goes to at most one connector; unmatched ones take the next free output of the same
-/// size, else the next free one in layout order, since leaving them unaugmented keeps them all at
-/// DRM's (0,0).
-/// The identity half of the assignment (name, or unique resolution), same progressive `taken`
-/// as the full one. Rotation keys off THIS on both sides: swapping or turning on a layout-order
-/// guess splits the advertised dimensions from the delivered frames.
-/// Identity assignment in two GLOBAL passes: every exact name match is reserved first, then
-/// resolution pairing runs on the unmatched remainder, and only when it is forced - exactly one
-/// free output AND exactly one unmatched connector at that resolution. A resolution guess for an
-/// earlier connector must never steal an exact name match from a later one.
+/// 每个输出最多对应一个连接器；未匹配的连接器会取走同尺寸的下一个空闲输出，
+/// 否则取布局顺序中的下一个空闲输出，因为不增强它们会让它们全都留在
+/// DRM 的 (0,0) 上。
+/// 分配中基于身份的那一半（名称，或唯一分辨率），使用与完整分配相同的渐进 `taken`
+/// 过程。旋转在双方都以此为依据：按布局顺序交换或旋转
+/// 猜测会让公布的尺寸与交付的帧对不上。
+/// 身份分配分两轮全局进行：先预留每一个完全匹配名称的项，然后
+/// 在剩下的未匹配项上按分辨率配对，而且只在被迫如此时才做——恰好一个
+/// 空闲输出，且该分辨率下恰好一个未匹配的连接器。为较早的连接器做的分辨率猜测
+/// 绝不能从较晚的连接器那里抢走一个完全匹配名称的机会。
 fn identity_matches(
     drm: &[DrmDisplayInfo],
     wl: &[base::platform::linux::WaylandDisplayInfo],
@@ -2363,8 +2363,8 @@ fn assign_wayland_outputs(
 }
 
 
-/// DRM inserts a single-letter type discriminator the compositor drops ("HDMI-A-1" -> "HDMI-1").
-/// Only a *letter* folds: a single *digit* is an MST port index, so "DP-1-2" is not "DP-2".
+/// DRM 会插入一个单字母的类型区分符，而合成器会把它丢掉（"HDMI-A-1" -> "HDMI-1"）。
+/// 只折叠*字母*：单个*数字*是 MST 端口索引，所以 "DP-1-2" 不是 "DP-2"。
 fn normalize_connector(name: &str) -> String {
     let parts: Vec<&str> = name.split('-').collect();
     if parts.len() == 3 && parts[1].len() == 1 && parts[1].chars().all(|c| c.is_ascii_alphabetic()) {
@@ -2409,8 +2409,8 @@ fn display_info_from_drm(d: &DrmDisplayInfo) -> DisplayInfo {
     }
 }
 
-/// Deliberately does NOT publish the handshake list into DRM_STATE: it is read before a possibly
-/// seconds-long stall, and when `wire_idx != display_idx` it is ordered differently.
+/// 有意不把握手列表发布到 DRM_STATE：它是在一次可能
+/// 长达数秒的停顿之前读取的，而且当 `wire_idx != display_idx` 时它的顺序也不同。
 pub(super) fn get_capturer_info(
     display_idx: usize,
 ) -> ResultType<super::video_service::CapturerInfo> {
@@ -2427,14 +2427,14 @@ pub(super) fn get_capturer_info(
                 }
                 h.zero_frame_streak = 0;
                 h.since = Instant::now();
-                // The cooldown re-arms DRM for this display, so the fallback verdict restarts too.
+                // 冷却会为这个显示器重新武装 DRM，因此回退判定也会重新开始。
                 h.fallback_rejected = false;
             }
         }
     }
-    // Built FIRST: a transient `_drm` outage must NOT count toward the flap threshold below.
+    // 首先构建：瞬时的 `_drm` 中断绝不能计入下面的抖动阈值。
     let (capturer, displays, wire_idx, origin) = IpcDrmCapturer::new(display_idx as i32, expected)?;
-    // The initial build counts 0, so demotion fires on the (RAPID_REBUILD_MAX + 1)-th in a window.
+    // 初次构建计为 0，因此降级会在一个窗口内第 (RAPID_REBUILD_MAX + 1) 次触发。
     if let Some(key) = key.clone() {
         let now = Instant::now();
         let mut map = DRM_DISPLAY_HEALTH.lock().unwrap();
@@ -2456,13 +2456,13 @@ pub(super) fn get_capturer_info(
         }
     }
     let ndisplay = displays.len();
-    // From the entry the stream was BOUND to; `display_idx` is a position in the CLIENT's list.
+    // 取自该流所绑定的条目；`display_idx` 是客户端列表中的位置。
     let d = displays
         .get(wire_idx)
         .ok_or_else(|| anyhow!("drm display index {wire_idx} out of range ({ndisplay})"))?
         .clone();
-    // Origin and transform come from the ONE snapshot new() resolved, so both reflect the
-    // same output assignment; dimensions stay PHYSICAL, rotated to frame orientation.
+    // 原点和变换取自 new() 解析出的那一份快照，因此两者反映的是同一个
+    // 输出分配；尺寸保持物理值，并旋转到帧的方向。
     let origin = origin.unwrap_or((d.x, d.y));
     let (cap_w, cap_h) = rotated_dims(
         delivered_transform(&d, capturer.transform),
@@ -2489,7 +2489,7 @@ mod drm_capturer_tests {
         capturer_named(session, None)
     }
 
-    // DRM_DISPLAY_HEALTH is process-wide and tests run in parallel: pass each test its OWN key.
+    // DRM_DISPLAY_HEALTH 是进程级的，而测试并行运行：请给每个测试传入它自己的键。
     fn capturer_named(session: Option<(usize, usize)>, key: Option<&str>) -> IpcDrmCapturer {
         let connector = key.map(|k| k.to_owned());
         IpcDrmCapturer {
@@ -2521,7 +2521,7 @@ mod drm_capturer_tests {
         }
     }
 
-    /// One BGRA pixel per label byte, so a rotation result reads as a matrix of labels.
+    /// 每个标签字节对应一个 BGRA 像素，因此旋转的结果读起来就是一张标签矩阵。
     fn px_frame(labels: &[&[u8]], pad_bytes: usize) -> (Vec<u8>, usize, usize) {
         let h = labels.len();
         let w = labels[0].len();
@@ -2543,22 +2543,22 @@ mod drm_capturer_tests {
 
     #[test]
     fn the_cursor_id_names_the_orientation_too() {
-        // Same wire cursor under two transforms must publish as two ids, or the client's by-id
-        // cache serves the previous orientation after a mid-session rotation.
+        // 同一个 wire 光标在两种变换下必须发布为两个 id，否则客户端按 id 的
+        // 缓存会在会话中途旋转之后仍提供之前的方向。
         let wire = 0xDEAD_BEEF_u64;
         assert_ne!(fold_cursor_id(wire, 0), fold_cursor_id(wire, 90));
         assert_ne!(fold_cursor_id(wire, 90), fold_cursor_id(wire, 270));
-        // Deterministic per (id, transform), so an unchanged cursor is still deduped.
+        // 对 (id, transform) 是确定性的，因此未变化的光标仍会被去重。
         assert_eq!(fold_cursor_id(wire, 90), fold_cursor_id(wire, 90));
-        // The hidden sentinel is compared by VALUE at the consumers, so it must pass unfolded.
+        // 隐藏哨兵在消费端是按值比较的，因此它必须原样通过（不折叠）。
         let hidden = scrap::drm_reader::HIDDEN_CURSOR_ID;
         assert_eq!(fold_cursor_id(hidden, 90), hidden);
     }
 
     #[test]
     fn unrotate_hotspot_follows_the_pixel_mapping() {
-        // 3 wide x 2 tall, hotspot at (2,0) (top-right): after the 90 turn (left column to top
-        // row) that pixel sits at (1,2) in the 2x3 result; 270 sends it to (0,0).
+        // 宽 3 高 2，热点在 (2,0)（右上角）：旋转 90 度后（左列变成顶
+        // 行），该像素在 2x3 的结果中位于 (1,2)；270 度则把它送到 (0,0)。
         assert_eq!(unrotate_hotspot(90, 3, 2, 2, 0), (1, 2));
         assert_eq!(unrotate_hotspot(270, 3, 2, 2, 0), (0, 0));
         assert_eq!(unrotate_hotspot(180, 3, 2, 2, 0), (0, 1));
@@ -2567,18 +2567,18 @@ mod drm_capturer_tests {
 
     #[test]
     fn unrotate_90_maps_the_left_column_to_the_top_row() {
-        // The measured anchor from rustdesk#15886: mutter transform=1 carries the panel bar down
-        // the scanout's LEFT edge, and upright means that edge becomes the TOP row.
+        // 来自 rustdesk#15886 的实测锚点：mutter 的 transform=1 会把面板栏带到下
+        // 方（scanout 的左边缘），而正立意味着那条边变成顶行。
         let (src, w, h) = px_frame(&[&[1, 2, 3], &[4, 5, 6]], 0);
         let mut dst = Vec::new();
         unrotate_bgra(&src, w, h, 90, &mut dst);
-        // src left column top-to-bottom = [1, 4]; clockwise puts it on the top row as [4, 1].
+        // src 左列自上而下 = [1, 4]；顺时针旋转会把它放到顶行，变成 [4, 1]。
         assert_eq!(labels_of(&dst, h, w), vec![vec![4, 1], vec![5, 2], vec![6, 3]]);
     }
 
-    /// An upright arrow, tip at (0,0): a 4x6 bitmap, every pixel with x <= y/2 opaque, so the
-    /// opaque box is the left 3 columns. Its top-left corner IS the tip - which is exactly why
-    /// the bare-metal guess works when the sprite is upright, and only then.
+    /// 一个正立的箭头，尖端在 (0,0)：一个 4x6 的位图，所有满足 x <= y/2 的像素都是不透明的，因此
+    /// 不透明区域是左边 3 列。它的左上角就是尖端——这正是
+    /// 物理机上的猜测在精灵图正立时才有效，而且仅此而已。
     fn arrow() -> (Vec<u8>, usize, usize) {
         let (w, h) = (4usize, 6usize);
         let mut px = vec![0u8; w * h * 4];
@@ -2592,10 +2592,10 @@ mod drm_capturer_tests {
         (px, w, h)
     }
 
-    /// The shape at the aspect ratio that actually matters: a 20x9 opaque box, which is what the
-    /// installed Adwaita `vertical-text` measures at 24 px. 2.22:1, only just past the rule's
-    /// factor of two. Placed off-centre in a 24x24 buffer like the real one, box (2,6)-(21,14),
-    /// centre (11,10) - the same numbers the theme file gives, against its declared hotspot of
+    /// 在实际重要的宽高比下的形状：一个 20x9 的不透明区域，这正是
+    /// 已安装的 Adwaita `vertical-text` 在 24 px 下测得的尺寸。2.22:1，只是刚刚超过该规则的
+    /// 两倍阈值。像真实情况那样偏心放在一个 24x24 的缓冲区里，区域为 (2,6)-(21,14)，
+    /// 中心 (11,10)——与主题文件给出的数字相同，对照它声明的热点
     /// (12,11).
     fn ibeam_theme_aspect() -> (Vec<u8>, usize, usize, (i32, i32)) {
         let (w, h) = (24usize, 24usize);
@@ -2608,8 +2608,8 @@ mod drm_capturer_tests {
         (px, w, h, (11, 10))
     }
 
-    /// What the compositor puts in the cursor plane on an output rotated by `t`: the upright sprite
-    /// rotated forward by t, which is what turning it back by (360 - t) degrees produces.
+    /// 在旋转了 `t` 的输出上合成器放进光标平面的内容：正立的精灵图
+    /// 按 t 正向旋转后的结果，这正是把它转回 (360 - t) 度所得到的。
     fn as_scanned_out(upright: &[u8], w: usize, h: usize, t: i32) -> (Vec<u8>, usize, usize) {
         let mut out = Vec::new();
         unrotate_bgra(upright, w, h, (360 - t) % 360, &mut out);
@@ -2617,18 +2617,18 @@ mod drm_capturer_tests {
         (out, dw, dh)
     }
 
-    /// The upgrade window, end to end from the WIRE rather than from a struct literal.
+    /// 升级窗口，完整地从 WIRE 端到端验证，而不是从结构体字面量开始。
     ///
-    /// An old root service can be streaming to a freshly started `--server`, and its `DrmCursor`
-    /// carries no `hot_measured` at all. This takes the exact bytes such a producer puts on the
-    /// socket, deserializes them the way the consumer's receive loop does, and drives the real
-    /// delivery path, then reads back what was published. Staging it with two live processes is
-    /// not possible with how the package is built - a `--server` from one build will not run
-    /// inside the other's tree - so this is the honest form of that test, and it runs in CI
-    /// instead of once on somebody's desk.
+    /// 旧的 root 服务可能正在向刚启动的 `--server` 推流，而它的 `DrmCursor`
+    /// 完全没有携带 `hot_measured`。这里取这样的生产者放到
+    /// 套接字上的确切字节，用消费端接收循环相同的方式反序列化，并驱动真实的
+    /// 交付路径，然后把发布出去的内容读回来。用两个活着的进程来搭建它是
+    /// 不可能的，因为这个包的构建方式如此——来自某次构建的 `--server` 无法在
+    /// 另一个的目录树里运行——所以这就是那个测试的诚实形式，它会在 CI 中运行，
+    /// 而不是在某个人的桌面上跑一次了。
     ///
-    /// The transform must be non-zero: at 0 the delivery path never consults `hot_measured`, so a
-    /// test at 0 could not tell the two branches apart.
+    /// 变换必须非零：为 0 时交付路径绝不会查询 `hot_measured`，因此在 0 处的
+    /// 测试无法区分这两个分支。
     #[test]
     fn a_legacy_cursor_message_keeps_the_hotspot_the_old_protocol_meant() {
         use crate::ipc::Data;
@@ -2636,11 +2636,11 @@ mod drm_capturer_tests {
         let (up, w, h, _box_centre) = ibeam_theme_aspect();
         let t = 90;
         let (scan, sw, sh) = as_scanned_out(&up, w, h, t);
-        // A hotspot the old producer measured and sent as a point on the scanned-out sprite.
+        // 旧生产者测得并作为扫描输出精灵图上一个点发来的热点。
         let (hotx, hoty) = (3, 5);
 
-        // Exactly what an old producer writes: `Data` is adjacently tagged, and there is no
-        // `hot_measured` key because that build has no such field.
+        // 正是旧生产者写出的东西：`Data` 是相邻标签式的，而且没有
+        // `hot_measured` 键，因为那个构建没有这个字段。
         let legacy = format!(
             r#"{{"t":"DrmCursor","c":{{"id":11,"width":{sw},"height":{sh},"hotx":{hotx},"hoty":{hoty}}}}}"#
         );
@@ -2653,7 +2653,7 @@ mod drm_capturer_tests {
             };
         assert!(measured, "no provenance on the wire must mean what the old protocol meant");
 
-        // The two branches must disagree here, or the assertion below proves nothing.
+        // 两个分支在这里必须不同，否则下面的断言什么也证明不了。
         let mapped = unrotate_hotspot(t, mw as i32, mh as i32, mx, my);
         let mut turned = Vec::new();
         unrotate_bgra(&scan, sw, sh, t, &mut turned);
@@ -2677,8 +2677,8 @@ mod drm_capturer_tests {
              re-inferring it would move the cursor for the length of an upgrade"
         );
 
-        // The control: a NEW producer asking for re-inference says so explicitly, and that must
-        // not be swallowed by the default.
+        // 对照：一个请求重新推断的新生产者会明确说明这一点，而这
+        // 不能被默认值吞掉。
         let modern = format!(
             r#"{{"t":"DrmCursor","c":{{"id":12,"width":{sw},"height":{sh},"hotx":{hotx},"hoty":{hoty},"hot_measured":false}}}}"#
         );
@@ -2706,7 +2706,7 @@ mod drm_capturer_tests {
     fn the_cursor_path_publishes_an_upright_sprite_at_every_angle() {
         let (up, w, h) = arrow();
         for (i, t) in [0, 90, 180, 270].into_iter().enumerate() {
-            // A display id of its own per angle: DRM_CURSOR is process-wide and keyed by display.
+            // 每个角度都有自己的显示器 id：DRM_CURSOR 是进程级的，并且以显示器为键。
             let display = 9_100 + i as i32;
             let (scan, sw, sh) = as_scanned_out(&up, w, h, t);
             deliver_drm_cursor(display, 1, 7, sw as u32, sh as u32, 0, 0, false, scan, t);
@@ -2722,11 +2722,11 @@ mod drm_capturer_tests {
         }
     }
 
-    /// The compositor programs the plane from the CRTC transform, which is the logical transform
-    /// composed with the connector's panel orientation (mutter: meta_output_logical_to_crtc_transform);
-    /// `wl_output` carries the logical part only. A panel mounted upside down at logical 0 has
-    /// the plane at rotate-180 and an upright framebuffer: subtracting would turn it over, and
-    /// master delivered it upright. So the plane answer is not measured against `wl_output`.
+    /// 合成器根据 CRTC 变换对平面编程，而该变换是逻辑变换
+    /// 与连接器的面板方向复合而成的（mutter: meta_output_logical_to_crtc_transform）；
+    /// `wl_output` 只携带逻辑部分。一个在逻辑 0 处倒装的面板，其
+    /// 平面处于 rotate-180，帧缓冲是正立的：相减会把它翻转，而
+    /// master 交付的是正立的。因此平面的答案不与 `wl_output` 对照测量。
     #[test]
     fn a_plane_that_rotated_holds_the_logical_desktop_whatever_wl_output_says() {
         assert_eq!(frame_transform(0, Some(0x4)), 0);
@@ -2741,7 +2741,7 @@ mod drm_capturer_tests {
         let (src, w, h) = px_frame(&[&[1, 2, 3], &[4, 5, 6]], 0);
         let mut c = capturer_with(Some((w, h)));
         c.transform = 180;
-        // Software rotation (virtio-gpu): the scanout is upside down and comes back upright.
+        // 软件旋转（virtio-gpu）：scanout 是上下颠倒的，回来时是正立的。
         put_frame_with(&c, w, h, Some(0x1), &src);
         match c.frame(Duration::from_millis(50)) {
             Ok(Frame::PixelBuffer(pb)) => {
@@ -2751,13 +2751,13 @@ mod drm_capturer_tests {
             Ok(_) => panic!("expected a pixel-buffer frame"),
             Err(err) => panic!("expected a delivered frame, got {err}"),
         }
-        // The same scanout again: once turned it repeats the frame above, so it is dropped.
+        // 又是同一个 scanout：一旦转过，它会重复上面那一帧，因此被丢弃。
         put_frame_with(&c, w, h, Some(0x1), &src);
         assert!(matches!(
             c.frame(Duration::from_millis(50)),
             Err(e) if e.kind() == io::ErrorKind::WouldBlock
         ));
-        // Hardware rotation (i915 + mutter): the scanout is already upright and is left alone.
+        // 硬件旋转（i915 + mutter）：scanout 已经是正立的，保持不动。
         put_frame_with(&c, w, h, Some(0x4), &src);
         match c.frame(Duration::from_millis(50)) {
             Ok(Frame::PixelBuffer(pb)) => {
@@ -2766,8 +2766,8 @@ mod drm_capturer_tests {
             Ok(_) => panic!("expected a pixel-buffer frame"),
             Err(err) => panic!("expected a delivered frame, got {err}"),
         }
-        // A producer that cannot say (pre-0.5.8 library) keeps the old rule: 180 left alone.
-        // A new picture: `src` left alone is the frame above and would be dropped as a repeat.
+        // 无法表达的生产者（0.5.8 之前的库）沿用旧规则：180 不动。
+        // 一幅新的图像：`src` 保持不动就是上面那一帧，会被当作重复帧丢弃。
         let (other, _, _) = px_frame(&[&[7, 8, 9], &[10, 11, 12]], 0);
         put_frame_with(&c, w, h, None, &other);
         match c.frame(Duration::from_millis(50)) {
@@ -2791,7 +2791,7 @@ mod drm_capturer_tests {
             c.frame(Duration::from_millis(50)),
             Err(e) if e.kind() == io::ErrorKind::WouldBlock
         ));
-        // A second later it goes out again, in case its encode failed, and the second starts over.
+        // 一秒钟后它会再次发出，以防它的编码失败，第二次重新开始。
         std::thread::sleep(REPEAT_EVERY);
         put_frame_with(&c, w, h, None, &still);
         assert!(c.frame(Duration::from_millis(50)).is_ok());
@@ -2807,7 +2807,7 @@ mod drm_capturer_tests {
     #[test]
     fn a_portrait_scanout_from_a_plane_that_rotated_90_is_left_alone() {
         use scrap::TraitPixelBuffer;
-        // A 2x3 portrait scanout: the plane did the 90, so the pixels are already upright.
+        // 一个 2x3 的竖向 scanout：平面做了那 90 度旋转，因此像素已经是正立的。
         let (portrait, pw, ph) = px_frame(&[&[1, 2], &[3, 4], &[5, 6]], 0);
         let mut c = capturer_with(Some((pw, ph)));
         c.transform = 90;
@@ -2820,8 +2820,8 @@ mod drm_capturer_tests {
             Ok(_) => panic!("expected a pixel-buffer frame"),
             Err(err) => panic!("expected a delivered frame, got {err}"),
         }
-        // The same output with a plane that did nothing: the 3x2 landscape mode arrives and is
-        // turned exactly as `unrotate_bgra` turns a 90 frame.
+        // 同一个输出，但平面什么都没做：3x2 的横向模式到达后被
+        // 以与 `unrotate_bgra` 旋转 90 度帧完全相同的方式转过。
         let (landscape, lw, lh) = px_frame(&[&[1, 2, 3], &[4, 5, 6]], 0);
         let mut expected = Vec::new();
         unrotate_bgra(&landscape, lw, lh, 90, &mut expected);
@@ -2838,7 +2838,7 @@ mod drm_capturer_tests {
 
     #[test]
     fn unrotate_reads_padded_strides_and_writes_tight() {
-        // Row stride is derived from len/h, so a padded source must not shear the result.
+        // 行跨度由 len/h 推导得出，因此有填充的源不能把结果拉斜。
         let (src, w, h) = px_frame(&[&[1, 2, 3], &[4, 5, 6]], 8);
         let mut dst = Vec::new();
         unrotate_bgra(&src, w, h, 90, &mut dst);
@@ -2862,7 +2862,7 @@ mod drm_capturer_tests {
             Ok(_) => panic!("expected a pixel-buffer frame"),
             Err(err) => panic!("expected a delivered frame, got {err}"),
         }
-        // A scanout change still ends the session, reported in rotated dimensions.
+        // scanout 变化同样会结束会话，并以旋转后的尺寸上报。
         put_frame(&c, 32, 64);
         let err = match c.frame(Duration::from_millis(50)) {
             Err(e) => e,
@@ -2886,7 +2886,7 @@ mod drm_capturer_tests {
     }
 
     fn put_frame_rot(c: &IpcDrmCapturer, w: usize, h: usize, plane_rotation: Option<u32>) {
-        // Each call differs in its first pixel: frame() drops a frame equal to the last one.
+        // 每次调用的第一个像素都不同：frame() 会丢弃与上一帧相同的帧。
         static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let mut buf = c.shared.slot.lock().unwrap().take_free().unwrap_or_default();
         buf.clear();
@@ -2935,10 +2935,10 @@ mod drm_capturer_tests {
         );
     }
 
-    // ---- cursor hotspot calibration ----
-    // The cache and DRM_CURSOR are process-wide and libtest runs tests concurrently: every test
-    // below has its own display id (9_700..9_799) and its own shape id, and the ones that read
-    // the cache back hold this lock.
+    // ---- 光标热点校准 ----
+    // 缓存和 DRM_CURSOR 都是进程级的，而 libtest 并发运行测试：下面每个测试
+    // 都有自己的显示器 id（9_700..9_799）和自己的形状 id，而那些会读回
+    // 缓存的测试持有这把锁。
     static CACHE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     const CAL_GEN: u64 = 7;
@@ -2952,7 +2952,7 @@ mod drm_capturer_tests {
     fn peer(pos: Pos, seq: u64) -> crate::server::input_service::PeerAbsSample {
         peer_under(pos, seq, CAL_GEN, 0)
     }
-    /// A sample injected under layout generation `gen` and input-mapping count `map_epoch`.
+    /// 在布局代际 `gen` 和输入映射计数 `map_epoch` 下注入的样本。
     fn peer_under(
         pos: Pos,
         seq: u64,
@@ -2967,7 +2967,7 @@ mod drm_capturer_tests {
             map_epoch,
         }
     }
-    /// A guessed shape arriving on a stream with a context, as the receive loop registers it.
+    /// 一个猜测的形状到达带有上下文的流上，接收循环就是这样登记它的。
     fn arrive(display: i32, epoch: u64, shape: u64, wire: Hotspot) -> Option<CursorCal> {
         on_cursor_shape(
             display,
@@ -2983,8 +2983,8 @@ mod drm_capturer_tests {
             0,
         )
     }
-    /// One stable plane position against one sample: the first frame reports the move, the
-    /// next STABLE frames settle it, and the last one measures.
+    /// 一个稳定的平面位置对应一个样本：第一帧报告这次移动，
+    /// 随后的稳定帧让它确定下来，最后一帧进行测量。
     fn settle(
         cal: &mut Option<CursorCal>,
         plane: Pos,
@@ -2994,8 +2994,8 @@ mod drm_capturer_tests {
     ) {
         settle_under(cal, plane, sample, display, epoch, (CAL_GEN, CAL_GEN, 0));
     }
-    /// `settle` under (layout generation, generation whose uinput range the device runs,
-    /// input-mapping count), as the receive loop reads them.
+    /// `settle` 在（布局代际、设备运行的 uinput 范围所属的代际、
+    /// 输入映射计数）下稳定下来，按接收循环读取它们的方式。
     fn settle_under(
         cal: &mut Option<CursorCal>,
         plane: Pos,
@@ -3020,10 +3020,10 @@ mod drm_capturer_tests {
         fold_cursor_id(remix_cursor_id(shape, h.0, h.1), 0)
     }
 
-    // Two stable positions against two samples: the first measurement is a candidate and changes
-    // nothing visible; the second, 1 px away, confirms it, and everything that follows uses the
-    // retained candidate, not the second sample. Mutations caught: publishing the first
-    // measurement, confirming with the new value, dropping the seq check.
+    // 两个稳定位置对应两个样本：第一次测量是一个候选值，不改变
+    // 任何可见内容；第二次测量相距 1 像素，确认了它，之后的一切都使用
+    // 保留下来的候选值，而不是第二个样本。捕获到的变异：发布第一次
+    // 测量、用新值确认、以及去掉 seq 检查。
     #[test]
     fn a_confirming_measurement_publishes_the_retained_candidate_not_the_new_sample() {
         let _serial = CACHE_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
@@ -3031,13 +3031,13 @@ mod drm_capturer_tests {
         forget_cursor_cal(shape, CAL_GEN);
         let mut cal = arrive(d, e, shape, (4, 4));
         assert_eq!(served(d), (plain(shape), 4, 4));
-        // (500,300) - (488,288) = (12,12): the candidate.
+        // (500,300) - (488,288) = (12,12)：候选值。
         settle(&mut cal, (488, 288), Some(peer((500, 300), 1)), d, e);
         assert_eq!(cal.as_ref().unwrap().candidate, Some(((12, 12), 1, 0)));
         assert_eq!(cal.as_ref().unwrap().current_hot, (4, 4));
         assert_eq!(served(d), (plain(shape), 4, 4), "unconfirmed: nothing visible changes");
         assert_eq!(cached_cursor_cal(shape, CAL_GEN), None);
-        // (600,400) - (587,388) = (13,12): confirms (12,12).
+        // (600,400) - (587,388) = (13,12)：确认了 (12,12)。
         settle(&mut cal, (587, 388), Some(peer((600, 400), 2)), d, e);
         let c = cal.as_ref().unwrap();
         assert_eq!(c.candidate, None);
@@ -3069,16 +3069,16 @@ mod drm_capturer_tests {
         for t in [90, 180, 270] {
             assert!(calibration_context(&drm, 0, &one(t), 7).is_err(), "transform {t}");
         }
-        // A plane that rotated folds 180 to 0 for the FRAME; that fold must never reach the
-        // calibration.
+        // 做了旋转的平面会把 180 折叠成 0 用于帧；这个折叠绝不能传到
+        // 校准那里。
         assert_eq!(frame_transform(transform_and_origin(&drm, 0, &one(180)).0, Some(0x4)), 0);
-        // Partial snapshot: two connectors, one output, even one with a matching name.
+        // 部分快照：两个连接器，一个输出，其中一个甚至名称匹配。
         let two = [
             drm_display("HDMI-A-1", 1920, 1080),
             drm_display("DP-1", 2560, 1440),
         ];
         assert!(calibration_context(&two, 0, &one(0), 7).is_err());
-        // No identity match: the frame path guesses an origin, the calibration must not.
+        // 没有身份匹配：帧路径会猜一个原点，而校准绝不能猜。
         let wl = scrap::wayland::display::Displays {
             primary: 0,
             displays: vec![
@@ -3088,7 +3088,7 @@ mod drm_capturer_tests {
         };
         assert!(calibration_context(&drm, 0, &wl, 7).is_err());
         assert_eq!(transform_and_origin(&drm, 0, &wl).0, 0);
-        // Degenerate geometry.
+        // 退化的几何。
         let mut a = wl_display("HDMI-1", 0, 0, 1920, 1080);
         a.logical_size = Some((0, 0));
         let mut b = wl_display("DP-1", 1920, 0, 2560, 1440);
@@ -3098,7 +3098,7 @@ mod drm_capturer_tests {
             displays: vec![a, b],
         };
         assert!(calibration_context(&two, 0, &wl, 7).is_err());
-        // wire_idx = 1: the rotated index 0 declines, the upright index 1 yields ITS rect.
+        // wire_idx = 1：旋转的索引 0 拒绝，正立的索引 1 给出它自己的矩形。
         let mut r = wl_display("HDMI-1", 0, 0, 1920, 1080);
         r.transform = 90;
         let wl = scrap::wayland::display::Displays {
@@ -3110,7 +3110,7 @@ mod drm_capturer_tests {
             calibration_context(&two, 1, &wl, 7).map(|c| (c.rect, c.physical_size)),
             Ok(((1920, 0, 2560, 1440), (2560, 1440)))
         );
-        // Chained and scaled: the T2 panel, 2880x1800 scanning out a 1986x1241 logical rect.
+        // 链式且带缩放：T2 面板，2880x1800 扫描输出一个 1986x1241 的逻辑矩形。
         let panel = [
             drm_display("eDP-1", 2880, 1800),
             drm_display("DP-6", 1920, 1080),
@@ -3130,20 +3130,20 @@ mod drm_capturer_tests {
     fn the_measurement_is_the_injected_tip_in_scanout_space_minus_the_plane() {
         let ctx = ctx1();
         assert_eq!(measure_hotspot(&ctx, (500, 300), (488, 288), (32, 32)), Some((12, 12)));
-        // The T2 reading that found the space mismatch: 2880x1800 advertised as 1986x1241.
+        // 发现空间不匹配的那次 T2 读数：2880x1800 被公布为 1986x1241。
         let scaled = CalContext {
             rect: (0, 0, 1986, 1241),
             physical_size: (2880, 1800),
             built_gen: CAL_GEN,
         };
         assert_eq!(measure_hotspot(&scaled, (1643, 577), (2357, 814), (128, 128)), Some((26, 23)));
-        // The pointer is on another monitor: that stream measures, not this one.
+        // 指针在另一台显示器上：由那条流来测量，不是这条。
         let right = CalContext {
             rect: (1920, 0, 1920, 1080),
             ..ctx
         };
         assert_eq!(measure_hotspot(&right, (500, 300), (488, 288), (32, 32)), None);
-        // Outside the bitmap: far away, and the plane ahead of the tip.
+        // 落在位图之外：离得很远，而且平面在尖端之前。
         assert_eq!(measure_hotspot(&ctx, (900, 300), (488, 288), (32, 32)), None);
         assert_eq!(measure_hotspot(&ctx, (480, 300), (488, 288), (32, 32)), None);
     }
@@ -3191,8 +3191,8 @@ mod drm_capturer_tests {
 
     #[test]
     fn a_plane_transposed_display_advertises_its_scanout() {
-        // Steam Deck under gamescope: 800x1280 panel mode, 1280x800 framebuffer on a rotate-270
-        // plane, and no wayland output that matches the connector.
+        // gamescope 下的 Steam Deck：800x1280 的面板模式，1280x800 的帧缓冲，平面为 rotate-270，
+        // 并且没有与该连接器匹配的 wayland 输出。
         let drm = [plane_transposed_display("eDP-1", 800, 1280)];
         let wl = scrap::wayland::display::Displays {
             primary: 0,
@@ -3205,7 +3205,7 @@ mod drm_capturer_tests {
 
     #[test]
     fn a_rotated_output_over_a_rotated_plane_is_swapped_once() {
-        // mutter rotates the output and programs the plane from it: one quarter turn, as before.
+        // mutter 旋转输出并据此对平面编程：四分之一圈，和之前一样。
         let drm = [plane_transposed_display("HDMI-A-1", 1920, 1080)];
         let mut out = wl_display("HDMI-1", 0, 0, 1920, 1080);
         out.transform = 90;
@@ -3220,9 +3220,9 @@ mod drm_capturer_tests {
 
     #[test]
     fn a_lone_rotated_output_advertises_delivered_dimensions() {
-        // Fix for the origin-only cut: one connector, one rotated output. The capturer will
-        // deliver rotated frames, so the advertised size must swap even in the origin-only case,
-        // while the logical scale is still not adopted (stays 1.0).
+        // 对只看原点那种情况的修正：一个连接器，一个旋转的输出。采集器会
+        // 交付旋转过的帧，因此即使在看原点这种情况下，公布的尺寸也必须交换，
+        // 而逻辑缩放仍然不被采纳（保持 1.0）。
         let drm = [drm_display("HDMI-A-1", 1920, 1080)];
         let mut out = wl_display("HDMI-1", 0, 0, 1920, 1080);
         out.transform = 90;
@@ -3238,9 +3238,9 @@ mod drm_capturer_tests {
 
     #[test]
     fn transform_and_origin_come_from_the_same_snapshot() {
-        // Both derive from ONE Displays snapshot: the rotated output's transform and its origin
-        // must belong to the same assignment, and the multi-connector one-output guard zeroes
-        // both rather than mixing a guessed origin with a real transform.
+        // 两者都取自同一份 Displays 快照：旋转输出的变换和它的原点
+        // 必须属于同一次分配，而「多连接器单输出」守卫会把
+        // 两者都清零，而不是把猜测的原点与真实的变换混在一起。
         let drm = [
             drm_display("HDMI-A-1", 1920, 1080),
             drm_display("DP-1", 2560, 1440),
@@ -3283,8 +3283,8 @@ mod drm_capturer_tests {
 
     #[test]
     fn a_resolution_guess_never_steals_an_exact_name_match() {
-        // The review's scenario: an earlier connector with an unmatchable name shares the
-        // resolution of a later connector's exact name match. Names reserve globally first.
+        // 评审中的场景：较早的一个名称无法匹配的连接器，与较晚连接器的
+        // 精确名称匹配共享同一个分辨率。名称优先在全局范围内预留。
         let drm = vec![
             drm_display("DSI-1", 1920, 1080),
             drm_display("HDMI-A-1", 1920, 1080),
@@ -3296,8 +3296,8 @@ mod drm_capturer_tests {
         let m = identity_matches(&drm, &wl);
         assert_eq!(m[1], Some(0), "the exact name match must win globally");
         assert_eq!(m[0], None, "the leftover pairing is not forced, so no identity");
-        // Two unmatched connectors at the lone free resolution: ambiguous on the DRM side too,
-        // so rotation must not be pinned on either.
+        // 唯一空闲分辨率上有两个未匹配的连接器：在 DRM 那边同样是歧义的，
+        // 所以旋转不能钉在其中任何一个上。
         let drm2 = vec![
             drm_display("DSI-1", 1920, 1080),
             drm_display("DSI-2", 1920, 1080),
@@ -3307,7 +3307,7 @@ mod drm_capturer_tests {
         assert!(m2[0].is_none() && m2[1].is_none());
     }
 
-    // The M10 case: same model and resolution, names that do not normalize to the compositor's.
+    // M10 的情况：型号和分辨率都相同，名称无法归一化成合成器的那种。
     #[test]
     fn identical_monitors_that_match_no_name_take_layout_order() {
         let drm = [drm_display("DP-1", 1920, 1080), drm_display("DP-2", 1920, 1080)];
@@ -3334,21 +3334,21 @@ mod drm_capturer_tests {
     }
 
     // ---------------------------------------------------------------------------------------
-    // rustdesk#16242 round 2: the measurement behind the inference model.
+    // rustdesk#16242 第二轮：推断模型背后的那次测量。
     //
-    // The question a synthetic fixture cannot answer: when the driver publishes no hotspot and
-    // the sprite has to be turned upright before guessing, how far from the THEME's real click
-    // point does each flow land? Both flows are driven here, per shape and per angle, against
-    // the hotspot the theme author wrote into the cursor file. It reads the installed Adwaita
-    // theme, so it prints instead of asserting and is ignored by default:
+    // 合成夹具无法回答的问题：当驱动没有发布热点、且
+    // 在猜测之前必须先把精灵图转正时，每条流程落点距离主题真实的点击
+    // 点有多远？这里按形状、按角度驱动两条流程，对照
+    // 主题作者写进光标文件里的热点。它读取已安装的 Adwaita
+    // 主题，因此它只打印而不做断言，默认被忽略：
     //
     //   cargo test --features drm --lib drm_capturer_tests::adwaita -- --ignored --nocapture
     // ---------------------------------------------------------------------------------------
 
-    /// Minimal Xcursor reader. The format is a 16-byte header, a table of contents of 12-byte
-    /// entries, and one chunk per (nominal size, animation frame); an image chunk is 36 bytes of
-    /// header followed by width*height little-endian ARGB words, so byte 3 of each pixel is the
-    /// alpha `infer_hotspot` reads. Only the FIRST frame of each nominal size is taken.
+    /// 极简的 Xcursor 读取器。该格式是 16 字节的头部、一个由 12 字节条目构成的目录，
+    /// 以及每个（标称尺寸、动画帧）一个数据块；图像块是 36 字节的头部，
+    /// 后面跟着 width*height 个小端 ARGB 字，因此每个像素的第 3 字节就是
+    /// `infer_hotspot` 读取的 alpha。每个标称尺寸只取第一帧。
     fn xcursor_images(path: &std::path::Path) -> Vec<(u32, usize, usize, i32, i32, Vec<u8>)> {
         let b = match std::fs::read(path) {
             Ok(b) => b,
@@ -3418,7 +3418,7 @@ mod drm_capturer_tests {
                 println!("# {name}: no {want} px image");
                 continue;
             };
-            // The opaque box, to tell the shapes apart afterwards.
+            // 不透明区域，用来在之后区分各个形状。
             let (mut minx, mut miny, mut maxx, mut maxy) = (w as i32, h as i32, -1i32, -1i32);
             for (i, px) in up.chunks_exact(4).take(w * h).enumerate() {
                 if px[3] >= 128 {
@@ -3432,12 +3432,12 @@ mod drm_capturer_tests {
             let bx = format!("{}x{}+{}+{}", maxx - minx + 1, maxy - miny + 1, minx, miny);
             for t in [0, 90, 180, 270] {
                 let (scan, sw, sh) = as_scanned_out(&up, w, h, t);
-                // What the producer puts on the wire: the guess taken on the sprite as the plane
-                // holds it, with hot_measured false.
+                // 生产者放到线路上的内容：在平面持有该精灵图的状态下猜出的值，
+                // 其中 hot_measured 为 false。
                 let sent = scrap::drm_reader::infer_hotspot(&scan, sw, sh);
-                // The flow before this PR: map that point back as if it were a pixel.
+                // 本 PR 之前的流程：把那个点当作像素来反向映射。
                 let base = unrotate_hotspot(t, sw as i32, sh as i32, sent.0, sent.1);
-                // The flow in this PR, read back from the real delivery path.
+                // 本 PR 中的流程，从真实的交付路径读回。
                 display += 1;
                 deliver_drm_cursor(display, 1, 1, sw as u32, sh as u32, sent.0, sent.1, false, scan, t);
                 let head = {
@@ -3457,19 +3457,19 @@ mod drm_capturer_tests {
     }
 
     // -----------------------------------------------------------------------------------------
-    // rustdesk#16242 round 2: the guess measured against the hotspots a THEME declares.
+    // rustdesk#16242 第二轮：对照主题声明的热点测出的猜测。
     //
-    // Every test above builds its own sprite, so all of them compare the guess with the guess.
-    // That can pin a mapping but it cannot say whether the guess is any good. This one reads the
-    // expected value from the cursor theme instead - the click point its author wrote into the
-    // file, which is exactly what a compositor programs into HOTSPOT_X/Y when it has the
-    // property to program.
+    // 上面每个测试都构建自己的精灵图，因此它们全都是拿猜测和猜测作比较。
+    // 这样可以固定一种映射，但无法说明猜测到底好不好。这个测试读取
+    // 光标主题中的预期值——主题作者写进
+    // 文件里的点击点，而这正是合成器在有该属性时会编程进 HOTSPOT_X/Y 的内容
+    // 。
     // -----------------------------------------------------------------------------------------
 
     include!("drm_cursor_theme.rs");
 
-    /// Expand a fixture's packed alpha mask into the sprite the delivery path takes. Only alpha
-    /// is set: the guess reads nothing else.
+    /// 把夹具里打包的 alpha 掩码展开成交付路径所使用的精灵图。只设置
+    /// alpha：猜测不读其他任何内容。
     fn theme_sprite(mask_hex: &str, w: usize, h: usize) -> Vec<u8> {
         let bytes: Vec<u8> = (0..mask_hex.len() / 2)
             .map(|i| u8::from_str_radix(&mask_hex[i * 2..i * 2 + 2], 16).expect("fixture hex"))
@@ -3483,9 +3483,9 @@ mod drm_capturer_tests {
         px
     }
 
-    /// The guess MASTER ships, frozen. Only a TALL box is centred there: the symmetric aspect
-    /// test came later, in this PR, so freezing that instead would measure this PR against its own
-    /// earlier revision rather than against what is merged.
+    /// master 发布的那个猜测，已冻结。只有一个高瘦的区域在那边居中：对称的宽高
+    /// 比测试是后来在本 PR 中加入的，所以改为冻结那个的话，就等于让本 PR 拿自己
+    /// 之前的修订版作比较，而不是拿已合并的版本作比较。
     fn master_guess(rgba: &[u8], w: usize, h: usize) -> (i32, i32) {
         let (mut minx, mut miny, mut maxx, mut maxy) = (w as i32, h as i32, -1i32, -1i32);
         for (i, px) in rgba.chunks_exact(4).take(w * h).enumerate() {
@@ -3508,9 +3508,9 @@ mod drm_capturer_tests {
         }
     }
 
-    /// What master DELIVERS for an upright sprite on an output turned by `t`: it guesses on the
-    /// sprite as the plane holds it and then maps that point as if it were a pixel, and it does
-    /// that only at 90 and 270 - 0 and 180 pass through untouched.
+    /// 对于旋转了 `t` 的输出上的正立精灵图，master 交付的内容：它在
+    /// 平面持有该精灵图的状态下猜测，然后把那个点当作像素来映射，而且只
+    /// 在 90 和 270 度时这样做——0 和 180 原样通过。
     fn master_delivered(up: &[u8], w: usize, h: usize, t: i32) -> (i32, i32) {
         let (scan, sw, sh) = as_scanned_out(up, w, h, t);
         let (gx, gy) = master_guess(&scan, sw, sh);
@@ -3525,16 +3525,16 @@ mod drm_capturer_tests {
         (((a.0 - b.0) as f64).powi(2) + ((a.1 - b.1) as f64).powi(2)).sqrt()
     }
 
-    /// How far the delivered hotspot lands from the click point the theme declares, per shape,
-    /// measured against MASTER and not against an earlier revision of this PR.
+    /// 交付的热点距离主题声明的点击点有多远，按形状，
+    /// 与 MASTER 对照测量，而不是与本 PR 之前的修订版对照。
     ///
-    /// Master handles 0, 90 and 270 for the cursor (180 passes through untouched there), so the
-    /// comparison is over those three angles, which is the set master actually covers.
+    /// master 对光标处理 0、90 和 270（在那边 180 原样通过），因此这个
+    /// 比较只在这三个角度上进行，也就是 master 实际覆盖的那一组。
     ///
-    /// Two shapes stay further out than master and they are named rather than averaged away.
-    /// `help` is the honest limit of any bitmap rule: the theme puts its click point on the dot of
-    /// its question mark, which is not recoverable from alpha. `alias` is 0.51 px. Everything else
-    /// is equal or better, and the mean over the corpus falls from 12.08 px to 4.20.
+    /// 有两个形状比 master 偏得更远，它们被点名指出，而不是被平均掉。
+    /// `help` 是任何位图规则都无法逾越的诚实边界：主题把它的点击点放在问号的
+    /// 那个圆点上，而这一点无法从 alpha 还原。`alias` 是 0.51 像素。其他所有
+    /// 都与 master 持平或更好，而且整个语料库上的平均值从 12.08 像素降到 4.20。
     #[test]
     fn no_shape_lands_further_from_the_theme_than_master_except_the_two_no_bitmap_can_reach() {
         const NOT_INFERABLE: [&str; 2] = ["help", "alias"];
@@ -3549,7 +3549,7 @@ mod drm_capturer_tests {
             let mut e_now = 0f64;
             for t in angles {
                 e_master += away(master_delivered(&up, w, h, t), truth);
-                // The upright inference answers the same at every angle by construction.
+                // 正立的推断按构造在每个角度上答案都相同。
                 e_now += away(scrap::drm_reader::infer_hotspot(&up, w, h), truth);
             }
             let (e_master, e_now) = (e_master / angles.len() as f64, e_now / angles.len() as f64);

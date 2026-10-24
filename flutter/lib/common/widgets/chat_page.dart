@@ -33,7 +33,7 @@ class ChatPage extends StatelessWidget implements PageShape {
         icon: unreadTopRightBuilder(gFFI.chatModel.mobileUnreadSum,
             icon: Icon(Icons.group)),
         itemBuilder: (context) {
-          // only mobile need [appBarActions], just bind gFFI.chatModel
+          // 只有移动端需要 [appBarActions]，直接绑定 gFFI.chatModel 即可
           final chatModel = gFFI.chatModel;
           return chatModel.messages.entries.map((entry) {
             final key = entry.key;

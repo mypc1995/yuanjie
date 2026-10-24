@@ -12,11 +12,11 @@ use super::{Display, Rect, Server};
 
 pub struct DisplayIter {
     outer: xcb_screen_iterator_t,
-    // The monitor iterator points into the reply, so the reply is freed only when moving on.
+    // 显示器迭代器指向 reply 内部，因此 reply 只在迭代前进时才被释放。
     inner: Option<(
         xcb_randr_monitor_info_iterator_t,
         xcb_window_t,
-        *mut xcb_randr_get_monitors_reply_t,
+        * mut xcb_randr_get_monitors_reply_t,
     )>,
     server: Rc<Server>,
 }
@@ -38,7 +38,7 @@ impl DisplayIter {
     ) -> Option<(
         xcb_randr_monitor_info_iterator_t,
         xcb_window_t,
-        *mut xcb_randr_get_monitors_reply_t,
+        * mut xcb_randr_get_monitors_reply_t,
     )> {
         if outer.rem == 0 {
             return None;
@@ -78,7 +78,7 @@ impl Iterator for DisplayIter {
     fn next(&mut self) -> Option<Display> {
         loop {
             if let Some((ref mut inner, root, _)) = self.inner {
-                // If there is something in the current screen, return that.
+                // 如果当前屏幕里有内容，就返回它。
                 if inner.rem != 0 {
                     unsafe {
                         let data = &*inner.data;
@@ -103,11 +103,11 @@ impl Iterator for DisplayIter {
                     }
                 }
             } else {
-                // If there is no current screen, the screen iterator is empty.
+                // 如果没有当前屏幕，屏幕迭代器就是空的。
                 return None;
             }
 
-            // The current screen was empty, so try the next screen.
+            // 当前屏幕是空的，所以试试下一个屏幕。
             self.free_reply();
             self.inner = Self::next_screen(&mut self.outer, &self.server);
         }
@@ -151,7 +151,7 @@ unsafe fn get_pixfmt(conn: *mut xcb_connection_t, root: xcb_window_t) -> Option<
     }
     let depth = (*geo).depth;
     libc::free(geo as _);
-    // now only support little endian
+    // 目前只支持小端
     // https://github.com/FFmpeg/FFmpeg/blob/a9c05eb657d0d05f3ac79fe9973581a41b265a5e/libavdevice/xcbgrab.c#L519
     match depth {
         16 => Some(Pixfmt::RGB565LE),

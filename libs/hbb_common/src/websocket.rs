@@ -35,12 +35,12 @@ use tokio_tungstenite::{
 };
 use tungstenite::client::IntoClientRequest;
 
-/// tungstenite's own defaults. `set_max_packet_length` clamps to these, so `usize::MAX` puts the
-/// transport back exactly where it started rather than above it.
+/// tungstenite 自身的默认值。`set_max_packet_length` 会钳制到这些值，因此 `usize::MAX` 恰好把
+/// 该传输恢复到它原来的位置，而不是高过它。
 const DEFAULT_MAX_MESSAGE_SIZE: usize = 64 << 20;
 const DEFAULT_MAX_FRAME_SIZE: usize = 16 << 20;
 
-// macOS/iOS Native TLS may wait for a response without flushing the proxy tunnel's write buffer.
+// macOS/iOS 的 Native TLS 可能在等待响应时不刷新代理隧道的写缓冲。
 struct FlushBeforeRead(DynTcpStream);
 
 impl AsyncRead for FlushBeforeRead {
@@ -49,7 +49,7 @@ impl AsyncRead for FlushBeforeRead {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        // A blocked writer must not prevent reading data that lets the peer make progress.
+        // 被阻塞的写端不应妨碍读取能让对端继续推进的数据。
         if let Poll::Ready(Err(err)) = Pin::new(&mut self.0).poll_flush(cx) {
             return Poll::Ready(Err(err));
         }
@@ -75,7 +75,7 @@ impl AsyncWrite for FlushBeforeRead {
     }
 }
 
-// Keep the original non-proxy connection path while supporting proxy streams.
+// 在支持代理流的同时保留原有的非代理连接路径。
 type WsStream = Either<
     WebSocketStream<MaybeTlsStream<TcpStream>>,
     WebSocketStream<MaybeTlsStream<DynTcpStream>>,
@@ -214,8 +214,8 @@ impl WsFramedStream {
                 upsert_tls_cache(url, tls_type, danger_accept_invalid_cert.unwrap_or(false));
                 match stream {
                     Either::Left(stream) => {
-                        // MaybeTlsStream::get_ref() handles Plain, NativeTls and Rustls,
-                        // returning the underlying TcpStream for local_addr().
+                        // MaybeTlsStream::get_ref() 能处理 Plain、NativeTls 和 Rustls，
+                        // 返回底层的 TcpStream 供 local_addr() 使用。
                         let addr = stream.get_ref().get_ref().local_addr()?;
                         Ok((Either::Left(stream), addr))
                     }
@@ -322,10 +322,10 @@ impl WsFramedStream {
         self.encrypt = None;
     }
 
-    /// Both bounds, not just the message one: `max_frame_size` refuses an oversized frame on its
-    /// header, before any of it is buffered, while `max_message_size` bounds reassembly across a
-    /// fragmented one. What a header on its own can allocate is `read_buffer_size`, the patched
-    /// fork growing the read buffer a chunk at a time rather than to the length a frame declares.
+    /// 两个上限都要，不只是消息那个：`max_frame_size` 仅凭其
+    /// 头部就会拒绝超大的帧（在它被缓冲之前），而 `max_message_size` 则限制跨
+    /// 分片消息的重组。仅有头部时能分配的是 `read_buffer_size`，
+    /// 这个打过补丁的版本每次增长一个分块，而不是增长到帧声明的长度。
     #[inline]
     pub fn set_max_packet_length(&mut self, n: usize) {
         let set_config = |c: &mut tungstenite::protocol::WebSocketConfig| {
@@ -457,15 +457,15 @@ pub fn is_ws_endpoint(endpoint: &str) -> bool {
 }
 
 /**
- * Core function to convert an endpoint to WebSocket format
+ * 把 endpoint 转换为 WebSocket 格式的核心函数
  *
- * Converts between different address formats:
- * 1. IPv4 address with/without port -> ws://ipv4:port
- * 2. IPv6 address with/without port -> ws://[ipv6]:port
- * 3. Domain with/without port -> ws(s)://domain/ws/path
+ * 在不同地址格式之间转换：
+ * 1. 带/不带端口的 IPv4 地址 -> ws://ipv4:port
+ * 2. 带/不带端口的 IPv6 地址 -> ws://[ipv6]:port
+ * 3. 带/不带端口的域名 -> ws(s)://domain/ws/path
  *
- * @param endpoint The endpoint to convert
- * @return The converted WebSocket endpoint
+ * @param endpoint 要转换的 endpoint
+ * @return 转换后的 WebSocket endpoint
  */
 pub fn check_ws(endpoint: &str) -> String {
     if !use_ws() {
@@ -503,11 +503,11 @@ pub fn check_ws(endpoint: &str) -> String {
     } else if endpoint_port == relay_port || endpoint_port == rendezvous_port + 1 {
         // relay
         // https://github.com/rustdesk/rustdesk/blob/6ffbcd1375771f2482ec4810680623a269be70f1/src/rendezvous_mediator.rs#L615
-        // https://github.com/rustdesk/rustdesk-server/blob/235a3c326ceb665e941edb50ab79faa1208f7507/src/relay_server.rs#L83, based on relay port.
+        // https://github.com/rustdesk/rustdesk-server/blob/235a3c326ceb665e941edb50ab79faa1208f7507/src/relay_server.rs#L83，基于 relay 端口。
         (true, endpoint_port + 2)
     } else {
-        // fallback relay
-        // for controlling side, relay server is passed from the controlled side, not related to local config.
+        // 回退 relay
+        // 对控制端而言，relay 服务器是从被控端传过来的，与本地配置无关。
         (true, endpoint_port + 2)
     };
 
@@ -533,15 +533,15 @@ pub fn check_ws(endpoint: &str) -> String {
     format!("{}://{}", protocol, address)
 }
 
-/// Port of the reverse proxy serving `/ws/id` and `/ws/relay` on this client's own servers, for
-/// when it cannot listen on the scheme's default port. Any other host, such as a peer's server or
-/// a relay on another machine, keeps the default port. IP endpoints never get here.
+/// 该客户端自有服务器上提供 `/ws/id` 和 `/ws/relay` 的反向代理端口，用于
+/// 当它无法监听该 scheme 的默认端口时。任何其他主机，比如对端的服务器或
+/// 另一台机器上的 relay，都保持默认端口。IP 形式的 endpoint 不会走到这里。
 fn websocket_port(host: &str, relay_server: &str) -> Option<u16> {
     let port = Config::get_option(OPTION_WEBSOCKET_PORT);
     if port.is_empty() {
         return None;
     }
-    // Only servers this client is set up with, not the public fallback of get_rendezvous_server().
+    // 只包括该客户端所配置的那些服务器，不包括 get_rendezvous_server() 的公开回退地址。
     let own_servers = [
         EXE_RENDEZVOUS_SERVER.read().unwrap().clone(),
         Config::get_option("custom-rendezvous-server"),
@@ -625,10 +625,10 @@ mod tests {
     #[test]
     fn test_check_ws() {
         let options = Config::get_options();
-        // enable websocket
+        // 启用 websocket
         Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_string(), "Y".to_string());
 
-        // not set custom-rendezvous-server
+        // 未设置 custom-rendezvous-server
         Config::set_option("custom-rendezvous-server".to_string(), "".to_string());
         Config::set_option("relay-server".to_string(), "".to_string());
         Config::set_option("api-server".to_string(), "".to_string());
@@ -638,7 +638,7 @@ mod tests {
         assert_eq!(check_ws("rustdesk.com:21115"), "ws://rustdesk.com/ws/id");
         assert_eq!(check_ws("rustdesk.com:21116"), "ws://rustdesk.com/ws/id");
         assert_eq!(check_ws("rustdesk.com:21117"), "ws://rustdesk.com/ws/relay");
-        // set relay-server without port
+        // 设置 relay-server 但不带端口
         Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
         Config::set_option(
             "api-server".to_string(),
@@ -662,12 +662,12 @@ mod tests {
             check_ws("rustdesk.com:21117"),
             "wss://rustdesk.com/ws/relay"
         );
-        // set relay-server with default port
+        // 设置 relay-server 并带默认端口
         Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with custom port
+        // 设置 relay-server 并带自定义端口
         Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
         assert_eq!(check_ws("rustdesk.com:21115"), "wss://rustdesk.com/ws/id");
         assert_eq!(check_ws("rustdesk.com:21116"), "wss://rustdesk.com/ws/id");
@@ -676,7 +676,7 @@ mod tests {
             "wss://rustdesk.com/ws/relay"
         );
 
-        // set custom-rendezvous-server without port
+        // 设置 custom-rendezvous-server 但不带端口
         Config::set_option(
             "custom-rendezvous-server".to_string(),
             "127.0.0.1".to_string(),
@@ -686,23 +686,23 @@ mod tests {
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server without port
+        // 设置 relay-server 但不带端口
         Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with default port
+        // 设置 relay-server 并带默认端口
         Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with custom port
+        // 设置 relay-server 并带自定义端口
         Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:34567"), "ws://127.0.0.1:34569");
 
-        // set custom-rendezvous-server without default port
+        // 设置 custom-rendezvous-server 但不带默认端口
         Config::set_option(
             "custom-rendezvous-server".to_string(),
             "127.0.0.1".to_string(),
@@ -712,23 +712,23 @@ mod tests {
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server without port
+        // 设置 relay-server 但不带端口
         Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with default port
+        // 设置 relay-server 并带默认端口
         Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with custom port
+        // 设置 relay-server 并带自定义端口
         Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
         assert_eq!(check_ws("127.0.0.1:34567"), "ws://127.0.0.1:34569");
 
-        // set custom-rendezvous-server with custom port
+        // 设置 custom-rendezvous-server 并带自定义端口
         Config::set_option(
             "custom-rendezvous-server".to_string(),
             "127.0.0.1:23456".to_string(),
@@ -738,23 +738,23 @@ mod tests {
         assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:23457"), "ws://127.0.0.1:23459");
-        // set relay-server without port
+        // 设置 relay-server 但不带端口
         Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
         assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with default port
+        // 设置 relay-server 并带默认端口
         Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
         assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with custom port
+        // 设置 relay-server 并带自定义端口
         Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
         assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:34567"), "ws://127.0.0.1:34569");
 
-        // set websocket-port, a reverse proxy off the default port on our own servers
+        // 设置 websocket-port，即在自有服务器上用非默认端口的反向代理
         Config::set_option(
             "custom-rendezvous-server".to_string(),
             "rustdesk.com".to_string(),
@@ -777,11 +777,11 @@ mod tests {
             check_ws("relay.rustdesk.com:21117"),
             "wss://relay.rustdesk.com:8443/ws/relay"
         );
-        // a peer's server or a relay on another host keeps the default port
+        // 对端的服务器或另一台主机上的 relay 保持默认端口
         assert_eq!(check_ws("example.com:21116"), "wss://example.com/ws/id");
         assert_eq!(check_ws("example.com:21117"), "wss://example.com/ws/relay");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        // with no rendezvous server set, the public fallback is not one of ours
+        // 未设置 rendezvous 服务器时，公开回退地址不是我们自己的
         Config::set_option("custom-rendezvous-server".to_string(), "".to_string());
         let fallback = Config::get_rendezvous_server();
         let (fallback_host, _) = split_host_port(&fallback).unwrap();
@@ -791,9 +791,9 @@ mod tests {
         );
         Config::set_options(options);
     }
-    // A server-to-client frame is unmasked, so it can be put on the wire by hand: the header alone,
-    // which is all it takes to ask tungstenite for the allocation, or with its payload. `head` is
-    // the first byte, FIN and opcode.
+    // 服务器到客户端的帧是不加掩码的，因此可以手工放到链路上：仅头部，
+    // 就足以让 tungstenite 分配空间，或者连同负载一起。`head` 是
+    // 第一个字节、FIN 和 opcode。
     fn ws_frame(head: u8, len: usize, with_payload: bool) -> Vec<u8> {
         let mut f = vec![head];
         if len < 126 {
@@ -830,7 +830,7 @@ mod tests {
         let (mut ws, mut server) = ws_loopback().await;
         ws.set_max_packet_length(CAP);
 
-        // One byte over, header only: refused before there is any payload to buffer.
+        // 超出一个字节、仅头部：在有任何负载需要缓冲之前就被拒绝。
         server
             .write_all(&ws_binary_frame(CAP + 1, false))
             .await
@@ -875,15 +875,15 @@ mod tests {
         );
     }
 
-    // Two frames each under the cap that reassemble to a message over it: the frame bound lets
-    // both through, so this is what the message bound alone refuses.
+    // 两帧各自都在上限之下，但重组后的消息超过上限：帧上限允许
+    // 两者都通过，因此这正是仅靠消息上限会被拒绝的情况。
     #[tokio::test]
     async fn max_packet_length_bounds_fragmented_message() {
         const CAP: usize = 16 * 1024;
         let (mut ws, mut server) = ws_loopback().await;
         ws.set_max_packet_length(CAP);
 
-        // Binary with FIN clear, then a continuation with FIN set: 12 KiB each, 24 KiB together.
+        // 先发一个 FIN 置 0 的二进制帧，再发一个 FIN 置 1 的续帧：各 12 KiB，合计 24 KiB。
         server
             .write_all(&ws_frame(0x02, 12 * 1024, true))
             .await

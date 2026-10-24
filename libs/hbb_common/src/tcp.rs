@@ -24,18 +24,18 @@ use tokio_util::codec::Framed;
 pub trait TcpStreamTrait: AsyncRead + AsyncWrite + Unpin {}
 pub struct DynTcpStream(pub Box<dyn TcpStreamTrait + Send + Sync>);
 
-/// The newest key exchange version this build speaks. Version 0 is the original scheme, and
-/// what an absent field means: one key for both directions. Version 1 splits the exchanged key
-/// into one per direction, the way Noise splits its cipher states after the handshake, binds
-/// the handshake transcript into both, and keeps the nonce layout.
+/// 本构建支持的最新的密钥交换版本。版本 0 是最初的方案，
+/// 字段缺失就表示该值：两个方向共用一把密钥。版本 1 把交换来的密钥拆分为
+/// 每个方向一把，就像 Noise 在握手后拆分其 cipher state 一样，并把
+/// 握手 transcript 同时绑定到两者，且保持 nonce 布局不变。
 pub const KX_VERSION_LATEST: u32 = 1;
 
-/// Prefix of what the server signs as `KxParams`. The same key signs other messages, and a
-/// protobuf carries no type of its own, so the prefix is what keeps them apart.
+/// 服务器签名 `KxParams` 时使用的前缀。同一把密钥也用于签名其他消息，而
+/// protobuf 本身不携带类型，因此靠这个前缀把它们区分开。
 pub const KX_PARAMS_DOMAIN: &[u8] = b"rdkx-params";
 
-/// The version to run against a peer that advertised `advertised`: the highest both sides
-/// support.
+/// 针对通告了 `advertised` 的对端应使用的版本：双方都支持的最高版本，
+/// 即。
 #[inline]
 pub fn kx_version_for(advertised: u32) -> u32 {
     advertised.min(KX_VERSION_LATEST)
@@ -45,20 +45,20 @@ const KX_SPLIT_CONTEXT: &[u8] = b"rdkx-spl";
 const KX_SPLIT_INITIATOR: u8 = 1;
 const KX_SPLIT_RESPONDER: u8 = 2;
 
-/// What both sides saw during the key exchange, each from its own side of the wire, mixed
-/// into the split keys.
+/// 密钥交换期间双方各自看到的内容（各自来自链路的己方），混合
+/// 后得到拆分出的密钥。
 pub struct KxTranscript<'a> {
-    /// The ephemeral public key of the side that sent the sealed key.
+    /// 发送 sealed key 一方的临时公钥。
     pub initiator_pk: &'a [u8],
-    /// The ephemeral public key the sealed key was sealed to.
+    /// sealed key 所封装到的临时公钥。
     pub responder_pk: &'a [u8],
-    /// The version the responder advertised: what it sent, what the initiator received.
+    /// 响应方通告的版本：它发出的内容，也就是发起方收到的内容。
     pub advertised: u32,
-    /// The version the initiator picked.
+    /// 发起方选定的版本。
     pub picked: u32,
 }
 
-/// The sending key, the send and receive counters, and the receiving key where it differs.
+/// 发送密钥、发送与接收计数器，以及在存在差异时的接收密钥。
 #[derive(Clone)]
 pub struct Encrypt(pub Key, pub u64, pub u64, Option<Key>);
 
@@ -103,10 +103,10 @@ pub(crate) fn new_socket(addr: std::net::SocketAddr, reuse: bool) -> Result<TcpS
         std::net::SocketAddr::V6(..) => TcpSocket::new_v6()?,
     };
     if reuse {
-        // windows has no reuse_port, but its reuse_address
-        // almost equals to unix's reuse_port + reuse_address,
-        // though may introduce nondeterministic behavior
-        // illumos has no support for SO_REUSEPORT
+        // windows 没有 reuse_port，但它的 reuse_address
+        // 几乎等同于 unix 的 reuse_port + reuse_address，
+        // 尽管可能引入不确定行为
+        // illumos 不支持 SO_REUSEPORT
         #[cfg(all(unix, not(target_os = "illumos")))]
         socket.set_reuseport(true).ok();
         socket.set_reuseaddr(true).ok();
@@ -272,7 +272,7 @@ pub async fn listen_any(port: u16) -> ResultType<TcpListener> {
     if let Ok(mut socket) = TcpSocket::new_v6() {
         #[cfg(unix)]
         {
-            // illumos has no support for SO_REUSEPORT
+            // illumos 不支持 SO_REUSEPORT
             #[cfg(not(target_os = "illumos"))]
             socket.set_reuseport(true).ok();
             socket.set_reuseaddr(true).ok();
@@ -343,8 +343,8 @@ impl Encrypt {
         Self(key, 0, 0, None)
     }
 
-    /// Version 1: the initiator, the side that sent the sealed key, sends under one subkey and
-    /// receives under the other; the responder the reverse.
+    /// 版本 1：发起方（即发送 sealed key 的一方）用一个子密钥发送，
+    /// 用另一个子密钥接收；响应方则相反。
     pub fn new_split(key: Key, is_initiator: bool, t: &KxTranscript) -> ResultType<Self> {
         let initiator = Self::derive_subkey(&key, KX_SPLIT_INITIATOR, t)?;
         let responder = Self::derive_subkey(&key, KX_SPLIT_RESPONDER, t)?;
@@ -457,8 +457,8 @@ mod tests {
         assert_eq!(sent, back);
     }
 
-    // Fixed bytes: the version 0 frame is what released peers send, and the subkeys are the ones
-    // hbbs's own copy of this code pins, so a change here breaks the wire, not just this test.
+    // 固定字节数：版本 0 的帧是已发布对端所发送的，子密钥就是
+    // hbbs 自己那份代码所固定的，因此这里的改动会破坏线格式，不只是破坏这个测试。
     #[test]
     fn test_wire_vectors() {
         let hex = |b: &[u8]| b.iter().map(|b| format!("{:02x}", b)).collect::<String>();
@@ -482,7 +482,7 @@ mod tests {
             hex(&recv.unwrap().0),
             "8a62648e9195cb10ea900c0a24d2a166c1e982347a2dc6833c3e756bf5715d36"
         );
-        // With the two versions equal, swapping their order in the derivation would go unseen.
+        // 当两个版本相同时，在派生过程中调换它们的顺序不会被发现。
         t.advertised = 3;
         let Encrypt(send, _, _, recv) = Encrypt::new_split(key, true, &t).unwrap();
         assert_eq!(
@@ -504,8 +504,8 @@ mod tests {
         let sent = seal_and_open(&mut initiator, &mut responder, b"hello");
         let back = seal_and_open(&mut responder, &mut initiator, b"hello");
         assert_ne!(sent, back);
-        // Neither direction's key is the exchanged key itself, so a version 0 peer cannot be
-        // paired with a split one by accident.
+        // 两个方向的密钥都不是交换密钥本身，因此版本 0 的对端不会
+        // 因疏忽而与拆分密钥配对。
         let mut v0 = Encrypt::new(key);
         let mut buf = BytesMut::from(&sent[..]);
         assert!(v0.dec(&mut buf).is_err());
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn test_split_binds_the_transcript() {
         let key = secretbox::gen_key();
-        // The two sides put different advertisements into the transcript.
+        // 双方把各自不同的通告写入 transcript。
         let mut initiator =
             Encrypt::new_split(key.clone(), true, &transcript(KX_VERSION_LATEST + 1)).unwrap();
         let mut responder = Encrypt::new_split(key, false, &transcript(KX_VERSION_LATEST)).unwrap();

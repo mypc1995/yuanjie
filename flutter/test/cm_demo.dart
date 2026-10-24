@@ -17,7 +17,7 @@ final testClients = [
       false)
 ];
 
-/// flutter run -d {platform} -t test/cm_demo.dart to test cm
+/// flutter run -d {platform} -t test/cm_demo.dart 用于测试 cm
 void main() async {
   isTest = true;
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,14 +50,14 @@ void main() async {
       size: kConnectionManagerWindowSizeClosedChat);
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
-    // ensure initial window size to be changed
+    // 确保初始窗口尺寸已更改
     await windowManager.setSize(kConnectionManagerWindowSizeClosedChat);
     await Future.wait([
       windowManager.setAlignment(Alignment.topRight),
       windowManager.focus(),
       windowManager.setOpacity(1)
     ]);
-    // ensure
+    // 确保
     windowManager.setAlignment(Alignment.topRight);
   });
 }

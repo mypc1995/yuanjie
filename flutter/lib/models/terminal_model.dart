@@ -55,28 +55,28 @@ class TerminalModel with ChangeNotifier {
 
   bool _disposed = false;
 
-  /// Callback to check whether Ctrl modifier lock is currently active.
-  /// When active, keyboard input is mapped to control codes (e.g. 'b' → \x02).
+  /// 用于检查 Ctrl 修饰键锁定当前是否处于激活状态的回调。
+  /// 激活时，键盘输入会被映射为控制码（例如 'b' → \x02）。
   bool Function()? isCtrlLocked;
 
-  /// Callback to clear Ctrl lock after a key is pressed (one-shot mode).
+  /// 在按下某个键后清除 Ctrl 锁定的回调（单次触发模式）。
   void Function()? clearCtrlLock;
 
-  /// Callback to check whether Alt modifier lock is currently active.
+  /// 用于检查 Alt 修饰键锁定当前是否处于激活状态的回调。
   bool Function()? isAltLocked;
 
-  /// Callback to clear Alt lock after a key is pressed (one-shot mode).
+  /// 在按下某个键后清除 Alt 锁定的回调（单次触发模式）。
   void Function()? clearAltLock;
 
   final _inputBuffer = <String>[];
 
-  // Buffer for output data received before terminal view has valid dimensions.
-  // This prevents NaN errors when writing to terminal before layout is complete.
+  // 在终端视图获得有效尺寸之前接收到的输出数据的缓冲区。
+  // 这样可以避免在布局完成之前写入终端时出现 NaN 错误。
   final _pendingOutputChunks = <String>[];
   final _pendingOutputSuppressFlags = <bool>[];
   int _pendingOutputSize = 0;
   static const int _kMaxOutputBufferChars = 8 * 1024;
-  // View ready state: true when terminal has valid dimensions, safe to write
+  // 视图就绪状态：当终端具有有效尺寸时为 true，此时可以安全写入
   bool _terminalViewReady = false;
   bool _markViewReadyScheduled = false;
   bool _suppressTerminalOutput = false;
@@ -84,42 +84,42 @@ class TerminalModel with ChangeNotifier {
 
   void Function(int w, int h, int pw, int ph)? onResizeExternal;
 
-  /// Called when the terminal session ends (shell exits).
-  /// The listener (typically TerminalPage) can use this to auto-close the tab/page.
+  /// 在终端会话结束（shell 退出）时调用。
+  /// 监听者（通常是 TerminalPage）可据此自动关闭标签页/页面。
   VoidCallback? onClosed;
 
   ValueChanged<String>? onClipboardWriteBlocked;
   ValueChanged<String>? onClipboardWriteSucceeded;
 
   Future<void> _handleInput(String data) async {
-    // xterm can complete asynchronous input after the Flutter page has gone
-    // away. Stop before reading or clearing widget-owned modifier state.
+    // 在 Flutter 页面已经消失之后，xterm 仍可能完成异步输入
+    // 。在读取或清除由 widget 持有的修饰键状态之前应先停止。
     if (_disposed) return;
 
-    // Soft keyboards (notably iOS) emit '\n' when Enter is pressed, while a
-    // real keyboard's Enter sends '\r'. Some Android keyboards also emit '\n'.
-    // - Peer Windows: '\r' works, '\n' is just a newline.
-    // - Peer Linux: canonical-mode shells accept both, but raw-mode apps
-    //   (readline, prompt_toolkit, vim, TUI frameworks) expect '\r'.
-    // - Peer macOS: same as Linux, raw-mode apps expect '\r'
-    //   (https://github.com/rustdesk/rustdesk/issues/14907).
-    // So on mobile / web-mobile, normalize the original lone '\n' to '\r'
-    // before modifier mappings. This keeps Ctrl+J mapped to LF instead of
-    // having the generated control code rewritten to CR afterward.
-    // Multi-character keyboard payloads, such as terminal escape sequences,
-    // remain unchanged. Paste input follows a separate preprocessing path.
+    // 软键盘（尤其是 iOS）按下回车时会输出 '\n'，而
+    // 真实键盘的回车会发送 '\r'。部分 Android 键盘同样会输出 '\n'。
+    // - 对端是 Windows：'\r' 可用，'\n' 只是一个换行。
+    // - 对端是 Linux：规范模式（canonical mode）的 shell 两者都接受，但原始模式（raw mode）的应用
+    //   （readline、prompt_toolkit、vim、TUI 框架）期望的是 '\r'。
+    // - 对端是 macOS：与 Linux 相同，原始模式的应用期望 '\r'
+    //   （https://github.com/rustdesk/rustdesk/issues/14907）。
+    // 因此在移动端 / Web 移动端，要把原本单独的 '\n' 归一化为 '\r'，
+    // 并且这一步要放在修饰键映射之前。这样 Ctrl+J 仍然映射为 LF，而不是
+    // 事后再把生成的控制码改写成 CR。
+    // 多字符的键盘负载（例如终端转义序列）
+    // 保持不变。粘贴输入走单独的预处理路径。
     final ctrlLocked = isCtrlLocked?.call() ?? false;
     final altLocked = isAltLocked?.call() ?? false;
     final modifiersActive = ctrlLocked || altLocked;
-    // Use the same predicate for transformation and consumption. Control keys
-    // and escape sequences must not silently consume a pending one-shot lock.
+    // 变换和消费使用同一个判定条件。控制键
+    // 和转义序列不得悄悄消费掉待触发的单次锁定。
     final shouldConsumeModifiers =
         modifiersActive && shouldApplyTerminalInputModifiers(data);
     data = prepareTerminalInputPayload(
       data,
-      // IME soft-keyboard paste prompts currently arrive from xterm as normal
-      // text input with no paste-origin metadata. Keep them on the keyboard path;
-      // clipboard-content heuristics can misclassify ordinary typing.
+      // IME 软键盘的粘贴提示目前从 xterm 以普通
+      // 文本输入的形式到达，没有粘贴来源元数据。让它们继续走键盘路径；
+      // 基于剪贴板内容的启发式判断可能把普通输入误判为粘贴。
       source: TerminalInputSource.keyboard,
       isMobileOrWebMobile: isMobile || (isWeb && !isWebDesktop),
       bracketedPasteMode: terminal.bracketedPasteMode,
@@ -133,16 +133,16 @@ class TerminalModel with ChangeNotifier {
     return _sendInputPayload(data);
   }
 
-  /// Sends an already prepared payload without applying keyboard semantics.
-  /// Both normal input and paste use this transport path after their source-
-  /// specific preprocessing has completed.
+  /// 发送已经准备好的负载，不施加键盘语义。
+  /// 普通输入和粘贴在各自的来源
+  /// 特定预处理完成后都走这条传输路径。
   Future<void> _sendInputPayload(String data) async {
-    // Clipboard reads and native sends may complete after the terminal page has
-    // closed. Never send or re-buffer input once this model is disposed.
+    // 剪贴板读取和原生发送可能在终端页面
+    // 关闭之后才完成。本 model 一旦释放，绝不要发送或重新缓冲输入。
     if (_disposed) return;
 
     if (_terminalOpened) {
-      // Send user input to remote terminal
+      // 把用户输入发送到远端终端
       try {
         await bind.sessionSendTerminalInput(
           sessionId: parent.sessionId,
@@ -175,29 +175,29 @@ class TerminalModel with ChangeNotifier {
     terminal.mouseHandler = const WheelButtonFixMouseHandler();
     terminalController = TerminalController();
 
-    // Setup terminal callbacks
+    // 设置终端回调
     terminal.onOutput = (data) {
       if (_suppressTerminalOutput) return;
       _handleInput(data);
     };
 
     terminal.onResize = (w, h, pw, ph) async {
-      // Validate all dimensions before using them
+      // 使用前校验所有尺寸
       if (w > 0 && h > 0 && pw > 0 && ph > 0) {
         debugPrint(
             '[TerminalModel] Terminal resized to ${w}x$h (pixel: ${pw}x$ph)');
 
-        // This piece of code must be placed before the conditional check in order to initialize properly.
+        // 这段代码必须放在条件判断之前，才能正确初始化。
         onResizeExternal?.call(w, h, pw, ph);
 
-        // Mark terminal view as ready and flush any buffered output on first valid resize.
-        // Must be after onResizeExternal so the view layer has valid dimensions before flushing.
+        // 首次有效 resize 时把终端视图标记为就绪，并冲刷已缓冲的输出。
+        // 必须放在 onResizeExternal 之后，这样冲刷前视图层已有有效尺寸。
         if (!_terminalViewReady) {
           _scheduleMarkViewReady();
         }
 
         if (_terminalOpened) {
-          // Notify remote terminal of resize
+          // 把 resize 通知远端终端
           try {
             await bind.sessionResizeTerminal(
               sessionId: parent.sessionId,
@@ -219,9 +219,9 @@ class TerminalModel with ChangeNotifier {
   void onReady() {
     parent.dialogManager.dismissAll();
 
-    // Fire and forget - don't block onReady. If the transport reconnects while
-    // this model is still open, re-send OpenTerminal so the remote service marks
-    // the persistent session active again and resumes output streaming.
+    // 发出即不管 —— 不要阻塞 onReady。如果在
+    // 本 model 仍然打开期间传输层发生重连，就重新发送 OpenTerminal，让远端服务
+    // 重新把该持久会话标记为活动状态并恢复输出流。
     openTerminal(force: _terminalOpened).catchError((e) {
       debugPrint('[TerminalModel] Error opening terminal: $e');
     });
@@ -229,10 +229,10 @@ class TerminalModel with ChangeNotifier {
 
   Future<void> openTerminal({bool force = false}) async {
     if (_terminalOpened && !force) return;
-    // Request the remote side to open a terminal with default shell
-    // The remote side will decide which shell to use based on its OS
+    // 请求远端以默认 shell 打开一个终端
+    // 远端会根据自身操作系统决定使用哪种 shell
 
-    // Get terminal dimensions, ensuring they are valid
+    // 获取终端尺寸，并确保其有效
     int rows = 24;
     int cols = 80;
 
@@ -263,7 +263,7 @@ class TerminalModel with ChangeNotifier {
       debugPrint('[TerminalModel] sessionOpenTerminal called successfully');
     } catch (e) {
       debugPrint('[TerminalModel] Error calling sessionOpenTerminal: $e');
-      // Optionally show error to user
+      // 可选地向用户显示错误
       if (e is TimeoutException) {
         _writeToTerminal('Failed to open terminal: Connection timeout\r\n');
       }
@@ -304,7 +304,7 @@ class TerminalModel with ChangeNotifier {
         debugPrint('[TerminalModel] sessionCloseTerminal called successfully');
       } catch (e) {
         debugPrint('[TerminalModel] Error calling sessionCloseTerminal: $e');
-        // Continue with cleanup even if close fails
+        // 即使关闭失败也继续清理
       }
       _terminalOpened = false;
       notifyListeners();
@@ -315,10 +315,10 @@ class TerminalModel with ChangeNotifier {
     if (evt.containsKey('terminal_id')) {
       final v = evt['terminal_id'];
       if (v is int) {
-        // Desktop and mobile send terminal_id as an int
+        // 桌面端和移动端以 int 形式发送 terminal_id
         return v;
       } else if (v is String) {
-        // Web sends terminal_id as a string
+        // Web 端以 string 形式发送 terminal_id
         final parsed = int.tryParse(v);
         if (parsed != null) {
           return parsed;
@@ -328,7 +328,7 @@ class TerminalModel with ChangeNotifier {
           return 0;
         }
       } else {
-        // Unexpected type, log and handle gracefully
+        // 类型意外，记录日志并优雅处理
         debugPrint(
             '[TerminalModel] Unexpected terminal_id type: ${v.runtimeType}, value: $v. Expected int or String.');
         return 0;
@@ -343,13 +343,13 @@ class TerminalModel with ChangeNotifier {
     if (evt.containsKey('success')) {
       final v = evt['success'];
       if (v is bool) {
-        // Desktop and mobile
+        // 桌面端和移动端
         return v;
       } else if (v is String) {
         // Web
         return v.toLowerCase() == 'true';
       } else {
-        // Unexpected type, log and handle gracefully
+        // 类型意外，记录日志并优雅处理
         debugPrint(
             '[TerminalModel] Unexpected success type: ${v.runtimeType}, value: $v. Expected bool or String.');
         return false;
@@ -364,10 +364,10 @@ class TerminalModel with ChangeNotifier {
     if (evt.containsKey('exit_code')) {
       final v = evt['exit_code'];
       if (v is int) {
-        // Desktop and mobile send exit_code as an int
+        // 桌面端和移动端以 int 形式发送 exit_code
         return v;
       } else if (v is String) {
-        // Web sends exit_code as a string
+        // Web 端以 string 形式发送 exit_code
         final parsed = int.tryParse(v);
         if (parsed != null) {
           return parsed;
@@ -391,7 +391,7 @@ class TerminalModel with ChangeNotifier {
     final String? type = evt['type'];
     final int evtTerminalId = getTerminalIdFromEvt(evt);
 
-    // Only handle events for this terminal
+    // 只处理该终端的事件
     if (evtTerminalId != terminalId) {
       debugPrint(
           '[TerminalModel] Ignoring event for terminal $evtTerminalId (not mine)');
@@ -425,23 +425,23 @@ class TerminalModel with ChangeNotifier {
     if (success) {
       _terminalOpened = true;
 
-      // On reconnect, the server may replay recent output. That replay can include
-      // terminal queries like DSR/DA; xterm answers them through onOutput as
-      // "^[[1;1R^[[2;2R^[[>0;0;0c", which must not be sent back to the peer.
+      // 重连时服务端可能会重放最近的输出。这些重放内容可能包含
+      // 诸如 DSR/DA 的终端查询；xterm 会通过 onOutput 以
+      // "^[[1;1R^[[2;2R^[[>0;0;0c" 的形式作出应答，绝不能被回发给对端。
       final replayTerminalOutput = evt['replay_terminal_output'];
       _suppressNextTerminalDataOutput = replayTerminalOutput == true ||
           message == 'Reconnected to existing terminal with pending output';
 
-      // Fallback: if terminal view is not yet ready but already has valid
-      // dimensions (e.g. layout completed before open response arrived),
-      // mark view ready now to avoid output stuck in buffer indefinitely.
+      // 回退方案：如果终端视图尚未就绪但已具有有效
+      // 尺寸（例如布局在 open 响应到达前就已完成），
+      // 现在就标记视图就绪，避免输出无限期滞留在缓冲区中。
       if (!_terminalViewReady &&
           terminal.viewWidth > 0 &&
           terminal.viewHeight > 0) {
         _scheduleMarkViewReady();
       }
 
-      // Process any buffered input
+      // 处理任何已缓冲的输入
       _processBufferedInputAsync().then((_) {
         notifyListeners();
       }).catchError((e) {
@@ -494,16 +494,16 @@ class TerminalModel with ChangeNotifier {
       try {
         String text = '';
         if (data is String) {
-          // Try to decode as base64 first
+          // 先尝试按 base64 解码
           try {
             final bytes = base64Decode(data);
             text = utf8.decode(bytes, allowMalformed: true);
           } catch (e) {
-            // If base64 decode fails, treat as plain text
+            // 如果 base64 解码失败，则按纯文本处理
             text = data;
           }
         } else if (data is List) {
-          // Handle if data comes as byte array
+          // 处理数据以字节数组形式到达的情况
           text = utf8.decode(List<int>.from(data), allowMalformed: true);
         } else {
           debugPrint('[TerminalModel] Unknown data type: ${data.runtimeType}');
@@ -517,19 +517,19 @@ class TerminalModel with ChangeNotifier {
     }
   }
 
-  /// Write text to terminal, buffering if the view is not yet ready.
-  /// All terminal output should go through this method to avoid NaN errors
-  /// from writing before the terminal view has valid layout dimensions.
+  /// 把文本写入终端，视图尚未就绪时先缓冲。
+  /// 所有终端输出都应走这个方法，以避免 NaN 错误
+  /// ——即在终端视图尚无有效布局尺寸时写入。
   void _writeToTerminal(
     String text, {
     bool suppressTerminalOutput = false,
   }) {
     if (!_terminalViewReady) {
-      // If a single chunk exceeds the cap, keep only its tail.
-      // Note: truncation may split a multi-byte ANSI escape sequence,
-      // which can cause a brief visual glitch on flush. This is acceptable
-      // because it only affects the pre-layout buffering window and the
-      // terminal will self-correct on subsequent output.
+      // 如果单个数据块超出上限，只保留其尾部。
+      // 注意：截断可能会把多字节的 ANSI 转义序列切开，
+      // 这会在冲刷时造成短暂的显示抖动。这是可以接受的，
+      // 因为它只影响布局完成前的缓冲窗口，而且
+      // 终端会在后续输出中自行纠正。
       if (text.length >= _kMaxOutputBufferChars) {
         final truncated = text.substring(text.length - _kMaxOutputBufferChars);
         _pendingOutputChunks
@@ -543,7 +543,7 @@ class TerminalModel with ChangeNotifier {
         _pendingOutputChunks.add(text);
         _pendingOutputSuppressFlags.add(suppressTerminalOutput);
         _pendingOutputSize += text.length;
-        // Drop oldest chunks if exceeds limit (whole chunks to preserve ANSI sequences)
+        // 超出上限时丢弃最旧的数据块（按整块丢弃，以保留 ANSI 序列）
         while (_pendingOutputSize > _kMaxOutputBufferChars &&
             _pendingOutputChunks.length > 1) {
           final removed = _pendingOutputChunks.removeAt(0);
@@ -588,7 +588,7 @@ class TerminalModel with ChangeNotifier {
     }
   }
 
-  /// Mark terminal view as ready and flush buffered output.
+  /// 把终端视图标记为就绪并冲刷已缓冲的输出。
   void _scheduleMarkViewReady() {
     if (_disposed || _terminalViewReady || _markViewReadyScheduled) return;
     _markViewReadyScheduled = true;
@@ -613,7 +613,7 @@ class TerminalModel with ChangeNotifier {
     _writeToTerminal('\r\nTerminal closed with exit code: $exitCode\r\n');
     _terminalOpened = false;
     notifyListeners();
-    // Auto-close the tab/page
+    // 自动关闭标签页/页面
     onClosed?.call();
   }
 
@@ -636,14 +636,14 @@ class TerminalModel with ChangeNotifier {
     onClosed = null;
     onClipboardWriteBlocked = null;
     onClipboardWriteSucceeded = null;
-    // Clear buffers to free memory
+    // 清空缓冲区以释放内存
     _inputBuffer.clear();
     _pendingOutputChunks.clear();
     _pendingOutputSuppressFlags.clear();
     _pendingOutputSize = 0;
     _markViewReadyScheduled = false;
     _suppressNextTerminalDataOutput = false;
-    // Terminal cleanup is handled server-side when service closes
+    // 服务关闭时，终端清理由服务端处理
     super.dispose();
   }
 }

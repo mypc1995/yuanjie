@@ -48,9 +48,9 @@ fn build_manifest() {
     }
 }
 
-// bionic only exports getifaddrs()/freeifaddrs() from API 24, while the jniLibs
-// are built against the API 21 sysroot (flutter/ndk_*.sh). webrtc-util calls
-// them, so without this the android link fails on undefined symbols.
+// bionic 只从 API 24 起才导出 getifaddrs()/freeifaddrs()，而 jniLibs
+// 是针对 API 21 的 sysroot 编译的（flutter/ndk_*.sh）。webrtc-util 调用了
+// 这些函数，所以没有这段处理 android 链接会因符号未定义而失败。
 fn build_android_ifaddrs() {
     let file = "src/platform/android_ifaddrs.c";
     cc::Build::new().file(file).compile("android_ifaddrs");

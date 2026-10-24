@@ -13,7 +13,7 @@ use crate::{
     CodecFormat, I420ToABGR, I420ToARGB, ImageRgb,
 };
 
-/// MediaCodec mime type name
+/// MediaCodec 的 mime 类型名称
 const H264_MIME_TYPE: &str = "video/avc";
 const H265_MIME_TYPE: &str = "video/hevc";
 // const VP8_MIME_TYPE: &str = "video/x-vnd.on2.vp8";
@@ -49,9 +49,9 @@ impl MediaCodecDecoder {
         }
     }
 
-    // rgb [in/out] fmt and stride must be set in ImageRgb
+    // rgb [in/out] 的 fmt 和 stride 必须在 ImageRgb 中设置
     pub fn decode(&mut self, data: &[u8], rgb: &mut ImageRgb) -> ResultType<bool> {
-        // take dst_stride into account please
+        // 请考虑 dst_stride
         let dst_stride = rgb.stride();
         match self.dequeue_input_buffer(Duration::from_millis(10))? {
             Some(mut input_buffer) => {
@@ -160,7 +160,7 @@ fn create_media_codec(name: &str, direction: MediaCodecDirection) -> Option<Medi
 
 pub fn check_mediacodec() {
     std::thread::spawn(move || {
-        // check decoders
+        // 检查解码器
         let decoders = MediaCodecDecoder::new_decoders();
         H264_DECODER_SUPPORT.swap(decoders.h264.is_some(), Ordering::SeqCst);
         H265_DECODER_SUPPORT.swap(decoders.h265.is_some(), Ordering::SeqCst);

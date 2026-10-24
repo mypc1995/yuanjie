@@ -27,7 +27,7 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
   GestureDragEndCallback? onOneFingerPanEnd;
   GestureDragCancelCallback? onOneFingerPanCancel;
 
-  // twoFingerScale : scale + pan event
+  // twoFingerScale：缩放 + 平移事件
   GestureScaleStartCallback? onTwoFingerScaleStart;
   GestureScaleUpdateCallback? onTwoFingerScaleUpdate;
   GestureScaleEndCallback? onTwoFingerScaleEnd;
@@ -85,7 +85,7 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
     onEnd = (d) {
       debugPrint("ScaleGestureRecognizer onEnd");
       _debounceTimer?.cancel();
-      // end
+      // 结束
       switch (_currentState) {
         case GestureState.oneFingerPan:
           debugPrint("OneFingerState.pan onEnd");
@@ -99,8 +99,8 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
             onTwoFingerScaleEnd!(d);
           }
           if (isSpecialHoldDragActive) {
-            // If we are in special drag mode, we need to reset the state.
-            // Otherwise, the next `onTwoFingerScaleUpdate()` will handle a wrong `focalPoint`.
+            // 如果我们处于特殊拖拽模式，就需要重置状态。
+            // 否则，下一次 `onTwoFingerScaleUpdate()` 会处理错误的 `focalPoint`。
             _currentState = GestureState.none;
             return;
           }
@@ -121,7 +121,7 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
   }
 
   // FIXME: This debounce logic is not working properly.
-  // If we move our finger very fast, we won't be able to detect the "oneFingerPan" event sometimes.
+  // 如果手指移动非常快，有时将无法检测到 "oneFingerPan" 事件。
   void onOneFingerStartDebounce(ScaleUpdateDetails d) {
     start(ScaleUpdateDetails d) {
       _currentState = GestureState.oneFingerPan;
@@ -181,10 +181,10 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
         }
         break;
       case GestureState.twoFingerScale:
-        // Reset scale state if needed, currently self-contained
+        // 按需重置缩放状态，目前自成一体
         break;
       case GestureState.threeFingerVerticalDrag:
-        // Reset drag state if needed, currently self-contained
+        // 按需重置拖拽状态，目前自成一体
         break;
       default:
         break;
@@ -242,12 +242,12 @@ class HoldTapMoveGestureRecognizer extends GestureRecognizer {
   void addAllowedPointer(PointerDownEvent event) {
     if (_firstTap != null) {
       if (!_firstTap!.isWithinGlobalTolerance(event, kDoubleTapSlop)) {
-        // Ignore out-of-bounds second taps.
+        // 忽略越界的第二次点击。
         return;
       } else if (!_firstTap!.hasElapsedMinTime() ||
           !_firstTap!.hasSameButton(event)) {
-        // Restart when the second tap is too close to the first (touch screens
-        // often detect touches intermittently), or when buttons mismatch.
+        // 当第二次点击与第一次过于接近时重新开始（触摸屏
+        // 常常会间歇性检测到触摸），或者当按键不匹配时。
         _reset();
         return _trackTap(event);
       } else if (onHoldDragDown != null) {
@@ -298,11 +298,11 @@ class HoldTapMoveGestureRecognizer extends GestureRecognizer {
     } else if (event is PointerMoveEvent) {
       if (!tracker.isWithinGlobalTolerance(event, kDoubleTapTouchSlop)) {
         if (_firstTap != null && _firstTap!.pointer == event.pointer) {
-          // first tap move
+          // 首次点击移动
           _reject(tracker);
         } else if (_secondTap != null && _secondTap!.pointer == event.pointer) {
           // debugPrint("_secondTap move");
-          // second tap move
+          // 第二次点击移动
           if (!_isStart) {
             _resolve();
           }
@@ -325,11 +325,11 @@ class HoldTapMoveGestureRecognizer extends GestureRecognizer {
   @override
   void rejectGesture(int pointer) {
     _TapTracker? tracker = _trackers[pointer];
-    // If tracker isn't in the list, check if this is the first tap tracker
+    // 如果 tracker 不在列表中，检查它是否是首次点击的 tracker
     if (tracker == null && _firstTap != null && _firstTap!.pointer == pointer) {
       tracker = _firstTap;
     }
-    // If tracker is still null, we rejected ourselves already
+    // 如果 tracker 仍然为 null，说明我们已经自行拒绝了
     if (tracker != null) {
       _reject(tracker);
     }
@@ -376,8 +376,8 @@ class HoldTapMoveGestureRecognizer extends GestureRecognizer {
       if (_trackers.isNotEmpty) {
         _checkCancel();
       }
-      // Note, order is important below in order for the resolve -> reject logic
-      // to work properly.
+      // 注意，下面的顺序很重要，以保证 resolve -> reject 逻辑
+      // 能够正常工作。
       final _TapTracker tracker = _firstTap!;
       _firstTap = null;
       _reject(tracker);
@@ -398,8 +398,8 @@ class HoldTapMoveGestureRecognizer extends GestureRecognizer {
   void _registerFirstTap(_TapTracker tracker) {
     _startFirstTapUpTimer();
     GestureBinding.instance.gestureArena.hold(tracker.pointer);
-    // Note, order is important below in order for the clear -> reject logic to
-    // work properly.
+    // 注意，下面的顺序很重要，以保证 clear -> reject 逻辑能够
+    // 正常工作。
     _freezeTracker(tracker);
     _trackers.remove(tracker.pointer);
     _firstTap = tracker;
@@ -507,7 +507,7 @@ class DoubleFinerTapGestureRecognizer extends GestureRecognizer {
   void addAllowedPointer(PointerDownEvent event) {
     debugPrint("addAllowedPointer");
     if (_isStart) {
-      // second
+      // 第二次
       if (onDoubleFinerTapDown != null) {
         final TapDownDetails details = TapDownDetails(
           globalPosition: event.position,
@@ -518,7 +518,7 @@ class DoubleFinerTapGestureRecognizer extends GestureRecognizer {
             'onDoubleFinerTapDown', () => onDoubleFinerTapDown!(details));
       }
     } else {
-      // first tap
+      // 首次点击
       _isStart = true;
       _lastPointerDownEvent = event;
       _startFirstTapDownTimer();
@@ -560,11 +560,11 @@ class DoubleFinerTapGestureRecognizer extends GestureRecognizer {
   @override
   void rejectGesture(int pointer) {
     _TapTracker? tracker = _trackers[pointer];
-    // If tracker isn't in the list, check if this is the first tap tracker
+    // 如果 tracker 不在列表中，检查它是否是首次点击的 tracker
     if (tracker == null && _firstTap != null && _firstTap!.pointer == pointer) {
       tracker = _firstTap;
     }
-    // If tracker is still null, we rejected ourselves already
+    // 如果 tracker 仍然为 null，说明我们已经自行拒绝了
     if (tracker != null) {
       _reject(tracker);
     }
@@ -600,8 +600,8 @@ class DoubleFinerTapGestureRecognizer extends GestureRecognizer {
 
   void _registerTap(_TapTracker tracker) {
     GestureBinding.instance.gestureArena.hold(tracker.pointer);
-    // Note, order is important below in order for the clear -> reject logic to
-    // work properly.
+    // 注意，下面的顺序很重要，以保证 clear -> reject 逻辑能够
+    // 正常工作。
   }
 
   void _clearTrackers() {
@@ -657,8 +657,8 @@ class DoubleFinerTapGestureRecognizer extends GestureRecognizer {
   String get debugDescription => 'double tap';
 }
 
-/// TapTracker helps track individual tap sequences as part of a
-/// larger gesture.
+/// TapTracker 帮助跟踪单个点击序列，它是更大手势的
+/// 一部分。
 class _TapTracker {
   _TapTracker({
     required PointerDownEvent event,
@@ -708,8 +708,8 @@ class _TapTracker {
   }
 }
 
-/// CountdownZoned tracks whether the specified duration has elapsed since
-/// creation, honoring [Zone].
+/// CountdownZoned 跟踪自创建以来指定的时间长度是否已经过去，
+/// 并遵循 [Zone]。
 class _CountdownZoned {
   _CountdownZoned({required Duration duration}) {
     Timer(duration, _onTimeout);
@@ -747,7 +747,7 @@ RawGestureDetector getMixinGestureDetector({
   return RawGestureDetector(
       child: child,
       gestures: <Type, GestureRecognizerFactory>{
-        // Official
+        // 官方
         TapGestureRecognizer:
             GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
                 () => TapGestureRecognizer(), (instance) {
@@ -767,7 +767,7 @@ RawGestureDetector getMixinGestureDetector({
             ..onLongPressDown = onLongPressDown
             ..onLongPress = onLongPress;
         }),
-        // Customized
+        // 自定义
         HoldTapMoveGestureRecognizer:
             GestureRecognizerFactoryWithHandlers<HoldTapMoveGestureRecognizer>(
                 () => HoldTapMoveGestureRecognizer(),

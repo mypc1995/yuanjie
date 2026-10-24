@@ -90,7 +90,7 @@ fn finalize_block(input: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
 
 fn sub_bytes(state: &mut [u8; 16]) {
     for byte in state.iter_mut() {
-        *byte = TABLE[*byte as usize];
+        * byte = TABLE[*byte as usize];
     }
 }
 
@@ -108,7 +108,7 @@ fn shift_rows(state: &mut [u8; 16]) {
     temp[7] = state[3];
     temp[11] = state[7];
     temp[15] = state[11];
-    *state = temp;
+    * state = temp;
 }
 
 pub fn add_round_key(state: &mut [u8; 16], round_key: &[u8; 16]) {

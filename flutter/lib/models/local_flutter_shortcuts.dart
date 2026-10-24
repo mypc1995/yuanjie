@@ -7,14 +7,14 @@ import '../common/widgets/keyboard_shortcuts/shortcut_constants.dart';
 
 class LocalFlutterShortcutDispatcher {
   final void Function(String) onTriggered;
-  // Keys whose press fired a shortcut and whose release has not arrived yet.
-  // Ownership is physical: it is shared by every session, because a shortcut
-  // can switch focus or close its own session before the key is released, and
-  // it is never dropped with a session. A key whose release is missed heals
-  // itself: its next press is consumed as a repeat and that release removes it.
+  // 已触发快捷键但其抬起事件尚未到达的按键。
+  // 归属是物理层面的：由所有会话共享，因为快捷键
+  // 可能在按键抬起之前切换焦点或关闭它自己的会话，而且
+  // 它不会随会话一起被丢弃。抬起事件丢失的按键会自我修复：
+  // 它的下一次按下会被当作重复键消费掉，而那次抬起会把它移除。
   static final _firedKeys = <PhysicalKeyboardKey>{};
-  // Actions waiting for the release of the key that fired them, with the
-  // session that fired them. See [kShortcutActionsRunOnKeyUp].
+  // 等待触发它们的按键抬起的动作，以及触发它们的
+  // 会话。参见 [kShortcutActionsRunOnKeyUp]。
   static final _keyUpActions =
       <PhysicalKeyboardKey, (LocalFlutterShortcutDispatcher, String)>{};
   static final _clipboardModifierReleases =
@@ -27,8 +27,8 @@ class LocalFlutterShortcutDispatcher {
 
   LocalFlutterShortcutDispatcher({required this.onTriggered});
 
-  /// Drops this session's pending actions and modifier replay. Fired keys
-  /// stay owned until their release, whichever session receives it.
+  /// 丢弃该会话待处理的动作和修饰符重放。已触发的按键
+  /// 在抬起之前仍保持归属，无论由哪个会话接收。
   void clear() {
     _keyUpActions.removeWhere((_, pending) => identical(pending.$1, this));
     _clipboardModifierReleases
@@ -91,7 +91,7 @@ class LocalFlutterShortcutDispatcher {
   }
 
   bool _isModifier(PhysicalKeyboardKey key) {
-    // HID keyboard modifier usages are contiguous.
+    // HID 键盘的修饰键使用码是连续的。
     return key.usbHidUsage >= PhysicalKeyboardKey.controlLeft.usbHidUsage &&
         key.usbHidUsage <= PhysicalKeyboardKey.metaRight.usbHidUsage;
   }
@@ -145,8 +145,8 @@ class LocalFlutterShortcutDispatcher {
       }
       return true;
     }
-    // Safari can omit the previous Cmd-held keyup. A fresh browser keydown
-    // starts a new press; KeyRepeatEvent must still belong to the old chord.
+    // Safari 可能会省略之前按住 Cmd 时的抬起事件。新的浏览器 keydown
+    // 标志着一次新的按下；KeyRepeatEvent 仍应归属于原来的组合键。
     if (kIsWeb && defaultTargetPlatform == TargetPlatform.macOS && down) {
       _firedKeys.remove(key);
     }
@@ -156,9 +156,9 @@ class LocalFlutterShortcutDispatcher {
     if (action == null) return false;
     _firedKeys.add(key);
     if (viewOnly) _viewOnlyShortcutPending = true;
-    // macOS browsers can omit letter keyups while Cmd is held. Like the JS
-    // input source, dispatch on keydown there; remote cleanup still runs first.
-    // Web clipboard reads also need the key-down's browser user activation.
+    // macOS 浏览器在按住 Cmd 时可能省略字母键的抬起事件。与 JS
+    // 输入源一样，在那里于 keydown 时派发；远端清理仍然先执行。
+    // Web 剪贴板读取也需要 keydown 带来的浏览器用户激活。
     final runOnKeyUp =
         !(kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) &&
             (kShortcutActionsRunOnKeyUp.contains(action) ||
@@ -171,7 +171,7 @@ class LocalFlutterShortcutDispatcher {
     if (runOnKeyUp &&
         action == kShortcutActionSendClipboardKeystrokes &&
         releaseModifiers != null) {
-      // The release can precede completion of the asynchronous FFI calls.
+      // 抬起事件可能先于异步 FFI 调用完成。
       final release = Future<void>.sync(releaseModifiers);
       _clipboardModifierReleases[key] = (this, release);
       unawaited(_trigger(null, () => release));
@@ -181,8 +181,8 @@ class LocalFlutterShortcutDispatcher {
     return true;
   }
 
-  /// Releases the remote modifiers, then runs [action] unless it is null or
-  /// this session was cleared meanwhile.
+  /// 先释放远端修饰键，然后执行 [action]，除非它为 null 或
+  /// 期间该会话已被清除。
   Future<void> _trigger(
       String? action, Future<void> Function()? releaseModifiers) async {
     final generation = _generation;
@@ -197,8 +197,8 @@ class LocalFlutterShortcutDispatcher {
               kShortcutActionsRunOnKeyUp.contains(action) ||
               (!kIsWeb && action == kShortcutActionSendClipboardKeystrokes)) &&
           _forwardedKeyReleases.isNotEmpty) {
-        // Focus changes and view-only can keep physical keyups from the peer.
-        // Mode changes can encode later keyups differently from their keydowns.
+        // 焦点变化和仅查看模式可能导致来自对端的物理抬起事件收不到。
+        // 模式变化可能使后续抬起事件的编码方式与按下事件不同。
         final releases = _forwardedKeyReleases.values.toList();
         _forwardedKeyReleases.clear();
         await Future.wait(releases.map((release) => Future<void>.sync(release)));

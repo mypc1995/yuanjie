@@ -5,7 +5,7 @@ import 'package:flutter_hbb/common.dart';
 
 enum SystemWindowTheme { light, dark }
 
-/// The platform channel for RustDesk.
+/// RustDesk 的平台通道。
 class RdPlatformChannel {
   RdPlatformChannel._();
 
@@ -16,9 +16,9 @@ class RdPlatformChannel {
   final MethodChannel _hostMethodChannel =
       MethodChannel("org.rustdesk.rustdesk/host");
 
-  /// Bump the position of the mouse cursor, if applicable
+  /// 在适用的情况下，微调鼠标光标的位置
   Future<bool> bumpMouse({required int dx, required int dy}) async {
-    // No debug output; this call is too chatty.
+    // 不输出调试信息；此调用过于频繁。
 
     bool? result = await _hostMethodChannel
       .invokeMethod("bumpMouse", {"dx": dx, "dy": dy});
@@ -26,7 +26,7 @@ class RdPlatformChannel {
     return result ?? false;
   }
 
-  /// Change the theme of the system window
+  /// 更改系统窗口的主题
   Future<void> changeSystemWindowTheme(SystemWindowTheme theme) {
     assert(isMacOS);
     if (kDebugMode) {
@@ -37,7 +37,7 @@ class RdPlatformChannel {
         .invokeMethod("setWindowTheme", {"themeName": theme.name});
   }
 
-  /// Terminate .app manually.
+  /// 手动终止 .app。
   Future<void> terminate() {
     assert(isMacOS);
     return _hostMethodChannel.invokeMethod("terminate");

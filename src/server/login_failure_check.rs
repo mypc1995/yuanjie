@@ -173,7 +173,7 @@ mod tests {
 
     fn clear_os_credential_failure_state(scope: FailureScope) {
         if let Some(state_mutex) = state_for_os_credential_scope(scope) {
-            *state_mutex.lock().unwrap() = OsCredentialFailureState::default();
+            * state_mutex.lock().unwrap() = OsCredentialFailureState::default();
         }
     }
 

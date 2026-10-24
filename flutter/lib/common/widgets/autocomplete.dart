@@ -164,8 +164,8 @@ class AllPeersLoader {
     if (gFFI.lanPeersModel.peers.isEmpty) {
       bind.mainLoadLanPeers();
     }
-    // No need to care about peers from abModel, and group model.
-    // Because they will pull data in `refreshCurrentUser()` on startup.
+    // 无需关心来自 abModel 以及群组模型的 peers。
+    // 因为它们会在启动时通过 `refreshCurrentUser()` 拉取数据。
 
     final startTime = DateTime.now();
     _mergeAllPeers();

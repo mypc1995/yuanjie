@@ -1,7 +1,7 @@
-// Unprivileged half of the split DRM/KMS capture path: the root `--service` exports a scanout
-// dma-buf fd + descriptor, this side imports it and EGL-detiles. libEGL/libGLESv2 are dlopen'd
-// in the UNPRIVILEGED process on this path; the root service loads them only if it falls back to
-// its own CPU-mapped grab (`drmtap_grab_mapped`).
+// 分离式 DRM/KMS 捕获路径中的非特权一半：root `--service` 导出一个扫描输出的
+// dma-buf fd 及描述符，这一侧负责导入并用 EGL 做去 tiling。在这条路径上，libEGL/libGLESv2 是在
+// 非特权进程中 dlopen 的；root 服务只有在回退到
+// 它自己的 CPU 映射抓取（`drmtap_grab_mapped`）时才会加载它们。
 
 use super::drmtap_dl::{self, drmtap_ctx, drmtap_dmabuf_desc, drmtap_frame_info, DrmtapLib};
 use super::Pixfmt;
@@ -15,21 +15,21 @@ use super::drm_reader::{
     MAX_DIM, MAX_FRAME_BYTES,
 };
 
-/// Unprivileged DRM render-node convert context. !Send/!Sync via the raw ctx pointer: the context
-/// and libdrmtap's thread-local EGL state must be created, used (`convert`) and closed on ONE thread.
+/// 非特权的 DRM 渲染节点转换上下文。通过原始 ctx 指针实现 !Send/!Sync：该上下文
+/// 以及 libdrmtap 的线程局部 EGL 状态必须在同一个线程上创建、使用（`convert`）并关闭。
 pub struct RenderConverter {
     lib: &'static DrmtapLib,
     ctx: *mut drmtap_ctx,
 }
 
 impl RenderConverter {
-    /// `node` is the render node of the GPU that exports the scanout; `None`/invalid path falls back to libdrmtap auto-selection.
+    /// `node` 是导出扫描输出的那个 GPU 的渲染节点；为 `None` 或路径无效时回退到 libdrmtap 的自动选择。
     pub fn open_render(node: Option<&str>) -> Option<RenderConverter> {
         let lib = drmtap_dl::get()?;
         let open_render = lib.open_render;
         let node_cstr = match node.filter(|n| !n.is_empty()) {
             None => None,
-            // Open the CANONICAL path the gate resolved: opening the IPC string would re-walk its symlinks after the check.
+            // 打开门控解析出的规范路径：打开 IPC 字符串会在检查之后重新遍历它的符号链接。
             Some(n) => match super::drm_reader::device_under_dev_dri(n) {
                 None => {
                     log::warn!("drm: render node {n:?} is not under /dev/dri; auto-selecting");
@@ -38,7 +38,7 @@ impl RenderConverter {
                 Some(canonical) => canonical.to_str().and_then(|s| CString::new(s).ok()),
             },
         };
-        // SAFETY: resolved C entry point; `node_cstr` outlives the call, NULL requests auto-selection.
+        // SAFETY：已解析的 C 入口点；`node_cstr` 的生命周期长于本次调用，传 NULL 表示请求自动选择。
         let ctx = unsafe {
             open_render(node_cstr.as_ref().map_or(std::ptr::null(), |c| c.as_ptr()))
         };
@@ -60,7 +60,7 @@ impl RenderConverter {
         Some(RenderConverter { lib, ctx })
     }
 
-    /// Returns context-owned linear pixels valid ONLY until the next `convert()`; row stride is `len / height`.
+    /// 返回归上下文所有的线性像素，仅在下一次 `convert()` 之前有效；行跨度为 `len / height`。
     pub fn convert(
         &mut self,
         desc: &mut drmtap_dmabuf_desc,
@@ -74,7 +74,7 @@ impl RenderConverter {
                     format!("drm: refusing a dma-buf descriptor with geometry {w}x{h}"),
                 ));
             }
-            // Reject, do not clamp, and write the normalized count back so the C reads the count bounded here.
+            // 这里是拒绝而不是截断，并把归一化后的数量写回去，让 C 侧读到的数量受这里的边界约束。
             let planes = if desc.num_planes == 0 { 1 } else { desc.num_planes };
             if planes > 4 {
                 return Err(io::Error::new(
@@ -106,10 +106,10 @@ impl RenderConverter {
             }
         }
         let convert_dmabuf = self.lib.convert_dmabuf;
-        // LOAD-BEARING: the fd the exporter serialized was process-local; -1 means reuse the cached import for `fb_id`.
+        // 关键点：导出方序列化出去的 fd 原本是进程本地的；-1 表示复用为 `fb_id` 缓存的导入句柄。
         desc.dma_buf_fd = received_fd;
-        // SAFETY: self.ctx is a valid render context; `desc` is fully initialized; `frame` is zeroed
-        // before the call. libdrmtap OWNS `frame.data`: no release/free from this side (drmtap.h).
+        // SAFETY：self.ctx 是有效的渲染上下文；`desc` 已完全初始化；`frame` 在
+        // 调用前已清零。`frame.data` 归 libdrmtap 所有：这一侧不做释放/回收（见 drmtap.h）。
         unsafe {
             let mut frame: drmtap_frame_info = std::mem::zeroed();
             let ret = convert_dmabuf(self.ctx, &*desc as *const drmtap_dmabuf_desc, &mut frame);
@@ -135,7 +135,7 @@ impl RenderConverter {
             let w = frame.width;
             let h = frame.height;
             let stride = frame.stride as usize;
-            // A stride below 32bpp under-sizes the row and, read as BGRA downstream, discloses adjacent memory.
+            // 低于 32bpp 的跨度会让行缓冲区偏小，一旦在下游被当作 BGRA 读取，就会泄露相邻内存。
             if w > MAX_DIM || h > MAX_DIM || stride < (w as usize) * 4 {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
@@ -157,7 +157,7 @@ impl RenderConverter {
             let pixfmt = match frame.format {
                 DRM_FORMAT_XRGB8888 | DRM_FORMAT_ARGB8888 => Pixfmt::BGRA,
                 DRM_FORMAT_XBGR8888 | DRM_FORMAT_ABGR8888 => Pixfmt::RGBA,
-                // Unset by an older convert -> libdrmtap's normalized BGRA.
+                // 较旧的 convert 未设置该项 -> 使用 libdrmtap 归一化后的 BGRA。
                 0 => Pixfmt::BGRA,
                 other => {
                     return Err(io::Error::new(
@@ -175,8 +175,8 @@ impl RenderConverter {
 impl Drop for RenderConverter {
     fn drop(&mut self) {
         if !self.ctx.is_null() {
-            // SAFETY: ctx came from drmtap_open_render and is non-null; the !Send ctx pointer keeps
-            // this drop on the thread that created and used it (thread-local EGL + cached imports).
+            // SAFETY：ctx 来自 drmtap_open_render，非空；!Send 的 ctx 指针保证
+            // 这次 drop 发生在创建并使用它的那个线程上（线程局部 EGL + 缓存的导入句柄）。
             unsafe { (self.lib.close)(self.ctx) };
             self.ctx = std::ptr::null_mut();
         }

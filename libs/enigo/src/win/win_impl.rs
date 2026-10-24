@@ -12,18 +12,18 @@ extern "system" {
     pub fn GetLastError() -> DWORD;
 }
 
-/// The main struct for handling the event emitting
+/// 处理事件触发的主要结构体
 #[derive(Default)]
 pub struct Enigo;
 static mut LAYOUT: HKL = std::ptr::null_mut();
 
-/// The dwExtraInfo value in keyboard and mouse structure that used in SendInput()
+/// 键盘和鼠标结构体中在 SendInput() 里使用的 dwExtraInfo 值
 pub const ENIGO_INPUT_EXTRA_VALUE: ULONG_PTR = 100;
 
 fn mouse_event(flags: u32, data: u32, dx: i32, dy: i32) -> DWORD {
     let mut u = INPUT_u::default();
     unsafe {
-        *u.mi_mut() = MOUSEINPUT {
+        * u.mi_mut() = MOUSEINPUT {
             dx,
             dy,
             mouseData: data,
@@ -39,9 +39,9 @@ fn mouse_event(flags: u32, data: u32, dx: i32, dy: i32) -> DWORD {
     unsafe { SendInput(1, &mut input as LPINPUT, size_of::<INPUT>() as c_int) }
 }
 
-// `v` comes from the remote peer unchecked, so scale in i64 to avoid overflow, and clamp to
-// the 0..=65535 range MOUSEEVENTF_ABSOLUTE takes.
-// `extent` is 0 when the virtual screen metrics are unavailable.
+// `v` 来自远端对端且未经校验，因此用 i64 缩放以避免溢出，并钳制到
+// MOUSEEVENTF_ABSOLUTE 所要求的 0..=65535 范围内。
+// 当虚拟屏幕指标不可用时，`extent` 为 0。
 fn to_absolute(v: i32, origin: i32, extent: i32) -> Option<i32> {
     if extent <= 0 {
         return None;
@@ -71,7 +71,7 @@ fn keybd_event(mut flags: u32, vk: u16, scan: u16) -> DWORD {
     }
     let mut union: INPUT_u = unsafe { std::mem::zeroed() };
     unsafe {
-        *union.ki_mut() = KEYBDINPUT {
+        * union.ki_mut() = KEYBDINPUT {
             wVk: vk,
             wScan: scan,
             dwFlags: flags,
@@ -246,13 +246,13 @@ impl KeyboardControllable for Enigo {
         let mut buffer = [0; 2];
 
         for c in sequence.chars() {
-            // Windows uses uft-16 encoding. We need to check
-            // for variable length characters. As such some
-            // characters can be 32 bit long and those are
-            // encoded in so-called high and low surrogates
-            // each 16 bit wide that needs to be send after
-            // another to the SendInput function without
-            // being interrupted by "keyup"
+            // Windows 使用 uft-16 编码。我们需要检查
+            // 是否存在变长字符。因此某些
+            // 字符可能有 32 位长，而这些字符
+            // 以所谓的高位和低位代理项（surrogate）编码，
+            // 每个 16 位宽，需要在
+            // 另一个之后发送到 SendInput 函数，且不
+            // 被 "keyup" 打断
             let result = c.encode_utf16(&mut buffer);
             if result.len() == 1 {
                 self.unicode_key_click(result[0]);
@@ -260,7 +260,7 @@ impl KeyboardControllable for Enigo {
                 for utf16_surrogate in result {
                     self.unicode_key_down(utf16_surrogate.clone());
                 }
-                // do i need to produce a keyup?
+                // 我需要产生 keyup 吗？
                 // self.unicode_key_up(0);
             }
         }
@@ -275,7 +275,7 @@ impl KeyboardControllable for Enigo {
     fn key_down(&mut self, key: Key) -> crate::ResultType {
         match &key {
             Key::Layout(c) => {
-                // to-do: dup code
+                // 待办：重复代码
                 // https://github.com/rustdesk/rustdesk/blob/1bc0dd791ed8344997024dc46626bd2ca7df73d2/src/server/input_service.rs#L1348
                 let code = self.get_layoutdependent_keycode(*c);
                 if code as u16 != 0xFFFF {
@@ -349,10 +349,10 @@ impl KeyboardControllable for Enigo {
 }
 
 impl Enigo {
-    /// Gets the (width, height) of the main display in screen coordinates
-    /// (pixels).
+    /// 获取主显示器在屏幕坐标系中的 (宽, 高)
+    /// (像素)。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -364,9 +364,9 @@ impl Enigo {
         (w, h)
     }
 
-    /// Gets the location of mouse in screen coordinates (pixels).
+    /// 获取鼠标在屏幕坐标系中的位置（像素）。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -396,12 +396,12 @@ impl Enigo {
     }
 
     fn key_to_keycode(&self, key: Key) -> u16 {
-        // do not use the codes from crate winapi they're
-        // wrongly typed with i32 instead of i16 use the
-        // ones provided by win/keycodes.rs that are prefixed
-        // with an 'E' infront of the original name
+        // 不要使用 crate winapi 中的编码，它们
+        // 被错误地标注为 i32 而不是 i16，请使用
+        // win/keycodes.rs 中提供的那些，其前缀为
+        // 在原名之前带有一个 'E'
         #[allow(deprecated)]
-        // I mean duh, we still need to support deprecated keys until they're removed
+        // 我的意思是，显然，在废弃按键被移除之前我们仍需支持它们
         match key {
             Key::Alt => EVK_MENU,
             Key::Backspace => EVK_BACK,
@@ -483,7 +483,7 @@ impl Enigo {
             Key::Raw(raw_keycode) => raw_keycode,
             Key::Super | Key::Command | Key::Windows | Key::Meta => EVK_LWIN,
             Key::Layout(..) => {
-                // unreachable
+                // 不可达
                 0
             }
         }
@@ -494,8 +494,8 @@ impl Enigo {
             LAYOUT = std::ptr::null_mut();
         }
         // NOTE VkKeyScanW uses the current keyboard LAYOUT
-        // to specify a LAYOUT use VkKeyScanExW and GetKeyboardLayout
-        // or load one with LoadKeyboardLayoutW
+        // 要指定 LAYOUT，请使用 VkKeyScanExW 和 GetKeyboardLayout
+        // 或用 LoadKeyboardLayoutW 加载一个
         let current_window_thread_id =
             unsafe { GetWindowThreadProcessId(GetForegroundWindow(), std::ptr::null_mut()) };
         unsafe { LAYOUT = GetKeyboardLayout(current_window_thread_id) };

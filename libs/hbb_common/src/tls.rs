@@ -19,21 +19,21 @@ pub fn is_plain(url: &str) -> bool {
     url.starts_with("ws://") || url.starts_with("http://")
 }
 
-// Extract domain from URL.
-// e.g., "https://example.com/path" -> "example.com"
+// 从 URL 中提取域名。
+// 例如 "https://example.com/path" -> "example.com"
 //       "https://example.com:8080/path" -> "example.com:8080"
-// See the tests for more examples.
+// 更多示例请参见测试。
 #[inline]
 fn get_domain_and_port_from_url(url: &str) -> &str {
-    // Remove scheme (e.g., http://, https://, ws://, wss://)
+    // 去掉 scheme（例如 http://、https://、ws://、wss://）
     let scheme_end = url.find("://").map(|pos| pos + 3).unwrap_or(0);
     let url2 = &url[scheme_end..];
-    // If userinfo is present, domain is after last '@'
+    // 如果存在 userinfo，域名在最后一个 '@' 之后
     let after_at = match url2.rfind('@') {
         Some(pos) => &url2[pos + 1..],
         None => url2,
     };
-    // Find the end of domain (before '/' or '?')
+    // 找出域名的结束位置（在 '/' 或 '?' 之前）
     let domain_end = after_at.find(&['/', '?'][..]).unwrap_or(after_at.len());
     &after_at[..domain_end]
 }
@@ -45,7 +45,7 @@ pub fn upsert_tls_cache(url: &str, tls_type: TlsType, danger_accept_invalid_cert
     }
 
     let domain_port = get_domain_and_port_from_url(url);
-    // Use curly braces to ensure the lock is released immediately.
+    // 使用花括号以确保锁立即释放。
     {
         URL_TLS_TYPE
             .write()
@@ -62,7 +62,7 @@ pub fn upsert_tls_cache(url: &str, tls_type: TlsType, danger_accept_invalid_cert
 
 #[inline]
 pub fn reset_tls_cache() {
-    // Use curly braces to ensure the lock is released immediately.
+    // 使用花括号以确保锁立即释放。
     {
         URL_TLS_TYPE.write().unwrap().clear();
     }

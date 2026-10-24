@@ -30,7 +30,7 @@ fn do_hook(tx: Sender<String>) -> ResultType<(HHOOK, HHOOK)> {
 
     let mut cur_hook_thread_id = CUR_HOOK_THREAD_ID.lock().unwrap();
     if *cur_hook_thread_id != 0 {
-        // unreachable!
+        // 不可达！
         tx.send("Already hooked".to_owned())?;
         return Ok(invalid_ret);
     }
@@ -78,7 +78,7 @@ fn do_hook(tx: Sender<String>) -> ResultType<(HHOOK, HHOOK)> {
         let hook_mouse = SetWindowsHookExA(WH_MOUSE_LL, Some(privacy_mode_hook_mouse), hm_mouse, 0);
         if hook_mouse.is_null() {
             if FALSE == UnhookWindowsHookEx(hook_keyboard) {
-                // Fatal error
+                // 致命错误
                 log::error!(
                     " UnhookWindowsHookEx keyboard, error {}",
                     Error::last_os_error()
@@ -91,7 +91,7 @@ fn do_hook(tx: Sender<String>) -> ResultType<(HHOOK, HHOOK)> {
             return Ok(invalid_ret);
         }
 
-        *cur_hook_thread_id = GetCurrentThreadId();
+        * cur_hook_thread_id = GetCurrentThreadId();
         tx.send("".to_owned())?;
         return Ok((hook_keyboard, hook_mouse));
     }
@@ -109,7 +109,7 @@ pub fn hook() -> ResultType<()> {
                     hook_mouse = hooks.1;
                 }
                 Err(e) => {
-                    // Fatal error
+                    // 致命错误
                     allow_err!(tx.send(format!("Unexpected err when hook {}", e)));
                     return;
                 }
@@ -139,7 +139,7 @@ pub fn hook() -> ResultType<()> {
             }
 
             if FALSE == UnhookWindowsHookEx(hook_keyboard as _) {
-                // Fatal error
+                // 致命错误
                 log::error!(
                     "Failed UnhookWindowsHookEx keyboard, error {}",
                     Error::last_os_error()
@@ -147,14 +147,14 @@ pub fn hook() -> ResultType<()> {
             }
 
             if FALSE == UnhookWindowsHookEx(hook_mouse as _) {
-                // Fatal error
+                // 致命错误
                 log::error!(
                     "Failed UnhookWindowsHookEx mouse, error {}",
                     Error::last_os_error()
                 );
             }
 
-            *CUR_HOOK_THREAD_ID.lock().unwrap() = 0;
+            * CUR_HOOK_THREAD_ID.lock().unwrap() = 0;
         }
     });
 
@@ -204,25 +204,25 @@ pub extern "system" fn privacy_mode_hook_keyboard(
 
     unsafe {
         if (*ks).dwExtraInfo != enigo::ENIGO_INPUT_EXTRA_VALUE {
-            // Disable alt key. Alt + Tab will switch windows.
+            // 禁用 alt 键。Alt + Tab 用来切换窗口。
             if (*ks).flags & LLKHF_ALTDOWN == LLKHF_ALTDOWN {
                 return 1;
             }
 
             match w_param2 {
                 WM_KEYDOWN => {
-                    // Disable all keys other than P and Ctrl.
+                    // 禁用除 P 和 Ctrl 之外的所有按键。
                     if ![80, 162, 163].contains(&(*ks).vkCode) {
                         return 1;
                     }
 
                     // NOTE: GetKeyboardState may not work well...
 
-                    // Check if Ctrl + P is pressed
+                    // 检查是否按下了 Ctrl + P
                     let cltr_down = (GetKeyState(VK_CONTROL) as u16) & (0x8000 as u16) > 0;
                     let key = LOBYTE((*ks).vkCode as _);
                     if cltr_down && (key == 'p' as u8 || key == 'P' as u8) {
-                        // Ctrl + P is pressed, turn off privacy mode
+                        // 按下了 Ctrl + P，关闭隐私模式
                         if let Some(Err(e)) = super::turn_off_privacy(
                             super::INVALID_PRIVACY_MODE_CONN_ID,
                             Some(super::PrivacyModeState::OffByPeer),

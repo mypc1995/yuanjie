@@ -21,7 +21,7 @@ class _MobileCustomScaleControlsState extends CustomScaleControls<MobileCustomSc
 
   @override
   Widget build(BuildContext context) {
-    // Smaller button size for mobile
+    // 移动端使用更小的按钮尺寸
     const smallBtnConstraints = BoxConstraints(minWidth: 32, minHeight: 32);
 
     final sliderControl = Slider(

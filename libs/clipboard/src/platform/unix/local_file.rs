@@ -176,29 +176,29 @@ impl LocalFile {
             | FLAGS_FD_PROGRESSUI
             | FLAGS_FD_UNIX_MODE;
 
-        // flags, 4 bytes
+        // 标志位，4 字节
         buf.put_u32_le(flags);
-        // 32 bytes reserved
+        // 保留 32 字节
         buf.put(&[0u8; 32][..]);
-        // file attributes, 4 bytes
+        // 文件属性，4 字节
         buf.put_u32_le(file_attributes);
 
         // NOTE: this is not used in windows
-        // in the specification, this is 16 bytes reserved
-        // lets use the last 4 bytes to store the file mode
+        // 在规范中，这里是 16 字节保留位
+        // 我们用最后 4 字节存储文件权限位
         //
-        // 12 bytes reserved
+        // 保留 12 字节
         buf.put(&[0u8; 12][..]);
-        // file permissions, 4 bytes
+        // 文件权限，4 字节
         buf.put_u32_le(self.perm);
 
-        // last write time, 8 bytes
+        // 最后写入时间，8 字节
         buf.put_u64_le(win32_time);
-        // file size (high)
+        // 文件大小（高位）
         buf.put_u32_le(size_high);
-        // file size (low)
+        // 文件大小（低位）
         buf.put_u32_le(size_low);
-        // Put the null-terminated name and padding into the fixed-size field.
+        // 把以 NUL 结尾的名称和填充内容放入定长字段。
         self.put_descriptor_name(&mut buf)?;
 
         Ok(buf.to_vec())
@@ -244,7 +244,7 @@ impl LocalFile {
         let new_offset = offset + (buf.len() as u64);
         self.offset.store(new_offset, Ordering::Relaxed);
 
-        // gc file handle
+        // gc 文件句柄
         if new_offset >= self.size {
             self.offset.store(0, Ordering::Relaxed);
             self.handle = None;
@@ -270,7 +270,7 @@ pub(super) fn construct_file_list(paths: &[PathBuf]) -> Result<Vec<LocalFile>, C
         file_list: &mut Vec<LocalFile>,
         visited: &mut HashSet<PathBuf>,
     ) -> Result<(), CliprdrError> {
-        // prevent fs loop
+        // 防止文件系统循环
         if visited.contains(path) {
             return Ok(());
         }
@@ -334,7 +334,7 @@ mod file_list_test {
 
     #[inline]
     fn generate_tree(prefix: &str) -> Vec<LocalFile> {
-        // generate a tree of local files, no handles
+        // 生成一棵本地文件树，不含句柄
         // - /
         // |- a.txt
         // |- b
@@ -488,7 +488,7 @@ mod file_list_test {
         // 3000-01-01 00:00:00 UTC
         let time = SystemTime::UNIX_EPOCH + Duration::from_secs(32_503_680_000);
         assert_eq!(encoded_last_write_time(time)?, 441_481_536_000_000_000);
-        // Times before 1970 are sent as 1970-01-01 00:00:00 UTC.
+        // 1970 年之前的时间按 1970-01-01 00:00:00 UTC 发送。
         let time = SystemTime::UNIX_EPOCH - Duration::from_secs(1);
         assert_eq!(encoded_last_write_time(time)?, 116_444_736_000_000_000);
         Ok(())

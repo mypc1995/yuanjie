@@ -1,8 +1,8 @@
-//! Dynamic loading wrapper for libxdo.
+//! libxdo 的动态加载包装。
 //!
-//! Provides the same API as libxdo-sys but loads libxdo at runtime,
-//! allowing the program to run on systems without libxdo installed
-//! (e.g., Wayland-only environments).
+//! 提供与 libxdo-sys 相同的 API，但在运行时加载 libxdo，
+//! 从而让程序可以在没有安装 libxdo 的系统上运行
+//! （例如只有 Wayland 的环境）。
 
 use hbb_common::{
     libc::{c_char, c_int, c_uint},
@@ -116,7 +116,7 @@ impl XdoLib {
             let xdo_new: FnXdoNew = *lib.get(b"xdo_new").ok()?;
             let xdo_free: FnXdoFree = *lib.get(b"xdo_free").ok()?;
             let xdo_send_keysequence_window: FnXdoSendKeysequenceWindow =
-                *lib.get(b"xdo_send_keysequence_window").ok()?;
+                * lib.get(b"xdo_send_keysequence_window").ok()?;
 
             let xdo_new_with_opened_display = lib
                 .get(b"xdo_new_with_opened_display")

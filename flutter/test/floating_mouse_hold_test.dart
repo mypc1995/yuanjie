@@ -80,7 +80,7 @@ void main() {
       } else {
         await first.up();
       }
-      // A new press must not make the old synchronization valid again.
+      // 新的按下不能让旧的同步状态重新变得有效。
       final second = await tester.startGesture(tester.getCenter(target));
       await tester.pump(const Duration(milliseconds: 201));
       cursor.syncs.first.complete();

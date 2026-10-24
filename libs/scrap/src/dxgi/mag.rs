@@ -1,4 +1,4 @@
-// logic from webrtc -- https://github.com/shiguredo/libwebrtc/blob/main/modules/desktop_capture/win/screen_capturer_win_magnifier.cc
+// 逻辑来自 webrtc -- https://github.com/shiguredo/libwebrtc/blob/main/modules/desktop_capture/win/screen_capturer_win_magnifier.cc
 #![allow(non_snake_case)]
 
 use lazy_static;
@@ -96,7 +96,7 @@ pub struct tagMAGIMAGEHEADER {
 pub type MAGIMAGEHEADER = tagMAGIMAGEHEADER;
 pub type PMAGIMAGEHEADER = *mut tagMAGIMAGEHEADER;
 
-// Function types
+// 函数类型
 pub type MagImageScalingCallback = ::std::option::Option<
     unsafe extern "C" fn(
         hwnd: HWND,
@@ -142,7 +142,7 @@ struct MagInterface {
 }
 
 // NOTE: MagInitialize and MagUninitialize should not be called in global init and uninit.
-// If so, strange errors occur.
+// 如果那样做，会出现奇怪的错误。
 impl MagInterface {
     fn new() -> Result<Self> {
         let mut s = MagInterface {
@@ -156,7 +156,7 @@ impl MagInterface {
         };
         s.init_succeeded = false;
         unsafe {
-            // load lib
+            // 加载库
             let lib_file_name = "Magnification.dll";
             let lib_file_name_c = CString::new(lib_file_name)?;
             s.lib_handle = LoadLibraryExA(
@@ -175,7 +175,7 @@ impl MagInterface {
                 ));
             };
 
-            // load functions
+            // 加载函数
             s.mag_initialize_func = Some(std::mem::transmute(Self::load_func(
                 s.lib_handle,
                 "MagInitialize",
@@ -290,9 +290,9 @@ impl CapturerMag {
         MagInterface::new().is_ok()
     }
 
-    // This captures through the legacy Windows Magnification API. Do not infer
-    // multi-monitor capture support from privacy overlay coverage: WebRTC also
-    // disables its magnifier capturer when SM_CMONITORS != 1.
+    // 这是通过旧版 Windows Magnification API 进行捕获的。不要由此推断
+    // 支持多显示器捕获：WebRTC 在隐私遮罩覆盖方面同样
+    // 会在 SM_CMONITORS != 1 时禁用它的 magnifier 捕获器。
     // https://webrtc.googlesource.com/src/+/1845922d5a1bf9c27deeffb4a8c8daea124434c1/modules/desktop_capture/win/screen_capturer_win_magnifier.cc
     pub(crate) fn new(origin: (i32, i32), width: usize, height: usize) -> Result<Self> {
         unsafe {
@@ -359,8 +359,8 @@ impl CapturerMag {
                 ));
             }
 
-            // Register the host window class. See the MSDN documentation of the
-            // Magnification API for more information.
+            // 注册宿主窗口类。更多信息参见 MSDN 文档的
+            // Magnification API 部分。
             let wcex = WNDCLASSEXA {
                 cbSize: size_of::<WNDCLASSEXA>() as _,
                 style: 0,
@@ -376,7 +376,7 @@ impl CapturerMag {
                 hIconSm: 0 as _,
             };
 
-            // Ignore the error which may happen when the class is already registered.
+            // 忽略该类已注册时可能出现的错误。
             if 0 == RegisterClassExA(&wcex) {
                 let code = GetLastError();
                 if code != ERROR_CLASS_ALREADY_EXISTS {
@@ -390,7 +390,7 @@ impl CapturerMag {
                 }
             }
 
-            // Create the host window.
+            // 创建宿主窗口。
             s.host_window = CreateWindowExA(
                 WS_EX_LAYERED,
                 s.magnifier_host_class.as_ptr(),
@@ -415,7 +415,7 @@ impl CapturerMag {
                 ));
             }
 
-            // Create the magnifier control.
+            // 创建 magnifier 控件。
             s.magnifier_window = CreateWindowExA(
                 0,
                 s.magnifier_window_class.as_ptr(),
@@ -440,10 +440,10 @@ impl CapturerMag {
                 ));
             }
 
-            // Hide the host window.
+            // 隐藏宿主窗口。
             let _ = ShowWindow(s.host_window, SW_HIDE);
 
-            // Set the scaling callback to receive captured image.
+            // 设置缩放回调以接收捕获到的图像。
             if let Some(set_callback_func) = s.mag_interface.set_image_scaling_callback_func {
                 if FALSE
                     == set_callback_func(
@@ -490,10 +490,10 @@ impl CapturerMag {
         };
         let mut hwnds = find_windows(cls, name)?;
         hwnds.sort_unstable_by_key(|hwnd| *hwnd as usize);
-        // This runs from frame() because refreshed privacy overlays get new
-        // HWNDs. It is only used on the legacy magnifier backend while privacy
-        // mode is active; if it shows up as hot-path cost, throttle this check.
-        // Keep the previous filter list while privacy windows are being recreated.
+        // 这段逻辑从 frame() 运行，因为刷新后的隐私遮罩会获得新的
+        // HWND。它只在启用隐私模式、且使用旧版 magnifier 后端时才会用到；
+        // 如果它出现在热路径的开销里，就把这个检查降频。
+        // 在隐私窗口重建期间保留之前的过滤列表。
         if hwnds.is_empty() || hwnds == self.excluded_windows {
             return Ok(());
         }
@@ -605,8 +605,8 @@ impl CapturerMag {
                 ));
             }
 
-            // on_gag_image_scaling_callback will be called and fill in the
-            // frame before set_window_source_func_ returns.
+            // on_gag_image_scaling_callback 会被调用并填充
+            // 帧，然后 set_window_source_func_ 才返回。
             if let Some(set_window_source_func) = self.mag_interface.set_window_source_func {
                 if FALSE == set_window_source_func(self.magnifier_window, self.rect) {
                     return Err(Error::new(
@@ -682,7 +682,7 @@ impl CapturerMag {
         Self::clear_data();
 
         if !IsEqualGUID(&srcheader.format, &GUID_WICPixelFormat32bppRGBA) {
-            // log warning?
+            // 记一条警告日志？
             return FALSE;
         }
         let mut lock = MAG_BUFFER.lock().unwrap();

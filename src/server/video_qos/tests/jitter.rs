@@ -5,7 +5,7 @@ fn abr_session() -> VideoQoS {
     qos.new_display("test".to_owned());
     qos.set_support_changing_quality("test", true);
     qos.store_bitrate(4000);
-    // Linux skips the first-reply adjustment; exercise it on every platform.
+    // Linux 会跳过首次回复调整；在所有平台上都要覆盖它。
     qos.first_reply_adjusts_ratio = true;
     qos.advance_ms(4000);
     qos
@@ -56,7 +56,7 @@ fn severe_delay_and_timeout_bypass_bitrate_cooldown() {
 
 #[test]
 fn a_single_stall_does_not_cut_bitrate() {
-    // One probe out for 2.5 s, then its late reply: jitter, not congestion.
+    // 一次探测挂起 2.5 秒，然后才收到迟到的回复：这是抖动，不是拥塞。
     let mut qos = abr_session();
     let ratio = qos.ratio();
     qos.user_delay_response_elapsed(1, 2500);
@@ -111,15 +111,15 @@ fn a_congested_viewer_does_not_lower_another_viewers_target() {
         qos.user_network_delay(1, 10);
     }
     assert_eq!(qos.fps(), FPS);
-    // Viewer 1 congests; the stream follows the slowest viewer.
+    // 观看者 1 发生拥塞；码流跟随最慢的观看者。
     for _ in 0..2 {
         qos.user_network_delay(1, 1200);
     }
     assert_eq!(qos.fps(), 8);
-    // Viewer 2 is fine and keeps its own target rather than inheriting viewer 1's.
+    // 观看者 2 状况良好，保留自己的目标，而不是继承观看者 1 的。
     qos.user_network_delay(2, 10);
     assert_eq!(qos.users[&2].delay.fps, Some(FPS));
-    // Once viewer 1 restores, the stream is back at once.
+    // 一旦观看者 1 恢复，码流立即回到正常。
     for _ in 0..3 {
         qos.user_network_delay(1, 10);
     }

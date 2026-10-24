@@ -151,7 +151,7 @@ pub fn get_license() -> String {
     if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
         #[cfg(feature = "flutter")]
         return format!("Key: {}\nHost: {}\nAPI: {}", lic.key, lic.host, lic.api);
-        // default license format is html formed (sciter)
+        // 默认许可协议格式是 html 形式（sciter）
         #[cfg(not(feature = "flutter"))]
         return format!(
             "<br /> Key: {} <br /> Host: {} API: {}",
@@ -165,7 +165,7 @@ pub fn get_license() -> String {
 pub fn refresh_options() {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        *OPTIONS.lock().unwrap() = Config::get_options();
+        * OPTIONS.lock().unwrap() = Config::get_options();
     }
 }
 
@@ -258,8 +258,8 @@ pub fn set_local_option(key: String, value: String) {
     LocalConfig::set_option(key.clone(), value);
 }
 
-/// Resolve relative avatar path (e.g. "/avatar/xxx") to absolute URL
-/// by prepending the API server address.
+/// 把相对的头像路径（例如 "/avatar/xxx"）解析为绝对 URL
+/// ，做法是加上 API 服务器地址前缀。
 pub fn resolve_avatar_url(avatar: String) -> String {
     let avatar = avatar.trim().to_owned();
     if avatar.starts_with('/') {
@@ -377,8 +377,8 @@ pub fn get_sound_inputs() -> Vec<String> {
         fn get_sound_inputs_() -> Vec<String> {
             let mut out = Vec::new();
             use cpal::traits::{DeviceTrait, HostTrait};
-            // Do not use `cpal::host_from_id(cpal::HostId::ScreenCaptureKit)` for feature = "screencapturekit"
-            // Because we explicitly handle the "System Sound" device.
+            // 当 feature = "screencapturekit" 时不要使用 `cpal::host_from_id(cpal::HostId::ScreenCaptureKit)`
+            // 因为我们明确处理了 "System Sound" 设备。
             let host = cpal::default_host();
             if let Ok(devices) = host.devices() {
                 for device in devices {
@@ -395,7 +395,7 @@ pub fn get_sound_inputs() -> Vec<String> {
 
         let inputs = Arc::new(Mutex::new(Vec::new()));
         let cloned = inputs.clone();
-        // can not call below in UI thread, because conflict with sciter sound com initialization
+        // 不能在 UI 线程中调用下面的代码，因为会与 sciter 音频 com 初始化冲突
         std::thread::spawn(move || *cloned.lock().unwrap() = get_sound_inputs_())
             .join()
             .ok();
@@ -421,7 +421,7 @@ pub fn get_sound_inputs() -> Vec<String> {
 pub fn set_options(m: HashMap<String, String>) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        *OPTIONS.lock().unwrap() = m.clone();
+        * OPTIONS.lock().unwrap() = m.clone();
         ipc::set_options(m).ok();
     }
     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -539,7 +539,7 @@ pub fn get_proxy_status() -> bool {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     return ipc::get_proxy_status();
 
-    // Currently, only the desktop version has proxy settings.
+    // 目前只有桌面版有代理设置。
     #[cfg(any(target_os = "android", target_os = "ios"))]
     return false;
 }
@@ -625,8 +625,8 @@ pub fn is_permanent_password_set() -> bool {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let daemon_is_set = ipc::is_permanent_password_set();
-        // `daemon_is_set` is authoritative for the return value. Local storage is only used to
-        // decide whether we should attempt a sync to clear stale user-side state.
+        // 返回值以 `daemon_is_set` 为准。本地存储只用来
+        // 决定是否要尝试一次同步以清除陈旧的用户侧状态。
         let local_storage_is_empty = if daemon_is_set {
             true
         } else {
@@ -851,7 +851,7 @@ pub fn get_init_async_job_status() -> String {
 
 #[inline]
 pub fn reset_async_job_status() {
-    *ASYNC_JOB_STATUS.lock().unwrap() = get_init_async_job_status();
+    * ASYNC_JOB_STATUS.lock().unwrap() = get_init_async_job_status();
 }
 
 #[cfg(any(target_os = "android", target_os = "ios", feature = "flutter"))]
@@ -866,7 +866,7 @@ pub fn change_id(id: String) {
 
 #[inline]
 pub fn http_request(url: String, method: String, body: Option<String>, header: String) {
-    // Respond to concurrent requests for resources
+    // 响应并发请求的资源
     let current_request = ASYNC_HTTP_STATUS.clone();
     current_request
         .lock()
@@ -895,9 +895,9 @@ pub fn get_async_http_status(url: String) -> Option<String> {
 #[inline]
 #[cfg(not(feature = "flutter"))]
 pub fn post_request(url: String, body: String, header: String) {
-    *ASYNC_JOB_STATUS.lock().unwrap() = " ".to_owned();
+    * ASYNC_JOB_STATUS.lock().unwrap() = " ".to_owned();
     std::thread::spawn(move || {
-        *ASYNC_JOB_STATUS.lock().unwrap() = match crate::post_request_sync(url, body, &header) {
+        * ASYNC_JOB_STATUS.lock().unwrap() = match crate::post_request_sync(url, body, &header) {
             Err(err) => err.to_string(),
             Ok(text) => text,
         };
@@ -922,8 +922,8 @@ pub fn get_langs() -> String {
     json!(x).to_string()
 }
 
-// Preserve relative paths for existing configurations and only remove accidental
-// surrounding whitespace. Config values are not shell-expanded (for example, `~`).
+// 为已有配置保留相对路径，只去掉意外的
+// 首尾空白。配置值不会被 shell 展开（例如 `~`）。
 fn trim_video_save_directory(value: &str) -> Option<&str> {
     let value = value.trim();
     if !value.is_empty() {
@@ -933,8 +933,8 @@ fn trim_video_save_directory(value: &str) -> Option<&str> {
     }
 }
 
-// A Windows service typically runs with System32 as its working directory, so
-// require an absolute path to avoid resolving recordings there unexpectedly.
+// Windows 服务通常以 System32 作为工作目录运行，所以
+// 要求使用绝对路径，以免录屏意外地解析到那里。
 #[cfg(any(windows, test))]
 fn validate_windows_service_video_save_directory(value: &str) -> Option<&str> {
     let value = trim_video_save_directory(value)?;
@@ -948,7 +948,7 @@ fn validate_windows_service_video_save_directory(value: &str) -> Option<&str> {
 #[inline]
 pub fn video_save_directory(root: bool) -> String {
     let appname = crate::get_app_name();
-    // ui process can show it correctly Once vidoe process created it.
+    // 一旦视频进程创建了它，ui 进程就能正确显示。
     let try_create = |path: &std::path::Path| {
         if !path.exists() {
             std::fs::create_dir_all(path).ok();
@@ -961,7 +961,7 @@ pub fn video_save_directory(root: bool) -> String {
     };
 
     if root {
-        // Currently, only installed windows run as root
+        // 目前只有安装版 windows 以 root 运行
         #[cfg(windows)]
         {
             let dir = Config::get_option(OPTION_WINDOWS_SERVICE_VIDEO_SAVE_DIRECTORY);
@@ -979,7 +979,7 @@ pub fn video_save_directory(root: bool) -> String {
             return dir.to_string_lossy().to_string();
         }
     }
-    // Get directory from config file otherwise --server will use the old value from global var.
+    // 从配置文件获取目录，否则 --server 会使用全局变量里的旧值。
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     let dir = LocalConfig::get_option_from_file(OPTION_VIDEO_SAVE_DIRECTORY);
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
@@ -1018,7 +1018,7 @@ pub fn video_save_directory(root: bool) -> String {
         }
     }
 
-    // same order as above
+    // 顺序同上
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     if let Some(home) = crate::platform::get_active_user_home() {
         let name = if cfg!(target_os = "macos") {
@@ -1049,7 +1049,7 @@ pub fn video_save_directory(root: bool) -> String {
             if !dir.is_empty() {
                 return dir;
             }
-            // basically exist
+            // 基本上存在
             return parent.to_string_lossy().to_string();
         }
     }
@@ -1162,7 +1162,7 @@ pub fn deploy_device(token: String, new_id: Option<String>) -> DeployResult {
 
 #[inline]
 pub fn has_hwcodec() -> bool {
-    // Has real hardware codec using gpu
+    // 有使用 gpu 的真实硬件编解码器
     (cfg!(feature = "hwcodec") && cfg!(not(target_os = "ios"))) || cfg!(feature = "mediacodec")
 }
 
@@ -1180,7 +1180,7 @@ pub fn supported_hwdecodings() -> (bool, bool) {
     let (mut h264, mut h265) = (decoding.ability_h264 > 0, decoding.ability_h265 > 0);
     #[cfg(feature = "vram")]
     {
-        // supported_decodings check runtime luid
+        // supported_decodings 检查运行时的 luid
         let vram = scrap::vram::VRamDecoder::possible_available_without_check();
         if vram.0 {
             h264 = true;
@@ -1281,14 +1281,14 @@ pub fn new_remote(id: String, remote_type: String, force_relay: bool) {
     }
 }
 
-// Make sure `SENDER` is inited here.
+// 确保 `SENDER` 在这里已初始化。
 #[inline]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn start_option_status_sync() {
     let _sender = SENDER.lock().unwrap();
 }
 
-// not call directly
+// 不直接调用
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn check_connect_status(reconnect: bool) -> mpsc::UnboundedSender<ipc::Data> {
     let (tx, rx) = mpsc::unbounded_channel::<ipc::Data>();
@@ -1337,7 +1337,7 @@ pub fn get_fingerprint() -> String {
 #[inline]
 pub fn get_login_device_info() -> LoginDeviceInfo {
     LoginDeviceInfo {
-        // std::env::consts::OS is better than whoami::platform() here.
+        // 这里用 std::env::consts::OS 比 whoami::platform() 更好。
         os: std::env::consts::OS.to_owned(),
         r#type: "client".to_owned(),
         name: crate::common::hostname(),
@@ -1349,8 +1349,8 @@ pub fn get_login_device_info_json() -> String {
     serde_json::to_string(&get_login_device_info()).unwrap_or("{}".to_string())
 }
 
-// notice: avoiding create ipc connection repeatedly,
-// because windows named pipe has serious memory leak issue.
+// 注意：避免反复创建 ipc 连接，
+// 因为 windows 命名管道存在严重的内存泄漏问题。
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tokio::main(flavor = "current_thread")]
 async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc::Data>) {
@@ -1384,8 +1384,8 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                                 UI_STATUS.lock().unwrap().mouse_time = v;
                             }
                             Ok(Some(ipc::Data::Options(Some(v)))) => {
-                                *OPTIONS.lock().unwrap() = v;
-                                *OPTION_SYNCED.lock().unwrap() = true;
+                                * OPTIONS.lock().unwrap() = v;
+                                * OPTION_SYNCED.lock().unwrap() = true;
                             }
                             Ok(Some(ipc::Data::Config((name, Some(value))))) => {
                                 if name == "id" {
@@ -1394,7 +1394,7 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                                         id = value;
                                     }
                                 } else if name == "temporary-password" {
-                                    *TEMPORARY_PASSWD.lock().unwrap() = value;
+                                    * TEMPORARY_PASSWD.lock().unwrap() = value;
                                 }
                             }
                             #[cfg(feature = "flutter")]
@@ -1409,7 +1409,7 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                                 {
                                     key_confirmed = _c;
                                 }
-                                *UI_STATUS.lock().unwrap() = UiStatus {
+                                * UI_STATUS.lock().unwrap() = UiStatus {
                                     status_num: x as _,
                                     #[cfg(not(feature = "flutter"))]
                                     key_confirmed: _c,
@@ -1422,7 +1422,7 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                                 };
                             }
                             Ok(Some(ipc::Data::ControlPermissionsRemoteModify(v))) => {
-                                *IS_REMOTE_MODIFY_ENABLED_BY_CONTROL_PERMISSIONS.lock().unwrap() = v;
+                                * IS_REMOTE_MODIFY_ENABLED_BY_CONTROL_PERMISSIONS.lock().unwrap() = v;
                             }
                             #[cfg(target_os = "windows")]
                             Ok(Some(ipc::Data::FileTransferEnabledState(v))) => {
@@ -1430,7 +1430,7 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                                     let mut lock = IS_FILE_TRANSFER_ENABLED.lock().unwrap();
                                     if *lock != v {
                                         clipboard::ContextSend::enable(enabled);
-                                        *lock = v;
+                                        * lock = v;
                                     }
                                 }
                             }
@@ -1461,7 +1461,7 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                 .insert("ipc-closed".to_owned(), "Y".to_owned());
             break;
         }
-        *UI_STATUS.lock().unwrap() = UiStatus {
+        * UI_STATUS.lock().unwrap() = UiStatus {
             status_num: -1,
             #[cfg(not(feature = "flutter"))]
             key_confirmed,
@@ -1504,7 +1504,7 @@ const UNKNOWN_ERROR: &'static str = "Unknown error";
 #[tokio::main(flavor = "current_thread")]
 pub async fn change_id_shared(id: String, old_id: String) -> String {
     let res = change_id_shared_(id, old_id).await.to_owned();
-    *ASYNC_JOB_STATUS.lock().unwrap() = res.clone();
+    * ASYNC_JOB_STATUS.lock().unwrap() = res.clone();
     res
 }
 
@@ -1550,7 +1550,7 @@ pub async fn change_id_shared_(id: String, old_id: String) -> &'static str {
         futs.push(tokio::spawn(async move {
             let tmp = check_id(rendezvous_server, old_id, id, uuid).await;
             if !tmp.is_empty() {
-                *err.lock().unwrap() = tmp;
+                * err.lock().unwrap() = tmp;
             }
         }));
     }
@@ -1629,7 +1629,7 @@ async fn check_id(
     ""
 }
 
-// if it's relay id, return id processed, otherwise return original id
+// 如果是中继 id，返回处理过的 id，否则返回原始 id
 pub fn handle_relay_id(id: &str) -> &str {
     if id.ends_with(r"\r") || id.ends_with(r"/r") {
         &id[0..id.len() - 2]
@@ -1744,7 +1744,7 @@ pub fn max_encrypt_len() -> usize {
 }
 
 pub fn is_remote_modify_enabled_by_control_permissions() -> Option<bool> {
-    *IS_REMOTE_MODIFY_ENABLED_BY_CONTROL_PERMISSIONS
+    * IS_REMOTE_MODIFY_ENABLED_BY_CONTROL_PERMISSIONS
         .lock()
         .unwrap()
 }

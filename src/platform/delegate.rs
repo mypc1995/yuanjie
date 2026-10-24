@@ -114,7 +114,7 @@ unsafe fn set_delegate(handler: Option<Box<dyn AppHandler>>) {
     let state = DelegateState { handler };
     let handler_ptr = Box::into_raw(Box::new(state));
     (*delegate).set_ivar(APP_HANDLER_IVAR, handler_ptr as *mut c_void);
-    // Set the url scheme handler
+    // 设置 url scheme 处理函数
     let Some(cls) = Class::get("NSAppleEventManager") else {
         log::error!("Failed to get NSAppleEventManager");
         return;
@@ -170,7 +170,7 @@ extern "C" fn application_will_terminate(_this: &mut Object, _: Sel, _sender: id
     YES
 }
 
-/// This handles menu items in the case that all windows are closed.
+/// 这处理的是所有窗口都关闭时的菜单项。
 extern "C" fn handle_menu_item(this: &mut Object, _: Sel, item: id) {
     unsafe {
         let tag: isize = msg_send![item, tag];
@@ -201,7 +201,7 @@ extern "C" fn handle_open_urls(_self: &Object, _cmd: Sel, _: id, urls: id) -> ()
     }
 }
 
-// Customize the service opening logic.
+// 自定义服务启动逻辑。
 #[no_mangle]
 fn service_should_handle_reopen(
     _obj: &Object,
@@ -211,7 +211,7 @@ fn service_should_handle_reopen(
 ) -> BOOL {
     log::debug!("Invoking the main rustdesk process");
     std::thread::spawn(move || crate::handle_url_scheme("".to_string()));
-    // Prevent default logic.
+    // 阻止默认逻辑。
     NO
 }
 
@@ -239,7 +239,7 @@ pub fn make_menubar(host: Rc<Host>, is_index: bool) {
             let new_item = make_menu_item("New Window", "n", RUN_ME_TAG);
             app_menu.addItem_(new_item);
         } else {
-            // When app launched without argument, is the main panel.
+            // 应用不带参数启动时，是主面板。
             let about_item = make_menu_item("About", "", SHOW_ABOUT_TAG);
             app_menu.addItem_(about_item);
             let separator = NSMenuItem::separatorItem(nil).autorelease();

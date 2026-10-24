@@ -29,12 +29,12 @@ fn get_auto_password() -> String {
     }
 }
 
-// Should only be called in server
+// 只应在 server 中调用
 pub fn update_temporary_password() {
-    *TEMPORARY_PASSWORD.write().unwrap() = get_auto_password();
+    * TEMPORARY_PASSWORD.write().unwrap() = get_auto_password();
 }
 
-// Should only be called in server
+// 只应在 server 中调用
 pub fn temporary_password() -> String {
     TEMPORARY_PASSWORD.read().unwrap().clone()
 }
@@ -94,15 +94,15 @@ pub fn hide_cm() -> bool {
 const VERSION_LEN: usize = 2;
 const FORMAT_V1: u8 = 1;
 
-// Check if data is already encrypted by verifying:
-// 1) version prefix "00"
-// 2) valid base64 payload
-// 3) decoded payload length >= secretbox::MACBYTES
+// 通过以下方式检查数据是否已被加密：
+// 1) 版本前缀 "00"
+// 2) 合法的 base64 负载
+// 3) 解码后的负载长度 >= secretbox::MACBYTES
 //
-// We intentionally avoid trying to decrypt here because key mismatch would cause
-// false negatives.
-// The decoded payload may be either legacy ciphertext or FORMAT_V1 || nonce || ciphertext.
-// Reference: secretbox::seal returns ciphertext length = plaintext length + MACBYTES
+// 我们有意避免在这里尝试解密，因为密钥不匹配会导致
+// 误判为未加密。
+// 解码后的负载可能是旧版密文，也可能是 FORMAT_V1 || nonce || ciphertext。
+// 参考：secretbox::seal 返回的密文长度 = 明文长度 + MACBYTES
 // https://github.com/sodiumoxide/sodiumoxide/blob/3057acb1a030ad86ed8892a223d64036ab5e8523/src/crypto/secretbox/xsalsa20poly1305.rs#L67
 fn is_encrypted(v: &[u8]) -> bool {
     if v.len() <= VERSION_LEN || !v.starts_with(b"00") {
@@ -130,11 +130,11 @@ pub fn encrypt_str_or_original(s: &str, version: &str, max_len: usize) -> String
     s.to_owned()
 }
 
-// String: password
-// bool: whether decryption is successful
-// bool: whether should store to re-encrypt when load
-// note: s.len() return length in bytes, s.chars().count() return char count
-//       &[..2] return the left 2 bytes, s.chars().take(2) return the left 2 chars
+// String：密码
+// bool：解密是否成功
+// bool：加载时是否应存储以便重新加密
+// 注意：s.len() 返回字节长度，s.chars().count() 返回字符数
+//       &[..2] 返回左边 2 个字节，s.chars().take(2) 返回左边 2 个字符
 pub fn decrypt_str_or_original(s: &str, current_version: &str) -> (String, bool, bool) {
     if s.len() > VERSION_LEN {
         if s.starts_with("00") {
@@ -148,8 +148,8 @@ pub fn decrypt_str_or_original(s: &str, current_version: &str) -> (String, bool,
         }
     }
 
-    // For values that already look encrypted (version prefix + base64), avoid
-    // repeated store on each load when decryption fails.
+    // 对于看起来已经加密的值（版本前缀 + base64），避免
+    // 在解密失败时每次加载都重复存储。
     (
         s.to_owned(),
         false,
@@ -175,9 +175,9 @@ pub fn encrypt_vec_or_original(v: &[u8], version: &str, max_len: usize) -> Vec<u
     v.to_owned()
 }
 
-// Vec<u8>: password
-// bool: whether decryption is successful
-// bool: whether should store to re-encrypt when load
+// Vec<u8>：密码
+// bool：解密是否成功
+// bool：加载时是否应存储以便重新加密
 pub fn decrypt_vec_or_original(v: &[u8], current_version: &str) -> (Vec<u8>, bool, bool) {
     if v.len() > VERSION_LEN {
         let version = String::from_utf8_lossy(&v[..VERSION_LEN]);
@@ -188,8 +188,8 @@ pub fn decrypt_vec_or_original(v: &[u8], current_version: &str) -> (Vec<u8>, boo
         }
     }
 
-    // For values that already look encrypted (version prefix + base64), avoid
-    // repeated store on each load when decryption fails.
+    // 对于看起来已经加密的值（版本前缀 + base64），避免
+    // 在解密失败时每次加载都重复存储。
     (v.to_owned(), false, !v.is_empty() && !is_encrypted(v))
 }
 
@@ -230,7 +230,7 @@ pub fn symmetric_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, ()> {
         let res = open_secretbox_payload(data, &key);
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         if res.is_err() {
-            // Fallback: try pk if uuid decryption failed (in case encryption used pk due to machine_uid failure)
+            // 回退：如果 uuid 解密失败则尝试 pk（以防加密时因 machine_uid 失败而使用了 pk）
             if let Some(key_pair) = Config::get_existing_key_pair() {
                 let pk = key_pair.1;
                 if pk != uuid {
@@ -333,8 +333,8 @@ mod test {
         let data: Vec<u8> = "1ü1111".as_bytes().to_vec();
         assert_eq!(decrypt_vec_or_original(&data, version).0, data);
 
-        // Base64-shaped "00" prefixed values shorter than MACBYTES are treated
-        // as original/plain values and should be stored.
+        // 形如 base64、带 "00" 前缀且长度小于 MACBYTES 的值被视为
+        // 原始/明文值，应当被存储。
         let data = "00YWJjZA==";
         let (decrypted, succ, store) = decrypt_str_or_original(data, version);
         assert_eq!(decrypted, data);
@@ -346,8 +346,8 @@ mod test {
         assert!(!succ);
         assert!(store);
 
-        // When decoded length reaches MACBYTES, it is treated as encrypted-like
-        // and should not trigger repeated store.
+        // 当解码后长度达到 MACBYTES 时，它被视为类似已加密的值，
+        // 不应触发重复存储。
         let exact_mac = vec![0u8; sodiumoxide::crypto::secretbox::MACBYTES];
         let exact_mac_b64 =
             sodiumoxide::base64::encode(&exact_mac, sodiumoxide::base64::Variant::Original);
@@ -400,31 +400,31 @@ mod test {
         use sodiumoxide::base64::{encode, Variant};
         use sodiumoxide::crypto::secretbox;
 
-        // Empty data should not be considered encrypted
+        // 空数据不应被视为已加密
         assert!(!is_encrypted(b""));
         assert!(!is_encrypted(b"0"));
         assert!(!is_encrypted(b"00"));
 
-        // Data without "00" prefix should not be considered encrypted
+        // 不带 "00" 前缀的数据不应被视为已加密
         assert!(!is_encrypted(b"01abcd"));
         assert!(!is_encrypted(b"99abcd"));
         assert!(!is_encrypted(b"hello world"));
 
-        // Data with "00" prefix but invalid base64 should not be considered encrypted
+        // 带 "00" 前缀但 base64 非法的数据不应被视为已加密
         assert!(!is_encrypted(b"00!!!invalid base64!!!"));
         assert!(!is_encrypted(b"00@#$%"));
 
-        // Data with "00" prefix and valid base64 but shorter than MACBYTES is not encrypted
+        // 带 "00" 前缀、base64 合法但长度小于 MACBYTES 的数据不是加密数据
         assert!(!is_encrypted(b"00YWJjZA==")); // "abcd" in base64
         assert!(!is_encrypted(b"00SGVsbG8gV29ybGQ=")); // "Hello World" in base64
 
-        // Data with "00" prefix and valid base64 with decoded len == MACBYTES is considered encrypted
+        // 带 "00" 前缀、base64 合法且解码后长度 == MACBYTES 的数据被视为已加密
         let exact_mac = vec![0u8; secretbox::MACBYTES];
         let exact_mac_b64 = encode(&exact_mac, Variant::Original);
         let exact_mac_candidate = format!("00{exact_mac_b64}");
         assert!(is_encrypted(exact_mac_candidate.as_bytes()));
 
-        // Real encrypted data should be detected
+        // 应能检测出真正的加密数据
         let version = "00";
         let max_len = 128;
         let encrypted_str = encrypt_str_or_original("1", version, max_len);
@@ -432,7 +432,7 @@ mod test {
         let encrypted_vec = encrypt_vec_or_original(b"1", version, max_len);
         assert!(is_encrypted(&encrypted_vec));
 
-        // Original unencrypted data should not be detected as encrypted
+        // 原始未加密的数据不应被检测为已加密
         assert!(!is_encrypted(b"1"));
         assert!(!is_encrypted("1".as_bytes()));
     }
@@ -571,7 +571,7 @@ mod test {
         assert!(!store);
     }
 
-    // Test decryption fallback when data was encrypted with key_pair but decryption tries machine_uid first
+    // 测试数据用 key_pair 加密、但解密时先尝试 machine_uid 的回退逻辑
     #[test]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn test_decrypt_with_pk_fallback() {
@@ -581,7 +581,7 @@ mod test {
         let uuid = crate::get_uuid();
         let pk = crate::config::Config::get_key_pair().1;
 
-        // Ensure uuid != pk, otherwise fallback branch won't be tested
+        // 确保 uuid != pk，否则回退分支不会被测试到
         if uuid == pk {
             eprintln!("skip: uuid == pk, fallback branch won't be tested");
             return;
@@ -590,13 +590,13 @@ mod test {
         let data = b"test password 123";
         let nonce = secretbox::Nonce([0; secretbox::NONCEBYTES]);
 
-        // Encrypt with pk (simulating machine_uid failure during encryption)
+        // 使用 pk 加密（模拟加密期间 machine_uid 失败）
         let mut pk_keybuf = pk;
         pk_keybuf.resize(secretbox::KEYBYTES, 0);
         let pk_key = secretbox::Key(pk_keybuf.try_into().unwrap());
         let encrypted = secretbox::seal(data, &nonce, &pk_key);
 
-        // Decrypt using symmetric_crypt (should fallback to pk since uuid differs)
+        // 使用 symmetric_crypt 解密（由于 uuid 不同，应回退到 pk）
         let decrypted = super::symmetric_crypt(&encrypted, false);
         assert!(
             decrypted.is_ok(),

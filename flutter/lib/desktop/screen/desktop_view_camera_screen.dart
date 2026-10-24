@@ -5,7 +5,7 @@ import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:provider/provider.dart';
 
-/// multi-tab desktop remote screen
+/// 多标签页的桌面远控界面
 class DesktopViewCameraScreen extends StatelessWidget {
   final Map<String, dynamic> params;
 
@@ -24,8 +24,8 @@ class DesktopViewCameraScreen extends StatelessWidget {
           ChangeNotifierProvider.value(value: gFFI.canvasModel),
         ],
         child: Scaffold(
-          // Set transparent background for padding the resize area out of the flutter view.
-          // This allows the wallpaper goes through our resize area. (Linux only now).
+          // 设置透明背景，把缩放区域填充到 flutter 视图之外。
+          // 这样壁纸就能透过我们的缩放区域显示。（目前仅 Linux）
           backgroundColor: isLinux ? Colors.transparent : null,
           body: ViewCameraTabPage(
             params: params,

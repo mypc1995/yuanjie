@@ -20,23 +20,23 @@ MouseCursor buildCursorOfCache(
   } else {
     final key = cursor.nativeKey(cache, scale);
     if (!cursor.cachedKeys.contains(key)) {
-      // data should be checked here, because it may be changed after `updateGetKey()`
+      // 数据应在此处检查，因为它可能在 `updateGetKey()` 之后被改变
       final data = cache.data;
       if (data == null) {
         cursor.restorePixels(cache.id);
         return _shownCursor(cursor);
       }
-      // Square canvases avoid clipping or stray edge pixels on Linux.
+      // 正方形画布可以避免在 Linux 上出现裁剪或边缘杂散像素。
       final width = isLinux && cache.rasterWidth < cache.rasterHeight
           ? cache.rasterHeight
           : cache.rasterWidth;
       final height = isLinux ? width : cache.rasterHeight;
       debugPrint(
           "Register custom cursor with key $key (${cache.hotx},${cache.hoty})");
-      // [Safety]
-      // It's ok to call async registerCursor in current synchronous context,
-      // because activating the cursor is also an async call and will always
-      // be executed after this.
+      // [安全性]
+      // 在当前同步上下文中调用异步的 registerCursor 是可以的，
+      // 因为激活光标同样是异步调用，并且总会
+      // 在此之后才执行。
       custom_cursor_manager.CursorManager.instance
           .registerCursor(custom_cursor_manager.CursorData()
             ..name = key
@@ -56,7 +56,7 @@ MouseCursor buildCursorOfCache(
   }
 }
 
-// The last shape's cursor stays while the one in use is made, rather than the system one.
+// 在生成当前使用的光标期间，保持的是上一个图形的光标，而不是系统光标。
 MouseCursor _shownCursor(CursorModel cursor) {
   final key = cursor.shownKey;
   return key == null

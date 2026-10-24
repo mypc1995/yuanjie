@@ -122,7 +122,7 @@ pub struct Display(dxgi::Display);
 
 impl Display {
     pub fn primary() -> io::Result<Display> {
-        // not implemented yet
+        // 尚未实现
         Err(NotFound.into())
     }
 
@@ -139,21 +139,21 @@ impl Display {
                 Vec::new()
             }
         };
-        // Win+P "Show only on 1/2" still enumerates detached DXGI outputs.
+        // Win+P 的“仅显示在 1/2 上”仍会枚举出已分离的 DXGI 输出。
         displays_dxgi.retain(|d| d.is_online() && d.width() > 0 && d.height() > 0);
 
-        // Return gdi displays if dxgi is not supported
+        // 如果不支持 dxgi 则返回 gdi 显示器
         if displays_dxgi.is_empty() {
             println!("Display got from gdi");
             return Ok(displays_gdi);
         }
 
-        // Return dxgi displays if length is not equal
+        // 如果数量不相等则返回 dxgi 显示器
         if displays_dxgi.len() != displays_gdi.len() {
             return Ok(displays_dxgi);
         }
 
-        // Check if names are equal
+        // 检查名称是否相等
         let names_gdi = displays_gdi.iter().map(|d| d.name()).collect::<Vec<_>>();
         let names_dxgi = displays_dxgi.iter().map(|d| d.name()).collect::<Vec<_>>();
         for name in names_gdi.iter() {
@@ -162,7 +162,7 @@ impl Display {
             }
         }
 
-        // Reorder displays from dxgi
+        // 按 dxgi 的顺序重排显示器
         let mut displays_dxgi_ordered = Vec::new();
         for name in names_gdi.iter() {
             let pos = match displays_dxgi.iter().position(|d| d.name() == *name) {
@@ -208,7 +208,7 @@ impl Display {
 
     pub fn is_primary(&self) -> bool {
         // https://docs.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-devmodea
-        // Detached outputs can still report origin (0,0) with a zero size.
+        // 已分离的输出仍可能报告原点为 (0,0) 且尺寸为零。
         self.origin() == (0, 0) && self.width() > 0 && self.height() > 0
     }
 

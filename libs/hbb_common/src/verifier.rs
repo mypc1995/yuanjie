@@ -60,8 +60,8 @@ impl ServerCertVerifier for NoVerifier {
     }
 }
 
-/// A certificate verifier that tries a primary verifier first,
-/// and falls back to a platform verifier if the primary fails.
+/// 一个先尝试主验证器、
+/// 在主验证器失败时回退到平台验证器的证书验证器。
 #[cfg(any(target_os = "android", target_os = "ios"))]
 #[derive(Debug)]
 struct FallbackPlatformVerifier {
@@ -134,7 +134,7 @@ impl ServerCertVerifier for FallbackPlatformVerifier {
         cert: &rustls_pki_types::CertificateDer<'_>,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, TLSError> {
-        // Both WebPkiServerVerifier and rustls_platform_verifier use the same signature verification implementation.
+        // WebPkiServerVerifier 和 rustls_platform_verifier 使用相同的签名验证实现。
         // https://github.com/rustls/rustls/blob/1ee126adb3352a2dcd72420dcd6040351a6ddc1e/rustls/src/webpki/server_verifier.rs#L278
         // https://github.com/rustls/rustls/blob/1ee126adb3352a2dcd72420dcd6040351a6ddc1e/rustls/src/crypto/mod.rs#L17
         // https://github.com/rustls/rustls-platform-verifier/blob/1099f161bfc5e3ac7f90aad88b1bf788e72906cb/rustls-platform-verifier/src/verification/android.rs#L9
@@ -148,13 +148,13 @@ impl ServerCertVerifier for FallbackPlatformVerifier {
         cert: &rustls_pki_types::CertificateDer<'_>,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, TLSError> {
-        // Same implementation as verify_tls12_signature.
+        // 与 verify_tls12_signature 相同的实现。
         self.primary.verify_tls13_signature(message, cert, dss)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        // Both WebPkiServerVerifier and rustls_platform_verifier use the same crypto provider,
-        // so their supported signature schemes are identical.
+        // WebPkiServerVerifier 和 rustls_platform_verifier 使用相同的 crypto provider，
+        // 因此它们支持的签名方案完全一致。
         // https://github.com/rustls/rustls/blob/1ee126adb3352a2dcd72420dcd6040351a6ddc1e/rustls/src/webpki/server_verifier.rs#L172C52-L172C85
         // https://github.com/rustls/rustls-platform-verifier/blob/1099f161bfc5e3ac7f90aad88b1bf788e72906cb/rustls-platform-verifier/src/verification/android.rs#L327
         // https://github.com/rustls/rustls-platform-verifier/blob/1099f161bfc5e3ac7f90aad88b1bf788e72906cb/rustls-platform-verifier/src/verification/apple.rs#L304
@@ -165,8 +165,8 @@ impl ServerCertVerifier for FallbackPlatformVerifier {
 fn webpki_server_verifier(
     provider: Arc<rustls::crypto::CryptoProvider>,
 ) -> ResultType<Arc<WebPkiServerVerifier>> {
-    // Load root certificates from both bundled webpki_roots and system-native certificate stores.
-    // This approach is consistent with how reqwest and tokio-tungstenite handle root certificates.
+    // 同时从内置的 webpki_roots 和系统原生的证书库加载根证书。
+    // 这种做法与 reqwest 和 tokio-tungstenite 处理根证书的方式一致。
     // https://github.com/snapview/tokio-tungstenite/blob/35d110c24c9d030d1608ec964d70c789dfb27452/src/tls.rs#L95
     // https://github.com/seanmonstar/reqwest/blob/b126ca49da7897e5d676639cdbf67a0f6838b586/src/async_impl/client.rs#L643
     let mut root_cert_store = rustls::RootCertStore::empty();
@@ -178,18 +178,18 @@ fn webpki_server_verifier(
     }
     root_cert_store.add_parsable_certificates(certs);
 
-    // Build verifier using with_root_certificates behavior (WebPkiServerVerifier without CRLs).
-    // Both reqwest and tokio-tungstenite use this approach.
+    // 按 with_root_certificates 的行为构建验证器（不带 CRL 的 WebPkiServerVerifier）。
+    // reqwest 和 tokio-tungstenite 都采用这种方式。
     // https://github.com/seanmonstar/reqwest/blob/b126ca49da7897e5d676639cdbf67a0f6838b586/src/async_impl/client.rs#L749
     // https://github.com/snapview/tokio-tungstenite/blob/35d110c24c9d030d1608ec964d70c789dfb27452/src/tls.rs#L127
     // https://github.com/rustls/rustls/blob/1ee126adb3352a2dcd72420dcd6040351a6ddc1e/rustls/src/client/builder.rs#L47
-    // with_root_certificates creates a WebPkiServerVerifier without revocation checking:
+    // with_root_certificates 会创建一个不做吊销检查的 WebPkiServerVerifier：
     // https://github.com/rustls/rustls/blob/1ee126adb3352a2dcd72420dcd6040351a6ddc1e/rustls/src/webpki/server_verifier.rs#L177
     // https://github.com/rustls/rustls/blob/1ee126adb3352a2dcd72420dcd6040351a6ddc1e/rustls/src/webpki/server_verifier.rs#L168
-    // Since no CRL is provided (as is the case here), we must explicitly set allow_unknown_revocation_status()
-    // to match the behavior of with_root_certificates, which allows unknown revocation status by default.
+    // 由于没有提供 CRL（这里正是这种情况），必须显式设置 allow_unknown_revocation_status()
+    // 以与 with_root_certificates 的行为保持一致，后者默认允许未知的吊销状态。
     // https://github.com/rustls/rustls/blob/1ee126adb3352a2dcd72420dcd6040351a6ddc1e/rustls/src/webpki/server_verifier.rs#L37
-    // Note: build() only returns an error if the root certificate store is empty, which won't happen here.
+    // 注意：只有当根证书库为空时 build() 才会返回错误，这里不会出现这种情况。
     let verifier = rustls::client::WebPkiServerVerifier::builder_with_provider(
         Arc::new(root_cert_store),
         provider.clone(),
@@ -209,10 +209,10 @@ pub fn client_config(danger_accept_invalid_cert: bool) -> ResultType<ClientConfi
 }
 
 pub fn client_config_safe() -> ResultType<ClientConfig> {
-    // Use the default builder which uses the default protocol versions and crypto provider.
-    // The with_protocol_versions API has been removed in rustls master branch:
+    // 使用默认 builder，它会采用默认的协议版本和 crypto provider。
+    // with_protocol_versions API 在 rustls 主分支中已被移除：
     // https://github.com/rustls/rustls/pull/2599
-    // This approach is consistent with tokio-tungstenite's usage:
+    // 这种做法与 tokio-tungstenite 的用法一致：
     // https://github.com/snapview/tokio-tungstenite/blob/35d110c24c9d030d1608ec964d70c789dfb27452/src/tls.rs#L126
     let config_builder = rustls::ClientConfig::builder();
     let provider = config_builder.crypto_provider().clone();

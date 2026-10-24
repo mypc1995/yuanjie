@@ -193,7 +193,7 @@ impl<'a> State<'a> {
     }
 
     fn modifier(&mut self, symbols: &[u32]) -> Option<Modifier> {
-        // Prefer physical modifier keys to XKB's synthetic <LVL3> keycode.
+        // 优先使用物理修饰键，而不是 XKB 合成的 <LVL3> 键码。
         let preferred = [
             evdev::Key::KEY_LEFTSHIFT,
             evdev::Key::KEY_RIGHTSHIFT,
@@ -240,7 +240,7 @@ impl<'a> State<'a> {
                 .filter(|(index, _)| combination & (1 << *index) != 0)
                 .filter_map(|(_, modifier)| *modifier)
                 .collect();
-            // Held Shift affects the symbol, but belongs to the caller.
+            // 按住的 Shift 会影响符号，但归属于调用方。
             let mask = selected.iter().fold(
                 held_shift.map_or(0, |modifier| modifier.mask),
                 |mask, modifier| mask | modifier.mask,
@@ -248,7 +248,7 @@ impl<'a> State<'a> {
             self.set_modifiers(mask, locked);
             for keycode in self.keymap.keycodes().filter_map(supported_keycode) {
                 let symbol = self.symbol(keycode);
-                // Keypad aliases can produce the same text but different shortcuts.
+                // 小键盘别名可能产生相同的文本，但对应不同的快捷键。
                 let candidates = if (keysyms::KP_Space..=keysyms::KP_Equal).contains(&symbol) {
                     &mut keypad_mappings
                 } else {
@@ -260,8 +260,8 @@ impl<'a> State<'a> {
                 {
                     candidates.entry(character).or_insert_with(|| LayoutKey {
                         key: enigo::Key::Raw(keycode),
-                        // Press Level3 first to avoid Shift+RightAlt activating Compose.
-                        // Candidate preference still follows the original modifier order.
+                        // 先按 Level3，以避免 Shift+RightAlt 触发 Compose。
+                        // 候选优先级仍遵循原有的修饰键顺序。
                         modifiers: selected
                             .iter()
                             .rev()
@@ -271,7 +271,7 @@ impl<'a> State<'a> {
                 }
             }
         }
-        // Shift must not redirect an ordinary shortcut to a keypad alias.
+        // Shift 不得把普通快捷键改指向小键盘别名。
         if held_shift.is_none() {
             for (character, mapping) in keypad_mappings {
                 mappings.entry(character).or_insert(mapping);
@@ -290,7 +290,7 @@ impl Drop for State<'_> {
 fn supported_keycode(keycode: u32) -> Option<u16> {
     let keycode = u16::try_from(keycode).ok()?;
     let code = keycode.checked_sub(XKB_KEYCODE_OFFSET)?;
-    // Match the keys enabled by create_uinput_keyboard().
+    // 与 create_uinput_keyboard() 启用的按键保持一致。
     let supported = (evdev::Key::KEY_ESC.code()..=evdev::Key::BTN_TRIGGER_HAPPY40.code())
         .contains(&code)
         && !format!("{:?}", evdev::Key::new(code)).contains("unknown");

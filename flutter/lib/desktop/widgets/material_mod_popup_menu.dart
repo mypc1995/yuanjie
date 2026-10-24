@@ -1,6 +1,6 @@
-// Copyright 2014 The Flutter Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+// 版权所有 2014 The Flutter Authors。保留所有权利。
+// 本源代码的使用受 BSD 风格许可证约束，该许可证可在
+// LICENSE 文件中找到。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/desktop/widgets/menu_button.dart';
 
-// Examples can assume:
+// 示例可以假定：
 // enum Commands { heroAndScholar, hurricaneCame }
 // late bool _heroAndScholar;
 // late dynamic _selection;
@@ -21,102 +21,102 @@ const Duration _kMenuDuration = Duration(milliseconds: 0);
 const double _kMenuCloseIntervalEnd = 2.0 / 3.0;
 const double _kMenuHorizontalPadding = 16.0;
 const double _kMenuDividerHeight = 16.0;
-//const double _kMenuMaxWidth = 5.0 * _kMenuWidthStep;
+// const double _kMenuMaxWidth = 5.0 * _kMenuWidthStep;
 const double _kMenuMinWidth = 2.0 * _kMenuWidthStep;
 const double _kMenuMaxWidth = double.infinity;
 // const double _kMenuVerticalPadding = 8.0;
 const double _kMenuVerticalPadding = 8.0;
 const double _kMenuWidthStep = 0.0;
-//const double _kMenuScreenPadding = 8.0;
+// const double _kMenuScreenPadding = 8.0;
 const double _kMenuScreenPadding = 0.0;
 const double _kDefaultIconSize = 24.0;
 
-/// Used to configure how the [PopupMenuButton] positions its popup menu.
+/// 用于配置 [PopupMenuButton] 如何定位其弹出菜单。
 enum PopupMenuPosition {
-  /// Menu is positioned over the anchor.
+  /// 菜单定位在锚点之上。
   over,
 
-  /// Menu is positioned under the anchor.
+  /// 菜单定位在锚点之下。
   under,
 
-  // Only support right side (TextDirection.ltr) for now
-  /// Menu is positioned over side the anchor
+  // 目前仅支持右侧（TextDirection.ltr）
+  /// 菜单定位在锚点的侧上方
   overSide,
 
-  // Only support right side (TextDirection.ltr) for now
-  /// Menu is positioned under side the anchor
+  // 目前仅支持右侧（TextDirection.ltr）
+  /// 菜单定位在锚点的侧下方
   underSide,
 }
 
-/// A base class for entries in a material design popup menu.
+/// Material Design 弹出菜单中各条目的基类。
 ///
-/// The popup menu widget uses this interface to interact with the menu items.
-/// To show a popup menu, use the [showMenu] function. To create a button that
-/// shows a popup menu, consider using [PopupMenuButton].
+/// 弹出菜单组件使用该接口与菜单项进行交互。
+/// 要显示弹出菜单，请使用 [showMenu] 函数。若要创建一个
+/// 可显示弹出菜单的按钮，可以考虑使用 [PopupMenuButton]。
 ///
-/// The type `T` is the type of the value(s) the entry represents. All the
-/// entries in a given menu must represent values with consistent types.
+/// 类型 `T` 表示该条目所代表的值的类型。同一菜单中所有
+/// 条目的值类型必须保持一致。
 ///
-/// A [PopupMenuEntry] may represent multiple values, for example a row with
-/// several icons, or a single entry, for example a menu item with an icon (see
-/// [PopupMenuItem]), or no value at all (for example, [PopupMenuDivider]).
+/// [PopupMenuEntry] 可以代表多个值，例如带有多个图标的一行，
+/// 也可以只代表单个值，例如带图标的菜单项（参见
+/// [PopupMenuItem]），也可以完全不代表任何值（例如 [PopupMenuDivider]）。
 ///
-/// See also:
+/// 另请参阅：
 ///
-///  * [PopupMenuItem], a popup menu entry for a single value.
-///  * [PopupMenuDivider], a popup menu entry that is just a horizontal line.
-///  * [CheckedPopupMenuItem], a popup menu item with a checkmark.
-///  * [showMenu], a method to dynamically show a popup menu at a given location.
-///  * [PopupMenuButton], an [IconButton] that automatically shows a menu when
-///    it is tapped.
+///  * [PopupMenuItem]，代表单个值的弹出菜单条目。
+///  * [PopupMenuDivider]，仅由一条水平线构成的弹出菜单条目。
+///  * [CheckedPopupMenuItem]，带勾选标记的弹出菜单项。
+///  * [showMenu]，在指定位置动态显示弹出菜单的方法。
+///  * [PopupMenuButton]，一种 [IconButton]，在被点击时
+///    自动显示菜单。
 abstract class PopupMenuEntry<T> extends StatefulWidget {
-  /// Abstract const constructor. This constructor enables subclasses to provide
-  /// const constructors so that they can be used in const expressions.
+  /// 抽象 const 构造函数。该构造函数允许子类提供
+  /// const 构造函数，以便它们能用于 const 表达式。
   const PopupMenuEntry({Key? key}) : super(key: key);
 
-  /// The amount of vertical space occupied by this entry.
+  /// 该条目占用的垂直空间大小。
   ///
-  /// This value is used at the time the [showMenu] method is called, if the
-  /// `initialValue` argument is provided, to determine the position of this
-  /// entry when aligning the selected entry over the given `position`. It is
-  /// otherwise ignored.
+  /// 调用 [showMenu] 方法时，如果提供了
+  /// `initialValue` 参数，则使用该值来确定此
+  /// 条目在将选中条目对齐到给定 `position` 时的位置。否则
+  /// 忽略该值。
   double get height;
 
-  /// Whether this entry represents a particular value.
+  /// 该条目是否代表某个特定的值。
   ///
-  /// This method is used by [showMenu], when it is called, to align the entry
-  /// representing the `initialValue`, if any, to the given `position`, and then
-  /// later is called on each entry to determine if it should be highlighted (if
-  /// the method returns true, the entry will have its background color set to
-  /// the ambient [ThemeData.highlightColor]). If `initialValue` is null, then
-  /// this method is not called.
+  /// [showMenu] 调用时使用该方法，将代表
+  /// `initialValue` 的条目（如果有）对齐到给定的 `position`，随后
+  /// 会对每个条目调用该方法，以确定是否高亮它（若
+  /// 该方法返回 true，则该条目的背景色会被设置为
+  /// 环境中的 [ThemeData.highlightColor]）。若 `initialValue` 为 null，则
+  /// 不会调用该方法。
   ///
-  /// If the [PopupMenuEntry] represents a single value, this should return true
-  /// if the argument matches that value. If it represents multiple values, it
-  /// should return true if the argument matches any of them.
+  /// 若 [PopupMenuEntry] 代表单个值，则当参数与该值匹配时
+  /// 应返回 true。若它代表多个值，则当参数与其中任意一个匹配时
+  /// 应返回 true。
   bool represents(T? value);
 }
 
-/// A horizontal divider in a material design popup menu.
+/// Material Design 弹出菜单中的水平分隔线。
 ///
-/// This widget adapts the [Divider] for use in popup menus.
+/// 该组件对 [Divider] 做了适配，使其可用于弹出菜单。
 ///
-/// See also:
+/// 另请参阅：
 ///
-///  * [PopupMenuItem], for the kinds of items that this widget divides.
-///  * [showMenu], a method to dynamically show a popup menu at a given location.
-///  * [PopupMenuButton], an [IconButton] that automatically shows a menu when
-///    it is tapped.
+///  * [PopupMenuItem]，该组件可用于分隔的条目类型。
+///  * [showMenu]，在指定位置动态显示弹出菜单的方法。
+///  * [PopupMenuButton]，一种 [IconButton]，在被点击时
+///    自动显示菜单。
 class PopupMenuDivider extends PopupMenuEntry<Never> {
-  /// Creates a horizontal divider for a popup menu.
+  /// 为弹出菜单创建水平分隔线。
   ///
-  /// By default, the divider has a height of 16 logical pixels.
+  /// 默认情况下，分隔线的高度为 16 逻辑像素。
   const PopupMenuDivider({Key? key, this.height = _kMenuDividerHeight})
       : super(key: key);
 
-  /// The height of the divider entry.
+  /// 分隔线条目的高度。
   ///
-  /// Defaults to 16 pixels.
+  /// 默认为 16 像素。
   @override
   final double height;
 
@@ -132,10 +132,10 @@ class _PopupMenuDividerState extends State<PopupMenuDivider> {
   Widget build(BuildContext context) => Divider(height: widget.height);
 }
 
-// This widget only exists to enable _PopupMenuRoute to save the sizes of
-// each menu item. The sizes are used by _PopupMenuRouteLayout to compute the
-// y coordinate of the menu's origin so that the center of selected menu
-// item lines up with the center of its PopupMenuButton.
+// 该组件的存在只是为了让 _PopupMenuRoute 能够保存
+// 每个菜单项的尺寸。这些尺寸由 _PopupMenuRouteLayout 用来计算
+// 菜单原点的 y 坐标，从而使选中的菜单
+// 项的中心与其 PopupMenuButton 的中心对齐。
 class _MenuItem extends SingleChildRenderObjectWidget {
   const _MenuItem({
     Key? key,
@@ -184,23 +184,23 @@ class _RenderMenuItem extends RenderShiftedBox {
   }
 }
 
-/// An item in a material design popup menu.
+/// Material Design 弹出菜单中的一个条目。
 ///
-/// To show a popup menu, use the [showMenu] function. To create a button that
-/// shows a popup menu, consider using [PopupMenuButton].
+/// 要显示弹出菜单，请使用 [showMenu] 函数。若要创建一个
+/// 可显示弹出菜单的按钮，可以考虑使用 [PopupMenuButton]。
 ///
-/// To show a checkmark next to a popup menu item, consider using
-/// [CheckedPopupMenuItem].
+/// 若要在弹出菜单项旁显示勾选标记，可以考虑使用
+/// [CheckedPopupMenuItem]。
 ///
-/// Typically the [child] of a [PopupMenuItem] is a [Text] widget. More
-/// elaborate menus with icons can use a [ListTile]. By default, a
-/// [PopupMenuItem] is [kMinInteractiveDimension] pixels high. If you use a widget
-/// with a different height, it must be specified in the [height] property.
+/// 通常，[PopupMenuItem] 的 [child] 是一个 [Text] 组件。更复杂的
+/// 带图标的菜单可以使用 [ListTile]。默认情况下，
+/// [PopupMenuItem] 的高度为 [kMinInteractiveDimension] 像素。如果你使用
+/// 高度不同的组件，必须在 [height] 属性中指定其高度。
 ///
 /// {@tool snippet}
 ///
-/// Here, a [Text] widget is used with a popup menu item. The `Menu` type
-/// is an enum, not shown here.
+/// 这里在弹出菜单项中使用了 [Text] 组件。`Menu` 类型
+/// 是一个枚举，此处未显示。
 ///
 /// ```dart
 /// const PopupMenuItem<Menu>(
@@ -210,25 +210,25 @@ class _RenderMenuItem extends RenderShiftedBox {
 /// ```
 /// {@end-tool}
 ///
-/// See the example at [PopupMenuButton] for how this example could be used in a
-/// complete menu, and see the example at [CheckedPopupMenuItem] for one way to
-/// keep the text of [PopupMenuItem]s that use [Text] widgets in their [child]
-/// slot aligned with the text of [CheckedPopupMenuItem]s or of [PopupMenuItem]
-/// that use a [ListTile] in their [child] slot.
+/// 有关本示例如何用于完整菜单，请参阅 [PopupMenuButton] 处的示例，
+/// 有关一种保持文字对齐的方法，请参阅 [CheckedPopupMenuItem] 处的示例，
+/// 即让使用 [Text] 组件的 [PopupMenuItem] 在其 [child]
+/// 槽中的文字与 [CheckedPopupMenuItem] 的文字对齐，或与 [PopupMenuItem]
+/// 在 [child] 槽中使用 [ListTile] 时的文字对齐。
 ///
-/// See also:
+/// 另请参阅：
 ///
-///  * [PopupMenuDivider], which can be used to divide items from each other.
-///  * [CheckedPopupMenuItem], a variant of [PopupMenuItem] with a checkmark.
-///  * [showMenu], a method to dynamically show a popup menu at a given location.
-///  * [PopupMenuButton], an [IconButton] that automatically shows a menu when
-///    it is tapped.
+///  * [PopupMenuDivider]，可用于分隔各个条目。
+///  * [CheckedPopupMenuItem]，带勾选标记的 [PopupMenuItem] 变体。
+///  * [showMenu]，在指定位置动态显示弹出菜单的方法。
+///  * [PopupMenuButton]，一种 [IconButton]，在被点击时
+///    自动显示菜单。
 class PopupMenuItem<T> extends PopupMenuEntry<T> {
-  /// Creates an item for a popup menu.
+  /// 为弹出菜单创建一个条目。
   ///
-  /// By default, the item is [enabled].
+  /// 默认情况下，该条目处于 [enabled] 状态。
   ///
-  /// The `enabled` and `height` arguments must not be null.
+  /// `enabled` 和 `height` 参数不能为 null。
   const PopupMenuItem({
     Key? key,
     this.value,
@@ -241,61 +241,61 @@ class PopupMenuItem<T> extends PopupMenuEntry<T> {
     required this.child,
   }) : super(key: key);
 
-  /// The value that will be returned by [showMenu] if this entry is selected.
+  /// 选中该条目时由 [showMenu] 返回的值。
   final T? value;
 
-  /// Called when the menu item is tapped.
+  /// 点击该菜单项时调用。
   final VoidCallback? onTap;
 
-  /// Whether the user is permitted to select this item.
+  /// 是否允许用户选择该条目。
   ///
-  /// Defaults to true. If this is false, then the item will not react to
-  /// touches.
+  /// 默认为 true。若为 false，则该条目不会响应
+  /// 触摸。
   final bool enabled;
 
-  /// The minimum height of the menu item.
+  /// 菜单项的最小高度。
   ///
-  /// Defaults to [kMinInteractiveDimension] pixels.
+  /// 默认为 [kMinInteractiveDimension] 像素。
   @override
   final double height;
 
-  /// The padding of the menu item.
+  /// 菜单项的内边距。
   ///
-  /// Note that [height] may interact with the applied padding. For example,
-  /// If a [height] greater than the height of the sum of the padding and [child]
-  /// is provided, then the padding's effect will not be visible.
+  /// 注意 [height] 可能会与所应用的内边距相互影响。例如，
+  /// 如果提供的 [height] 大于内边距与 [child] 之和的高度，
+  /// 则内边距的效果将不可见。
   ///
-  /// When null, the horizontal padding defaults to 16.0 on both sides.
+  /// 为 null 时，水平内边距默认左右各为 16.0。
   final EdgeInsets? padding;
 
-  /// The text style of the popup menu item.
+  /// 弹出菜单项的文本样式。
   ///
-  /// If this property is null, then [PopupMenuThemeData.textStyle] is used.
-  /// If [PopupMenuThemeData.textStyle] is also null, then [TextTheme.titleMedium]
-  /// of [ThemeData.textTheme] is used.
+  /// 若该属性为 null，则使用 [PopupMenuThemeData.textStyle]。
+  /// 若 [PopupMenuThemeData.textStyle] 也为 null，则使用 [TextTheme.titleMedium]
+  /// ，即 [ThemeData.textTheme] 中的该样式。
   final TextStyle? textStyle;
 
   /// {@template flutter.material.popupmenu.mouseCursor}
-  /// The cursor for a mouse pointer when it enters or is hovering over the
-  /// widget.
+  /// 鼠标指针进入或悬停在
+  /// 该组件上时使用的光标。
   ///
-  /// If [mouseCursor] is a [MaterialStateProperty<MouseCursor>],
-  /// [MaterialStateProperty.resolve] is used for the following [MaterialState]s:
+  /// 若 [mouseCursor] 为 [MaterialStateProperty<MouseCursor>]，
+  /// 则以下 [MaterialState] 使用 [MaterialStateProperty.resolve]：
   ///
-  ///  * [MaterialState.hovered].
-  ///  * [MaterialState.focused].
-  ///  * [MaterialState.disabled].
+  ///  * [MaterialState.hovered]。
+  ///  * [MaterialState.focused]。
+  ///  * [MaterialState.disabled]。
   /// {@endtemplate}
   ///
-  /// If null, then the value of [PopupMenuThemeData.mouseCursor] is used. If
-  /// that is also null, then [MaterialStateMouseCursor.clickable] is used.
+  /// 若为 null，则使用 [PopupMenuThemeData.mouseCursor] 的值。若
+  /// 该值也为 null，则使用 [MaterialStateMouseCursor.clickable]。
   final MouseCursor? mouseCursor;
 
-  /// The widget below this widget in the tree.
+  /// 位于树中该组件下方的组件。
   ///
-  /// Typically a single-line [ListTile] (for menus with icons) or a [Text]. An
-  /// appropriate [DefaultTextStyle] is put in scope for the child. In either
-  /// case, the text should be short enough that it won't wrap.
+  /// 通常为单行的 [ListTile]（用于带图标的菜单）或 [Text]。会为
+  /// 子组件应用合适的 [DefaultTextStyle]。无论在哪种
+  /// 情况下，文字都应足够短，以免换行。
   final Widget? child;
 
   @override
@@ -306,38 +306,38 @@ class PopupMenuItem<T> extends PopupMenuEntry<T> {
       PopupMenuItemState<T, PopupMenuItem<T>>();
 }
 
-/// The [State] for [PopupMenuItem] subclasses.
+/// [PopupMenuItem] 子类的 [State]。
 ///
-/// By default this implements the basic styling and layout of Material Design
-/// popup menu items.
+/// 默认情况下，它实现了 Material Design 弹出菜单项的
+/// 基本样式和布局。
 ///
-/// The [buildChild] method can be overridden to adjust exactly what gets placed
-/// in the menu. By default it returns [PopupMenuItem.child].
+/// 可重写 [buildChild] 方法，以精确调整放入
+/// 菜单中的内容。默认返回 [PopupMenuItem.child]。
 ///
-/// The [handleTap] method can be overridden to adjust exactly what happens when
-/// the item is tapped. By default, it uses [Navigator.pop] to return the
-/// [PopupMenuItem.value] from the menu route.
+/// 可重写 [handleTap] 方法，以精确调整点击该
+/// 条目时发生的行为。默认使用 [Navigator.pop] 从菜单路由返回
+/// [PopupMenuItem.value]。
 ///
-/// This class takes two type arguments. The second, `W`, is the exact type of
-/// the [Widget] that is using this [State]. It must be a subclass of
-/// [PopupMenuItem]. The first, `T`, must match the type argument of that widget
-/// class, and is the type of values returned from this menu.
+/// 该类接受两个类型参数。第二个 `W` 是使用此
+/// [State] 的 [Widget] 的确切类型。它必须是
+/// [PopupMenuItem] 的子类。第一个 `T` 必须与该组件的类型参数匹配，
+/// 也就是从此菜单返回的值的类型。
 class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
-  /// The menu item contents.
+  /// 菜单项的内容。
   ///
-  /// Used by the [build] method.
+  /// 由 [build] 方法使用。
   ///
-  /// By default, this returns [PopupMenuItem.child]. Override this to put
-  /// something else in the menu entry.
+  /// 默认返回 [PopupMenuItem.child]。重写它可以在菜单条目中
+  /// 放置其他内容。
   @protected
   Widget? buildChild() => widget.child;
 
-  /// The handler for when the user selects the menu item.
+  /// 用户选择该菜单项时的处理回调。
   ///
-  /// Used by the [InkWell] inserted by the [build] method.
+  /// 由 [build] 方法插入的 [InkWell] 使用。
   ///
-  /// By default, uses [Navigator.pop] to return the [PopupMenuItem.value] from
-  /// the menu route.
+  /// 默认使用 [Navigator.pop] 从菜单路由返回 [PopupMenuItem.value]，
+  /// 也就是菜单路由所持有的该值。
   @protected
   void handleTap() {
     widget.onTap?.call();
@@ -396,25 +396,25 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
   }
 }
 
-/// An item with a checkmark in a material design popup menu.
+/// Material Design 弹出菜单中带勾选标记的条目。
 ///
-/// To show a popup menu, use the [showMenu] function. To create a button that
-/// shows a popup menu, consider using [PopupMenuButton].
+/// 要显示弹出菜单，请使用 [showMenu] 函数。若要创建一个
+/// 可显示弹出菜单的按钮，可以考虑使用 [PopupMenuButton]。
 ///
-/// A [CheckedPopupMenuItem] is kMinInteractiveDimension pixels high, which
-/// matches the default minimum height of a [PopupMenuItem]. The horizontal
-/// layout uses [ListTile]; the checkmark is an [Icons.done] icon, shown in the
-/// [ListTile.leading] position.
+/// [CheckedPopupMenuItem] 的高度为 kMinInteractiveDimension 像素，
+/// 与 [PopupMenuItem] 的默认最小高度一致。水平
+/// 布局使用 [ListTile]；勾选标记是一个 [Icons.done] 图标，显示在
+/// [ListTile.leading] 位置。
 ///
 /// {@tool snippet}
 ///
-/// Suppose a `Commands` enum exists that lists the possible commands from a
-/// particular popup menu, including `Commands.heroAndScholar` and
-/// `Commands.hurricaneCame`, and further suppose that there is a
-/// `_heroAndScholar` member field which is a boolean. The example below shows a
-/// menu with one menu item with a checkmark that can toggle the boolean, and
-/// one menu item without a checkmark for selecting the second option. (It also
-/// shows a divider placed between the two menu items.)
+/// 假设存在一个 `Commands` 枚举，它列出了某个弹出菜单中
+/// 可能出现的命令，包括 `Commands.heroAndScholar` 和
+/// `Commands.hurricaneCame`，并进一步假设存在一个
+/// 布尔类型的 `_heroAndScholar` 成员字段。下面的示例展示了一个
+/// 菜单，其中一个带勾选标记的菜单项可以切换该布尔值，
+/// 另一个不带勾选标记的菜单项用于选择第二个选项。（它还
+/// 展示了一条置于两个菜单项之间的分隔线。）
 ///
 /// ```dart
 /// PopupMenuButton<Commands>(
@@ -424,9 +424,9 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
 ///         setState(() { _heroAndScholar = !_heroAndScholar; });
 ///         break;
 ///       case Commands.hurricaneCame:
-///         // ...handle hurricane option
+///         // ...处理飓风选项
 ///         break;
-///       // ...other items handled here
+///       // ...此处处理其他条目
 ///     }
 ///   },
 ///   itemBuilder: (BuildContext context) => <PopupMenuEntry<Commands>>[
@@ -440,31 +440,31 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
 ///       value: Commands.hurricaneCame,
 ///       child: ListTile(leading: Icon(null), title: Text('Bring hurricane')),
 ///     ),
-///     // ...other items listed here
+///     // ...此处列出其他条目
 ///   ],
 /// )
 /// ```
 /// {@end-tool}
 ///
-/// In particular, observe how the second menu item uses a [ListTile] with a
-/// blank [Icon] in the [ListTile.leading] position to get the same alignment as
-/// the item with the checkmark.
+/// 特别地，请注意第二个菜单项使用了 [ListTile]，其
+/// [ListTile.leading] 位置上带有一个空 [Icon]，以获得与
+/// 带勾选标记的条目相同的对齐方式。
 ///
-/// See also:
+/// 另请参阅：
 ///
-///  * [PopupMenuItem], a popup menu entry for picking a command (as opposed to
-///    toggling a value).
-///  * [PopupMenuDivider], a popup menu entry that is just a horizontal line.
-///  * [showMenu], a method to dynamically show a popup menu at a given location.
-///  * [PopupMenuButton], an [IconButton] that automatically shows a menu when
-///    it is tapped.
+///  * [PopupMenuItem]，用于选择某个命令的弹出菜单条目（与
+///    切换某个值相对）。
+///  * [PopupMenuDivider]，仅由一条水平线构成的弹出菜单条目。
+///  * [showMenu]，在指定位置动态显示弹出菜单的方法。
+///  * [PopupMenuButton]，一种 [IconButton]，在被点击时
+///    自动显示菜单。
 class CheckedPopupMenuItem<T> extends PopupMenuItem<T> {
-  /// Creates a popup menu item with a checkmark.
+  /// 创建带勾选标记的弹出菜单项。
   ///
-  /// By default, the menu item is [enabled] but unchecked. To mark the item as
-  /// checked, set [checked] to true.
+  /// 默认情况下，该菜单项处于 [enabled] 状态但未勾选。要将该
+  /// 项标记为已勾选，请将 [checked] 设为 true。
   ///
-  /// The `checked` and `enabled` arguments must not be null.
+  /// `checked` 和 `enabled` 参数不能为 null。
   const CheckedPopupMenuItem({
     Key? key,
     T? value,
@@ -482,23 +482,23 @@ class CheckedPopupMenuItem<T> extends PopupMenuItem<T> {
           child: child,
         );
 
-  /// Whether to display a checkmark next to the menu item.
+  /// 是否在菜单项旁显示勾选标记。
   ///
-  /// Defaults to false.
+  /// 默认为 false。
   ///
-  /// When true, an [Icons.done] checkmark is displayed.
+  /// 为 true 时显示 [Icons.done] 勾选标记。
   ///
-  /// When this popup menu item is selected, the checkmark will fade in or out
-  /// as appropriate to represent the implied new state.
+  /// 选中该弹出菜单项时，勾选标记会根据需要淡入或淡出，
+  /// 以表示随之而来的新状态。
   final bool checked;
 
-  /// The widget below this widget in the tree.
+  /// 位于树中该组件下方的组件。
   ///
-  /// Typically a [Text]. An appropriate [DefaultTextStyle] is put in scope for
-  /// the child. The text should be short enough that it won't wrap.
+  /// 通常为 [Text]。会为子组件应用合适的 [DefaultTextStyle]。
+  /// 文字应足够短，以免换行。
   ///
-  /// This widget is placed in the [ListTile.title] slot of a [ListTile] whose
-  /// [ListTile.leading] slot is an [Icons.done] icon.
+  /// 该组件被放置在某个 [ListTile] 的 [ListTile.title] 槽中，该 [ListTile] 的
+  /// [ListTile.leading] 槽是一个 [Icons.done] 图标。
   @override
   Widget? get child => super.child;
 
@@ -524,7 +524,7 @@ class _CheckedPopupMenuItemState<T>
 
   @override
   void handleTap() {
-    // This fades the checkmark in or out when tapped.
+    // 点击时会使勾选标记淡入或淡出。
     if (widget.checked) {
       _controller.reverse();
     } else {
@@ -648,7 +648,7 @@ class _PopupMenu<T> extends StatelessWidget {
   }
 }
 
-// Positioning of the menu on the screen.
+// 菜单在屏幕上的定位方式。
 class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
   _PopupMenuRouteLayout(
     this.position,
@@ -659,34 +659,34 @@ class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
     this.avoidBounds,
   );
 
-  // Rectangle of underlying button, relative to the overlay's dimensions.
+  // 底层按钮相对于 overlay 尺寸的矩形区域。
   final RelativeRect position;
 
-  // The sizes of each item are computed when the menu is laid out, and before
-  // the route is laid out.
+  // 每个条目的尺寸在菜单布局时计算，并且在
+  // 路由布局之前完成。
   List<Size?> itemSizes;
 
-  // The index of the selected item, or null if PopupMenuButton.initialValue
-  // was not specified.
+  // 选中条目的索引；若未指定 PopupMenuButton.initialValue 则为
+  // null。
   final int? selectedItemIndex;
 
-  // Whether to prefer going to the left or to the right.
+  // 是否优先向左或向右展开。
   final TextDirection textDirection;
 
-  // The padding of unsafe area.
+  // 安全区域的内边距。
   EdgeInsets padding;
 
-  // List of rectangles that we should avoid overlapping. Unusable screen area.
+  // 应避免与之重叠的矩形列表。不可用的屏幕区域。
   final Set<Rect> avoidBounds;
 
-  // We put the child wherever position specifies, so long as it will fit within
-  // the specified parent size padded (inset) by 8. If necessary, we adjust the
-  // child's position so that it fits.
+  // 我们按 position 指定的位置放置子组件，前提是它能容纳在
+  // 指定的父级尺寸内，并向内（inset）留出 8 的边距。必要时，我们会调整
+  // 子组件的位置，使其能够容纳。
 
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
-    // The menu can be at most the size of the overlay minus 8.0 pixels in each
-    // direction.
+    // 菜单在每个
+    // 方向上的尺寸最多为 overlay 尺寸减去 8.0 像素。
     return BoxConstraints.loose(constraints.biggest).deflate(
       const EdgeInsets.all(_kMenuScreenPadding) + padding,
     );
@@ -694,12 +694,12 @@ class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
-    // size: The size of the overlay.
-    // childSize: The size of the menu, when fully open, as determined by
-    // getConstraintsForChild.
+    // size：overlay 的尺寸。
+    // childSize：菜单完全展开时的尺寸，由
+    // getConstraintsForChild 决定。
 
     final double buttonHeight = size.height - position.top - position.bottom;
-    // Find the ideal vertical position.
+    // 查找理想的垂直位置。
     double y = position.top;
     if (selectedItemIndex != null) {
       double selectedItemOffset = _kMenuVerticalPadding;
@@ -710,16 +710,16 @@ class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
       y = y + buttonHeight / 2.0 - selectedItemOffset;
     }
 
-    // Find the ideal horizontal position.
+    // 查找理想的水平位置。
     double x;
     // if (position.left > position.right) {
-    //   // Menu button is closer to the right edge, so grow to the left, aligned to the right edge.
+    //   // 菜单按钮更靠近右边缘，因此向左展开，与右边缘对齐。
     //   x = size.width - position.right - childSize.width;
     // } else if (position.left < position.right) {
-    //   // Menu button is closer to the left edge, so grow to the right, aligned to the left edge.
+    //   // 菜单按钮更靠近左边缘，因此向右展开，与左边缘对齐。
     //   x = position.left;
     // } else {
-    // Menu button is equidistant from both edges, so grow in reading direction.
+    // 菜单按钮与两侧边缘距离相等，因此沿阅读方向展开。
     switch (textDirection) {
       case TextDirection.rtl:
         x = size.width - position.right - childSize.width;
@@ -752,8 +752,8 @@ class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
   Offset _fitInsideScreen(Rect screen, Size childSize, Offset wantedPosition) {
     double x = wantedPosition.dx;
     double y = wantedPosition.dy;
-    // Avoid going outside an area defined as the rectangle 8.0 pixels from the
-    // edge of the screen in every direction.
+    // 避免超出以下矩形区域：即距屏幕
+    // 每个方向的边缘向内 8.0 像素。
     if (x < screen.left + _kMenuScreenPadding + padding.left) {
       x = screen.left + _kMenuScreenPadding + padding.left;
     } else if (x + childSize.width >
@@ -775,9 +775,9 @@ class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_PopupMenuRouteLayout oldDelegate) {
-    // If called when the old and new itemSizes have been initialized then
-    // we expect them to have the same length because there's no practical
-    // way to change length of the items list once the menu has been shown.
+    // 若在旧的和新的 itemSizes 都已初始化的情况下调用，则
+    // 预期它们长度相同，因为菜单显示之后
+    // 实际上没有办法改变条目列表的长度。
     assert(itemSizes.length == oldDelegate.itemSizes.length);
 
     return position != oldDelegate.position ||
@@ -984,61 +984,61 @@ class PopupMenu<T> extends StatelessWidget {
   }
 }
 
-/// Show a popup menu that contains the `items` at `position`.
+/// 在 `position` 处显示包含 `items` 的弹出菜单。
 ///
-/// `items` should be non-null and not empty.
+/// `items` 不能为 null 且不能为空。
 ///
-/// If `initialValue` is specified then the first item with a matching value
-/// will be highlighted and the value of `position` gives the rectangle whose
-/// vertical center will be aligned with the vertical center of the highlighted
-/// item (when possible).
+/// 若指定了 `initialValue`，则第一个值匹配的条目
+/// 会被高亮，`position` 的值给出一个矩形，其
+/// 垂直中心将与被高亮条目的垂直中心对齐
+/// （在可能的情况下）。
 ///
-/// If `initialValue` is not specified then the top of the menu will be aligned
-/// with the top of the `position` rectangle.
+/// 若未指定 `initialValue`，则菜单顶部将与
+/// `position` 矩形的顶部对齐。
 ///
-/// In both cases, the menu position will be adjusted if necessary to fit on the
-/// screen.
+/// 在两种情况下，如有必要都会调整菜单位置，使其能够显示在
+/// 屏幕上。
 ///
-/// Horizontally, the menu is positioned so that it grows in the direction that
-/// has the most room. For example, if the `position` describes a rectangle on
-/// the left edge of the screen, then the left edge of the menu is aligned with
-/// the left edge of the `position`, and the menu grows to the right. If both
-/// edges of the `position` are equidistant from the opposite edge of the
-/// screen, then the ambient [Directionality] is used as a tie-breaker,
-/// preferring to grow in the reading direction.
+/// 在水平方向上，菜单的位置会使其朝空间
+/// 更充足的方向展开。例如，若 `position` 描述的是屏幕
+/// 左边缘上的一个矩形，则菜单的左边缘与
+/// `position` 的左边缘对齐，菜单向右展开。若
+/// `position` 的两条边缘到屏幕另一侧边缘的距离相同，
+/// 则使用环境中的 [Directionality] 作为决胜依据，
+/// 优先沿阅读方向展开。
 ///
-/// The positioning of the `initialValue` at the `position` is implemented by
-/// iterating over the `items` to find the first whose
-/// [PopupMenuEntry.represents] method returns true for `initialValue`, and then
-/// summing the values of [PopupMenuEntry.height] for all the preceding widgets
-/// in the list.
+/// `initialValue` 在 `position` 处的定位是这样实现的：
+/// 遍历 `items`，找到第一个满足以下条件的条目：
+/// 其 [PopupMenuEntry.represents] 方法对 `initialValue` 返回 true，然后
+/// 累加列表中所有在它之前的组件的 [PopupMenuEntry.height] 值，
+/// 即可得到偏移量。
 ///
-/// The `elevation` argument specifies the z-coordinate at which to place the
-/// menu. The elevation defaults to 8, the appropriate elevation for popup
-/// menus.
+/// `elevation` 参数指定放置菜单时的 z 坐标。
+/// 高度默认为 8，这是弹出菜单的合适
+/// 高度。
 ///
-/// The `context` argument is used to look up the [Navigator] and [Theme] for
-/// the menu. It is only used when the method is called. Its corresponding
-/// widget can be safely removed from the tree before the popup menu is closed.
+/// `context` 参数用于查找菜单的 [Navigator] 和 [Theme]。
+/// 它仅在该方法被调用时使用。对应的
+/// 组件可以在弹出菜单关闭之前安全地从树中移除。
 ///
-/// The `useRootNavigator` argument is used to determine whether to push the
-/// menu to the [Navigator] furthest from or nearest to the given `context`. It
-/// is `false` by default.
+/// `useRootNavigator` 参数用于确定是否将菜单
+/// 推送到距离给定 `context` 最远或最近的 [Navigator]。它
+/// 默认为 `false`。
 ///
-/// The `semanticLabel` argument is used by accessibility frameworks to
-/// announce screen transitions when the menu is opened and closed. If this
-/// label is not provided, it will default to
-/// [MaterialLocalizations.popupMenuLabel].
+/// `semanticLabel` 参数供无障碍框架使用，用于
+/// 在菜单打开和关闭时播报屏幕切换。若未
+/// 提供该标签，则默认为
+/// [MaterialLocalizations.popupMenuLabel]。
 ///
-/// See also:
+/// 另请参阅：
 ///
-///  * [PopupMenuItem], a popup menu entry for a single value.
-///  * [PopupMenuDivider], a popup menu entry that is just a horizontal line.
-///  * [CheckedPopupMenuItem], a popup menu item with a checkmark.
-///  * [PopupMenuButton], which provides an [IconButton] that shows a menu by
-///    calling this method automatically.
-///  * [SemanticsConfiguration.namesRoute], for a description of edge triggered
-///    semantics.
+///  * [PopupMenuItem]，代表单个值的弹出菜单条目。
+///  * [PopupMenuDivider]，仅由一条水平线构成的弹出菜单条目。
+///  * [CheckedPopupMenuItem]，带勾选标记的弹出菜单项。
+///  * [PopupMenuButton]，它提供一个 [IconButton]，通过
+///    自动调用此方法显示菜单。
+///  * [SemanticsConfiguration.namesRoute]，用于说明边缘触发
+///    语义。
 Future<T?> showMenu<T>({
   required BuildContext context,
   required RelativeRect position,
@@ -1084,55 +1084,55 @@ Future<T?> showMenu<T>({
   ));
 }
 
-/// Signature for the callback invoked when a menu item is selected. The
-/// argument is the value of the [PopupMenuItem] that caused its menu to be
-/// dismissed.
+/// 选中菜单项时调用的回调的签名。其
+/// 参数是导致其菜单被关闭的 [PopupMenuItem] 的
+/// 值。
 ///
-/// Used by [PopupMenuButton.onSelected].
+/// 由 [PopupMenuButton.onSelected] 使用。
 typedef PopupMenuItemSelected<T> = void Function(T value);
 
-/// Signature for the callback invoked when a [PopupMenuButton] is dismissed
-/// without selecting an item.
+/// 当 [PopupMenuButton] 被关闭而
+/// 未选择任何条目时调用的回调的签名。
 ///
-/// Used by [PopupMenuButton.onCanceled].
+/// 由 [PopupMenuButton.onCanceled] 使用。
 typedef PopupMenuCanceled = void Function();
 
-/// Signature used by [PopupMenuButton] to lazily construct the items shown when
-/// the button is pressed.
+/// [PopupMenuButton] 使用的签名，用于惰性构建按下按钮时
+/// 显示的条目。
 ///
-/// Used by [PopupMenuButton.itemBuilder].
+/// 由 [PopupMenuButton.itemBuilder] 使用。
 typedef PopupMenuItemBuilder<T> = List<PopupMenuEntry<T>> Function(
     BuildContext context);
 
 typedef MenuWrapper = Widget Function(Widget child);
 
-/// Displays a menu when pressed and calls [onSelected] when the menu is dismissed
-/// because an item was selected. The value passed to [onSelected] is the value of
-/// the selected menu item.
+/// 按下时显示菜单，当菜单因选中某个条目而关闭时会调用 [onSelected]。
+/// 传递给 [onSelected] 的值是被选中
+/// 菜单项的值。
 ///
-/// One of [child] or [icon] may be provided, but not both. If [icon] is provided,
-/// then [PopupMenuButton] behaves like an [IconButton].
+/// [child] 和 [icon] 可以提供其中之一，但不能同时提供。若提供了 [icon]，
+/// 则 [PopupMenuButton] 的行为与 [IconButton] 相同。
 ///
-/// If both are null, then a standard overflow icon is created (depending on the
-/// platform).
+/// 若两者都为 null，则会创建一个标准的溢出图标（取决于
+/// 平台）。
 ///
 /// {@tool dartpad}
-/// This example shows a menu with four items, selecting between an enum's
-/// values and setting a `_selectedMenu` field based on the selection
+/// 本示例展示了一个包含四个条目的菜单，可在枚举的各个
+/// 值之间进行选择，并根据所选项设置 `_selectedMenu` 字段
 ///
-/// ** See code in examples/api/lib/material/popupmenu/popupmenu.0.dart **
+/// ** 代码见 examples/api/lib/material/popupmenu/popupmenu.0.dart **
 /// {@end-tool}
 ///
-/// See also:
+/// 另请参阅：
 ///
-///  * [PopupMenuItem], a popup menu entry for a single value.
-///  * [PopupMenuDivider], a popup menu entry that is just a horizontal line.
-///  * [CheckedPopupMenuItem], a popup menu item with a checkmark.
-///  * [showMenu], a method to dynamically show a popup menu at a given location.
+///  * [PopupMenuItem]，代表单个值的弹出菜单条目。
+///  * [PopupMenuDivider]，仅由一条水平线构成的弹出菜单条目。
+///  * [CheckedPopupMenuItem]，带勾选标记的弹出菜单项。
+///  * [showMenu]，在指定位置动态显示弹出菜单的方法。
 class PopupMenuButton<T> extends StatefulWidget {
-  /// Creates a button that shows a popup menu.
+  /// 创建一个显示弹出菜单的按钮。
   ///
-  /// The [itemBuilder] argument must not be null.
+  /// [itemBuilder] 参数不能为 null。
   const PopupMenuButton({
     Key? key,
     required this.itemBuilder,
@@ -1161,114 +1161,114 @@ class PopupMenuButton<T> extends StatefulWidget {
         ),
         super(key: key);
 
-  /// Called when the button is pressed to create the items to show in the menu.
+  /// 按下按钮时调用，用于创建要显示在菜单中的条目。
   final PopupMenuItemBuilder<T> itemBuilder;
 
-  /// Menu wrapper.
+  /// 菜单包装器。
   final MenuWrapper? menuWrapper;
 
-  /// The value of the menu item, if any, that should be highlighted when the menu opens.
+  /// 菜单打开时需要高亮的菜单项的值（如果有）。
   final T? initialValue;
 
-  /// Called when the user hovers this button.
+  /// 用户悬停在此按钮上时调用。
   final ValueChanged<bool>? onHover;
 
-  /// Called when the user selects a value from the popup menu created by this button.
+  /// 用户从该按钮创建的弹出菜单中选择某个值时调用。
   ///
-  /// If the popup menu is dismissed without selecting a value, [onCanceled] is
-  /// called instead.
+  /// 如果弹出菜单在没有选择值的情况下被关闭，则会调用 [onCanceled]
+  /// ，而不会调用 [onSelected]。
   final PopupMenuItemSelected<T>? onSelected;
 
-  /// Called when the user dismisses the popup menu without selecting an item.
+  /// 用户在未选择条目的情况下关闭弹出菜单时调用。
   ///
-  /// If the user selects a value, [onSelected] is called instead.
+  /// 如果用户选择了某个值，则改为调用 [onSelected]。
   final PopupMenuCanceled? onCanceled;
 
-  /// Text that describes the action that will occur when the button is pressed.
+  /// 描述按下按钮后将要执行的操作的文本。
   ///
-  /// This text is displayed when the user long-presses on the button and is
-  /// used for accessibility.
+  /// 长按该按钮时会显示此文本，它也
+  /// 用于无障碍功能。
   final String? tooltip;
 
-  /// The z-coordinate at which to place the menu when open. This controls the
-  /// size of the shadow below the menu.
+  /// 菜单打开时放置的 z 坐标。它控制菜单
+  /// 下方阴影的大小。
   ///
-  /// Defaults to 8, the appropriate elevation for popup menus.
+  /// 默认为 8，即弹出菜单的合适高度。
   final double? elevation;
 
-  /// Matches IconButton's 8 dps padding by default. In some cases, notably where
-  /// this button appears as the trailing element of a list item, it's useful to be able
-  /// to set the padding to zero.
+  /// 默认与 IconButton 的 8 dp 内边距一致。在某些情况下，尤其是
+  /// 该按钮作为列表条目的尾部元素出现时，能够
+  /// 将内边距设为零会很有用。
   final EdgeInsetsGeometry padding;
 
-  /// The splash radius.
+  /// 水波纹半径。
   ///
-  /// If null, default splash radius of [InkWell] or [IconButton] is used.
+  /// 若为 null，则使用 [InkWell] 或 [IconButton] 的默认水波纹半径。
   final double? splashRadius;
 
-  /// If provided, [child] is the widget used for this button
-  /// and the button will utilize an [InkWell] for taps.
+  /// 若提供，[child] 将作为该按钮使用的组件，
+  /// 该按钮将使用 [InkWell] 处理点击。
   final Widget? child;
 
-  /// If provided, the [icon] is used for this button
-  /// and the button will behave like an [IconButton].
+  /// 若提供，[icon] 将作为该按钮使用的图标，
+  /// 该按钮的行为将与 [IconButton] 相同。
   final Widget? icon;
 
-  /// The offset is applied relative to the initial position
-  /// set by the [position].
+  /// 该偏移量相对于初始位置
+  /// （由 [position] 设置）进行应用。
   ///
-  /// When not set, the offset defaults to [Offset.zero].
+  /// 未设置时，偏移量默认为 [Offset.zero]。
   final Offset offset;
 
-  /// Whether this popup menu button is interactive.
+  /// 该弹出菜单按钮是否可交互。
   ///
-  /// Must be non-null, defaults to `true`
+  /// 不能为 null，默认为 `true`
   ///
-  /// If `true` the button will respond to presses by displaying the menu.
+  /// 若为 `true`，按下按钮时会通过显示菜单来响应。
   ///
-  /// If `false`, the button is styled with the disabled color from the
-  /// current [Theme] and will not respond to presses or show the popup
-  /// menu and [onSelected], [onCanceled] and [itemBuilder] will not be called.
+  /// 若为 `false`，则按钮会使用当前
+  /// [Theme] 中的禁用色进行样式化，并且不会响应按压，也不会显示弹出
+  /// 菜单，[onSelected]、[onCanceled] 和 [itemBuilder] 也不会被调用。
   ///
-  /// This can be useful in situations where the app needs to show the button,
-  /// but doesn't currently have anything to show in the menu.
+  /// 在应用需要显示该按钮、
+  /// 但当前没有内容可在菜单中显示的情况下，这会很有用。
   final bool enabled;
 
-  /// If provided, the shape used for the menu.
+  /// 若提供，则用作菜单的形状。
   ///
-  /// If this property is null, then [PopupMenuThemeData.shape] is used.
-  /// If [PopupMenuThemeData.shape] is also null, then the default shape for
-  /// [MaterialType.card] is used. This default shape is a rectangle with
-  /// rounded edges of BorderRadius.circular(2.0).
+  /// 若该属性为 null，则使用 [PopupMenuThemeData.shape]。
+  /// 若 [PopupMenuThemeData.shape] 也为 null，则使用
+  /// [MaterialType.card] 的默认形状。该默认形状是一个带有
+  /// BorderRadius.circular(2.0) 圆角边缘的矩形。
   final ShapeBorder? shape;
 
-  /// If provided, the background color used for the menu.
+  /// 若提供，则用作菜单背景色。
   ///
-  /// If this property is null, then [PopupMenuThemeData.color] is used.
-  /// If [PopupMenuThemeData.color] is also null, then
-  /// Theme.of(context).cardColor is used.
+  /// 若该属性为 null，则使用 [PopupMenuThemeData.color]。
+  /// 若 [PopupMenuThemeData.color] 也为 null，则使用
+  /// Theme.of(context).cardColor。
   final Color? color;
 
-  /// Whether detected gestures should provide acoustic and/or haptic feedback.
+  /// 检测到手势时是否应提供声音和/或触觉反馈。
   ///
-  /// For example, on Android a tap will produce a clicking sound and a
-  /// long-press will produce a short vibration, when feedback is enabled.
+  /// 例如，在 Android 上，轻触会发出咔哒声，
+  /// 长按会产生短促的震动（当启用了反馈时）。
   ///
-  /// See also:
+  /// 另请参阅：
   ///
-  ///  * [Feedback] for providing platform-specific feedback to certain actions.
+  ///  * [Feedback]，用于为特定操作提供平台特定的反馈。
   final bool? enableFeedback;
 
-  /// If provided, the size of the [Icon].
+  /// 若提供，则为 [Icon] 的大小。
   ///
-  /// If this property is null, then [IconThemeData.size] is used.
-  /// If [IconThemeData.size] is also null, then
-  /// default size is 24.0 pixels.
+  /// 若该属性为 null，则使用 [IconThemeData.size]。
+  /// 若 [IconThemeData.size] 也为 null，则
+  /// 默认大小为 24.0 像素。
   final double? iconSize;
 
-  /// Optional size constraints for the menu.
+  /// 菜单的可选尺寸约束。
   ///
-  /// When unspecified, defaults to:
+  /// 未指定时，默认为：
   /// ```dart
   /// const BoxConstraints(
   ///   minWidth: 2.0 * 56.0,
@@ -1276,38 +1276,38 @@ class PopupMenuButton<T> extends StatefulWidget {
   /// )
   /// ```
   ///
-  /// The default constraints ensure that the menu width matches maximum width
-  /// recommended by the material design guidelines.
-  /// Specifying this parameter enables creation of menu wider than
-  /// the default maximum width.
+  /// 默认约束确保菜单宽度与 Material Design 规范
+  /// 推荐的最大宽度一致。
+  /// 指定该参数后即可创建宽度大于
+  /// 默认最大宽度的菜单。
   final BoxConstraints? constraints;
 
-  /// Whether the popup menu is positioned over or under the popup menu button.
+  /// 弹出菜单定位在弹出菜单按钮的上方还是下方。
   ///
-  /// [offset] is used to change the position of the popup menu relative to the
-  /// position set by this parameter.
+  /// [offset] 用于改变弹出菜单相对于
+  /// 该参数所设置位置的位置。
   ///
-  /// When not set, the position defaults to [PopupMenuPosition.over] which makes the
-  /// popup menu appear directly over the button that was used to create it.
+  /// 未设置时，位置默认为 [PopupMenuPosition.over]，这会让
+  /// 弹出菜单直接显示在创建它的按钮上方。
   final PopupMenuPosition position;
 
   @override
   PopupMenuButtonState<T> createState() => PopupMenuButtonState<T>();
 }
 
-/// The [State] for a [PopupMenuButton].
+/// [PopupMenuButton] 的 [State]。
 ///
-/// See [showButtonMenu] for a way to programmatically open the popup menu
-/// of your button state.
+/// 有关以编程方式打开弹出菜单的方法，请参阅 [showButtonMenu]
+/// （按钮状态）。
 class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
-  /// A method to show a popup menu with the items supplied to
-  /// [PopupMenuButton.itemBuilder] at the position of your [PopupMenuButton].
+  /// 一种显示弹出菜单的方法，其中的条目来自
+  /// [PopupMenuButton.itemBuilder]，并显示在 [PopupMenuButton] 所在位置。
   ///
-  /// By default, it is called when the user taps the button and [PopupMenuButton.enabled]
-  /// is set to `true`. Moreover, you can open the button by calling the method manually.
+  /// 默认情况下，当用户点击按钮且 [PopupMenuButton.enabled]
+  /// 设为 `true` 时会调用它。此外，你也可以手动调用该方法打开按钮。
   ///
-  /// You would access your [PopupMenuButtonState] using a [GlobalKey] and
-  /// show the menu of the button with `globalKey.currentState.showButtonMenu`.
+  /// 你可以使用 [GlobalKey] 访问你的 [PopupMenuButtonState]，然后
+  /// 用 `globalKey.currentState.showButtonMenu` 显示该按钮的菜单。
   void showButtonMenu() {
     final PopupMenuThemeData popupMenuTheme = PopupMenuTheme.of(context);
     final RenderBox button = context.findRenderObject()! as RenderBox;
@@ -1343,7 +1343,7 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
       Offset.zero & overlay.size,
     );
     final List<PopupMenuEntry<T>> items = widget.itemBuilder(context);
-    // Only show the menu if there is something to show
+    // 只有在有内容可显示时才显示菜单
     if (items.isNotEmpty) {
       showMenu<T?>(
         context: context,
@@ -1411,9 +1411,9 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
   }
 }
 
-// This MaterialStateProperty is passed along to the menu item's InkWell which
-// resolves the property against MaterialState.disabled, MaterialState.hovered,
-// MaterialState.focused.
+// 该 MaterialStateProperty 会传递给菜单项的 InkWell，后者会
+// 针对 MaterialState.disabled、MaterialState.hovered、
+// MaterialState.focused 解析该属性。
 // ignore: unused_element
 class _EffectiveMouseCursor extends MaterialStateMouseCursor {
   const _EffectiveMouseCursor(this.widgetCursor, this.themeCursor);

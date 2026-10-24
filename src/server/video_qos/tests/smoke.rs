@@ -21,7 +21,7 @@ pub(super) fn session(fps: u32, quality: Quality) -> VideoQoS {
 #[test]
 fn smoke_capacity_with_short_stalls() {
     for limit in [30, 60] {
-        // Probes run at one second cadence; sweep the stall phase so no alignment hides.
+        // 探测以一秒为节奏运行；扫描停顿相位，避免因对齐而掩盖问题。
         for phase in (0..1000).step_by(50) {
             let mut qos = session(limit, Quality::Balanced);
             for _ in 0..90 {
@@ -33,7 +33,7 @@ fn smoke_capacity_with_short_stalls() {
             let mut max_delay = 0;
             for now in (0..120_000).step_by(10) {
                 qos.advance_ms(10);
-                // A 700 ms pause affects video and probes on the same FIFO link.
+                // 700 毫秒的暂停会同时影响同一条 FIFO 链路上的视频和探测。
                 let available = if (now + phase) % 6000 < 700 {
                     0.0
                 } else {
@@ -41,9 +41,9 @@ fn smoke_capacity_with_short_stalls() {
                 };
                 queue = (queue + (qos.fps() as f64 - available) * 0.01).max(0.0);
                 if let Some((_, remaining, reply_at)) = probe.as_mut() {
-                    *remaining -= available * 0.01;
+                    * remaining -= available * 0.01;
                     if available > 0.0 && *remaining <= 0.0 && reply_at.is_none() {
-                        *reply_at = Some(now + 10);
+                        * reply_at = Some(now + 10);
                     }
                 }
                 if let Some((sent, _, Some(reply_at))) = probe {

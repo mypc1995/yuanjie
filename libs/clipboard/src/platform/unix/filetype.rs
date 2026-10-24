@@ -21,20 +21,20 @@ pub type Inode = u64;
 pub enum FileType {
     File,
     Directory,
-    // todo: support symlink
+    // 待办：支持符号链接
     Symlink,
 }
 
-/// read only permission
+/// 只读权限
 pub const PERM_READ: u16 = 0o444;
-/// read and write permission
+/// 读写权限
 pub const PERM_RW: u16 = 0o644;
-/// only self can read and readonly
+/// 仅本人可读且为只读
 pub const PERM_SELF_RO: u16 = 0o400;
 /// rwx
 pub const PERM_RWX: u16 = 0o755;
 #[allow(dead_code)]
-/// max length of file name
+/// 文件名的最大长度
 pub const MAX_NAME_LEN: usize = 255;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,13 +48,13 @@ pub struct FileDescription {
     pub creation_time: SystemTime,
     pub size: u64,
     pub perm: u16,
-    /// `file_list_id()` of the list this file came from, sent back in file contents requests
+    /// 该文件所属列表的 `file_list_id()`，在文件内容请求中原样回传
     #[serde(default)]
     pub clip_data_id: i32,
 }
 
-/// Identifies a file list by its descriptor PDU, which both peers hold, so file contents
-/// requests can name the list they read from. FNV-1a, same as `wf_cliprdr_file_list_id()`.
+/// 通过其描述符 PDU 来标识一个文件列表，双方对端都持有它，因此文件内容
+/// 请求可以指明它读取的列表。FNV-1a，与 `wf_cliprdr_file_list_id()` 相同。
 pub fn file_list_id(file_descriptor_pdu: &[u8]) -> i32 {
     file_descriptor_pdu
         .iter()
@@ -85,23 +85,23 @@ impl FileDescription {
         clip_data_id: i32,
     ) -> Result<FileDescription, CliprdrError> {
         let flags = bytes.get_u32_le();
-        // skip reserved 32 bytes
+        // 跳过保留的 32 字节
         bytes.advance(32);
         let attributes = bytes.get_u32_le();
 
-        // in original specification, this is 16 bytes reserved
-        // we use the last 4 bytes to store the file mode
-        // skip reserved 12 bytes
+        // 在最初的规范中，这里是 16 字节保留位
+        // 我们用最后 4 字节存储文件权限位
+        // 跳过保留的 12 字节
         bytes.advance(12);
         let perm = bytes.get_u32_le() as u16;
 
-        // last write time from 1601-01-01 00:00:00, in 100ns
+        // 最后写入时间，基准为 1601-01-01 00:00:00，单位 100ns
         let last_write_time = bytes.get_u64_le();
-        // file size
+        // 文件大小
         let file_size_high = bytes.get_u32_le();
         let file_size_low = bytes.get_u32_le();
-        // NUL-terminated UTF-16 file name in a fixed-size field.
-        // read with another pointer, and advance the main pointer
+        // 定长字段中以 NUL 结尾的 UTF-16 文件名。
+        // 用另一个指针读取，并推进主指针
         let block = bytes.clone();
         bytes.advance(FILE_NAME_FIELD_SIZE);
 
@@ -128,7 +128,7 @@ impl FileDescription {
             });
         }
 
-        // todo: check normal, hidden, system, readonly, archive...
+        // 待办：检查 normal、hidden、system、readonly、archive...
         let directory = attributes & 0x10 != 0;
         let normal = attributes == 0x80;
         let hidden = attributes & 0x02 != 0;
@@ -137,11 +137,11 @@ impl FileDescription {
         let perm = if from_unix {
             // as is
             perm
-            // cannot set as is...
+            // 不能按原样设置...
         } else if normal {
             PERM_RWX
         } else if directory {
-            // Windows ignores read-only and hidden on a directory; without `x` it cannot be entered.
+            // Windows 会忽略目录上的只读和隐藏属性；没有 `x` 就无法进入该目录。
             PERM_RWX
         } else if readonly {
             PERM_READ
@@ -157,8 +157,8 @@ impl FileDescription {
             FileType::File
         };
 
-        // to-do: use `let valid_size = flags & FLAGS_FD_SIZE != 0;`
-        // We use `true` to for compatibility with Windows.
+        // 待办：使用 `let valid_size = flags & FLAGS_FD_SIZE != 0;`
+        // 为兼容 Windows，我们使用 `true`。
         // let valid_size = flags & FLAGS_FD_SIZE != 0;
         let valid_size = true;
         let size = if valid_size {
@@ -199,8 +199,8 @@ impl FileDescription {
         Ok(desc)
     }
 
-    /// parse file descriptions from a format data response PDU
-    /// which containing a CSPTR_FILEDESCRIPTORW indicated format data
+    /// 从格式数据响应 PDU 中解析文件描述信息
+    /// 其中包含一个指示了格式数据的 CSPTR_FILEDESCRIPTORW
     pub fn parse_file_descriptors(
         file_descriptor_pdu: Vec<u8>,
         conn_id: i32,
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn file_list_id_is_fnv1a() {
-        // Reference vectors; the Windows side computes the same id in C.
+        // 参考向量；Windows 侧用 C 计算出相同的 id。
         assert_eq!(file_list_id(b"") as u32, 0x811c_9dc5);
         assert_eq!(file_list_id(b"a") as u32, 0xe40c_292c);
         assert_eq!(file_list_id(b"foobar") as u32, 0xbf9c_f968);
@@ -351,7 +351,7 @@ mod tests {
             parse_last_write_time(441_481_536_000_000_000),
             SystemTime::UNIX_EPOCH + Duration::from_secs(32_503_680_000)
         );
-        // 1969-12-31 23:59:59 UTC falls back to the Unix epoch.
+        // 1969-12-31 23:59:59 UTC 回退到 Unix 纪元。
         assert_eq!(
             parse_last_write_time(116_444_736_000_000_000 - 10_000_000),
             SystemTime::UNIX_EPOCH

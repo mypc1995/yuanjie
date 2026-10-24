@@ -173,7 +173,7 @@ pub fn set_cursor_pos(x: i32, y: i32) -> bool {
     }
 }
 
-/// Clip cursor to a rectangle. Pass None to unclip.
+/// 把光标裁剪到某个矩形。传入 None 表示取消裁剪。
 pub fn clip_cursor(rect: Option<(i32, i32, i32, i32)>) -> bool {
     unsafe {
         let result = match rect {
@@ -469,8 +469,8 @@ fn fix_cursor_mask(
     let bm_size = mbits.len();
     let c_size = cbits.len();
 
-    // Pack and invert bitmap data (mbits)
-    // borrow from tigervnc
+    // 打包并反转位图数据（mbits）
+    // 借鉴自 tigervnc
     for y in 0..height {
         for x in 0..packed_width_bytes {
             let a = y * packed_width_bytes + x;
@@ -481,9 +481,9 @@ fn fix_cursor_mask(
         }
     }
 
-    // Replace "inverted background" bits with black color to ensure
-    // cross-platform interoperability. Not beautiful but necessary code.
-    // borrow from tigervnc
+    // 把"反色背景"的位替换为黑色，以确保
+    // 跨平台互操作性。这段代码不漂亮，但却是必要的。
+    // 借鉴自 tigervnc
     let bytes_row = width << 2;
     for y in 0..height {
         let mut bitmask: u8 = 0x80;
@@ -516,7 +516,7 @@ fn fix_cursor_mask(
         }
     }
 
-    // borrow from noVNC
+    // 借鉴自 noVNC
     let mut pix_idx = 0;
     for y in 0..height {
         for x in 0..width {
@@ -669,26 +669,26 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
         }
     };
 
-    // Register system service event handler
+    // 注册系统服务事件处理器
     let status_handle = service_control_handler::register(crate::get_app_name(), event_handler)?;
 
     let next_status = ServiceStatus {
-        // Should match the one from system service registry
+        // 应与系统服务注册表中的那个一致
         service_type: SERVICE_TYPE,
-        // The new state
+        // 新的状态
         current_state: ServiceState::Running,
-        // Accept stop events when running
+        // 在运行时接受停止事件
         controls_accepted: ServiceControlAccept::STOP,
-        // Used to report an error when starting or stopping only, otherwise must be zero
+        // 仅用于在启动或停止时报告错误，其他情况下必须为零
         exit_code: ServiceExitCode::Win32(0),
-        // Only used for pending states, otherwise must be zero
+        // 仅用于挂起状态，其他情况下必须为零
         checkpoint: 0,
-        // Only used for pending states, otherwise must be zero
+        // 仅用于挂起状态，其他情况下必须为零
         wait_hint: Duration::default(),
         process_id: None,
     };
 
-    // Tell the system that the service is running now
+    // 告诉系统该服务现在正在运行
     status_handle.set_service_status(next_status)?;
 
     let mut session_id = unsafe { get_current_session(share_rdp()) };
@@ -717,9 +717,9 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
             Ok(res) => match res {
                 Some(Ok(stream)) => {
                     let mut stream = ipc::Connection::new(stream);
-                    // Keep IPC authorization consistent with the session we are currently serving.
-                    // Recompute expected session right before authorization to avoid using a stale
-                    // session_id after awaiting incoming.next().
+                    // 让 IPC 授权与当前正在服务的会话保持一致。
+                    // 在授权前一刻重新计算期望的会话，避免使用过期的
+                    // session_id（在 await incoming.next() 之后）。
                     let expected_active_session_id =
                         resolve_expected_active_session_id_for_service(session_id);
                     if !authorize_service_scoped_ipc_connection(&stream, expected_active_session_id)
@@ -757,7 +757,7 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                 _ => {}
             },
             Err(_) => {
-                // timeout
+                // 超时
                 unsafe {
                     let tmp = get_current_session(share_rdp());
                     if tmp == 0xFFFFFFFF {
@@ -813,7 +813,7 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
 
 async fn launch_server(session_id: DWORD, close_first: bool) -> ResultType<HANDLE> {
     if close_first {
-        // in case started some elsewhere
+        // 以防在别处启动过
         send_close_async("").await.ok();
     }
     let cmd = format!(
@@ -933,7 +933,7 @@ async fn send_close_async(postfix: &str) -> ResultType<()> {
         .await?
         .send(&ipc::Data::Close)
         .await?;
-    // sleep a while to wait for closing and exit
+    // 睡一会儿，等待关闭并退出
     sleep(0.1).await;
     Ok(())
 }
@@ -948,7 +948,7 @@ pub fn send_sas() {
     unsafe {
         log::info!("SAS received");
 
-        // Check and temporarily set SoftwareSASGeneration if needed
+        // 检查并在需要时临时设置 SoftwareSASGeneration
         let mut original_value: Option<u32> = None;
         let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
 
@@ -956,7 +956,7 @@ pub fn send_sas() {
             "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
             KEY_READ | KEY_WRITE,
         ) {
-            // Read current value
+            // 读取当前值
             match policy_key.get_value::<u32, _>("SoftwareSASGeneration") {
                 Ok(value) => {
                     /*
@@ -968,7 +968,7 @@ pub fn send_sas() {
                     if value != 1 && value != 3 {
                         original_value = Some(value);
                         log::info!("SoftwareSASGeneration is {}, setting to 1", value);
-                        // Set to 1 for SendSAS to work
+                        // 设为 1 以让 SendSAS 生效
                         if let Err(e) = policy_key.set_value("SoftwareSASGeneration", &1u32) {
                             log::error!("Failed to set SoftwareSASGeneration: {}", e);
                         }
@@ -980,7 +980,7 @@ pub fn send_sas() {
                         e
                     );
                     original_value = Some(0); // Mark that we need to restore (delete) it
-                                              // Create and set to 1
+                                              // 创建并设为 1
                     if let Err(e) = policy_key.set_value("SoftwareSASGeneration", &1u32) {
                         log::error!("Failed to set SoftwareSASGeneration: {}", e);
                     }
@@ -990,24 +990,24 @@ pub fn send_sas() {
             log::error!("Failed to open registry key for SoftwareSASGeneration");
         }
 
-        // Send SAS
+        // 发送 SAS
         SendSAS(FALSE);
 
-        // Restore original value if we changed it
+        // 如果改动过，恢复原值
         if let Some(original) = original_value {
             if let Ok(policy_key) = hklm.open_subkey_with_flags(
                 "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
                 KEY_WRITE,
             ) {
                 if original == 0 {
-                    // It didn't exist before, delete it
+                    // 之前并不存在，把它删掉
                     if let Err(e) = policy_key.delete_value("SoftwareSASGeneration") {
                         log::error!("Failed to delete SoftwareSASGeneration: {}", e);
                     } else {
                         log::info!("Deleted SoftwareSASGeneration (restored to original state)");
                     }
                 } else {
-                    // Restore the original value
+                    // 恢复原值
                     if let Err(e) = policy_key.set_value("SoftwareSASGeneration", &original) {
                         log::error!(
                             "Failed to restore SoftwareSASGeneration to {}: {}",
@@ -1039,7 +1039,7 @@ pub fn try_change_desktop() -> bool {
                 let mut s = SUPPRESS.lock().unwrap();
                 if s.elapsed() > std::time::Duration::from_secs(3) {
                     log::error!("Failed to switch desktop: {}", io::Error::last_os_error());
-                    *s = Instant::now();
+                    * s = Instant::now();
                 }
             } else {
                 log::info!("Desktop switched");
@@ -1097,7 +1097,7 @@ pub fn is_physical_console_session() -> Option<bool> {
 }
 
 pub fn get_active_username() -> String {
-    // get_active_user will give console username higher priority
+    // get_active_user 会给控制台用户名更高的优先级
     if let Some(name) = get_current_session_username() {
         return name;
     }
@@ -1208,7 +1208,7 @@ pub fn get_available_sessions(name: bool) -> Vec<WindowsSession> {
     if name {
         let mut name_count: HashMap<String, usize> = HashMap::new();
         for session in &v {
-            *name_count.entry(session.name.clone()).or_insert(0) += 1;
+            * name_count.entry(session.name.clone()).or_insert(0) += 1;
         }
         let current_sid = get_current_process_session_id().unwrap_or_default();
         for e in v.iter_mut() {
@@ -1239,9 +1239,9 @@ pub fn get_active_user_home() -> Option<PathBuf> {
 #[cfg(not(feature = "flutter"))]
 #[inline]
 pub fn portable_service_logon_helper_paths() -> Option<(PathBuf, PathBuf)> {
-    // Keep parity with history for now: derive LocalAppData from user profile path.
-    // If users report redirected/non-standard LocalAppData issues, switch to:
-    // `BaseDirs::new()?.data_local_dir()` for Known Folder-based resolution.
+    // 暂时与历史行为保持一致：从用户配置文件路径推导 LocalAppData。
+    // 如果用户反馈 LocalAppData 被重定向或路径不标准，就改为：
+    // `BaseDirs::new()?.data_local_dir()` 进行基于 Known Folder 的解析。
     let user_dir = hbb_common::directories_next::UserDirs::new()?;
     let dir = user_dir
         .home_dir()
@@ -1277,9 +1277,9 @@ pub fn is_logon_ui() -> ResultType<bool> {
         .any(|pid| get_session_id_of_process(pid) == Some(current_sid)))
 }
 
-// Auto-login types the OS password on this, so a state that cannot be read counts as unlocked.
-// `is_prelogin()` reads a failed query as no user signed in, and `is_logon_ui()` is left out
-// because a LogonUI.exe can outlive the unlock.
+// 自动登录会在此输入操作系统密码，所以读不到的状态就算作已解锁。
+// `is_prelogin()` 把查询失败解读为没有用户登录，而 `is_logon_ui()` 则被排除在外，
+// 因为 LogonUI.exe 可能在解锁之后仍然存活。
 pub fn is_logon_screen() -> bool {
     let Some(session_id) = get_current_process_session_id() else {
         return false;
@@ -1293,7 +1293,7 @@ fn is_session_prelogin(session_id: u32) -> Option<bool> {
         fn get_session_user_info(path: *mut u16, n: u32, session_id: u32) -> u32;
     }
     let mut buff = [0u16; 256];
-    // The bytes copied include the terminating null, so 0 means the query failed.
+    // 复制出的字节数包含结尾的 null，所以 0 意味着查询失败。
     let n = unsafe { get_session_user_info(buff.as_mut_ptr(), buff.len() as _, session_id) };
     if n == 0 {
         return None;
@@ -1303,7 +1303,7 @@ fn is_session_prelogin(session_id: u32) -> Option<bool> {
     Some(username.is_empty() || username == "SYSTEM")
 }
 
-// Windows 7 and Server 2008 R2 report LOCK and UNLOCK the other way round (see WTSINFOEX_LEVEL1).
+// Windows 7 和 Server 2008 R2 报告的 LOCK 与 UNLOCK 正好相反（参见 WTSINFOEX_LEVEL1）。
 fn is_session_locked_flag(session_id: u32) -> Option<bool> {
     extern "C" {
         fn get_session_flags(session_id: DWORD) -> DWORD;
@@ -1367,7 +1367,7 @@ fn get_valid_subkey() -> String {
     return get_subkey(&app_name, false);
 }
 
-// Return install options other than InstallLocation.
+// 返回除 InstallLocation 之外的安装选项。
 pub fn get_install_options() -> String {
     let app_name = crate::get_app_name();
     let subkey = format!(".{}", app_name.to_lowercase());
@@ -1413,7 +1413,7 @@ pub fn get_silent_install_options(printer_override: Option<bool>) -> &'static st
     }
 }
 
-// This function return Option<String>, because some registry value may be empty.
+// 该函数返回 Option<String>，因为某些注册表值可能为空。
 fn get_reg_of_hkcr(subkey: &str, name: &str) -> Option<String> {
     let hkcr = RegKey::predef(HKEY_CLASSES_ROOT);
     if let Ok(tmp) = hkcr.open_subkey(subkey.replace("HKEY_CLASSES_ROOT\\", "")) {
@@ -1457,7 +1457,7 @@ pub fn check_update_broker_process() -> ResultType<()> {
     };
     let cur_exe = cur_dir.join(process_exe);
 
-    // Force update broker exe if failed to check modified time.
+    // 如果检查修改时间失败，就强制更新 broker exe。
     let cmds = format!(
         "
         chcp 65001
@@ -1573,9 +1573,9 @@ fn get_after_install(
     let ext = app_name.to_lowercase();
     let nested_exe = escape_nested_cmd_ampersands(exe);
 
-    // reg delete HKEY_CURRENT_USER\Software\Classes for
+    // reg delete HKEY_CURRENT_USER\Software\Classes 用于
     // https://github.com/rustdesk/rustdesk/commit/f4bdfb6936ae4804fc8ab1cf560db192622ad01a
-    // and https://github.com/leanflutter/uni_links_desktop/blob/1b72b0226cec9943ca8a84e244c149773f384e46/lib/src/protocol_registrar_impl_windows.dart#L30
+    // 以及 https://github.com/leanflutter/uni_links_desktop/blob/1b72b0226cec9943ca8a84e244c149773f384e46/lib/src/protocol_registrar_impl_windows.dart#L30
     let hcu = RegKey::predef(HKEY_CURRENT_USER);
     hcu.delete_subkey_all(format!("Software\\Classes\\{}", exe))
         .ok();
@@ -1626,7 +1626,7 @@ fn get_after_install(
 }
 
 pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> ResultType<()> {
-    // MSI and EXE installations use different registry layouts, so MSI-to-EXE upgrades are not supported.
+    // MSI 和 EXE 安装使用不同的注册表布局，所以不支持从 MSI 升级到 EXE。
     let (installed_subkey, _, _, _) = get_install_info();
     if get_windows_installer_state(&installed_subkey)? == Some(true) {
         bail!("Cannot install the EXE package over an existing MSI installation");
@@ -1673,8 +1673,8 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
     if let Some(icon) = shortcut_icon_location.as_deref() {
         validate_install_value(icon)?;
     }
-    // The elevated runner expands this to `%~f0.dir`, beside its protected copy.
-    // Do not stage privileged shortcut artifacts in the user-writable `%TEMP%`.
+    // 提权后的运行器会把它展开为 `%~f0.dir`，即其受保护副本所在目录。
+    // 不要把特权快捷方式的产物暂存在用户可写的 `%TEMP%` 中。
     let tmp_path = "%RUSTDESK_OUTPUT_DIR%".to_owned();
     let (mk_shortcut_commands, mk_shortcut_file) = staged_shortcut_commands(
         shortcut_bytes(&exe, None, shortcut_icon_location.as_deref())?,
@@ -1723,7 +1723,7 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{start_menu}\\\"
     // https://docs.microsoft.com/zh-cn/windows/win32/msi/uninstall-registry-key?redirectedfrom=MSDNa
     // https://www.windowscentral.com/how-edit-registry-using-command-prompt-windows-10
     // https://www.tenforums.com/tutorials/70903-add-remove-allowed-apps-through-windows-firewall-windows-10-a.html
-    // Note: without if exist, the bat may exit in advance on some Windows7 https://github.com/rustdesk/rustdesk/issues/895
+    // 注意：没有 if exist 的话，在某些 Windows 7 上 bat 可能会提前退出 https://github.com/rustdesk/rustdesk/issues/895
     let dels = format!(
         "
 if exist \"{tmp_path}\\{app_name}.lnk\" del /f /q \"{tmp_path}\\{app_name}.lnk\"
@@ -1733,7 +1733,7 @@ if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} 
     );
     let src_exe = cur_exe.clone();
 
-    // potential bug here: if run_cmd cancelled, but config file is changed.
+    // 这里可能有 bug：如果 run_cmd 被取消，但配置文件已被改动。
     if let Some(lic) = get_license() {
         Config::set_option("key".into(), lic.key);
         Config::set_option("custom-rendezvous-server".into(), lic.host);
@@ -1750,8 +1750,8 @@ copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\
     };
 
     let install_remote_printer = if install_printer {
-        // No need to use `|| true` here.
-        // The script will not exit even if `--install-remote-printer` panics.
+        // 这里不需要用 `|| true`。
+        // 即使 `--install-remote-printer` panic，脚本也不会退出。
         format!("\"{}\" --install-remote-printer", &src_exe)
     } else if is_win_10_or_greater() {
         format!("\"{}\" --uninstall-remote-printer", &src_exe)
@@ -1770,9 +1770,9 @@ copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\
         &exe,
         true,
     )?;
-    // Remember to check if `update_me` need to be changed if changing the `cmds`.
-    // No need to merge the existing dup code, because the code in these two functions are too critical.
-    // New code should be written in a common function.
+    // 记得：如果改动 `cmds`，要检查 `update_me` 是否也需要改。
+    // 无需合并现有的重复代码，因为这两个函数中的代码太关键了。
+    // 新代码应该写在一个公共函数里。
     let cmds = format!(
         "
 {uninstall_str}
@@ -1861,18 +1861,18 @@ fn get_before_uninstall(kill_self: bool) -> ResultType<String> {
     ))
 }
 
-/// Constructs the uninstall command string for the application.
+/// 为该应用构造卸载命令字符串。
 ///
-/// # Parameters
-/// - `kill_self`: The command will kill the process of current app name. If `true`, it will kill
-///   the current process as well. If `false`, it will exclude the current process from the kill
-///   command.
-/// - `uninstall_printer`: If `true`, includes commands to uninstall the remote printer.
+/// # 参数
+/// - `kill_self`：该命令会结束当前应用名的进程。若为 `true`，它会结束
+///   当前进程本身。若为 `false`，则会把当前进程排除在 kill 之外
+///   命令之外。
+/// - `uninstall_printer`：若为 `true`，则包含卸载远程打印机的命令。
 ///
-/// # Details
-/// The `uninstall_printer` parameter determines whether the command to uninstall the remote printer
-/// is included in the generated uninstall script. If `uninstall_printer` is `false`, the printer
-/// related command is omitted from the script.
+/// # 细节
+/// `uninstall_printer` 参数决定生成的卸载脚本中是否包含卸载远程打印机的
+/// 命令。如果 `uninstall_printer` 为 `false`，脚本中会省略
+/// 打印机相关的命令。
 fn get_uninstall(kill_self: bool, uninstall_printer: bool) -> ResultType<String> {
     let (subkey, path, start_menu, _) = get_install_info();
     let installer_state = get_windows_installer_state(&subkey)?;
@@ -2023,38 +2023,38 @@ pub fn get_custom_client_staging_dir() -> PathBuf {
         .join("RustDeskCustomClientStaging")
 }
 
-/// Removes the custom client staging directory.
+/// 删除自定义客户端的暂存目录。
 ///
-/// Current behavior: intentionally a no-op (does not delete).
+/// 当前行为：有意做成空操作（不删除）。
 ///
-/// Rationale
-/// - The staging directory only contains a small `custom.txt`, leaving it is harmless.
-/// - Deleting directories under a public location (e.g., C:\\ProgramData\\RustDesk) is
-///   susceptible to TOCTOU attacks if an unprivileged user can replace the path with a
-///   symlink/junction between checks and deletion.
+/// 理由
+/// - 暂存目录里只有一个很小的 `custom.txt`，留着它没有危害。
+/// - 删除公共位置（例如 C:\ProgramData\RustDesk）下的目录
+///   容易招致 TOCTOU 攻击：如果非特权用户能在检查与删除之间把该路径换成
+///   符号链接/目录联接。
 ///
-/// Future work:
-/// - Use the files (if needed) in the installation directory instead of a public location.
-///   This directory only contains a small `custom.txt` file.
-/// - Pass the custom client name directly via command line
-///   or environment variable during update installation. Then no staging directory is needed.
+/// 将来的工作：
+/// - 改用安装目录中的文件（如有需要），而不是公共位置。
+///   该目录中只有一个很小的 `custom.txt` 文件。
+/// - 通过命令行直接传入自定义客户端名称
+///   或环境变量。这样就不需要暂存目录了。
 #[inline]
 pub fn remove_custom_client_staging_dir(staging_dir: &Path) -> ResultType<bool> {
     if !staging_dir.exists() {
         return Ok(false);
     }
 
-    // First explicitly removes `custom.txt` to ensure stale config is never replayed,
-    // even if the subsequent directory removal fails.
+    // 先显式删除 `custom.txt`，确保过期的配置绝不会被重新读取，
+    // 即使随后删除目录失败也是如此。
     //
-    // `std::fs::remove_file` on a symlink removes the symlink itself, not the target,
-    // so this is safe even in a TOCTOU race.
+    // 对符号链接调用 `std::fs::remove_file` 会删除链接本身，而不是目标，
+    // 所以即使存在 TOCTOU 竞态这也是安全的。
     let custom_txt_path = staging_dir.join("custom.txt");
     if custom_txt_path.exists() {
         allow_err!(std::fs::remove_file(&custom_txt_path));
     }
 
-    // Intentionally not deleting. See the function docs for rationale.
+    // 有意不删除。理由参见该函数的文档。
     log::debug!(
         "Skip deleting staging directory {:?} (intentional to avoid TOCTOU)",
         staging_dir
@@ -2062,12 +2062,12 @@ pub fn remove_custom_client_staging_dir(staging_dir: &Path) -> ResultType<bool> 
     Ok(false)
 }
 
-// Prepare custom client update by copying staged custom.txt to current directory and loading it.
-// Returns:
-// 1. Ok(true) if preparation was successful or no staging directory exists.
-// 2. Ok(false) if custom.txt file exists but has invalid contents or fails security checks
-//    (e.g., is a symlink or has invalid contents).
-// 3. Err if any unexpected error occurs during file operations.
+// 通过把暂存的 custom.txt 复制到当前目录并加载它，为自定义客户端更新做准备。
+// 返回：
+// 1. 准备成功，或不存在暂存目录时返回 Ok(true)。
+// 2. custom.txt 文件存在但内容无效或未通过安全检查时返回 Ok(false)
+//    （例如它是符号链接或内容无效）。
+// 3. 文件操作期间发生任何意外错误时返回 Err。
 pub fn prepare_custom_client_update() -> ResultType<bool> {
     let custom_client_staging_dir = get_custom_client_staging_dir();
     let current_exe = std::env::current_exe()?;
@@ -2111,7 +2111,7 @@ pub fn prepare_custom_client_update() -> ResultType<bool> {
             return Ok(false);
         }
         if metadata.is_file() {
-            // Copy custom.txt to current directory
+            // 把 custom.txt 复制到当前目录
             let local_custom_file_path = current_exe_dir.join("custom.txt");
             log::debug!(
                 "Copying staged custom file from {:?} to {:?}",
@@ -2119,22 +2119,22 @@ pub fn prepare_custom_client_update() -> ResultType<bool> {
                 local_custom_file_path
             );
 
-            // No need to check symlink before copying.
-            // `load_custom_client()` will fail if the file is not valid.
+            // 复制前无需检查符号链接。
+            // 如果文件无效，`load_custom_client()` 会失败。
             fs::copy(&custom_txt_path, &local_custom_file_path)?;
             log::info!("Staged custom client file copied to current directory.");
 
-            // Load custom client
+            // 加载自定义客户端
             let is_custom_file_exists =
                 local_custom_file_path.exists() && local_custom_file_path.is_file();
             crate::load_custom_client();
 
-            // Remove the copied custom.txt file
+            // 删除复制过来的 custom.txt 文件
             allow_err!(fs::remove_file(&local_custom_file_path));
 
-            // Check if loaded successfully
+            // 检查是否加载成功
             if is_custom_file_exists && !crate::common::is_custom_client() {
-                // The custom.txt file existed, but its contents are invalid.
+                // custom.txt 文件存在，但其内容无效。
                 log::error!("Failed to load custom client from custom.txt.");
                 drop(clear_staging_on_exit);
                 // ERROR_INVALID_DATA
@@ -2155,17 +2155,17 @@ pub fn prepare_custom_client_update() -> ResultType<bool> {
 
 pub fn get_license_from_exe_name() -> ResultType<CustomServer> {
     let mut exe = std::env::current_exe()?.to_str().unwrap_or("").to_owned();
-    // if defined portable appname entry, replace original executable name with it.
+    // 如果定义了便携版 appname 条目，就用它替换原来的可执行文件名。
     if let Ok(portable_exe) = std::env::var(PORTABLE_APPNAME_RUNTIME_ENV_KEY) {
         exe = portable_exe;
     }
     get_custom_server_from_string(&exe)
 }
 
-// We can't directly use `RegKey::set_value` to update the registry value, because it will fail with `ERROR_ACCESS_DENIED`
-// So we have to use `run_cmds` to update the registry value.
+// 我们不能直接用 `RegKey::set_value` 更新注册表值，因为它会以 `ERROR_ACCESS_DENIED` 失败
+// 所以我们必须用 `run_cmds` 来更新该注册表值。
 pub fn update_install_option(k: &str, v: &str) -> ResultType<()> {
-    // Don't update registry if not installed or not server process.
+    // 如果未安装或不是服务进程，就不要更新注册表。
     if !is_installed() || !crate::is_server() {
         return Ok(());
     }
@@ -2192,7 +2192,7 @@ pub fn is_win_10_or_greater() -> bool {
 
 pub fn bootstrap() -> bool {
     if let Ok(lic) = get_license_from_exe_name() {
-        *config::EXE_RENDEZVOUS_SERVER.write().unwrap() = lic.host.clone();
+        * config::EXE_RENDEZVOUS_SERVER.write().unwrap() = lic.host.clone();
     }
 
     #[cfg(debug_assertions)]
@@ -2201,8 +2201,8 @@ pub fn bootstrap() -> bool {
     }
     #[cfg(not(debug_assertions))]
     {
-        // This function will cause `'sciter.dll' was not found neither in PATH nor near the current executable.` when debugging RustDesk.
-        // Only call set_safe_load_dll() on Windows 10 or greater
+        // 调试 RustDesk 时，该函数会导致出现 `'sciter.dll' was not found neither in PATH nor near the current executable.`
+        // 只在 Windows 10 或更高版本上调用 set_safe_load_dll()
         if is_win_10_or_greater() {
             set_safe_load_dll()
         } else {
@@ -2217,7 +2217,7 @@ fn set_safe_load_dll() -> bool {
         return false;
     }
 
-    // `SetDllDirectoryW` should never fail.
+    // `SetDllDirectoryW` 不应该失败。
     // https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setdlldirectoryw
     if unsafe { SetDllDirectoryW(wide_string("").as_ptr()) == FALSE } {
         eprintln!("SetDllDirectoryW failed: {}", io::Error::last_os_error());
@@ -2270,10 +2270,10 @@ fn get_custom_icon(install_dir: &str, exe: &str) -> Option<String> {
         if let Some(p) = PathBuf::from(exe).parent() {
             let alter_icon_path = p.join(RELATIVE_ICON_PATH);
             if alter_icon_path.exists() {
-                // During installation, files under `install_dir` may not exist yet.
-                // So we validate the icon from the current executable directory first.
-                // But for shortcut/registry icon location, we should point to the final
-                // installed path so the icon works across different Windows users.
+                // 安装过程中，`install_dir` 下的文件可能还不存在。
+                // 所以我们先从当前可执行文件所在目录验证图标。
+                // 但对于快捷方式/注册表中的图标位置，我们应该指向最终的
+                // 安装路径，这样图标才能在不同 Windows 用户下正常工作。
                 if let Ok(metadata) = std::fs::symlink_metadata(&alter_icon_path) {
                     if metadata.is_symlink() {
                         log::warn!(
@@ -2314,7 +2314,7 @@ pub fn create_shortcut(id: &str) -> ResultType<()> {
 
     let exe = std::env::current_exe()?.to_str().unwrap_or("").to_owned();
     // https://github.com/rustdesk/rustdesk/issues/13735
-    // Replace ':' with '_' for filename since ':' is not allowed in Windows filenames
+    // 文件名中把 ':' 替换为 '_'，因为 Windows 文件名不允许 ':'
     // https://github.com/rustdesk/hbb_common/blob/8b0e25867375ba9e6bff548acf44fe6d6ffa7c0e/src/config.rs#L1384
     let filename = id.replace(':', "_");
     let shortcut_icon_location = get_shortcut_icon_location("", &exe);
@@ -2367,7 +2367,7 @@ pub fn get_win_key_state() -> bool {
 
 pub fn quit_gui() {
     std::process::exit(0);
-    // unsafe { PostQuitMessage(0) }; // some how not work
+    // unsafe { PostQuitMessage(0) }; // 不知怎么不生效
 }
 
 pub fn get_user_token(session_id: u32, as_user: bool) -> HANDLE {
@@ -2461,7 +2461,7 @@ pub fn run_as_system(arg: &str) -> ResultType<()> {
 }
 
 pub fn elevate_or_run_as_system(is_setup: bool, is_elevate: bool, is_run_as_system: bool) {
-    // avoid possible run recursively due to failed run.
+    // 避免因运行失败而可能出现的递归调用。
     log::info!(
         "elevate: {} -> {:?}, run_as_system: {} -> {}",
         is_elevate,
@@ -2484,9 +2484,9 @@ pub fn elevate_or_run_as_system(is_setup: bool, is_elevate: bool, is_run_as_syst
     let shmem_name_from_args = crate::portable_service::portable_service_shmem_name_from_args();
     if shmem_name_from_args.is_none() && crate::portable_service::has_portable_service_shmem_arg() {
         log::error!("Invalid portable service shared memory argument, aborting elevation flow");
-        // This is a malformed bootstrap argument in a privilege-sensitive path.
-        // Keep fail-closed process termination here to avoid continuing elevation
-        // with inconsistent shared-memory contract.
+        // 在权限敏感的路径上，这是一个格式错误的引导参数。
+        // 在这里保持失败即终止的进程终止方式，避免在
+        // 共享内存约定不一致的情况下继续提权。
         std::process::exit(1);
     }
     if let Some(shmem_name) = shmem_name_from_args {
@@ -2589,7 +2589,7 @@ unsafe fn read_token_user_buffer(token: WinHANDLE, subject: &str) -> ResultType<
             }
         }
         Err(e) => {
-            // Allow expected size-probe failures if Windows still returns required size.
+            // 如果 Windows 仍返回所需大小，就允许预期的尺寸探测失败。
             let is_insufficient_buffer =
                 e.code() == windows::core::HRESULT::from_win32(ERROR_INSUFFICIENT_BUFFER as u32);
             let is_bad_length =
@@ -2622,12 +2622,12 @@ unsafe fn read_token_user_buffer(token: WinHANDLE, subject: &str) -> ResultType<
     Ok(buffer)
 }
 
-/// Similar to `is_root()` / `is_local_system()` but for an arbitrary process.
+/// 类似 `is_root()` / `is_local_system()`，但针对任意进程。
 ///
-/// Returns `true` if the target process is running as LocalSystem (SID: S-1-5-18).
+/// 如果目标进程以 LocalSystem（SID：S-1-5-18）身份运行，则返回 `true`。
 ///
 /// TODO: After a few releases of real-world validation, consider replacing
-/// the legacy `is_local_system()` with this implementation.
+/// 旧的 `is_local_system()` 已改用此实现。
 pub fn is_process_running_as_system(process_id: DWORD) -> ResultType<bool> {
     unsafe {
         let process = WinOpenProcess(WIN_PROCESS_QUERY_LIMITED_INFORMATION, false, process_id)
@@ -2714,18 +2714,18 @@ pub fn wide_string(s: &str) -> Vec<u16> {
         .collect()
 }
 
-// This only changes mstsc's top-level window title. The full-screen connection
-// bar is rendered separately and cannot be customized when mstsc.exe is
-// launched as an independent process.
+// 这只改变 mstsc 的顶层窗口标题。全屏连接
+// 栏是单独渲染的，当 mstsc.exe 以
+// 独立进程方式启动时无法自定义。
 pub fn set_rdp_window_title(mut child: std::process::Child, name: String) {
     let name: String = name.chars().filter(|c| !c.is_control()).take(120).collect();
     if name.is_empty() {
         return;
     }
     let process_id = child.id();
-    // mstsc owns the title and can restore "localhost" while connecting or
-    // reconnecting. Follow only the process we launched and reapply the peer
-    // name until it exits, so concurrent RDP sessions cannot rename each other.
+    // mstsc 掌握着标题，会在连接或
+    // 重连期间把它恢复成 "localhost"。只跟踪我们启动的那个进程，并重新应用对端
+    // 名称直到它退出，这样并发的 RDP 会话就不会互相改名。
     if let Err(err) = std::thread::Builder::new()
         .name("rdp-window-title".to_owned())
         .spawn(move || {
@@ -2799,7 +2799,7 @@ fn set_process_rdp_window_title(process_id: DWORD, name: &str) -> io::Result<()>
     Ok(())
 }
 
-/// send message to currently shown window
+/// 向当前显示的窗口发送消息
 pub fn send_message_to_hnwd(
     class_name: &str,
     window_name: &str,
@@ -2869,10 +2869,10 @@ pub fn get_logon_user_token(user: &str, pwd: &str) -> ResultType<HANDLE> {
     }
 }
 
-// Ensure the token returned is a primary token.
-// If the provided token is an impersonation token, it duplicates it to a primary token.
-// If the provided token is already a primary token, it returns it as is.
-// The caller is responsible for closing the returned token handle.
+// 确保返回的令牌是主令牌（primary token）。
+// 如果传入的令牌是模拟令牌（impersonation token），就把它复制为主令牌。
+// 如果传入的令牌已经是主令牌，就原样返回。
+// 调用方负责关闭返回的令牌句柄。
 pub fn ensure_primary_token(user_token: HANDLE) -> ResultType<HANDLE> {
     if user_token.is_null() || user_token == INVALID_HANDLE_VALUE {
         bail!("Invalid user token provided");
@@ -3149,7 +3149,7 @@ pub(super) fn change_resolution_directly(
 pub fn user_accessible_folder() -> ResultType<PathBuf> {
     let disk = std::env::var("SystemDrive").unwrap_or("C:".to_string());
     let dir1 = PathBuf::from(format!("{}\\ProgramData", disk));
-    // NOTICE: "C:\Windows\Temp" requires permanent authorization.
+    // 注意："C:\Windows\Temp" 需要永久授权。
     let dir2 = PathBuf::from(format!("{}\\Windows\\Temp", disk));
     let dir;
     if dir1.exists() {
@@ -3207,7 +3207,7 @@ pub fn get_unicode_from_vk(vk: u32) -> Option<u16> {
         let current_window_thread_id = GetWindowThreadProcessId(GetForegroundWindow(), null_mut());
         let layout = GetKeyboardLayout(current_window_thread_id);
 
-        // refs: https://github.com/rustdesk-org/rdev/blob/25a99ce71ab42843ad253dd51e6a35e83e87a8a4/src/windows/keyboard.rs#L115
+        // 参考：https://github.com/rustdesk-org/rdev/blob/25a99ce71ab42843ad253dd51e6a35e83e87a8a4/src/windows/keyboard.rs#L115
         let press_state = 129;
         let mut state: [BYTE; 256] = [0; 256];
         let shift_left = rdev::get_modifier(rdev::Key::ShiftLeft);
@@ -3239,7 +3239,7 @@ pub fn is_process_consent_running() -> ResultType<bool> {
 }
 
 pub struct WakeLock(u32);
-// Failed to compile keepawake-rs on i686
+// 在 i686 上编译 keepawake-rs 失败
 impl WakeLock {
     pub fn new(display: bool, idle: bool, sleep: bool) -> Self {
         let mut flag = ES_CONTINUOUS;
@@ -3276,39 +3276,39 @@ impl Drop for WakeLock {
     }
 }
 
-// `check_process("--tray", ..)` can miss a tray process that is already running,
-// and every miss spawns one more tray icon.
+// `check_process("--tray", ..)` 可能漏掉一个已经在运行的托盘进程，
+// 而每次漏检都会再多生成一个托盘图标。
 //
-// The case confirmed in #15689: `run_after_run_cmds()` spawns the tray in the
-// caller's own context, so installing or toggling the service from a RustDesk
-// that was itself started elevated leaves a high integrity tray behind. A main
-// window started normally afterwards runs at medium integrity and cannot open
-// that process with `PROCESS_QUERY_INFORMATION | PROCESS_VM_READ`. sysinfo then
-// falls back to `PROCESS_QUERY_LIMITED_INFORMATION`, which is not enough for
-// `GetModuleFileNameExW`, so the executable path comes back empty and the tray
-// is skipped before its command line is ever looked at.
+// #15689 中确认的情形：`run_after_run_cmds()` 在调用方自己的
+// 上下文中派生托盘，所以从一个自身以提权方式启动的 RustDesk
+// 安装或切换服务时，会留下一个高完整性级别的托盘进程。之后以普通方式启动的主
+// 窗口以中完整性级别运行，无法用
+// `PROCESS_QUERY_INFORMATION | PROCESS_VM_READ` 打开该进程。于是 sysinfo
+// 退回到 `PROCESS_QUERY_LIMITED_INFORMATION`，而这对于
+// `GetModuleFileNameExW` 来说不够用，所以可执行文件路径返回为空，托盘
+// 在查看命令行之前就被跳过了。
 //
-// A second blind spot: 32-bit builds read the command line through `wmic`
-// (#11638), which is no longer installed by default since Windows 11 24H2.
+// 第二个盲区：32 位构建通过 `wmic` 读取命令行
+// （#11638），而自 Windows 11 24H2 起它不再默认安装。
 //
-// Both are cases of one process failing to inspect another, and patching the
-// inspection has regressed twice already (#6692), so use a named mutex instead:
-// the kernel answers without us needing any access to the other process.
+// 两者都是同一个进程无法检查另一个进程的情况，而修补这种
+// 检查已经回归过两次（#6692），所以改用命名互斥体：
+// 这样无需访问对方进程，内核就能给出答案。
 //
-// Returns `false` if another tray process is already running in this session.
+// 如果本会话中已经有另一个托盘进程在运行，则返回 `false`。
 pub fn try_lock_tray_single_instance() -> bool {
     use winapi::um::{
         errhandlingapi::{GetLastError, SetLastError},
         synchapi::CreateMutexW,
     };
-    // `Local\` is the per session namespace, so the name is scoped to this
-    // session already and cannot be squatted by another user.
+    // `Local\` 是按会话划分的命名空间，所以该名称被限定在本
+    // 会话内，别的用户无法抢占。
     let name = wide_string(&format!("Local\\{}_tray", crate::get_app_name()));
     unsafe {
-        // A successful `CreateMutexW` doesn't clear the last error, clear it to
-        // reliably detect `ERROR_ALREADY_EXISTS`.
+        // `CreateMutexW` 成功并不会清除上次错误码，需要清除它才能
+        // 可靠地检测 `ERROR_ALREADY_EXISTS`。
         SetLastError(0);
-        // The handle is deliberately kept open for the lifetime of the process.
+        // 该句柄有意在进程整个生命周期内保持打开。
         let handle = CreateMutexW(null_mut(), FALSE, name.as_ptr());
         let last_error = GetLastError();
         if !handle.is_null() {
@@ -3319,13 +3319,13 @@ pub fn try_lock_tray_single_instance() -> bool {
             return true;
         }
         if last_error == ERROR_ACCESS_DENIED {
-            // The mutex exists but was created by a tray running at a higher
-            // integrity level, which is exactly the elevated tray described
-            // above. Defer to it instead of adding a second icon.
+            // 互斥体存在，但它是由一个以更高
+            // 完整性级别运行的托盘创建的，那正是上面描述的那个提权托盘。
+            // 这里应该让位给它，而不是再添加一个图标。
             return false;
         }
-        // Unexpected: show the tray icon anyway, a duplicated icon is better
-        // than never showing the tray icon at all.
+        // 意外情况：仍然显示托盘图标，重复的图标也比
+        // 完全不显示托盘图标要好。
         log::warn!(
             "Failed to create the tray single instance mutex: {}",
             io::Error::from_raw_os_error(last_error as _)
@@ -3334,8 +3334,8 @@ pub fn try_lock_tray_single_instance() -> bool {
     }
 }
 
-/// Returns `true` on failure or cancellation so the caller keeps running.
-/// Successful removal exits this process instead of returning.
+/// 失败或被取消时返回 `true`，让调用方继续运行。
+/// 成功移除时直接退出该进程，而不是返回。
 pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
     log::info!("Uninstalling service...");
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
@@ -3428,8 +3428,8 @@ pub fn install_service() -> bool {
     std::process::exit(0);
 }
 
-/// Calculate the total size of a directory in KB
-/// Does not follow symlinks to prevent directory traversal attacks.
+/// 计算目录的总大小（以 KB 为单位）
+/// 不跟随符号链接，以防止目录穿越攻击。
 fn get_directory_size_kb(path: &str) -> u64 {
     let mut total_size = 0u64;
     let mut stack = vec![PathBuf::from(path)];
@@ -3479,17 +3479,17 @@ pub fn update_me(debug: bool) -> ResultType<()> {
 
     let app_exe_name = &format!("{}.exe", &app_name);
     // NOTE: The pids below are matched by command line, which can silently come
-    // back empty even while the processes are running:
-    // - a 32-bit build cannot read the command line of a 64-bit process, so it
-    //   shells out to `wmic` instead (#11638), and `wmic` is no longer installed
-    //   by default since Windows 11 24H2;
-    // - a non-elevated process cannot read the command line of an elevated one.
-    // The `taskkill` in the commands below matches by image name and is not
-    // affected, but `*_sessions` are then empty, so `_restore_session_guard`
-    // silently restores nothing and the update leaves the user without a tray
-    // icon and main window until the app is launched again. Reading the command
-    // line through `NtQueryInformationProcess` instead would fix the queries for
-    // every caller.
+    // 即使进程正在运行也会返回空：
+    // - 32 位构建无法读取 64 位进程的命令行，因此它
+    //   转而调用 `wmic`（#11638），而 `wmic` 自 Windows 11 24H2 起
+    //   默认不再安装；
+    // - 未提权的进程无法读取已提权进程的命令行。
+    // 下面命令中的 `taskkill` 按映像名称匹配，不受
+    // 影响，但此时 `*_sessions` 为空，于是 `_restore_session_guard`
+    // 什么也不静默恢复，更新之后用户既没有托盘
+    // 图标也没有主窗口，直到再次启动应用。若改用
+    // `NtQueryInformationProcess` 读取命令行，就能修复
+    // 所有调用方的查询。
     let main_window_pids =
         crate::platform::get_pids_of_process_with_args::<_, &str>(&app_exe_name, &[]);
     let main_window_sessions = main_window_pids
@@ -3523,7 +3523,7 @@ pub fn update_me(debug: bool) -> ResultType<()> {
     let version = crate::VERSION.replace("-", ".");
     let size = get_directory_size_kb(&path);
     let build_date = crate::BUILD_DATE;
-    // Use the icon in the previous installation directory if possible.
+    // 尽可能使用上一个安装目录中的图标。
     let display_icon = get_custom_icon("", &exe).unwrap_or(exe.to_string());
 
     fn get_reg_cmd(
@@ -3572,8 +3572,8 @@ reg add {subkey} /f /v EstimatedSize /t REG_DWORD /d {size}
             size,
         );
         let reg_cmd_msi = if let Some(reg_msi_key) = &reg_msi_key {
-            // This is best-effort: failure may leave a stale version in the Windows app list,
-            // but should not interrupt the update.
+            // 这是尽力而为的做法：失败可能在 Windows 应用列表中留下过期版本，
+            // 但不应打断更新。
             format!("reg add {reg_msi_key} /f /v DisplayVersion /t REG_SZ /d \"{version}\"")
         } else {
             "".to_owned()
@@ -3588,9 +3588,9 @@ reg add {subkey} /f /v EstimatedSize /t REG_DWORD /d {size}
         "".to_owned()
     };
 
-    // No need to check the install option here, `is_rd_printer_installed` rarely fails.
+    // 这里无需检查安装选项，`is_rd_printer_installed` 极少失败。
     let is_printer_installed = remote_printer::is_rd_printer_installed(&app_name).unwrap_or(false);
-    // Do nothing if the printer is not installed or failed to query if the printer is installed.
+    // 如果打印机未安装，或查询打印机是否安装失败，就什么也不做。
     let (uninstall_printer_cmd, install_printer_cmd) = if is_printer_installed {
         (
             format!("\"{}\" --uninstall-remote-printer", &src_exe),
@@ -3600,18 +3600,18 @@ reg add {subkey} /f /v EstimatedSize /t REG_DWORD /d {size}
         ("".to_owned(), "".to_owned())
     };
 
-    // We do not try to remove all files in the old version.
-    // Because I don't know whether additional files will be installed here after installation, such as drivers.
-    // Just copy files to the installation directory works fine.
-    //if exist \"{path}\" rd /s /q \"{path}\"
+    // 我们不会尝试删除旧版本中的所有文件。
+    // 因为我不知道安装之后是否还会有额外文件被装到这里，比如驱动。
+    // 只把文件复制到安装目录就够了。
+    // if exist \"{path}\" rd /s /q \"{path}\"
     // md \"{path}\"
     //
-    // We need `taskkill` because:
-    // 1. There may be some other processes like `rustdesk --connect` are running.
-    // 2. Sometimes, the main window and the tray icon are showing
-    // while I cannot find them by `tasklist` or the methods above.
-    // There's should be 4 processes running: service, server, tray and main window.
-    // But only 2 processes are shown in the tasklist.
+    // 我们需要 `taskkill`，因为：
+    // 1. 可能还有别的进程在运行，比如 `rustdesk --connect`。
+    // 2. 有时主窗口和托盘图标已经显示出来了，
+    // 但我用 `tasklist` 或上面的方法找不到它们。
+    // 本应该有 4 个进程在运行：service、server、tray 和主窗口。
+    // 但任务列表里只显示 2 个进程。
     let cmds = format!(
         "
 chcp 65001
@@ -3644,22 +3644,22 @@ taskkill /F /IM {app_name}.exe{filter}
                     "Try to restore the tray process..., sessions: {:?}",
                     &tray_sessions
                 );
-                // When not running as root, only spawn once since run_exe_direct
-                // doesn't target specific sessions.
+                // 不以 root 运行时只派生一次，因为 run_exe_direct
+                // 并不针对特定会话。
                 let mut spawned_non_root_tray = false;
                 for s in tray_sessions.clone().into_iter() {
                     if s != 0 {
-                        // We need to check if is_root here because if `update_me()` is called from
-                        // the main window running with administrator permission,
-                        // `run_exe_in_session()` will fail with error 1314 ("A required privilege is
-                        // not held by the client").
+                        // 这里需要检查 is_root，因为如果 `update_me()` 是从
+                        // 以管理员权限运行的主窗口调用的，
+                        // `run_exe_in_session()` 会以错误 1314 失败（"A required privilege is
+                        // not held by the client"）。
                         //
-                        // This issue primarily affects the MSI-installed version running in Administrator
-                        // session during testing, but we check permissions here to be safe.
+                        // 这个问题主要影响以管理员身份运行在管理员
+                        // 会话中的 MSI 安装版本，但这里检查权限是为了稳妥。
                         if is_root {
                             allow_err!(run_exe_in_session(&exe, vec!["--tray"], s, true));
                         } else if !spawned_non_root_tray {
-                            // Only spawn once for non-root since run_exe_direct doesn't take session parameter
+                            // 对非 root 只派生一次，因为 run_exe_direct 不接受会话参数
                             allow_err!(run_exe_direct(&exe, vec!["--tray"], false));
                             spawned_non_root_tray = true;
                         }
@@ -3671,15 +3671,15 @@ taskkill /F /IM {app_name}.exe{filter}
             } else {
                 log::info!("Try to restore the main window process...");
                 std::thread::sleep(std::time::Duration::from_millis(2000));
-                // When not running as root, only spawn once since run_exe_direct
-                // doesn't target specific sessions.
+                // 不以 root 运行时只派生一次，因为 run_exe_direct
+                // 并不针对特定会话。
                 let mut spawned_non_root_main = false;
                 for s in main_window_sessions.clone().into_iter() {
                     if s != 0 {
                         if is_root {
                             allow_err!(run_exe_in_session(&exe, vec![], s, true));
                         } else if !spawned_non_root_main {
-                            // Only spawn once for non-root since run_exe_direct doesn't take session parameter
+                            // 对非 root 只派生一次，因为 run_exe_direct 不接受会话参数
                             allow_err!(run_exe_direct(&exe, vec![], false));
                             spawned_non_root_main = true;
                         }
@@ -3825,9 +3825,9 @@ fn get_msi_uninstall_subkey(product_code: &str) -> ResultType<String> {
 }
 
 fn get_reg_msi_key(subkey: &str, is_msi: Option<bool>) -> ResultType<Option<String>> {
-    // Only proceed if it's a custom client and MSI is installed.
-    // `is_msi.unwrap_or(true)` is intentional: subsequent code validates the registry,
-    // hence no early return is required upon MSI detection failure.
+    // 只有当它是自定义客户端且已安装 MSI 时才继续。
+    // `is_msi.unwrap_or(true)` 是有意为之：后续代码会校验注册表，
+    // 所以在 MSI 检测失败时无需提前返回。
     if !(crate::common::is_custom_client() && is_msi.unwrap_or(true)) {
         return Ok(None);
     }
@@ -3841,12 +3841,12 @@ fn get_reg_msi_key(subkey: &str, is_msi: Option<bool>) -> ResultType<Option<Stri
     Ok(Some(get_msi_uninstall_subkey(&product_code)?))
 }
 
-// Double confirm the process name
+// 再次确认进程名
 fn kill_process_by_pids(name: &str, pids: Vec<Pid>) -> ResultType<()> {
     let name = name.to_lowercase();
     let s = System::new_all();
-    // No need to check all names of `pids` first, and kill them then.
-    // It's rare case that they're not matched.
+    // 无需先检查 `pids` 的所有名称再把它们结束掉。
+    // 它们匹配不上的情况很罕见。
     for pid in pids {
         if let Some(process) = s.process(pid) {
             if process.name().to_lowercase() != name {
@@ -3872,7 +3872,7 @@ pub fn handle_custom_client_staging_dir_before_update(
         bail!("Failed to get current exe directory");
     };
 
-    // Clean up existing staging directory
+    // 清理已存在的暂存目录
     if custom_client_staging_dir.exists() {
         log::debug!(
             "Removing existing custom client staging directory: {:?}",
@@ -3889,7 +3889,7 @@ pub fn handle_custom_client_staging_dir_before_update(
 
     let src_path = current_exe_dir.join("custom.txt");
     if src_path.exists() {
-        // Verify that custom.txt is not a symlink before copying
+        // 复制前验证 custom.txt 不是符号链接
         let metadata = match std::fs::symlink_metadata(&src_path) {
             Ok(m) => m,
             Err(e) => {
@@ -3938,16 +3938,16 @@ pub fn handle_custom_client_staging_dir_before_update(
     Ok(())
 }
 
-// Don't launch tray app when running with `\qn`.
-// 1. Because `/qn` requires administrator permission and the tray app should be launched with user permission.
-//   Or launching the main window from the tray app will cause the main window to be launched with administrator permission.
-// 2. We are not able to launch the tray app if the UI is in the login screen.
-// `fn update_me()` can handle the above cases, but for msi update, we need to do more work to handle the above cases.
-//    1. Record the tray app session ids.
-//    2. Do the update.
-//    3. Restore the tray app sessions.
-//    `1` and `3` must be done in custom actions.
-//    We need also to handle the command line parsing to find the tray processes.
+// 以 `\qn` 运行时不要启动托盘应用。
+// 1. 因为 `/qn` 需要管理员权限，而托盘应用应当以用户权限启动。
+//   否则从托盘应用启动主窗口会导致主窗口以管理员权限启动。
+// 2. 如果 UI 处于登录界面，我们无法启动托盘应用。
+// `fn update_me()` 能处理上述情况，但 msi 更新需要做更多工作来处理这些情况。
+//    1. 记录托盘应用的会话 id。
+//    2. 执行更新。
+//    3. 恢复托盘应用的会话。
+//    `1` 和 `3` 必须在自定义动作中完成。
+//    我们还需要处理命令行解析，以找到托盘进程。
 pub fn update_me_msi(msi: &str, expected_sha256: &str, quiet: bool) -> ResultType<()> {
     verified_update::install_verified_msi(msi, expected_sha256, quiet)
 }
@@ -3965,7 +3965,7 @@ fn native_after_install_commands(
     if native_service == service {
         return Ok(commands);
     }
-    // Complete independent setup before service-start errors can exit the BAT.
+    // 在服务启动错误导致 BAT 退出之前，完成独立的设置。
     Ok(format!(
         "{}\r\n{native_service}",
         commands.replacen(&service, "", 1)
@@ -4003,9 +4003,9 @@ fn service_control_command(operation: &str, exe: &str, installed_now: bool) -> R
     if legacy.is_empty() || (is_create && Config::get_option("stop-service") == "Y") {
         return Ok(legacy);
     }
-    // A fresh installation has just copied this runner. Otherwise only use the
-    // new command when the caller is the installed executable; other versions
-    // may not recognize it.
+    // 全新安装刚刚复制了这个运行器。否则只使用
+    // 新命令，且仅当调用方是已安装的可执行文件时；其他版本
+    // 可能无法识别它。
     if !installed_now {
         let current = std::env::current_exe()?;
         let current = current
@@ -4029,9 +4029,9 @@ fn service_control_command(operation: &str, exe: &str, installed_now: bool) -> R
 }
 
 fn get_import_config(exe: &str) -> String {
-    // --import-config does not register a service dispatcher, so SCM can report
-    // a start failure even when import runs. Preserve this legacy contract for
-    // older installed executables.
+    // --import-config 不会注册服务分发器，因此 SCM 可能会报告
+    // 启动失败，即使导入本身成功运行。为
+    // 较旧的已安装可执行文件保留这一历史约定。
     if config::is_outgoing_only() {
         return "".to_string();
     }
@@ -4097,12 +4097,12 @@ pub fn try_remove_temp_update_files() {
         if let Ok(entry) = entry {
             let path = entry.path();
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                // Match downloaded installers, verified copies, and abandoned handoff scripts.
+                // 匹配下载的安装程序、已验证的副本以及被遗弃的交接脚本。
                 if (file_name.starts_with("rustdesk-")
                     && (file_name.ends_with(".msi") || file_name.ends_with(".exe")))
                     || (file_name.starts_with("rustdesk_install_") && file_name.ends_with(".bat"))
                 {
-                    // Skip files modified within the last hour to avoid deleting files being downloaded
+                    // 跳过最近一小时内修改过的文件，以免删掉正在下载的文件
                     if let Ok(metadata) = std::fs::metadata(&path) {
                         if let Ok(modified) = metadata.modified() {
                             if let Ok(elapsed) = modified.elapsed() {
@@ -4183,7 +4183,7 @@ fn get_license() -> Option<CustomServer> {
     if let Ok(tmp) = get_license_from_exe_name() {
         lic = tmp;
     } else {
-        // for back compatibility from migrating from <= 1.2.1 to 1.2.2
+        // 为了兼容从 <= 1.2.1 迁移到 1.2.2
         lic.key = get_reg("Key");
         lic.host = get_reg("Host");
         lic.api = get_reg("Api");
@@ -4225,7 +4225,7 @@ impl WallPaperRemover {
     }
 
     fn get_recent_wallpaper() -> ResultType<String> {
-        // SystemParametersInfoW may return %appdata%\Microsoft\Windows\Themes\TranscodedWallpaper, not real path and may not real cache
+        // SystemParametersInfoW 可能返回 %appdata%\Microsoft\Windows\Themes\TranscodedWallpaper，而不是真实路径，且可能不是真实缓存
         // https://www.makeuseof.com/find-desktop-wallpapers-file-location-windows-11/
         // https://superuser.com/questions/1218413/write-to-current-users-registry-through-a-different-admin-account
         let (hkcu, sid) = if is_root() {
@@ -4258,7 +4258,7 @@ impl WallPaperRemover {
 
 impl Drop for WallPaperRemover {
     fn drop(&mut self) {
-        // If the old background is a slideshow, it will be converted into an image. AnyDesk does the same.
+        // 如果旧壁纸是幻灯片，它会被转换成一张图片。AnyDesk 也是这样做的。
         allow_err!(Self::set_wallpaper(Some(self.old_path.clone())));
     }
 }
@@ -4296,8 +4296,8 @@ pub fn is_x64() -> bool {
 }
 
 pub fn try_kill_rustdesk_main_window_process() -> ResultType<()> {
-    // Kill rustdesk.exe without extra arg, should only be called by --server
-    // We can find the exact process which occupies the ipc, see more from https://github.com/winsiderss/systeminformer
+    // 结束没有额外参数的 rustdesk.exe，应该只由 --server 调用
+    // 我们可以找到占用 ipc 的确切进程，详见 https://github.com/winsiderss/systeminformer
     let app_name = crate::get_app_name().to_lowercase();
     log::info!("try kill main window process");
     use hbb_common::sysinfo::System;
@@ -4313,28 +4313,28 @@ pub fn try_kill_rustdesk_main_window_process() -> ResultType<()> {
     }
     for (_, p) in sys.processes().iter() {
         let p_name = p.name().to_lowercase();
-        // name equal
+        // 名称相同
         if !(p_name == app_name || p_name == app_name.clone() + ".exe") {
             continue;
         }
-        // arg more than 1
+        // 参数多于 1 个
         if p.cmd().len() < 1 {
             continue;
         }
-        // first arg contain app name
+        // 第一个参数包含应用名
         if !p.cmd()[0].to_lowercase().contains(&p_name) {
             continue;
         }
-        // only one arg or the second arg is empty uni link
+        // 只有一个参数，或第二个参数是空的 uni link
         let is_empty_uni = p.cmd().len() == 2 && crate::common::is_empty_uni_link(&p.cmd()[1]);
         if !(p.cmd().len() == 1 || is_empty_uni) {
             continue;
         }
-        // skip self
+        // 跳过自身
         if p.pid().as_u32() == my_pid {
             continue;
         }
-        // because we call it with --server, so we can check user_id, remove this if call it with user process
+        // 因为我们用 --server 调用它，所以可以检查 user_id；如果改用用户进程调用就去掉这句
         if p.user_id() == my_uid {
             log::info!("user id equal, continue");
             continue;
@@ -4468,9 +4468,9 @@ pub mod reg_display_settings {
                 bytes: reg_recovery.new.0,
                 vtype: isize_to_reg_type(reg_recovery.new.1),
             };
-            // Compare if the current value is the same as the new value.
-            // If they are not the same, the registry value has been changed by other processes.
-            // So we do not restore the registry value.
+            // 比较当前值与新值是否相同。
+            // 如果不同，说明注册表值已被其他进程改过。
+            // 所以我们不恢复该注册表值。
             if cur_reg_value != new_reg_value {
                 return Ok(());
             }
@@ -4508,7 +4508,7 @@ pub fn get_printer_names() -> ResultType<Vec<String>> {
     let mut returned_count = 0;
 
     unsafe {
-        // First call to get required buffer size
+        // 第一次调用以获取所需的缓冲区大小
         EnumPrintersW(
             PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS,
             std::ptr::null_mut(),
@@ -4571,7 +4571,7 @@ extern "C" {
 pub fn send_raw_data_to_printer(printer_name: Option<String>, data: Vec<u8>) -> ResultType<()> {
     let mut printer_name = printer_name.unwrap_or_default();
     if printer_name.is_empty() {
-        // use GetDefaultPrinter to get the default printer name
+        // 用 GetDefaultPrinter 获取默认打印机名称
         let mut needed_bytes = 0;
         unsafe {
             GetDefaultPrinterW(std::ptr::null_mut(), &mut needed_bytes);
@@ -4589,8 +4589,8 @@ pub fn send_raw_data_to_printer(printer_name: Option<String>, data: Vec<u8>) -> 
     } else {
         if let Ok(names) = crate::platform::windows::get_printer_names() {
             if !names.contains(&printer_name) {
-                // Don't set the first printer as current printer.
-                // It may not be the desired printer.
+                // 不要把第一台打印机设为当前打印机。
+                // 它可能不是想要的打印机。
                 bail!("Printer name \"{}\" not found", &printer_name);
             }
         }
@@ -4662,7 +4662,7 @@ pub fn is_msi_installed() -> std::io::Result<bool> {
 
 pub fn is_cur_exe_the_installed() -> bool {
     let (_, _, _, exe) = get_install_info();
-    // Check if is installed, because `exe` is the default path if is not installed.
+    // 检查是否已安装，因为未安装时 `exe` 是默认路径。
     if !std::fs::metadata(&exe).is_ok() {
         return false;
     }
@@ -4680,7 +4680,7 @@ pub fn get_pids_with_first_arg_check_session<S1: AsRef<str>, S2: AsRef<str>>(
     arg: S2,
     same_session_id: bool,
 ) -> ResultType<Vec<hbb_common::sysinfo::Pid>> {
-    // Though `wmic` can return the sessionId, for simplicity we only return processid.
+    // 虽然 `wmic` 能返回 sessionId，但为简单起见我们只返回 processid。
     let pids = get_pids_with_first_arg_by_wmic(name, arg);
     if !same_session_id {
         return Ok(pids);
@@ -4696,7 +4696,7 @@ pub fn get_pids_with_first_arg_check_session<S1: AsRef<str>, S2: AsRef<str>>(
                 same_session_pids.push(pid);
             }
         } else {
-            // Only log here, because this call almost never fails.
+            // 这里只做日志记录，因为这次调用几乎从不失败。
             log::warn!(
                 "Failed to get session id of the process id, error: {:?}",
                 std::io::Error::last_os_error()
@@ -4748,9 +4748,9 @@ fn get_pids_with_args_from_wmic_output<S2: AsRef<str>>(
     pids
 }
 
-// Note the args are not compared strictly, only check if the args are contained in the command line.
-// If we want to check the args strictly, we need to parse the command line and compare each arg.
-// Maybe we have to introduce some external crate like `shell_words` to do this.
+// 注意这里并不严格比较参数，只检查参数是否包含在命令行中。
+// 如果想严格比较参数，就需要解析命令行并逐个比较参数。
+// 也许我们得引入像 `shell_words` 这样的外部 crate 来做到这一点。
 #[cfg(not(target_pointer_width = "64"))]
 pub(super) fn get_pids_with_args_by_wmic<S1: AsRef<str>, S2: AsRef<str>>(
     name: S1,
@@ -4822,9 +4822,9 @@ fn get_pids_with_first_arg_from_wmic_output(
     pids
 }
 
-// Note the args are not compared strictly, only check if the args are contained in the command line.
-// If we want to check the args strictly, we need to parse the command line and compare each arg.
-// Maybe we have to introduce some external crate like `shell_words` to do this.
+// 注意这里并不严格比较参数，只检查参数是否包含在命令行中。
+// 如果想严格比较参数，就需要解析命令行并逐个比较参数。
+// 也许我们得引入像 `shell_words` 这样的外部 crate 来做到这一点。
 #[cfg(not(target_pointer_width = "64"))]
 pub(super) fn get_pids_with_first_arg_by_wmic<S1: AsRef<str>, S2: AsRef<str>>(
     name: S1,

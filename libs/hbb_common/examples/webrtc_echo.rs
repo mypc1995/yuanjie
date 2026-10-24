@@ -1,6 +1,6 @@
-// Temporary e2e helper for the web client: answers a browser offer read from
-// stdin, bridges ICE candidates over stdin/stdout as JSON lines, then echoes
-// every message it receives.
+// 面向 web 客户端的临时端到端辅助工具：应答从
+// stdin 读入的浏览器 offer，通过 stdin/stdout 以 JSON 行传输 ICE candidates，然后回显
+// 它收到的每一条消息。
 extern crate hbb_common;
 
 #[cfg(feature = "webrtc")]

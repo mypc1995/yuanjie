@@ -1,14 +1,14 @@
-// Generated from the installed cursor theme by `adwaita_hotspot_survey` (the ignored test in
-// `drm_capturer.rs`); see its doc comment for the command. adwaita-icon-theme 50.0-1, every shape
-// the theme ships as a real file, at its 24 px nominal size - the GNOME default cursor size.
+// 由 `adwaita_hotspot_survey` 根据已安装的光标主题生成（即
+// `drm_capturer.rs` 中那个被忽略的测试）；命令参见它的文档注释。adwaita-icon-theme 50.0-1，主题以真实文件形式发布的
+// 每个形状都是 24 px 的标称尺寸——GNOME 的默认光标尺寸。
 //
-// Each entry is the shape name, the hotspot the THEME declares, and the sprite's alpha mask: one
-// bit per pixel, row-major, most significant bit first, set where alpha >= 128. The mask is all
-// the hotspot guess reads, and rotating a mask is exact, so it is the whole fixture.
+// 每个条目包含形状名称、主题声明的热点，以及精灵图的 alpha 掩码：每个像素
+// 占一位，按行优先排列，最高位在前，alpha >= 128 的位置置 1。这个掩码正是
+// 热点猜测所读取的内容，而掩码的旋转是精确的，因此它就是全部的测试夹具。
 //
-// The point of carrying these is that the expected value comes from the theme author, not from
-// our own heuristic: a test that compares the guess against the guess cannot say whether the
-// guess is right.
+// 带上这些数据的意义在于，预期值来自主题作者，而不是
+// 我们自己的启发式规则：一个拿猜测和猜测作比较的测试无法说明
+// 猜测是否正确。
 const THEME_SHAPES: &[(&str, u32, u32, i32, i32, &str)] = &[
     ("X_cursor", 24, 24, 11, 12, "00000000000000000000000000000001830003c78007ffc007ffc007ffc003ff8001ff0001ff8003ff8007ffc007ffc003ef8003c780000000000000000000000000000000000000"),
     ("alias", 24, 24, 18, 5, "00000000000000000001ffc000ffc0007fc0003fc0007fc0007fc000ffc000ffc001fdc001f8c001f04001e00001e00001e00000e00000e000007000003000000000000000000000"),

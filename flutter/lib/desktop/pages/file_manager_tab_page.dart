@@ -13,7 +13,7 @@ import 'package:get/get.dart';
 
 import '../../models/platform_model.dart';
 
-/// File Transfer for multi tabs
+/// 多标签页的文件传输
 class FileManagerTabPage extends StatefulWidget {
   final Map<String, dynamic> params;
 
@@ -68,7 +68,7 @@ class _FileManagerTabPageState extends State<FileManagerTabPage> {
     rustDeskWinManager.setMethodHandler((call, fromWindowId) async {
       debugPrint(
           "[FileTransfer] call ${call.method} with args ${call.arguments} from window $fromWindowId to ${windowId()}");
-      // for simplify, just replace connectionId
+      // 为简化实现，仅替换 connectionId
       if (call.method == kWindowEventNewFileTransfer) {
         final args = jsonDecode(call.arguments);
         final id = args['id'];

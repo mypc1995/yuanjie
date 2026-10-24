@@ -48,7 +48,7 @@ class _AddressBookState extends State<AddressBook> {
         } else {
           return Column(
             children: [
-              // NOT use Offstage to wrap LinearProgressIndicator
+              // 不要用 Offstage 包裹 LinearProgressIndicator
               if (gFFI.abModel.currentAbLoading.value &&
                   gFFI.abModel.currentAbEmpty)
                 const LinearProgressIndicator(),
@@ -191,7 +191,7 @@ class _AddressBookState extends State<AddressBook> {
     if (!names.contains(gFFI.abModel.currentName.value)) {
       return Offstage();
     }
-    // order: personal, divider, character order
+    // 顺序：个人、分隔线、字符顺序
     // https://pub.dev/packages/dropdown_button2#3-dropdownbutton2-with-items-of-different-heights-like-dividers
     final personalAddressBookName = gFFI.abModel.personalAddressBookName();
     bool contains = names.remove(personalAddressBookName);
@@ -663,7 +663,7 @@ class _AddressBookState extends State<AddressBook> {
                   style: TextStyle(fontSize: 12),
                 )
               ]).marginSymmetric(vertical: 10),
-            // NOT use Offstage to wrap LinearProgressIndicator
+            // 不要用 Offstage 包裹 LinearProgressIndicator
             if (isInProgress) const LinearProgressIndicator(),
           ],
         ),
@@ -734,7 +734,7 @@ class _AddressBookState extends State<AddressBook> {
             const SizedBox(
               height: 4.0,
             ),
-            // NOT use Offstage to wrap LinearProgressIndicator
+            // 不要用 Offstage 包裹 LinearProgressIndicator
             if (isInProgress) const LinearProgressIndicator(),
           ],
         ),

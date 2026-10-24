@@ -96,7 +96,7 @@ class DesktopTabController {
   final state = DesktopTabState().obs;
   final DesktopTabType tabType;
 
-  /// index, key
+  /// index、key
   Function(int, String)? onRemoved;
   Function(String)? onSelected;
   Future<void> Function()? onCloseWindow;
@@ -121,10 +121,10 @@ class DesktopTabController {
       assert(toIndex >= 0);
     }
     try {
-      // tabPage has not been initialized, call `onSelected` at the end of initState
+      // tabPage 尚未初始化，请在 initState 末尾调用 `onSelected`
       jumpTo(toIndex, callOnSelected: false);
     } catch (e) {
-      // call before binding controller will throw
+      // 在绑定 controller 之前调用会抛出异常
       debugPrint("Failed to jumpTo: $e");
     }
   }
@@ -147,8 +147,8 @@ class DesktopTabController {
     onRemoved?.call(index, key);
   }
 
-  /// For addTab, tabPage has not been initialized, set [callOnSelected] to false,
-  /// and call [onSelected] at the end of initState
+  /// 对于 addTab，tabPage 尚未初始化，请将 [callOnSelected] 设为 false，
+  /// 并在 initState 末尾调用 [onSelected]
   bool jumpTo(int index, {bool callOnSelected = true}) {
     if (!isDesktop || index < 0) {
       return false;
@@ -232,7 +232,7 @@ typedef TabBuilder = Widget Function(
 typedef TabMenuBuilder = Widget Function(String key);
 typedef LabelGetter = Rx<String> Function(String key);
 
-/// [_lastClickTime], help to handle double click
+/// [_lastClickTime]，用于处理双击
 int _lastClickTime = 0;
 
 class DesktopTab extends StatefulWidget {
@@ -242,7 +242,7 @@ class DesktopTab extends StatefulWidget {
   final bool showMaximize;
   final bool showClose;
   final Widget Function(Widget pageView)? pageViewBuilder;
-  // Right click tab menu
+  // 右键标签页菜单
   final TabMenuBuilder? tabMenuBuilder;
   final Widget? tail;
   final Future<bool> Function()? onWindowCloseButton;
@@ -418,9 +418,9 @@ class _DesktopTabState extends State<DesktopTab>
     }
   }
 
-  // On Linux, GTK destroys the window on a close request unless prevent-close
-  // is on. It is off for the cm and install windows, and onActiveWindowChanged()
-  // turns it off to quit, so the window can no longer be saved or hidden.
+  // 在 Linux 上，除非开启 prevent-close，GTK 会在收到关闭请求时销毁窗口
+  // 。它对 cm 和安装窗口是关闭的，而 onActiveWindowChanged()
+  // 会将其关闭以退出程序，因此窗口再也无法保存或隐藏。
   // https://github.com/rustdesk/rustdesk/issues/16512
   Future<bool> _isLinuxWindowClosed() async =>
       isLinux && isMainWindow && !await windowManager.isPreventClose();
@@ -476,13 +476,13 @@ class _DesktopTabState extends State<DesktopTab>
 
     await _saveFrame(flush: true);
 
-    // hide window on close
+    // 关闭时隐藏窗口
     if (isMainWindow) {
       if (rustDeskWinManager.getActiveWindows().contains(kMainWindowId)) {
         await rustDeskWinManager.unregisterActiveWindow(kMainWindowId);
       }
       if (await _isLinuxWindowClosed()) return;
-      // macOS specific workaround, the window is not hiding when in fullscreen.
+      // macOS 专用的变通方案，解决全屏时窗口不隐藏的问题。
       if (isMacOS && await windowManager.isFullScreen()) {
         await windowManager.setFullScreen(false);
         await macOSWindowClose(
@@ -493,11 +493,11 @@ class _DesktopTabState extends State<DesktopTab>
         await mainWindowClose();
       }
     } else {
-      // it's safe to hide the subwindow
+      // 隐藏子窗口是安全的
       final controller = WindowController.fromWindowId(kWindowId!);
       if (isMacOS) {
-        // onWindowClose() maybe called multiple times because of loopCloseWindow() in remote_tab_page.dart.
-        // use ??=  to make sure the value is set on first call.
+        // 由于 remote_tab_page.dart 中的 loopCloseWindow()，onWindowClose() 可能会被多次调用。
+        // 使用 ??= 确保首次调用时就设置该值。
 
         if (await onWindowCloseButton?.call() ?? true) {
           if (await controller.isFullScreen()) {
@@ -560,26 +560,26 @@ class _DesktopTabState extends State<DesktopTab>
             physics: NeverScrollableScrollPhysics(),
             children: () {
               if (DesktopTabType.cm == tabType) {
-                // Fix when adding a new tab still showing closed tabs with the same peer id, which would happen after the DesktopTab was stateful.
+                // 修复新增标签页时仍显示相同 peer id 的已关闭标签页的问题，该问题在 DesktopTab 变为 stateful 之后会出现。
                 return state.value.tabs.map((tab) {
                   return tab.page;
                 }).toList();
               }
 
-              /// to-do refactor, separate connection state and UI state for remote session.
-              /// [workaround] PageView children need an immutable list, after it has been passed into PageView
+              /// 待办重构：将远程会话的连接状态与 UI 状态分离。
+              /// [变通方案] PageView 的 children 需要不可变列表，在传入 PageView 之后
               final tabLen = state.value.tabs.length;
               if (tabLen == _tabWidgets.length) {
                 return _tabWidgets;
               } else if (_tabWidgets.isNotEmpty &&
                   tabLen == _tabWidgets.length + 1) {
-                /// On add. Use the previous list(pointer) to prevent item's state init twice.
-                /// *[_tabWidgets.isNotEmpty] means TabsWindow(remote_tab_page or file_manager_tab_page) opened before, but was hidden. In this case, we have to reload, otherwise the child can't be built.
+                /// 新增时。使用之前的列表（指针），避免条目状态被初始化两次。
+                /// *[_tabWidgets.isNotEmpty] 表示之前打开过 TabsWindow(remote_tab_page 或 file_manager_tab_page) 但被隐藏了。这种情况下必须重新加载，否则子组件无法构建。
                 _tabWidgets.add(state.value.tabs.last.page);
                 return _tabWidgets;
               } else {
-                /// On remove or change. Use new list(pointer) to reload list children so that items loading order is normal.
-                /// the Widgets in list must enable [AutomaticKeepAliveClientMixin]
+                /// 移除或变更时。使用新的列表（指针）重新加载列表子项，使条目的加载顺序正常。
+                /// 列表中的组件必须启用 [AutomaticKeepAliveClientMixin]
                 final newList = state.value.tabs.map((v) => v.page).toList();
                 _tabWidgets = newList;
                 return newList;
@@ -592,10 +592,10 @@ class _DesktopTabState extends State<DesktopTab>
     }
   }
 
-  /// Check whether to show ListView
+  /// 检查是否显示 ListView
   ///
-  /// Conditions:
-  /// - hide single item when only has one item (home) on [DesktopTabPage].
+  /// 条件：
+  /// - 当 [DesktopTabPage] 只有一项（home）时隐藏该项。
   bool isHideSingleItem() {
     return state.value.tabs.length == 1 &&
         (controller.tabType == DesktopTabType.main ||
@@ -608,7 +608,7 @@ class _DesktopTabState extends State<DesktopTab>
       children: [
         Expanded(
             child: GestureDetector(
-                // custom double tap handler
+                // 自定义双击处理器
                 onTap: !isIncomingHomePage && showMaximize
                     ? () {
                         final current = DateTime.now().millisecondsSinceEpoch;
@@ -623,8 +623,8 @@ class _DesktopTabState extends State<DesktopTab>
                     : (isIncomingHomePage ? () {} : null), // Keep tap recognizer for Windows touch.
                 onPanStart: (_) => startDragging(isMainWindow),
                 onPanCancel: () {
-                  // We want to disable dragging of the tab area in the tab bar.
-                  // Disable dragging is needed because macOS handles dragging by default.
+                  // 我们要禁用标签栏中标签区域的拖拽。
+                  // 之所以需要禁用拖拽，是因为 macOS 默认会处理拖拽。
                   if (isMacOS) {
                     setMovable(isMainWindow, false);
                   }
@@ -661,7 +661,7 @@ class _DesktopTabState extends State<DesktopTab>
                     ),
                     Expanded(
                         child: Listener(
-                            // handle mouse wheel
+                            // 处理鼠标滚轮
                             onPointerSignal: (e) {
                               if (e is PointerScrollEvent) {
                                 final sc =
@@ -691,7 +691,7 @@ class _DesktopTabState extends State<DesktopTab>
                             ))),
                   ],
                 ))),
-        // hide simulated action buttons when we in compatible ui mode, because of reusing system title bar.
+        // 在兼容 UI 模式下隐藏模拟的按钮，因为复用了系统标题栏。
         WindowActionPanel(
           isMainWindow: isMainWindow,
           state: state,
@@ -812,8 +812,8 @@ class WindowActionPanelState extends State<WindowActionPanel> {
                   onTap: () async {
                     final res = await widget.onClose?.call() ?? true;
                     if (res) {
-                      // hide for all window
-                      // note: the main window can be restored by tray icon
+                      // 对所有窗口隐藏
+                      // 注意：主窗口可以通过托盘图标恢复
                       Future.delayed(Duration.zero, () async {
                         if (widget.isMainWindow) {
                           await windowManager.close();
@@ -834,7 +834,7 @@ class WindowActionPanelState extends State<WindowActionPanel> {
 
   void _toggleMaximize() {
     toggleMaximize(widget.isMainWindow).then((maximize) {
-      // update state for sub window, wc.unmaximize/maximize() will not invoke onWindowMaximize/Unmaximize
+      // 为子窗口更新状态，wc.unmaximize/maximize() 不会触发 onWindowMaximize/Unmaximize
       stateGlobal.setMaximized(maximize);
     });
   }
@@ -856,8 +856,8 @@ void setMovable(bool isMainWindow, bool movable) {
   }
 }
 
-/// return true -> window will be maximize
-/// return false -> window will be unmaximize
+/// 返回 true -> 窗口将被最大化
+/// 返回 false -> 窗口将被取消最大化
 Future<bool> toggleMaximize(bool isMainWindow) async {
   if (isMainWindow) {
     if (await windowManager.isMaximized()) {
@@ -915,7 +915,7 @@ Future<bool> closeConfirmDialog() async {
               },
             )
           ]),
-      // confirm checkbox
+      // 确认复选框
       actions: [
         dialogButton("Cancel", onPressed: close, isOutline: true),
         dialogButton("OK", onPressed: submit),
@@ -953,10 +953,10 @@ class _ListView extends StatelessWidget {
     this.selectedBorderColor,
   });
 
-  /// Check whether to show ListView
+  /// 检查是否显示 ListView
   ///
-  /// Conditions:
-  /// - hide single item when only has one item (home) on [DesktopTabPage].
+  /// 条件：
+  /// - 当 [DesktopTabPage] 只有一项（home）时隐藏该项。
   bool isHideSingleItem() {
     return state.value.tabs.length == 1 &&
             controller.tabType == DesktopTabType.main ||
@@ -1181,7 +1181,7 @@ class _TabState extends State<_Tab> with RestorationMixin {
               child: Row(
                 children: [
                   SizedBox(
-                      // _kTabBarHeight also displays normally
+                      // _kTabBarHeight 也能正常显示
                       height: _showTabBarBottomDivider(widget.tabType)
                           ? _kTabBarHeight - 1
                           : _kTabBarHeight,

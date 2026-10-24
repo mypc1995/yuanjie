@@ -92,8 +92,8 @@ pub fn test_if_valid_server(host: &str, test_with_proxy: bool) -> String {
 
 #[inline]
 pub fn test_if_valid_server_for_proxy_(host: &str) -> String {
-    // `&host.into_target_addr()` is defined in `tokio-socs`, but is a common pattern for testing,
-    // it can be used for both `socks` and `http` proxy.
+    // `&host.into_target_addr()` 在 `tokio-socs` 中有定义，是测试中常见的写法，
+    // 它对 `socks` 和 `http` 代理都适用。
     match &host.into_target_addr() {
         Err(err) => err.to_string(),
         Ok(_) => "".to_owned(),
@@ -122,7 +122,7 @@ impl IsResolvedSocketAddr for &str {
     }
 }
 
-// This function checks if the target is a websocket endpoint and connects accordingly.
+// 此函数检查目标是否为 websocket 端点，并据此连接。
 #[inline]
 pub async fn connect_tcp<
     't,
@@ -146,7 +146,7 @@ pub async fn connect_tcp<
     connect_tcp_local(target, None, ms_timeout).await
 }
 
-// This function connects directly to the target without checking for websocket endpoints.
+// 此函数直接连接目标，不检查是否为 websocket 端点。
 pub async fn connect_tcp_local<
     't,
     T: IntoTargetAddr<'t> + ToSocketAddrs + IsResolvedSocketAddr + std::fmt::Display,
@@ -203,9 +203,9 @@ pub fn ipv4_to_ipv6(addr: String, ipv4: bool) -> String {
     addr
 }
 
-/// The resolver's preferred address for `target`: first in getaddrinfo's RFC 6724 order, so NAT64's
-/// synthesized IPv6 leads on a v6-only host. Preferred, not proven reachable: what `test_target`
-/// falls back to, and what the controller's NAT test takes as is to spare itself the proof.
+/// 解析器为 `target` 选出的首选地址：按 getaddrinfo 的 RFC 6724 顺序排在最前，因此在纯 v6 主机上 NAT64 合成的
+/// IPv6 会排在前面。是首选但未经证明可达：这正是 `test_target`
+/// 回退时采用的地址，也是控制器的 NAT 测试为省去该验证而直接接受的值。
 async fn resolve_target(target: &str) -> ResultType<SocketAddr> {
     tokio::net::lookup_host(target)
         .await?
@@ -213,9 +213,9 @@ async fn resolve_target(target: &str) -> ResultType<SocketAddr> {
         .context(format!("Failed to look up host for {target}"))
 }
 
-/// The address of `target` a TCP connection reaches, the resolver's candidates tried in order until
-/// one answers: an AAAA the server refuses is passed over for its A record, which the order alone
-/// would not do. For the rendezvous registration and the punch reply, which live on what it picks.
+/// TCP 连接到达的 `target` 地址，即按顺序尝试解析器的候选地址直到
+/// 有一个响应为止：服务器拒绝的 AAAA 会被跳过而改用其 A 记录，这一点单靠顺序是做不到的。
+/// 而 rendezvous 注册和打洞响应都依赖于它选出的地址。
 async fn test_target(target: &str) -> ResultType<SocketAddr> {
     if let Ok(Ok(s)) = super::timeout(1000, tokio::net::TcpStream::connect(target)).await {
         if let Ok(addr) = s.peer_addr() {
@@ -233,9 +233,9 @@ pub async fn new_direct_udp_for(target: &str) -> ResultType<(Arc<UdpSocket>, Soc
     Ok((Arc::new(socket), peer_addr))
 }
 
-/// `new_direct_udp_for` on the resolver's preferred address, with no handshake to prove it and a
-/// second at most for the lookup: for the controller's NAT test, once per connection, where the
-/// proof cost a round trip right before the connection it then opens to the same host.
+/// 在解析器的首选地址上调用 `new_direct_udp_for`，不做握手验证，
+/// 最多为这次查询付出第二次代价：对控制器的 NAT 测试来说，每次连接一次，而
+/// 验证成本是一次往返，紧接着它还要向同一主机建立连接。
 #[inline]
 pub async fn new_direct_udp_for_unverified(
     target: &str,
@@ -336,14 +336,14 @@ mod tests {
     #[test]
     fn test_test_if_valid_server() {
         assert!(!test_if_valid_server("a", false).is_empty());
-        // on Linux, "1" is resolved to "0.0.0.1"
+        // 在 Linux 上，"1" 会被解析为 "0.0.0.1"
         assert!(test_if_valid_server("1.1.1.1", false).is_empty());
         assert!(test_if_valid_server("1.1.1.1:1", false).is_empty());
         assert!(test_if_valid_server("microsoft.com", false).is_empty());
         assert!(test_if_valid_server("microsoft.com:1", false).is_empty());
 
-        // with proxy
-        // `:0` indicates `let host = check_port(host, 0);` is called.
+        // 使用代理
+        // `:0` 表示调用了 `let host = check_port(host, 0);`。
         assert!(test_if_valid_server_for_proxy_("a:0").is_empty());
         assert!(test_if_valid_server_for_proxy_("1.1.1.1:0").is_empty());
         assert!(test_if_valid_server_for_proxy_("1.1.1.1:1").is_empty());

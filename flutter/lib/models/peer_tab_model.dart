@@ -68,7 +68,7 @@ class PeerTabModel with ChangeNotifier {
   String get lastId => _lastId;
 
   PeerTabModel(this.parent) {
-    // visible
+    // 可见
     try {
       final option = bind.getLocalFlutterOption(k: kOptionPeerTabVisible);
       if (option.isNotEmpty) {
@@ -84,7 +84,7 @@ class PeerTabModel with ChangeNotifier {
     } catch (e) {
       debugPrint("failed to get peer tab visible list:$e");
     }
-    // order
+    // 顺序
     try {
       final option = bind.getLocalFlutterOption(k: kOptionPeerTabOrder);
       if (option.isNotEmpty) {
@@ -108,7 +108,7 @@ class PeerTabModel with ChangeNotifier {
     } catch (e) {
       debugPrint("failed to get peer tab order list: $e");
     }
-    // init currentTab
+    // 初始化 currentTab
     _currentTab =
         int.tryParse(bind.getLocalFlutterOption(k: kOptionPeerTabIndex)) ?? 0;
     if (_currentTab < 0 || _currentTab >= maxTabCount) {
@@ -150,8 +150,8 @@ class PeerTabModel with ChangeNotifier {
   select(Peer peer) {
     if (!_multiSelectionMode) {
       // https://github.com/flutter/flutter/issues/101275#issuecomment-1604541700
-      // After onTap, the shift key should be pressed for a while when not in multiselection mode,
-      // because onTap is delayed when onDoubleTap is not null
+      // onTap 之后，在非多选模式下 shift 键应保持按住一小段时间，
+      // 因为当 onDoubleTap 不为 null 时 onTap 会被延迟
       if (isDesktop || isWebDesktop) return;
       _multiSelectionMode = true;
     }
@@ -184,9 +184,9 @@ class PeerTabModel with ChangeNotifier {
     notifyListeners();
   }
 
-  // `notifyListeners()` will cause many rebuilds.
-  // So, we need to reduce the calls to "notifyListeners()" only when necessary.
-  // A better way is to use a new model.
+  // `notifyListeners()` 会导致大量重建。
+  // 所以我们需要只在必要时才调用 "notifyListeners()"。
+  // 更好的办法是使用一个新的 model。
   setCurrentTabCachedPeers(List<Peer> peers) {
     Future.delayed(Duration.zero, () {
       final isPreEmpty = _currentTabCachedPeers.isEmpty;

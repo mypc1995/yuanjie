@@ -47,44 +47,44 @@ use std::{
     },
 };
 
-/// Default maximum number of files allowed per transfer request.
-/// Unit: number of files (not bytes).
+/// 每次传输请求允许的最大文件数（默认值）。
+/// 单位：文件数（不是字节数）。
 #[cfg(not(any(target_os = "ios")))]
 const DEFAULT_MAX_VALIDATED_FILES: usize = 10_000;
 
-/// Maximum number of files allowed in a single file transfer request.
+/// 单次文件传输请求中允许的最大文件数。
 ///
-/// This limit prevents excessive I/O and memory usage when dealing with
-/// large directories. It applies to:
-/// - CM-side read jobs (server to client file transfers on Windows)
-/// - `AllFiles` recursive directory listing operations
-/// - Connection-side read jobs (non-Windows platforms)
+/// 该限制用于避免处理
+/// 大目录时产生过多 I/O 和内存占用。它适用于：
+/// - CM 侧的读取任务（Windows 上服务器到客户端的文件传输）
+/// - `AllFiles` 递归目录列举操作
+/// - Connection 侧的读取任务（非 Windows 平台）
 ///
-/// Unit: number of files (not bytes).
-/// Default: 10,000 files.
-/// Configured via: `OPTION_FILE_TRANSFER_MAX_FILES` ("file-transfer-max-files")
+/// 单位：文件数（不是字节数）。
+/// 默认：10,000 个文件。
+/// 配置方式：`OPTION_FILE_TRANSFER_MAX_FILES`（"file-transfer-max-files"）
 #[cfg(not(any(target_os = "ios")))]
 static MAX_VALIDATED_FILES: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
 
-/// Get the maximum number of files allowed per transfer request.
+/// 获取每次传输请求允许的最大文件数。
 ///
-/// Initializes the value from configuration (`OPTION_FILE_TRANSFER_MAX_FILES`)
-/// on first call. Semantics:
-/// - If the option is set to `0`, `DEFAULT_MAX_VALIDATED_FILES` (10,000) is used as a safe upper bound.
-/// - If the option is unset, negative, or non-integer,
-///   `usize::MAX` is used to represent "no limit" for backward compatibility with older versions
-///   that did not enforce any file‑count restriction.
-///   (Note: negative values are not valid for `usize` and will cause parsing to fail.)
+/// 首次调用时从配置（`OPTION_FILE_TRANSFER_MAX_FILES`）
+/// 中初始化该值。语义如下：
+/// - 如果该选项被设为 `0`，则使用 `DEFAULT_MAX_VALIDATED_FILES`（10,000）作为安全上限。
+/// - 如果该选项未设置、为负数或不是整数，
+///   则使用 `usize::MAX` 表示“不限制”，以保持与更早那些
+///   未强制任何文件数限制的版本的向后兼容。
+///   （注意：负数对 `usize` 来说是非法的，会导致解析失败。）
 ///
-/// Unit: number of files.
+/// 单位：文件数。
 #[cfg(not(any(target_os = "ios")))]
 #[inline]
 pub fn get_max_validated_files() -> usize {
-    // If `OPTION_FILE_TRANSFER_MAX_FILES` unset, negative, or non-integer, use
-    // `usize::MAX` to represent "no limit", maintaining backward compatibility
-    // with versions that had no file transfer restrictions.
+    // 如果 `OPTION_FILE_TRANSFER_MAX_FILES` 未设置、为负数或不是整数，就用
+    // `usize::MAX` 表示“不限制”，以保持与那些
+    // 没有文件传输限制的版本的向后兼容。
     const NO_LIMIT_FILE_COUNT: usize = usize::MAX;
-    *MAX_VALIDATED_FILES.get_or_init(|| {
+    * MAX_VALIDATED_FILES.get_or_init(|| {
         let c = crate::get_builtin_option(OPTION_FILE_TRANSFER_MAX_FILES)
             .trim()
             .parse::<usize>()
@@ -97,19 +97,19 @@ pub fn get_max_validated_files() -> usize {
     })
 }
 
-/// Check if file count exceeds the maximum allowed limit.
+/// 检查文件数是否超过允许的上限。
 ///
-/// This check is enforced in:
-/// - `start_read_job()` for CM-side read jobs
-/// - `read_all_files()` for recursive directory listings
-/// - `Connection::on_message()` for connection-side read jobs
+/// 该检查在以下位置执行：
+/// - `start_read_job()`，用于 CM 侧的读取任务
+/// - `read_all_files()`，用于递归目录列举
+/// - `Connection::on_message()`，用于 Connection 侧的读取任务
 ///
-/// # Arguments
-/// * `file_count` - Number of files in the transfer request
+/// # 参数
+/// * `file_count` - 传输请求中的文件数
 ///
-/// # Returns
-/// * `Ok(())` if within limit
-/// * `Err(String)` with error message if limit exceeded
+/// # 返回值
+/// * 在限制内时返回 `Ok(())`
+/// * 超出限制时返回带错误信息的 `Err(String)`
 #[cfg(not(any(target_os = "ios")))]
 pub fn check_file_count_limit(file_count: usize) -> Result<(), String> {
     let max_files = get_max_validated_files();
@@ -167,7 +167,7 @@ struct IpcTaskRunner<T: InvokeUiCM> {
     file_transfer_enabled: bool,
     #[cfg(target_os = "windows")]
     file_transfer_enabled_peer: bool,
-    /// Read jobs for CM-side file reading (server to client transfers)
+    /// 用于 CM 侧文件读取（服务器到客户端传输）的读取任务
     read_jobs: Vec<fs::TransferJob>,
 }
 
@@ -379,8 +379,8 @@ pub fn close(id: i32) {
     };
 }
 
-/// Like `close`, but says the CM's WINDOW closed rather than a person disconnecting this peer.
-/// See `ipc::Data::CmWindowClosed`.
+/// 与 `close` 类似，但表示是 CM 的窗口被关闭，而不是有人断开了这个对端。
+/// 参见 `ipc::Data::CmWindowClosed`。
 #[cfg(target_os = "linux")]
 pub fn close_window(id: i32) {
     if let Some(client) = CLIENTS.read().unwrap().get(&id) {
@@ -393,7 +393,7 @@ pub fn remove(id: i32) {
     CLIENTS.write().unwrap().remove(&id);
 }
 
-// server mode send chat to peer
+// 服务端模式向对端发送聊天消息
 #[inline]
 #[cfg(not(any(target_os = "ios")))]
 pub fn send_chat(id: i32, text: String) {
@@ -491,9 +491,9 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
         const MILLI5: Duration = Duration::from_millis(5);
         const SEC30: Duration = Duration::from_secs(30);
 
-        // for tmp use, without real conn id
+        // 临时使用，没有真实的连接 id
         let mut write_jobs: Vec<fs::TransferJob> = Vec::new();
-        // File timer for processing read_jobs
+        // 用于处理 read_jobs 的文件定时器
         let mut file_timer =
             crate::rustdesk_interval(time::interval_at(Instant::now() + SEC30, SEC30));
 
@@ -585,10 +585,10 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                     self.cm.new_message(self.conn_id, text);
                                 }
                                 Data::SwitchPermission { name, enabled } => {
-                                    // Keep this branch scoped to privacy mode rollback.
-                                    // Other CM permission toggles are updated optimistically by the UI itself.
-                                    // The backend currently sends SwitchPermission back to CM only when
-                                    // privacy-mode turn-off fails and the UI state must be restored.
+                                    // 把这个分支限定在隐私模式回滚上。
+                                    // 其他 CM 权限开关由 UI 自行乐观更新。
+                                    // 后端目前只在
+                                    // 关闭隐私模式失败、需要恢复 UI 状态时，才把 SwitchPermission 发回给 CM。
                                     if name == "privacy_mode" {
                                         let client = {
                                             let mut clients = CLIENTS.write().unwrap();
@@ -598,8 +598,8 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                             })
                                         };
                                         if let Some(client) = client {
-                                            // This reuses add_connection(), and cm.tis only selectively updates
-                                            // existing rows (authorized/privacy_mode) for this fallback path.
+                                            // 这复用了 add_connection()，而 cm.tis 只会选择性地更新
+                                            // 这条回退路径上的已有行（authorized/privacy_mode）。
                                             self.cm.ui_handler.add_connection(&client);
                                         }
                                     }
@@ -613,9 +613,9 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                     } else {
                                         handle_fs(fs, &mut write_jobs, &mut self.read_jobs, &self.tx, Some(&tx_log), self.conn_id).await;
                                     }
-                                    // Activate fast timer immediately when read jobs exist.
-                                    // This ensures new jobs start processing without waiting for the slow 30s timer.
-                                    // Deactivation (back to 30s) happens in tick handler when jobs are exhausted.
+                                    // 存在读取任务时立即启用快速定时器。
+                                    // 这样新任务无需等待慢速的 30s 定时器就开始处理。
+                                    // 任务耗尽时在 tick 处理函数中停用（恢复为 30s）。
                                     if !self.read_jobs.is_empty() {
                                         file_timer = crate::rustdesk_interval(time::interval(MILLI5));
                                     }
@@ -721,15 +721,15 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                     }
                 }
                 Some(data) = self.rx.recv() => {
-                    // For FileBlockFromCM, data is sent separately via send_raw (data field has #[serde(skip)]).
-                    // This avoids JSON encoding overhead for large binary data.
-                    // This mirrors the WriteBlock pattern in start_ipc (see rx_to_cm handler).
+                    // 对 FileBlockFromCM，数据通过 send_raw 单独发送（data 字段带有 #[serde(skip)]）。
+                    // 这样可以避免对大块二进制数据做 JSON 编码的开销。
+                    // 这与 start_ipc 中的 WriteBlock 模式一致（参见 rx_to_cm 处理函数）。
                     //
-                    // Note: Empty data (for empty files) is correctly handled. BytesCodec with raw=false
-                    // (the default for IPC connections) adds a length prefix, so send_raw(Bytes::new())
-                    // sends a 1-byte frame that next_raw() can correctly receive as empty data.
+                    // 注意：空数据（空文件的情形）已被正确处理。raw=false 的 BytesCodec
+                    // （IPC 连接的默认值）会加上长度前缀，所以 send_raw(Bytes::new())
+                    // 发出的是 1 字节的帧，next_raw() 能正确地将其作为空数据接收。
                     if let Data::FileBlockFromCM { id, file_num, ref data, compressed, conn_id } = data {
-                        // Send metadata first (data field is skipped by serde), then raw data bytes
+                        // 先发送元数据（data 字段被 serde 跳过），再发送原始数据字节
                         if let Err(e) = self.stream.send(&Data::FileBlockFromCM {
                             id,
                             file_num,
@@ -781,8 +781,8 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                 ContextSend::set_is_stopped();
                             } else {
                                 if _clip.is_beginning_message() && crate::get_builtin_option(OPTION_ONE_WAY_FILE_TRANSFER) == "Y" {
-                                    // If one way file transfer is enabled, don't send clipboard file to client
-                                    // Don't call `ContextSend::set_is_stopped()`, because it will stop bidirectional file copy&paste.
+                                    // 如果启用了单向文件传输，就不要向客户端发送剪贴板文件
+                                    // 不要调用 `ContextSend::set_is_stopped()`，因为它会停止双向文件复制粘贴。
                                 } else {
                                     allow_err!(self.tx.send(Data::ClipboardFile(_clip)));
                                 }
@@ -852,7 +852,7 @@ pub async fn start_ipc<T: InvokeUiCM>(cm: ConnectionManager<T>) {
             .lock()
             .unwrap();
         ContextSend::enable(enabled);
-        *lock = Some(enabled);
+        * lock = Some(enabled);
     }
     match ipc::new_listener("_cm").await {
         Ok(mut incoming) => {
@@ -937,7 +937,7 @@ pub async fn start_listen<T: InvokeUiCM>(
                 cm.new_message(current_id, text);
             }
             Some(Data::FS(fs)) => {
-                // Android doesn't need CM-side file reading (no need_validate_file_read_access)
+                // Android 不需要 CM 侧的文件读取（没有 need_validate_file_read_access）
                 let mut read_jobs_placeholder: Vec<fs::TransferJob> = Vec::new();
                 handle_fs(
                     fs,
@@ -979,13 +979,13 @@ async fn handle_fs(
     tx_log: Option<&UnboundedSender<String>>,
     _conn_id: i32,
 ) {
-    // Android is scoped-storage only, so every peer supplied path has to stay inside the
-    // app workspace. This is the filesystem boundary, keep it enforced here even though
-    // `Connection` rejects out-of-workspace requests earlier as well.
+    // Android 只支持 scoped storage，因此对端提供的每个路径都必须留在
+    // 应用工作区之内。这是文件系统边界，即使
+    // `Connection` 更早也会拒绝工作区之外的请求，这里仍要保持强制。
     #[cfg(target_os = "android")]
     {
-        // (path, job id, file num, allow empty) of the peer supplied path this message
-        // acts on.
+        // 这条消息所处理的对端提供路径的（路径、任务 id、文件序号、是否允许为空）
+        // 。
         let checked: Option<(&str, i32, i32, bool)> = match &fs {
             ipc::FS::ReadEmptyDirs { dir, .. } => Some((dir.as_str(), -1, -1, false)),
             ipc::FS::ReadDir { dir, .. } => Some((dir.as_str(), -1, -1, true)),
@@ -1069,7 +1069,7 @@ async fn handle_fs(
             total_size,
             conn_id,
         } => {
-            // Convert files to FileEntry
+            // 把文件转换为 FileEntry
             let file_entries: Vec<FileEntry> = files
                 .drain(..)
                 .map(|f| FileEntry {
@@ -1079,8 +1079,8 @@ async fn handle_fs(
                 })
                 .collect();
 
-            // cm has no show_hidden context
-            // dummy remote, show_hidden, is_remote
+            // cm 没有 show_hidden 上下文
+            // 占位的 remote、show_hidden、is_remote
             let mut job = fs::TransferJob::new_write(
                 id,
                 fs::JobType::Generic,
@@ -1179,7 +1179,7 @@ async fn handle_fs(
                                         send_raw(msg_out, &tx);
                                     }
                                     DigestCheckResult::NeedConfirm(mut digest) => {
-                                        // upload to server, but server has the same file, request
+                                        // 上传到服务器，但服务器已有相同文件，于是请求
                                         digest.is_upload = is_upload;
                                         let mut msg_out = Message::new();
                                         let mut fr = FileResponse::new();
@@ -1231,10 +1231,10 @@ async fn handle_fs(
             )
             .await;
         }
-        // Cancel an ongoing read job (file transfer from server to client).
-        // Note: This only cancels jobs in `read_jobs`. It does NOT cancel `ReadAllFiles`
-        // operations, which are one-shot directory scans that complete quickly and don't
-        // have persistent job tracking.
+        // 取消进行中的读取任务（服务器到客户端的文件传输）。
+        // 注意：这只会取消 `read_jobs` 中的任务。它不会取消 `ReadAllFiles`
+        // 操作，那些是一次性的目录扫描，完成得很快，而且没有
+        // 持久化的任务跟踪。
         ipc::FS::CancelRead { id, conn_id: _ } => {
             if let Some(job) = fs::remove_job(id, read_jobs) {
                 if let Some(tx) = tx_log {
@@ -1267,10 +1267,10 @@ async fn handle_fs(
                 job.confirm(&req).await;
             }
         }
-        // Recursively list all files in a directory.
-        // This is a one-shot operation that cannot be cancelled via CancelRead.
-        // The operation typically completes quickly as it only reads directory metadata,
-        // not file contents. File count is limited by `check_file_count_limit()`.
+        // 递归列出目录中的所有文件。
+        // 这是一次性操作，无法通过 CancelRead 取消。
+        // 该操作通常完成得很快，因为它只读取目录元数据，
+        // 而不读取文件内容。文件数受 `check_file_count_limit()` 限制。
         ipc::FS::ReadAllFiles {
             path,
             id,
@@ -1283,15 +1283,15 @@ async fn handle_fs(
     }
 }
 
-/// Start a read job in CM for file transfer from server to client (Windows only).
+/// 在 CM 中启动一个用于服务器到客户端文件传输的读取任务（仅 Windows）。
 ///
-/// This creates a `TransferJob` using `new_read()`, validates it, and sends the
-/// initial file list back to Connection via IPC.
+/// 这会通过 `new_read()` 创建一个 `TransferJob`，校验它，并把
+/// 初始文件列表通过 IPC 发回给 Connection。
 ///
 /// NOTE: This is the CM-side equivalent of `create_and_start_read_job()` in
-/// `src/server/connection.rs`. On non-Windows platforms, Connection handles
-/// read jobs directly. Both use `TransferJob::new_read()` with similar logic.
-/// When modifying job creation or validation, ensure both paths stay in sync.
+/// `src/server/connection.rs`。在非 Windows 平台上，Connection 直接处理
+/// 读取任务。两者都用 `TransferJob::new_read()`，逻辑相似。
+/// 修改任务创建或校验时，要确保两条路径保持同步。
 #[cfg(not(any(target_os = "ios")))]
 async fn start_read_job(
     path: String,
@@ -1321,9 +1321,9 @@ async fn start_read_job(
 
     match result {
         Ok(Ok(mut job)) => {
-            // Optional: enforce file count limit for CM-side jobs to avoid
-            // excessive I/O. This is applied on the job's file list produced
-            // by `new_read`, similar to how AllFiles uses the same helper.
+            // 可选：对 CM 侧的任务强制文件数上限，以避免
+            // 过多 I/O。这是作用在任务的文件列表上的，
+            // 该列表由 `new_read` 产生，与 AllFiles 使用同一个辅助函数的方式类似。
             if let Err(msg) = check_file_count_limit(job.files().len()) {
                 if let Err(e) = tx.send(Data::ReadJobInitResult {
                     id,
@@ -1337,7 +1337,7 @@ async fn start_read_job(
                 return;
             }
 
-            // Build FileDirectory from the job's file list and serialize
+            // 根据任务的文件列表构建 FileDirectory 并序列化
             let files = job.files().to_owned();
             let mut dir = FileDirectory::new();
             dir.id = id;
@@ -1370,7 +1370,7 @@ async fn start_read_job(
                 log::error!("error sending ReadJobInitResult via IPC: {}", e);
             }
 
-            // Attach connection id so CM can route read blocks back correctly
+            // 附带连接 id，以便 CM 能正确地把读取块路由回去
             job.conn_id = conn_id;
             read_jobs.push(job);
         }
@@ -1399,12 +1399,12 @@ async fn start_read_job(
     }
 }
 
-/// Process read jobs periodically, reading file blocks and sending them via IPC.
+/// 定期处理读取任务，读取文件块并通过 IPC 发送。
 ///
 /// NOTE: This is the CM-side equivalent of `handle_read_jobs()` in
-/// `libs/base/src/fs.rs`. The logic mirrors that implementation
-/// but communicates via IPC instead of direct network stream.
-/// When modifying job processing logic, ensure both implementations stay in sync.
+/// `libs/base/src/fs.rs`。这里的逻辑与该实现一致，
+/// 只是通过 IPC 通信而不是直接用网络流。
+/// 修改任务处理逻辑时，要确保两个实现保持同步。
 #[cfg(not(any(target_os = "ios")))]
 async fn handle_read_jobs_tick(
     jobs: &mut Vec<fs::TransferJob>,
@@ -1418,7 +1418,7 @@ async fn handle_read_jobs_tick(
             continue;
         }
 
-        // Initialize data stream if needed (opens file, sends digest for overwrite detection)
+        // 必要时初始化数据流（打开文件，发送摘要用于覆盖检测）
         if let Err(err) = init_read_job_for_cm(job, tx, conn_id).await {
             if let Err(e) = tx.send(Data::FileReadError {
                 id: job.id,
@@ -1432,7 +1432,7 @@ async fn handle_read_jobs_tick(
             continue;
         }
 
-        // Read a block from the file
+        // 从文件中读取一个块
         match job.read().await {
             Err(err) => {
                 if let Err(e) = tx.send(Data::FileReadError {
@@ -1443,9 +1443,9 @@ async fn handle_read_jobs_tick(
                 }) {
                     log::error!("error sending FileReadError via IPC: {}", e);
                 }
-                // Mark job as finished to prevent infinite retries.
-                // Connection side will have already removed cm_read_job_ids
-                // after receiving FileReadError, so continuing would be pointless.
+                // 把任务标记为已完成，以防止无限重试。
+                // Connection 侧在收到 FileReadError 后已经
+                // 移除了 cm_read_job_ids，继续下去没有意义。
                 finished.push(job.id);
             }
             Ok(Some(block)) => {
@@ -1484,10 +1484,10 @@ async fn handle_read_jobs_tick(
                         }
                     }
                 }
-                // else: waiting for confirmation from peer
+                // 否则：等待对端确认
             }
         }
-        // Break to handle jobs one by one.
+        // 跳出以便逐个处理任务。
         break;
     }
 
@@ -1498,22 +1498,22 @@ async fn handle_read_jobs_tick(
     Ok(())
 }
 
-/// Initialize a read job's data stream and handle digest sending for overwrite detection.
+/// 初始化读取任务的数据流，并处理用于覆盖检测的摘要发送。
 ///
 /// NOTE: This is the CM-side equivalent of `TransferJob::init_data_stream()` in
-/// `libs/base/src/fs.rs`. It calls `init_data_stream_for_cm()` and sends
-/// digest via IPC instead of direct network stream.
-/// When modifying initialization or digest logic, ensure both paths stay in sync.
+/// `libs/base/src/fs.rs`。它调用 `init_data_stream_for_cm()` 并通过 IPC 发送
+/// 摘要，而不是直接用网络流。
+/// 修改初始化或摘要逻辑时，要确保两条路径保持同步。
 #[cfg(not(any(target_os = "ios")))]
 async fn init_read_job_for_cm(
     job: &mut fs::TransferJob,
     tx: &UnboundedSender<Data>,
     conn_id: i32,
 ) -> ResultType<()> {
-    // Initialize data stream and get digest info if overwrite detection is needed
+    // 初始化数据流，并在需要覆盖检测时获取摘要信息
     match job.init_data_stream_for_cm().await? {
         Some((last_modified, file_size)) => {
-            // Send digest via IPC for overwrite detection
+            // 通过 IPC 发送摘要用于覆盖检测
             if let Err(e) = tx.send(Data::FileDigestFromCM {
                 id: job.id,
                 file_num: job.file_num(),
@@ -1526,7 +1526,7 @@ async fn init_read_job_for_cm(
             }
         }
         None => {
-            // Job done or already initialized, nothing to do
+            // 任务已完成或已初始化，无需处理
         }
     }
     Ok(())
@@ -1545,11 +1545,11 @@ async fn read_all_files(
 
     let result = match result {
         Ok(Ok(files)) => {
-            // Check file count limit to prevent excessive I/O and resource usage
+            // 检查文件数上限，以避免过多 I/O 和资源占用
             if let Err(msg) = check_file_count_limit(files.len()) {
                 Err(msg)
             } else {
-                // Serialize FileDirectory to protobuf bytes
+                // 把 FileDirectory 序列化为 protobuf 字节
                 let mut fd = FileDirectory::new();
                 fd.id = id;
                 fd.path = path_clone.clone();
@@ -1737,7 +1737,7 @@ pub fn elevate_portable(_id: i32) {
 #[inline]
 pub fn handle_incoming_voice_call(id: i32, accept: bool) {
     if let Some(client) = CLIENTS.read().unwrap().get(&id) {
-        // Not handled in iOS yet.
+        // iOS 上尚未处理。
         #[cfg(not(any(target_os = "ios")))]
         allow_err!(client.tx.send(Data::VoiceCallResponse(accept)));
     };
@@ -1747,7 +1747,7 @@ pub fn handle_incoming_voice_call(id: i32, accept: bool) {
 #[inline]
 pub fn close_voice_call(id: i32) {
     if let Some(client) = CLIENTS.read().unwrap().get(&id) {
-        // Not handled in iOS yet.
+        // iOS 上尚未处理。
         #[cfg(not(any(target_os = "ios")))]
         allow_err!(client.tx.send(Data::CloseVoiceCall("".to_owned())));
     };
@@ -1755,19 +1755,19 @@ pub fn close_voice_call(id: i32) {
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn quit_cm() {
-    // in case of std::process::exit not work
+    // 以防 std::process::exit 不生效
     log::info!("quit cm");
     CLIENTS.write().unwrap().clear();
-    // `quit_gui()` ends the process on Windows and macOS, but on Linux it calls
-    // `gtk_main_quit()`, which has no effect in the Flutter connection manager:
-    // `flutter/linux/main.cc` runs `g_application_run()` (GtkApplication), so
-    // `gtk_main()` is never called. Exit directly instead, otherwise this
-    // process keeps running while no longer serving the `_cm` ipc endpoint, so
-    // the server can't reuse it and spawns one more connection manager.
+    // `quit_gui()` 在 Windows 和 macOS 上会结束进程，但在 Linux 上它调用的是
+    // `gtk_main_quit()`，在 Flutter 连接管理器中不起作用：
+    // `flutter/linux/main.cc` 运行的是 `g_application_run()`（GtkApplication），所以
+    // `gtk_main()` 从未被调用。改为直接退出，否则这个
+    // 进程会在不再服务 `_cm` ipc 端点的情况下继续运行，导致
+    // 服务器无法复用它，会再启动一个连接管理器。
     //
     // NOTE: a client merely disconnecting does not come here, the Flutter side
-    // closes the window then, so this is a fallback rather than an explanation
-    // for the stale processes of #15698.
+    // 随后关闭窗口，所以这是一个兜底手段，而不是对
+    // #15698 中那些残留进程的解释。
     #[cfg(all(target_os = "linux", feature = "flutter"))]
     std::process::exit(0);
     #[cfg(not(all(target_os = "linux", feature = "flutter")))]

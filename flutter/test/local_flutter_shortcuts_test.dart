@@ -333,8 +333,8 @@ void main() {
 
   test('closing the session drops its pending action but keeps the fired key',
       () async {
-    // Close tab is itself a shortcut: the session that matched the key is
-    // gone before the key is released, and the next session gets the rest.
+    // 关闭标签页本身也是一个快捷键：匹配到该按键的会话
+    // 在按键松开之前就已经消失，后续会话会得到剩余部分。
     final released = Completer<void>();
     final actions = <String>[];
     var enabled = true;
@@ -365,8 +365,8 @@ void main() {
   });
 
   test('focus-changing actions run when the key is released', () async {
-    // Close tab moves focus before the key is released; the release may then
-    // land in a session whose keys go through the other matcher.
+    // 关闭标签页会在按键松开之前移动焦点；此后松开事件可能
+    // 落到另一个其按键走其他匹配器的会话中。
     var releases = 0;
     final actions = <String>[];
     final dispatcher = _ShortcutHarness(

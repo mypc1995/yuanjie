@@ -135,7 +135,7 @@ fn resolve_lang(saved_lang: &str, locale: &str, cjk_fallback: bool) -> String {
         return "en".to_owned();
     }
     if lang.is_empty() {
-        // zh_CN on Linux, zh-Hans-CN on mac, zh_CN_#Hans on Android
+        // Linux 上为 zh_CN，mac 上为 zh-Hans-CN，Android 上为 zh_CN_#Hans
         if locale.starts_with("zh") {
             lang = (if locale.contains("tw") {
                 "zh-tw"
@@ -146,11 +146,11 @@ fn resolve_lang(saved_lang: &str, locale: &str, cjk_fallback: bool) -> String {
         }
     }
     if lang.is_empty() {
-        // pt_PT on Linux, pt-PT on mac, pt_PT on Android.
-        // Per CLDR locale inheritance, every Portuguese-speaking locale
-        // besides bare "pt" and Brazil's own variants (pt-BR/pt_BR) has
-        // pt-PT as its parent (Angola, Mozambique, Cape Verde, etc.),
-        // so it should resolve to European Portuguese.
+        // Linux 上为 pt_PT，mac 上为 pt-PT，Android 上为 pt_PT。
+        // 按照 CLDR 的区域继承规则，每个葡萄牙语区域
+        // （除了纯粹的 "pt" 以及巴西自己的变体 (pt-BR/pt_BR)）都以
+        // pt-PT 作为其父级（安哥拉、莫桑比克、佛得角等），
+        // 因此它应该解析为欧洲葡萄牙语。
         if locale.starts_with("pt") {
             lang = (if locale == "pt" || locale.starts_with("pt-br") || locale.starts_with("pt_br") {
                 "pt-br"
@@ -260,19 +260,19 @@ pub fn translate_locale(name: String, locale: &str) -> String {
                     s = s.replace("RustDesk", &app_name);
                 } else {
                     // https://github.com/rustdesk/rustdesk-server-pro/issues/845
-                    // If app_name contains "RustDesk" (e.g., "RustDesk-Admin"), we need to avoid
-                    // replacing "RustDesk" within the already-substituted app_name, which would
-                    // cause duplication like "RustDesk-Admin" -> "RustDesk-Admin-Admin".
+                    // 如果 app_name 包含 "RustDesk"（例如 "RustDesk-Admin"），我们需要避免
+                    // 在已经替换过的 app_name 中再次替换 "RustDesk"，那会
+                    // 造成 "RustDesk-Admin" -> "RustDesk-Admin-Admin" 这样的重复。
                     //
-                    // app_name only contains alphanumeric and hyphen.
+                    // app_name 只包含字母数字和连字符。
                     const PLACEHOLDER: &str = "#A-P-P-N-A-M-E#";
                     if !s.contains(PLACEHOLDER) {
                         s = s.replace(&app_name, PLACEHOLDER);
                         s = s.replace("RustDesk", &app_name);
                         s = s.replace(PLACEHOLDER, &app_name);
                     } else {
-                        // It's very unlikely to reach here.
-                        // Skip replacement to avoid incorrect result.
+                        // 几乎不可能走到这里。
+                        // 跳过替换，以免得到错误结果。
                     }
                 }
             }
@@ -294,12 +294,12 @@ pub fn translate_locale(name: String, locale: &str) -> String {
     replace(&name.as_str())
 }
 
-// Matching pattern is {}
-// Write {value} in the UI and {} in the translation file
+// 匹配模式是 {}
+// 在界面中写 {value}，在翻译文件中写 {}
 //
-// Example:
-// Write in the UI: translate("There are {24} hours in a day")
-// Write in the translation file: ("There are {} hours in a day", "{} hours make up a day")
+// 示例：
+// 界面中写：translate("There are {24} hours in a day")
+// 翻译文件中写：("There are {} hours in a day", "{} hours make up a day")
 fn extract_placeholder(input: &str) -> (String, Option<String>) {
     if let Ok(re) = Regex::new(r#"\{(.*?)\}"#) {
         if let Some(captures) = re.captures(input) {
@@ -324,12 +324,12 @@ mod test {
             ("{} sessions".to_string(), Some("3".to_string()))
         );
         assert_eq!(f(" } { "), (" } { ".to_string(), None));
-        // Allow empty value
+        // 允许空值
         assert_eq!(
             f("{} sessions"),
             ("{} sessions".to_string(), Some("".to_string()))
         );
-        // Match only the first one
+        // 只匹配第一个
         assert_eq!(
             f("{2} times {4} makes {8}"),
             ("{} times {4} makes {8}".to_string(), Some("2".to_string()))

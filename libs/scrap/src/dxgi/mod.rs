@@ -129,17 +129,17 @@ impl Capturer {
                     hres
                 }
 
-                // NVFBC(NVIDIA Capture SDK) which xpra used already deprecated, https://developer.nvidia.com/capture-sdk
+                // NVFBC（NVIDIA Capture SDK），xpra 曾使用过，现已废弃，https://developer.nvidia.com/capture-sdk
 
-                // also try high version DXGI for better performance, e.g.
+                // 也可以尝试更高版本的 DXGI 以获得更好的性能，例如
                 // https://docs.microsoft.com/zh-cn/windows/win32/direct3ddxgi/dxgi-1-2-improvements
-                // dxgi-1-6 may too high, only support win10 (2018)
+                // dxgi-1-6 可能太高，只支持 win10 (2018)
                 // https://docs.microsoft.com/zh-cn/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format
                 // DXGI_FORMAT_420_OPAQUE
-                // IDXGIOutputDuplication::GetFrameDirtyRects and IDXGIOutputDuplication::GetFrameMoveRects
-                // can help us update screen incrementally
+                // IDXGIOutputDuplication::GetFrameDirtyRects 和 IDXGIOutputDuplication::GetFrameMoveRects
+                // 可以帮助我们增量更新屏幕
 
-                /* // not supported on my PC, try in the future
+                /* 在我的电脑上不支持，以后再试
                 use winapi::shared::dxgiformat::DXGI_FORMAT_B8G8R8A8_UNORM;
 
                 let format : Vec<DXGI_FORMAT> = vec![DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_420_OPAQUE];
@@ -152,9 +152,9 @@ impl Capturer {
                 )
                 */
 
-                // if above not work, I think below should not work either, try later
-                // https://developer.nvidia.com/capture-sdk deprecated
-                // examples using directx + nvideo sdk for GPU-accelerated video encoding/decoding
+                // 如果上面那招不奏效，我认为下面的也不会奏效，以后再试
+                // https://developer.nvidia.com/capture-sdk 已废弃
+                // 使用 directx + nvideo sdk 实现 GPU 加速的视频编解码的示例
                 // https://github.com/NVIDIA/video-sdk-samples
             });
         }
@@ -191,11 +191,11 @@ impl Capturer {
         })
     }
 
-    // Asks for the float desktop that HDR mode composes so it can be tone-mapped;
-    // the legacy call would hand back DXGI's clipped BGRA8 conversion instead.
-    // Only where IDXGIOutput6 (Windows 10 1703) exists, since that is what later
-    // tells an HDR desktop from a WCG one; Microsoft's duplication sample gates
-    // the float request the same way.
+    // 请求 HDR 模式合成的浮点桌面，以便对其做色调映射；
+    // 而旧的调用返回的会是 DXGI 裁剪后的 BGRA8 转换结果。
+    // 仅在存在 IDXGIOutput6（Windows 10 1703）的地方，因为正是它
+    // 能区分 HDR 桌面和 WCG 桌面；微软的复制示例也是用同样的方式
+    // 来限定浮点请求。
     unsafe fn duplicate_output(
         display: &Display,
         device: *mut ID3D11Device,
@@ -255,9 +255,9 @@ impl Capturer {
         }
     }
 
-    // Drops the tone-map and re-duplicates the output the legacy way, so DXGI
-    // hands over clipped BGRA8 (the pre-HDR behaviour). If re-duplication fails,
-    // switch to GDI before returning. The caller sees WouldBlock and asks again.
+    // 去掉色调映射，按旧方式重新复制输出，于是 DXGI
+    // 交出裁剪后的 BGRA8（HDR 之前的行为）。如果重新复制失败，
+    // 则先切换到 GDI 再返回。调用方会看到 WouldBlock 并再次询问。
     unsafe fn abandon_tonemap<T>(&mut self, err: io::Error) -> io::Result<T> {
         if hdr::is_permanent(&err) {
             hdr::UNAVAILABLE.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -466,7 +466,7 @@ impl Capturer {
         Ok((rect.pBits, rect.Pitch))
     }
 
-    // copy from GPU memory to system memory
+    // 从 GPU 内存复制到系统内存
     unsafe fn ohgodwhat(&mut self, frame: *mut IDXGIResource) -> io::Result<*mut IDXGISurface> {
         let mut texture: *mut ID3D11Texture2D = ptr::null_mut();
         (*frame).QueryInterface(
@@ -526,9 +526,9 @@ impl Capturer {
 
     fn get_pixelbuffer<'a>(&'a mut self, timeout: UINT) -> io::Result<&'a [u8]> {
         unsafe {
-            // Release last frame.
-            // No error checking needed because we don't care.
-            // None of the errors crash anyway.
+            // 释放上一帧。
+            // 不需要检查错误，因为我们并不在意。
+            // 反正这些错误都不会导致崩溃。
             let result = {
                 if let Some(gdi_capturer) = &self.gdi_capturer {
                     match gdi_capturer.frame(&mut self.gdi_buffer) {
@@ -708,10 +708,10 @@ impl Capturer {
             return Ok(());
         }
         let mut first_error = None;
-        // Unmap before ReleaseFrame invalidates the desktop surface; use the same
-        // order for staging surfaces. Cleanup advances Mapped -> Acquired -> Idle,
-        // while Idle is a no-op. Advance state even on errors to avoid retrying
-        // cleanup, but still attempt ReleaseFrame if unmapping fails.
+        // 在 ReleaseFrame 使桌面表面失效之前先 Unmap；对 staging 表面也用同样的
+        // 顺序。清理过程按 Mapped -> Acquired -> Idle 推进，
+        // 其中 Idle 是空操作。即使出错也要推进状态，以免重复尝试
+        // 清理，但如果 unmap 失败，仍然要尝试 ReleaseFrame。
         unsafe {
             if self.frame_state == FrameState::Mapped {
                 let result = if self.fastlane {
@@ -763,9 +763,9 @@ impl Drop for Capturer {
 pub struct Displays {
     factory: ComPtr<IDXGIFactory1>,
     adapter: ComPtr<IDXGIAdapter1>,
-    /// Index of the CURRENT adapter.
+    /// 当前适配器的索引。
     nadapter: UINT,
-    /// Index of the NEXT display to fetch.
+    /// 下一个要获取的显示器的索引。
     ndisplay: UINT,
 }
 
@@ -777,7 +777,7 @@ impl Displays {
         let factory = factory as *mut IDXGIFactory1;
         let mut adapter = ptr::null_mut();
         unsafe {
-            // On error, our adapter is null, so it's fine.
+            // 出错时我们的适配器为空，所以这样没问题。
             (*factory).EnumAdapters1(0, &mut adapter);
         };
 
@@ -841,17 +841,17 @@ impl Displays {
         all
     }
 
-    // No Adapter => Some(None)
-    // Non-Empty Adapter => Some(Some(OUTPUT))
-    // End of Adapter => None
+    // 没有适配器 => Some(None)
+    // 非空适配器 => Some(Some(OUTPUT))
+    // 适配器结束 => None
     fn read_and_invalidate(&mut self) -> Option<Option<Display>> {
-        // If there is no adapter, there is nothing left for us to do.
+        // 如果没有适配器，我们就没什么可做的了。
 
         if self.adapter.is_null() {
             return Some(None);
         }
 
-        // Otherwise, we get the next output of the current adapter.
+        // 否则，我们取当前适配器的下一个输出。
 
         let output = unsafe {
             let mut output = ptr::null_mut();
@@ -859,19 +859,19 @@ impl Displays {
             ComPtr(output)
         };
 
-        // If the current adapter is done, we free it.
-        // We return None so the caller gets the next adapter and tries again.
+        // 如果当前适配器已遍历完，就释放它。
+        // 我们返回 None，让调用方去取下一个适配器并重试。
 
         if output.is_null() {
             self.adapter = ComPtr(ptr::null_mut());
             return None;
         }
 
-        // Advance to the next display.
+        // 前进到下一个显示器。
 
         self.ndisplay += 1;
 
-        // We get the display's details.
+        // 我们获取该显示器的详细信息。
 
         let desc = unsafe {
             #[allow(invalid_value)]
@@ -880,15 +880,15 @@ impl Displays {
             desc
         };
 
-        // We cast it up to the version needed for desktop duplication.
+        // 我们把它向上转型到桌面复制所需的版本。
 
         let mut inner: *mut IDXGIOutput1 = ptr::null_mut();
         unsafe {
             (*output.0).QueryInterface(&IID_IDXGIOutput1, &mut inner as *mut *mut _ as *mut *mut _);
         }
 
-        // If it's null, we have an error.
-        // So we act like the adapter is done.
+        // 如果它为空，说明出错了。
+        // 所以我们就当作适配器已经遍历完了。
 
         if inner.is_null() {
             self.adapter = ComPtr(ptr::null_mut());
@@ -914,7 +914,7 @@ impl Iterator for Displays {
         if let Some(res) = self.read_and_invalidate() {
             res
         } else {
-            // We need to replace the adapter.
+            // 我们需要替换这个适配器。
 
             self.ndisplay = 0;
             self.nadapter += 1;
@@ -928,7 +928,7 @@ impl Iterator for Displays {
             if let Some(res) = self.read_and_invalidate() {
                 res
             } else {
-                // All subsequent adapters will also be empty.
+                // 后续所有适配器也会是空的。
                 None
             }
         }
@@ -942,7 +942,7 @@ pub struct Display {
     gdi: bool,
 }
 
-// optimized for updated region
+// 针对更新区域做了优化
 // https://github.com/dchapyshev/aspia/blob/master/source/base/desktop/win/dxgi_output_duplicator.cc
 // rotation
 // https://github.com/bryal/dxgcap-rs/blob/master/src/lib.rs

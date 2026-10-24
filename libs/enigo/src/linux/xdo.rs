@@ -1,9 +1,9 @@
-//! XDO-based input emulation for Linux.
+//! 基于 XDO 的 Linux 输入模拟。
 //!
-//! This module uses libxdo-sys (patched to use dynamic loading stub) for input emulation.
-//! The stub handles dynamic loading of libxdo, so we just call the functions directly.
+//! 本模块使用 libxdo-sys（已打补丁改用动态加载桩）实现输入模拟。
+//! 该桩负责 libxdo 的动态加载，因此我们只需直接调用这些函数。
 //!
-//! If libxdo is not available at runtime, all operations become no-ops.
+//! 如果运行时 libxdo 不可用，所有操作都会变成空操作。
 
 use crate::{Key, KeyboardControllable, MouseButton, MouseControllable};
 
@@ -12,11 +12,11 @@ use hbb_common::x11::xlib::{Display, XCloseDisplay, XGetPointerMapping, XOpenDis
 use libxdo_sys::{self, xdo_t, CURRENTWINDOW};
 use std::{borrow::Cow, ffi::CString};
 
-/// Default delay per keypress in microseconds.
-/// This value is passed to libxdo functions and must fit in `useconds_t` (u32).
+/// 每次按键的默认延迟（微秒）。
+/// 该值会传给 libxdo 的函数，必须能放进 `useconds_t`（u32）。
 const DEFAULT_DELAY: u64 = 12000;
 
-/// Maximum allowed delay value (u32::MAX as u64).
+/// 允许的最大延迟值（u32::MAX as u64）。
 const MAX_DELAY: u64 = u32::MAX as u64;
 
 fn mousebutton(button: MouseButton) -> c_int {
@@ -33,20 +33,20 @@ fn mousebutton(button: MouseButton) -> c_int {
     }
 }
 
-/// Minimum number of buttons the X11 core pointer must support.
-/// Buttons 8 (Back) and 9 (Forward) are needed for mouse side buttons.
+/// X11 核心指针必须支持的最小按键数量。
+/// 需要 8（后退）和 9（前进）号按键来支持鼠标侧键。
 const MIN_POINTER_BUTTONS: usize = 9;
 
-/// Check that the X11 core pointer's button map includes at least 9 buttons
-/// so that `XTestFakeButtonEvent` can simulate Back (8) and Forward (9).
+/// 检查 X11 核心指针的按键映射至少包含 9 个按键，
+/// 以便 `XTestFakeButtonEvent` 能模拟后退（8）和前进（9）。
 ///
-/// RustDesk's uinput "Mouse passthrough" device normally provides enough
-/// buttons, but we log a warning if the map is too small so the issue is
-/// diagnosable. `XSetPointerMapping` cannot extend the button count (its
-/// length must match `XGetPointerMapping`), so we only diagnose here.
+/// RustDesk 的 uinput "Mouse passthrough" 设备通常提供了足够多的
+/// 按键，但如果映射过小我们会记录一条警告，以便问题
+/// 可以被诊断。`XSetPointerMapping` 无法扩展按键数量（其
+/// 长度必须与 `XGetPointerMapping` 一致），所以我们只能在这里做诊断。
 fn check_x11_button_map() {
-    // Skip on non-X11 sessions to avoid noisy "XOpenDisplay failed" warnings
-    // on pure Wayland or headless environments without $DISPLAY.
+    // 在非 X11 会话上跳过，以免产生嘈杂的 "XOpenDisplay failed" 警告
+    // （纯 Wayland 或没有 $DISPLAY 的无头环境）。
     if std::env::var_os("DISPLAY").is_none() {
         return;
     }
@@ -78,20 +78,20 @@ fn check_x11_button_map() {
     }
 }
 
-/// The main struct for handling the event emitting
+/// 用于处理事件发出的主结构体
 pub(super) struct EnigoXdo {
     xdo: *mut xdo_t,
     delay: u64,
 }
-// This is safe, we have a unique pointer.
+// 这是安全的，我们持有唯一指针。
 // TODO: use Unique<c_char> once stable.
 unsafe impl Send for EnigoXdo {}
 
 impl Default for EnigoXdo {
-    /// Create a new EnigoXdo instance.
+    /// 创建一个新的 EnigoXdo 实例。
     ///
-    /// If libxdo is not available, the xdo pointer will be null and all
-    /// input operations will be no-ops.
+    /// 如果 libxdo 不可用，xdo 指针将为空，所有
+    /// 输入操作都会变成空操作。
     fn default() -> Self {
         let xdo = unsafe { libxdo_sys::xdo_new(std::ptr::null()) };
         if xdo.is_null() {
@@ -108,20 +108,20 @@ impl Default for EnigoXdo {
 }
 
 impl EnigoXdo {
-    /// Get the delay per keypress in microseconds.
+    /// 获取每次按键的延迟（微秒）。
     ///
-    /// Default value is 12000 (12ms). This is Linux-specific.
+    /// 默认值为 12000（12ms）。这是 Linux 特有的。
     pub fn delay(&self) -> u64 {
         self.delay
     }
 
-    /// Set the delay per keypress in microseconds.
+    /// 设置每次按键的延迟（微秒）。
     ///
-    /// This is Linux-specific. The value is clamped to `u32::MAX` (approximately
-    /// 4295 seconds) because libxdo uses `useconds_t` which is typically `u32`.
+    /// 这是 Linux 特有的。该值会被钳制到 `u32::MAX`（约
+    /// 4295 秒），因为 libxdo 使用的 `useconds_t` 通常是 `u32`。
     ///
-    /// # Arguments
-    /// * `delay` - Delay in microseconds. Values exceeding `u32::MAX` will be clamped.
+    /// # 参数
+    /// * `delay` —— 以微秒为单位的延迟。超过 `u32::MAX` 的值会被钳制。
     pub fn set_delay(&mut self, delay: u64) {
         self.delay = delay.min(MAX_DELAY);
         if delay > MAX_DELAY {
@@ -246,7 +246,7 @@ fn keysequence<'a>(key: Key) -> Cow<'a, str> {
         return Cow::Owned(format!("{}", k as u16));
     }
     #[allow(deprecated)]
-    // I mean duh, we still need to support deprecated keys until they're removed
+    // 我的意思是当然，在它们被移除之前我们仍需支持已废弃的按键
     // https://www.rubydoc.info/gems/xdo/XDo/Keyboard
     // https://gitlab.com/cunidev/gestures/-/wikis/xdotool-list-of-key-codes
     Cow::Borrowed(match key {
@@ -271,12 +271,12 @@ fn keysequence<'a>(key: Key) -> Cow<'a, str> {
         Key::F8 => "F8",
         Key::F9 => "F9",
         Key::Home => "Home",
-        //Key::Layout(_) => unreachable!(),
+        // Key::Layout(_) => unreachable!(),
         Key::LeftArrow => "Left",
         Key::Option => "Option",
         Key::PageDown => "Page_Down",
         Key::PageUp => "Page_Up",
-        //Key::Raw(_) => unreachable!(),
+        // Key::Raw(_) => unreachable!(),
         Key::Return => "Return",
         Key::RightArrow => "Right",
         Key::Shift => "Shift",
@@ -349,7 +349,7 @@ impl KeyboardControllable for EnigoXdo {
             return false;
         }
         /*
-        // modifier keys mask
+        // 修饰键掩码
         pub const ShiftMask: c_uint = 0x01;
         pub const LockMask: c_uint = 0x02;
         pub const ControlMask: c_uint = 0x04;

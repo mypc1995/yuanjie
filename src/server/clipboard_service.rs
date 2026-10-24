@@ -89,7 +89,7 @@ fn run(sp: EmptyExtraFieldService) -> ResultType<()> {
                     sp.send(msg);
                 }
             }
-            // Host startup state must not supersede a client's explicit initial snapshot.
+            // 主机的启动状态不得覆盖客户端明确提供的初始快照。
             #[cfg(all(target_os = "linux", feature = "unix-file-copy-paste"))]
             Ok(ClipboardEvent::InitialSelection) => {}
             Ok(ClipboardEvent::Stop) => {
@@ -180,7 +180,7 @@ impl Handler {
                 }
                 match clipboard::platform::unix::serv_files::sync_files(&urls) {
                     Ok(()) => {
-                        // Use `send_data()` here to reuse `handle_file_clip()` in `connection.rs`.
+                        // 这里使用 `send_data()` 以复用 `connection.rs` 中的 `handle_file_clip()`。
                         hbb_common::allow_err!(clipboard::send_data(
                             0,
                             unix_file_clip::get_format_list()
@@ -202,9 +202,9 @@ impl Handler {
                     log::error!("Failed to read clipboard from cm: {}", e);
                 }
                 Ok(data) => {
-                    // Skip sending empty clipboard data.
-                    // Maybe there's something wrong reading the clipboard data in cm, but no error msg is returned.
-                    // The clipboard data should not be empty, the last line will try again to get the clipboard data.
+                    // 跳过发送空的剪贴板数据。
+                    // 可能是 cm 中读取剪贴板数据时出了问题，但没有返回错误信息。
+                    // 剪贴板数据本不该为空，最后一行会再次尝试获取剪贴板数据。
                     if !data.is_empty() {
                         let mut msg = Message::new();
                         let multi_clipboards = MultiClipboards {
@@ -246,25 +246,25 @@ impl Handler {
         }
     }
 
-    // Read clipboard data from cm using ipc.
+    // 通过 ipc 从 cm 读取剪贴板数据。
     //
-    // We cannot use `#[tokio::main(flavor = "current_thread")]` here,
-    // because the auto-managed tokio runtime (async context) will be dropped after the call.
-    // The next call will create a new runtime, which will cause the previous stream to be unusable.
-    // So we need to manage the tokio runtime manually.
+    // 这里不能使用 `#[tokio::main(flavor = "current_thread")]`，
+    // 因为自动管理的 tokio 运行时（异步上下文）在调用之后会被丢弃。
+    // 下一次调用会创建一个新的运行时，导致之前的流无法使用。
+    // 所以我们需要手动管理 tokio 运行时。
     #[cfg(windows)]
     fn read_clipboard_from_cm_ipc(&mut self) -> ResultType<Vec<ClipboardNonFile>> {
         if self.rt.is_none() {
             self.rt = Some(Runtime::new()?);
         }
         let Some(rt) = &self.rt else {
-            // unreachable!
+            // 不可达！
             bail!("failed to get tokio runtime");
         };
         let mut is_sent = false;
         if let Some(stream) = &mut self.stream {
-            // If previous stream is still alive, reuse it.
-            // If the previous stream is dead, `is_sent` will trigger reconnect.
+            // 如果之前的流仍然存活，就复用它。
+            // 如果之前的流已死，`is_sent` 会触发重连。
             is_sent = match rt.block_on(stream.send(&Data::ClipboardNonFile(None))) {
                 Ok(_) => true,
                 Err(e) => {
@@ -287,28 +287,28 @@ impl Handler {
                             bail!("{}", err);
                         } else {
                             if contents.iter().any(|c| c.next_raw) {
-                                // Wrap the future with a `Timeout` in an async block to avoid panic.
-                                // We cannot use `rt.block_on(timeout(1000, stream.next_raw()))` here, because it causes panic:
+                                // 在 async 块中用 `Timeout` 包装该 future，以避免 panic。
+                                // 这里不能使用 `rt.block_on(timeout(1000, stream.next_raw()))`，因为它会导致 panic：
                                 // thread '<unnamed>' panicked at D:\Projects\rust\rustdesk\libs\hbb_common\src\lib.rs:98:5:
-                                // there is no reactor running, must be called from the context of a Tokio 1.x runtime
-                                // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+                                // 没有正在运行的 reactor，必须在 Tokio 1.x 运行时的上下文中调用
+                                // 提示：设置 `RUST_BACKTRACE=1` 环境变量运行以显示回溯
                                 match rt.block_on(async { timeout(1000, stream.next_raw()).await })
                                 {
                                     Ok(Ok(mut data)) => {
                                         for c in &mut contents {
                                             if c.next_raw {
-                                                // No need to check the length because sum(content_len) == data.len().
+                                                // 无需检查长度，因为 sum(content_len) == data.len().
                                                 c.content = data.split_to(c.content_len).into();
                                             }
                                         }
                                     }
                                     Ok(Err(e)) => {
-                                        // reset by peer
+                                        // 被对端重置
                                         self.stream = None;
                                         bail!("failed to get raw clipboard data: {}", e);
                                     }
                                     Err(e) => {
-                                        // Reconnect to avoid the next raw data remaining in the buffer.
+                                        // 重连以避免下一段原始数据残留在缓冲区中。
                                         self.stream = None;
                                         log::debug!("Failed to get raw clipboard data: {}", e);
                                     }
@@ -318,7 +318,7 @@ impl Handler {
                         }
                     }
                     Some(Data::ClipboardFile(ClipboardFile::MonitorReady)) => {
-                        // ClipboardFile::MonitorReady is the first message sent by cm.
+                        // ClipboardFile::MonitorReady 是 cm 发送的第一条消息。
                     }
                     _ => {
                         bail!("failed to get clipboard data from cm");
@@ -326,7 +326,7 @@ impl Handler {
                 }
             }
         }
-        // unreachable!
+        // 不可达！
         bail!("failed to get clipboard data from cm");
     }
 }

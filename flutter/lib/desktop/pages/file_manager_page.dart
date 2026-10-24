@@ -27,27 +27,27 @@ import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import '../widgets/popup_menu.dart';
 
-/// status of location bar
+/// 位置栏状态
 enum LocationStatus {
-  /// normal bread crumb bar
+  /// 普通面包屑栏
   bread,
 
-  /// show path text field
+  /// 显示路径文本框
   pathLocation,
 
-  /// show file search bar text field
+  /// 显示文件搜索栏文本框
   fileSearchBar
 }
 
-/// The status of currently focused scope of the mouse
+/// 鼠标当前聚焦范围的状态
 enum MouseFocusScope {
-  /// Mouse is in local field.
+  /// 鼠标位于本地区域。
   local,
 
-  /// Mouse is in remote field.
+  /// 鼠标位于远端区域。
   remote,
 
-  /// Mouse is not in local field, remote neither.
+  /// 鼠标既不在本地区域，也不在远端区域。
   none
 }
 
@@ -113,7 +113,7 @@ class _FileManagerPageState extends State<FileManagerPage>
     }
     debugPrint("File manager page init success with id ${widget.id}");
     _ffi.dialogManager.setOverlayState(_overlayKeyState);
-    // Call onSelected in post frame callback, since we cannot guarantee that the callback will not call setState.
+    // 在 post frame 回调中调用 onSelected，因为无法保证该回调不会调用 setState。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.tabController?.onSelected?.call(widget.id);
     });
@@ -208,8 +208,8 @@ class _FileManagerPageState extends State<FileManagerPage>
     );
   }
 
-  /// transfer status list
-  /// watch transfer status
+  /// 传输状态列表
+  /// 监听传输状态
   Widget statusList() {
     Widget getIcon(JobProgress job) {
       final color = Theme.of(context).tabBarTheme.labelColor;
@@ -401,7 +401,7 @@ class _FileManagerPageState extends State<FileManagerPage>
 
   void handleDragDone(DropDoneDetails details, bool isLocal) {
     if (isLocal) {
-      // ignore local
+      // 忽略本地
       return;
     }
     final items = SelectedItems(isLocal: false);
@@ -442,7 +442,7 @@ class _FileManagerViewState extends State<FileManagerView> {
   final _fileListScrollController = ScrollController();
   final _globalHeaderKey = GlobalKey();
 
-  /// [_lastClickTime], [_lastClickEntry] help to handle double click
+  /// [_lastClickTime]、[_lastClickEntry] 用于处理双击
   var _lastClickTime =
       DateTime.now().millisecondsSinceEpoch - bind.getDoubleClickTime() - 1000;
   Entry? _lastClickEntry;
@@ -458,7 +458,7 @@ class _FileManagerViewState extends State<FileManagerView> {
   @override
   void initState() {
     super.initState();
-    // register location listener
+    // 注册位置监听器
     _locationNode.addListener(onLocationFocusChanged);
     controller.directory.listen((e) => breadCrumbScrollToEnd());
   }
@@ -536,9 +536,9 @@ class _FileManagerViewState extends State<FileManagerView> {
   void onLocationFocusChanged() {
     debugPrint("focus changed on local");
     if (_locationNode.hasFocus) {
-      // ignore
+      // 忽略
     } else {
-      // lost focus, change to bread
+      // 失去焦点，切换回面包屑
       if (_locationStatus.value != LocationStatus.fileSearchBar) {
         _locationStatus.value = LocationStatus.bread;
       }
@@ -552,7 +552,7 @@ class _FileManagerViewState extends State<FileManagerView> {
     return Container(
       child: Column(
         children: [
-          // symbols
+          // 符号
           PreferredSize(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -589,7 +589,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                   ),
                   preferredSize: Size(double.infinity, 70))
               .paddingOnly(bottom: 15),
-          // buttons
+          // 按钮
           Row(
             children: [
               Row(
@@ -1099,7 +1099,7 @@ class _FileManagerViewState extends State<FileManagerView> {
             .skip(skipCount)
             .where((element) => element.name.toLowerCase().startsWith(buffer));
         if (searchResult.isEmpty) {
-          // cannot find next, lets restart search from head
+          // 找不到下一个，从头重新开始搜索
           debugPrint("restart search from head");
           searchResult = entries.where(
               (element) => element.name.toLowerCase().startsWith(buffer));
@@ -1131,7 +1131,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                 return element.name.contains(_searchText.value);
               }).toList(growable: false)
             : entries;
-        // Keep rows lazy so large directories only build visible list items.
+        // 保持行惰性构建，使大目录只构建可见的列表项。
         final rows = filteredEntries.map((entry) {
           final sizeStr =
               entry.isFile ? readableFileSize(entry.size.toDouble()) : "";
@@ -1142,7 +1142,7 @@ class _FileManagerViewState extends State<FileManagerView> {
           onTap() {
             _keyboardNode.requestFocus();
             final items = selectedItems;
-            // handle double click
+            // 处理双击
             if (_checkDoubleClick(entry)) {
               controller.openDirectory(entry.path);
               items.clear();
@@ -1282,7 +1282,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                               onSecondaryTap: onSecondaryTap,
                               onSecondaryTapDown: onSecondaryTapDown,
                             ),
-                            // Divider from header.
+                            // 来自表头的分隔线。
                             SizedBox(
                               width: 2.0,
                             ),
@@ -1319,13 +1319,13 @@ class _FileManagerViewState extends State<FileManagerView> {
 
         return Column(
           children: [
-            // Header
+            // 表头
             Row(
               children: [
                 Expanded(child: _buildFileBrowserHeader(context)),
               ],
             ),
-            // Body
+            // 主体
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
@@ -1370,8 +1370,8 @@ class _FileManagerViewState extends State<FileManagerView> {
   }
 
   KeyEventResult _onFileListKeyEvent(FocusNode node, KeyEvent event) {
-    // A focused child such as a sort header keeps its default keys, e.g.
-    // Enter to sort.
+    // 获得焦点的子部件（如排序表头）保留其默认按键，例如
+    // 按 Enter 排序。
     if (!_keyboardNode.hasPrimaryFocus) return KeyEventResult.ignored;
     for (final binding in _fileListKeyBindings().entries) {
       if (binding.key.accepts(event, HardwareKeyboard.instance)) {
@@ -1393,7 +1393,7 @@ class _FileManagerViewState extends State<FileManagerView> {
           _moveSelectionByKey(-1, true),
       const SingleActivator(LogicalKeyboardKey.arrowDown, shift: true): () =>
           _moveSelectionByKey(1, true),
-      // Unhandled, they would move keyboard focus to the other pane.
+      // 不作处理，否则会把键盘焦点移到另一个面板。
       const SingleActivator(LogicalKeyboardKey.arrowLeft): () {},
       const SingleActivator(LogicalKeyboardKey.arrowRight): () {},
       const SingleActivator(LogicalKeyboardKey.pageUp): () =>
@@ -1622,7 +1622,7 @@ class _FileManagerViewState extends State<FileManagerView> {
             children: [
                 Expanded(
                   child: Listener(
-                    // handle mouse wheel
+                    // 处理鼠标滚轮
                     onPointerSignal: (e) {
                       if (e is PointerScrollEvent) {
                         final sc = _breadCrumbScroller;
@@ -1819,17 +1819,17 @@ class _FileManagerViewState extends State<FileManagerView> {
   // }
 }
 
-/// Selection after a navigation key moves it by [delta] rows. A shift range is
-/// returned ordered from its anchor to the moved end, so the first and last
-/// items of [selected] stand for those two ends on the next press without
-/// separate state.
+/// 导航按键之后的选中项按 [delta] 行移动。Shift 范围
+/// 按从锚点到移动后末端的顺序返回，因此首尾
+/// [selected] 的首尾两项在下次按下时即代表那两个端点，无需
+/// 额外状态。
 @visibleForTesting
 List<Entry> navigateSelection(
     List<Entry> entries, List<Entry> selected, int delta, bool extend) {
   if (entries.isEmpty) return [];
   final current = selected.isEmpty ? -1 : entries.indexOf(selected.last);
-  // With nothing selected, moving down starts above the first row and moving
-  // up below the last one, as the Sciter grid did.
+  // 未选中任何项时，向下移动从第一行之上开始，向
+  // 上移动从最后一行之下开始，与 Sciter 网格的行为一致。
   final lead = current >= 0 ? current : (delta > 0 ? -1 : entries.length);
   final next = (lead + delta).clamp(0, entries.length - 1);
   if (!extend || current < 0) return [entries[next]];
@@ -1839,8 +1839,8 @@ List<Entry> navigateSelection(
   return [for (var i = anchor; i != next + step; i += step) entries[i]];
 }
 
-/// Rows a PageUp/PageDown press moves from [lead] while rows [first]..[last]
-/// are fully visible: to that edge first, then a page further, as list views
+/// 按 PageUp/PageDown 时，从 [lead] 移动的行数，前提是 [first]..[last] 范围内的
+/// 行完全可见：先移动到该边界，再多移动一页，与列表视图
 /// do.
 @visibleForTesting
 int pageDelta(int lead, int first, int last, bool down) {

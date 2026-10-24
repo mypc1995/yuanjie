@@ -16,15 +16,15 @@ struct AlertResult {
     button: String,
 }
 
-/// Firstly run the specified app, then alert a dialog. Return the clicked button value.
+/// 先运行指定的 app，然后弹出一个对话框。返回被点击按钮的值。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `app` - The app to execute the script.
-/// * `alert_type` - Alert type. . informational, warning, critical
-/// * `title` - The alert title.
-/// * `message` - The alert message.
-/// * `buttons` - The buttons to show.
+/// * `app` - 要执行脚本的 app。
+/// * `alert_type` - 警告类型。 . informational、warning、critical
+/// * `title` - 警告标题。
+/// * `message` - 警告内容。
+/// * `buttons` - 要显示的按钮。
 pub fn alert(
     app: String,
     alert_type: String,

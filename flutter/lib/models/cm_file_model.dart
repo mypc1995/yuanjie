@@ -143,7 +143,7 @@ class CmFileModel {
           gFFI.serverModel.tabController.state.value.selectedTabInfo;
       if (!(gFFI.chatModel.isShowCMSidePage &&
           currentSelectedTab.key == data.connId.toString())) {
-        // Wrong number if unreadCount changes during deletion, which rarely happens
+        // 如果删除期间 unreadCount 发生变化，数字就会不对，这种情况很少发生
         RxInt? rx = client?.unreadChatMessageCount;
         if (rx != null) {
           if (rx.value >= removeUnreadCount) {

@@ -18,27 +18,27 @@ use std::{
     usize,
 };
 
-// Our clients request at most this much per range: macOS 4 MiB, FUSE less, and Windows
-// splits larger reads (WF_CLIPRDR_MAX_RANGE_READ). A larger read is refused, not shortened:
-// a short response reads as end of file to IStream callers on Windows.
+// 我们的客户端每个区间最多请求这么多：macOS 为 4 MiB，FUSE 更少，而 Windows
+// 会拆分更大的读取（WF_CLIPRDR_MAX_RANGE_READ）。更大的读取会被拒绝，而不是被截短：
+// 在 Windows 上，对 IStream 调用方而言，短响应会被读作文件结束。
 const MAX_RANGE_READ: u64 = 16 * 1024 * 1024;
 
 lazy_static::lazy_static! {
-    // local files are cached, this value should not be changed when copying files
-    // Because `CliprdrFileContentsRequest` only contains the index of the file in the list.
-    // We need to keep the file list in the same order as the remote side.
-    // We may add a `FileId` field to `CliprdrFileContentsRequest` in the future.
+    // 本地文件是缓存的，复制文件时不应改变这个值
+    // 因为 `CliprdrFileContentsRequest` 只包含该文件在列表中的索引。
+    // 我们需要让文件列表与远端保持相同的顺序。
+    // 将来我们可能会给 `CliprdrFileContentsRequest` 增加一个 `FileId` 字段。
     static ref CLIP_FILES: Arc<Mutex<ClipFiles>> = Default::default();
-    // Lists replaced by a newer copy after a peer was sent them, oldest first. The peer's
-    // streams keep reading the list they came from. Lock after `CLIP_FILES`.
+    // 在对端收到某个列表之后，该列表被较新的副本替换，按最旧优先的顺序。对端的
+    // 数据流仍然读取它们原本所属的那个列表。在 `CLIP_FILES` 之后加锁。
     static ref RETIRED_CLIP_FILES: Mutex<VecDeque<ClipFiles>> = Default::default();
 }
 
 const MAX_RETIRED_CLIP_FILES: usize = 4;
 
-// The first descriptor's `clsid`, inside the 32 reserved bytes every peer skips. A random
-// nonce there makes each copy's list id distinct, even when two copies have identical
-// names, sizes and times (the same file in two folders).
+// 第一个描述符的 `clsid`，位于每个对端都会跳过的 32 个保留字节之内。一个随机的
+// nonce 放在那里，可以让每次复制的列表 id 互不相同，即使两份副本具有完全相同的
+// 名称、大小和时间（同一个文件位于两个文件夹中）。
 const LIST_NONCE: std::ops::Range<usize> = 8..24;
 
 #[derive(Debug)]
@@ -56,8 +56,8 @@ enum FileContentsRequest {
     },
 }
 
-// Cheap fingerprint of one top-level selected entry. A change in size/mtime --
-// or a directory in the selection -- forces sync_files() to rebuild (see below).
+// 某个顶层选中项的廉价指纹。大小/修改时间的变化 ——
+// 或选区中出现目录 —— 都会强制 sync_files() 重建（见下文）。
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct FileSig {
     size: u64,
@@ -65,7 +65,7 @@ struct FileSig {
     is_dir: bool,
 }
 
-// Stat the top-level selected paths only (no recursion), same order as `files`.
+// 只 stat 顶层的选中路径（不递归），顺序与 `files` 相同。
 fn fingerprint(files: &[String]) -> Vec<FileSig> {
     files
         .iter()
@@ -83,14 +83,14 @@ fn fingerprint(files: &[String]) -> Vec<FileSig> {
 #[derive(Default)]
 struct ClipFiles {
     files: Vec<String>,
-    // Fingerprint of `files` (same len/order); detects in-place edits on re-copy.
+    // `files` 的指纹（长度/顺序相同）；用于在重新复制时检测原地修改。
     sigs: Vec<FileSig>,
     file_list: Vec<LocalFile>,
     first_file_index: usize,
     files_pdu: Vec<u8>,
-    // `file_list_id(files_pdu)`, which peers send back as `clip_data_id`.
+    // `file_list_id(files_pdu)`，对端会把它作为 `clip_data_id` 回传。
     id: i32,
-    // Connections that were sent `files_pdu`.
+    // 已被发送 `files_pdu` 的连接。
     served_to: Vec<i32>,
 }
 
@@ -139,9 +139,9 @@ impl ClipFiles {
         Ok(())
     }
 
-    // Close files that are not being read, such as the preloaded next file; `read_exact_at`
-    // reopens them on the next read. A file part-way through keeps its handle and offset, so
-    // its remaining bytes come from the same file even if its path is replaced meanwhile.
+    // 关闭那些当前没有被读取的文件，例如预加载的下一个文件；`read_exact_at`
+    // 会在下次读取时重新打开它们。传输到一半的文件会保留其句柄和偏移量，因此
+    // 即使期间它的路径被替换，剩余字节仍来自同一个文件。
     fn release_handles(&mut self) {
         for file in self.file_list.iter_mut() {
             if file.offset.load(Ordering::Relaxed) == 0 {
@@ -150,9 +150,9 @@ impl ClipFiles {
         }
     }
 
-    // A retired list's file is reopened by path once its handle was closed, and the path may now
-    // name a replacement. Check size and modified time on the handle the read will use, and refuse
-    // a file that no longer matches the list.
+    // 某个已退役列表的文件在句柄关闭后通过路径重新打开，而此时该路径可能已经
+    // 指向了另一个文件。要在读取将要使用的句柄上检查大小和修改时间，并拒绝
+    // 与列表不再匹配的文件。
     fn check_retired_file(&mut self, request: &FileContentsRequest) -> Result<(), CliprdrError> {
         let FileContentsRequest::Range { file_idx, .. } = request else {
             return Ok(());
@@ -321,10 +321,10 @@ impl ClipFiles {
         };
 
         log::debug!("file contents sent to conn: {}", conn_id);
-        // hot reload next file
+        // 热重载下一个文件
         for next_file in self.file_list.iter_mut().skip(file_idx + 1) {
             if !next_file.is_dir {
-                // Best-effort: if it still cannot be opened, its own request reports that.
+                // 尽力而为：如果仍无法打开，它自己的请求会报告这一点。
                 if let Err(e) = next_file.load_handle() {
                     log::trace!("failed to preload the next file: {:?}", e);
                 }
@@ -341,9 +341,9 @@ pub fn clear_files() {
     RETIRED_CLIP_FILES.lock().clear();
 }
 
-// The list a request reads from: the one its `clip_data_id` names, else the one last sent to
-// the connection. A named list that is gone yields `None`. A peer that sends no id and was
-// never sent a list reads the current one, as before.
+// 某个请求读取的列表：其 `clip_data_id` 所指明的那一个，否则就是最后发送给
+// 该连接的那一个。被指明的列表若已消失则返回 `None`。既未发送 id 又未曾
+// 收到过列表的对端，仍像以前一样读取当前列表。
 fn select_clip_files<'a>(
     current: &'a mut ClipFiles,
     retired: &'a mut VecDeque<ClipFiles>,
@@ -365,7 +365,7 @@ fn select_clip_files<'a>(
     }
 }
 
-// Keep a list a peer was sent, so its streams do not read the new copy at the same indexes.
+// 保留已发送给某个对端的那个列表，这样它的数据流不会在相同索引处读到新副本。
 fn retire_if_served(mut replaced: ClipFiles) {
     if replaced.served_to.is_empty() {
         return;
@@ -394,9 +394,9 @@ pub fn read_file_contents(
             file_idx: list_index as usize,
         }
     } else if dw_flags == 0x2 {
-        // nPositionLow and cbRequested are UINT32s carried in i32 fields. Sign-extending
-        // them rejects offsets whose low word is >= 2 GiB and turns a negative length
-        // into a near-u64::MAX read.
+        // nPositionLow 和 cbRequested 是承载在 i32 字段中的 UINT32。对它们做符号扩展
+        // 会拒绝低位字 >= 2 GiB 的偏移，并把负的长度
+        // 变成接近 u64::MAX 的读取。
         let offset = (n_position_high as u64) << 32 | n_position_low as u32 as u64;
         let length = cb_requested as u32 as u64;
 
@@ -438,8 +438,8 @@ pub fn read_file_contents(
 }
 
 pub fn sync_files(files: &[String]) -> Result<(), CliprdrError> {
-    // Dedup: skip the rebuild only when paths + sizes + mtimes match and no dir is
-    // selected (a dir's own mtime doesn't change when a file inside it is edited).
+    // 去重：只有当路径 + 大小 + 修改时间都匹配，且选区中没有目录时，才跳过重建
+    // （目录自身的 mtime 不会因为其内部文件被编辑而改变）。
     let current = fingerprint(files);
     let mut files_lock = CLIP_FILES.lock();
     if files_lock.files == files
@@ -448,7 +448,7 @@ pub fn sync_files(files: &[String]) -> Result<(), CliprdrError> {
     {
         return Ok(());
     }
-    // Build aside, so a failure leaves the current list in place.
+    // 构建放在 aside 中，这样失败时当前列表仍然保留。
     let mut next = ClipFiles::default();
     next.sync_files(files, current)?;
     next.build_file_list_pdu()?;
@@ -472,7 +472,7 @@ mod sig_test {
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    // Unique temp dir under the system temp dir; removed on drop (no dev-dep).
+    // 系统临时目录下的唯一临时目录；drop 时被删除（不引入 dev-dependency）。
     struct TmpDir(PathBuf);
     impl TmpDir {
         fn new(tag: &str) -> Self {
@@ -499,7 +499,7 @@ mod sig_test {
         p.to_string_lossy().to_string()
     }
 
-    // Tests that drive the global CLIP_FILES must not interleave.
+    // 驱动全局 CLIP_FILES 的测试之间不得交错执行。
     static CLIP_FILES_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn lock_clip_files() -> std::sync::MutexGuard<'static, ()> {
@@ -508,7 +508,7 @@ mod sig_test {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    // Sparse, so a multi-GiB file costs no disk space.
+    // 稀疏文件，因此数 GiB 的文件不占用磁盘空间。
     fn write_at(path: &PathBuf, offset: u64, data: &[u8]) {
         use std::io::{Seek, SeekFrom, Write};
         let mut f = fs::File::create(path).unwrap();
@@ -530,8 +530,8 @@ mod sig_test {
         fs::write(&file, b"v1").unwrap(); // 2 bytes
         let files = vec![path_str(&file)];
 
-        // Drive the public, guarded `sync_files` over the global CLIP_FILES;
-        // reset first.
+        // 在全局 CLIP_FILES 上驱动公开且带保护的 `sync_files`；
+        // 先重置。
         let _guard = lock_clip_files();
         clear_files();
 
@@ -542,8 +542,8 @@ mod sig_test {
             assert_eq!(cache.file_list[idx].size, 2);
         }
 
-        // In-place edit grows the file; the re-copy must rebuild. Pre-fix the
-        // path-only guard early-returned and left the cached size stale at 2.
+        // 原地编辑会让文件变大；重新复制时必须重建。修复之前，
+        // 只检查路径的保护会提前返回，导致缓存的大小停留在 2。
         fs::write(&file, b"v2 is bigger").unwrap(); // 12 bytes
         sync_files(&files).unwrap();
         {
@@ -569,11 +569,11 @@ mod sig_test {
         let small_idx = CLIP_FILES.lock().first_file_index as i32;
         let large_idx = small_idx + 1;
 
-        // A negative cbRequested is a UINT32 length, clamped to the rest of the file.
+        // 负的 cbRequested 是 UINT32 长度，会被钳制到文件的剩余长度。
         let res = read_file_contents(0, 0, small_idx, 0x2, 1, 0, -1, None);
         assert_eq!(range_data(res), b"123456789");
 
-        // An nPositionLow with bit 31 set is an offset past 2 GiB, not a huge one.
+        // nPositionLow 的第 31 位被置位表示偏移超过 2 GiB，而不是一个巨大的值。
         let res = read_file_contents(0, 0, large_idx, 0x2, 0x8000_0000u32 as i32, 0, 4, None);
         assert_eq!(range_data(res), b"tail");
 
@@ -620,7 +620,7 @@ mod sig_test {
         let read = |offset| range_data(read_file_contents(1, 7, idx, 0x2, offset, 0, 4, None));
         assert_eq!(read(0), b"AAAA");
 
-        // Copying another file on this side must not redirect the peer's stream.
+        // 在这一侧复制另一个文件，绝不能把对端的数据流改道。
         sync_files(&[path_str(&second)]).unwrap();
         assert_eq!(read(4), b"AAAA");
 
@@ -641,8 +641,8 @@ mod sig_test {
         let first_id = file_list_id(&get_file_list_pdu(1));
         let idx = CLIP_FILES.lock().first_file_index as i32;
 
-        // The peer copies the second file on this side and pastes it while the first
-        // transfer is still reading.
+        // 对端在这一侧复制了第二个文件并粘贴，而此时第一个
+        // 传输仍在进行中。
         sync_files(&[path_str(&second)]).unwrap();
         let second_id = file_list_id(&get_file_list_pdu(1));
         assert_ne!(first_id, second_id);
@@ -675,9 +675,9 @@ mod sig_test {
                 Some(Err(CliprdrError::InvalidRequest { .. }))
             )
         };
-        // Retired list, asked for by a connection it was never sent to.
+        // 已退役的列表，被一个从未收到过它的连接询问。
         assert!(refused(2, first_id));
-        // A list id this side never sent.
+        // 这一侧从未发送过的列表 id。
         assert!(refused(1, first_id ^ 1));
 
         clear_files();
@@ -703,8 +703,8 @@ mod sig_test {
         }
     }
 
-    // Preloading the file after the requested one is best-effort: a file that can no longer
-    // be opened fails its own requests, not those of the file before it.
+    // 预加载被请求文件之后的那个文件属于尽力而为：某个已无法
+    // 打开的文件只会让自己的请求失败，而不会影响它前一个文件的请求。
     fn assert_only_its_own_requests_fail(clip: &mut ClipFiles, broken: &PathBuf) {
         let first_idx = clip.first_file_index;
         let broken_idx = clip
@@ -745,7 +745,7 @@ mod sig_test {
         fs::create_dir(&dir).unwrap();
         let inner = dir.join("inner.bin");
         fs::write(&inner, b"BBBBBBBB").unwrap();
-        // Listed as first.bin, dir, dir/inner.bin.
+        // 列出为 first.bin、dir、dir/inner.bin。
         let mut clip = list_files(&[&first, &dir]);
         let first_idx = clip.first_file_index;
         let inner_idx = clip.file_list.len() - 1;
@@ -753,7 +753,7 @@ mod sig_test {
 
         assert_eq!(read_head(&mut clip, first_idx).unwrap(), b"AAAA");
         assert!(clip.file_list[inner_idx].handle.is_some());
-        // The last file has no next file to preload.
+        // 最后一个文件没有下一个文件可预加载。
         assert_eq!(read_head(&mut clip, inner_idx).unwrap(), b"BBBB");
     }
 }

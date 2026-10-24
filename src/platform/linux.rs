@@ -47,22 +47,22 @@ struct ActiveUserLookupCache {
 const INVALID_TERM_VALUES: [&str; 3] = ["", "unknown", "dumb"];
 const SHELL_PROCESSES: [&str; 4] = ["bash", "zsh", "fish", "sh"];
 
-// Terminal type constants
+// 终端类型常量
 const TERM_XTERM_256COLOR: &str = "xterm-256color";
 const TERM_SCREEN_256COLOR: &str = "screen-256color";
 const TERM_XTERM: &str = "xterm";
 
 #[cfg(feature = "drm")]
 lazy_static::lazy_static! {
-    /// Only for per-frame callers; see `is_login_screen_wayland_cached`.
-    /// Own block because `#[cfg]` on one item inside a shared one breaks the macro.
+    /// 仅供逐帧调用方使用；参见 `is_login_screen_wayland_cached`。
+    /// 单独成块，因为共享块中某个条目上的 `#[cfg]` 会破坏该宏。
     static ref IS_LOGIN_SCREEN_WAYLAND: bool = is_login_screen_wayland();
 }
 
 lazy_static::lazy_static! {
-    /// `is_x11_or_headless()` answers x11 at a Wayland greeter, which the portal could not
-    /// serve but the DRM path can. Unmemoised lookup on purpose: this may run mid-boot, and
-    /// a "no" cached that early would be wrong for the rest of the process.
+    /// `is_x11_or_headless()` 在 Wayland 登录界面下也会回答 x11，而 portal 无法
+    /// 提供该服务，但 DRM 路径可以。故意不做记忆化查询：这可能在启动过程中运行，而
+    /// 在那么早的阶段缓存一个 "no" 会让进程此后的整个生命周期都是错的。
     pub static ref IS_X11: bool = {
         let x11 = base::platform::linux::is_x11_or_headless();
         #[cfg(feature = "drm")]
@@ -83,7 +83,7 @@ lazy_static::lazy_static! {
             x11
         }
     };
-    // Cache for TERM value - once TERM_XTERM_256COLOR is found, reuse it directly
+    // TERM 值的缓存 —— 一旦找到 TERM_XTERM_256COLOR，就直接复用
     static ref CACHED_TERM: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
     static ref DATABASE_XTERM_256COLOR: Option<Database> = {
         match Database::from_name(TERM_XTERM_256COLOR) {
@@ -100,15 +100,15 @@ lazy_static::lazy_static! {
         Option<(Instant, Option<GnomeMonitorLayoutMode>)>,
     > = Default::default();
     // https://github.com/rustdesk/rustdesk/issues/13705
-    // Check if `sudo -E` actually preserves environment.
+    // 检查 `sudo -E` 是否真的保留了环境变量。
     //
-    // This flag is only used by `run_as_user()` (root service -> user session). If the current process is not
-    // running as `root`, this check is meaningless (and `sudo -n` may fail), so we return `false` directly.
+    // 该标志仅由 `run_as_user()`（root 服务 -> 用户会话）使用。如果当前进程不是
+    // 以 `root` 身份运行，那么这个检查毫无意义（而且 `sudo -n` 可能失败），所以直接返回 `false`。
     //
-    // On Ubuntu 25.10, `sudo -E` may still succeed but effectively ignores `-E`. Some versions print a warning
-    // to stderr (wording may vary by locale), so we verify behavior instead:
-    // - Inject a sentinel environment variable into the `sudo` process
-    // - Run `sudo -n -E env` and check whether the sentinel is present in stdout
+    // 在 Ubuntu 25.10 上，`sudo -E` 可能仍然成功但实际上忽略了 `-E`。某些版本会把一条警告
+    // 打印到 stderr（措辞可能因区域设置而异），所以我们改为验证其行为：
+    // - 向 `sudo` 进程注入一个哨兵环境变量
+    // - 运行 `sudo -n -E env` 并检查 stdout 中是否存在该哨兵
     static ref SUDO_E_PRESERVES_ENV: bool = {
         if !is_root() {
             log::warn!("Not running as root, SUDO_E_PRESERVES_ENV check skipped");
@@ -118,7 +118,7 @@ lazy_static::lazy_static! {
             let val = "1";
             let expected = format!("{key}={val}");
             Command::new("sudo")
-                // -n for non-interactive to avoid password prompt
+                // -n 表示非交互，避免弹出密码提示
                 .env(&key, val)
                 .args(["-n", "-E", "env"])
                 .output()
@@ -147,8 +147,8 @@ impl GnomeMonitorLayoutMode {
 }
 
 fn gnome_monitor_layout_mode_from_value(value: u32) -> Option<GnomeMonitorLayoutMode> {
-    // Upstream: https://gitlab.gnome.org/GNOME/mutter/-/blob/main/data/dbus-interfaces/org.gnome.Mutter.DisplayConfig.xml
-    // Ubuntu mode 3: https://git.launchpad.net/ubuntu/+source/mutter/tree/debian/patches/x11-Add-support-for-fractional-scaling-using-Randr.patch
+    // 上游：https://gitlab.gnome.org/GNOME/mutter/-/blob/main/data/dbus-interfaces/org.gnome.Mutter.DisplayConfig.xml
+    // Ubuntu 模式 3：https://git.launchpad.net/ubuntu/+source/mutter/tree/debian/patches/x11-Add-support-for-fractional-scaling-using-Randr.patch
     match value {
         1 | 3 => Some(GnomeMonitorLayoutMode::Logical),
         2 => Some(GnomeMonitorLayoutMode::Physical),
@@ -231,7 +231,7 @@ pub fn gnome_monitor_layout_mode() -> Option<GnomeMonitorLayoutMode> {
         mode
     })();
     if let Ok(mut cache) = GNOME_MONITOR_LAYOUT_MODE_CACHE.lock() {
-        *cache = Some((Instant::now(), result));
+        * cache = Some((Instant::now(), result));
     }
     result
 }
@@ -257,9 +257,9 @@ mod gnome_monitor_layout_tests {
 fn update_active_user_lookup_cache(desktop: &Desktop) {
     if let Ok(mut cache) = ACTIVE_USER_LOOKUP_CACHE.lock() {
         if desktop.uid.is_empty() || desktop.username.is_empty() {
-            *cache = None;
+            * cache = None;
         } else {
-            *cache = Some(ActiveUserLookupCache {
+            * cache = Some(ActiveUserLookupCache {
                 uid: desktop.uid.clone(),
                 username: desktop.username.clone(),
             });
@@ -275,8 +275,8 @@ fn get_active_user_id_name_from_cache() -> Option<(String, String)> {
 }
 
 thread_local! {
-    // XDO context - created via libxdo-sys (which uses dynamic loading stub).
-    // If libxdo is not available, xdo will be null and xdo-based functions become no-ops.
+    // XDO 上下文 —— 通过 libxdo-sys 创建（它使用动态加载桩）。
+    // 如果 libxdo 不可用，xdo 将为 null，基于 xdo 的函数会变成空操作。
     static XDO: RefCell<*mut xdo_t> = RefCell::new({
         let xdo = unsafe { libxdo_sys::xdo_new(std::ptr::null()) };
         if xdo.is_null() {
@@ -292,8 +292,8 @@ thread_local! {
 pub fn right_alt_is_level3_shift() -> ResultType<bool> {
     use hbb_common::x11::{keysym, xlib};
     const XKB_USE_CORE_KBD: c_uint = 0x0100;
-    // A fresh connection avoids Xlib's stale keymap cache after a layout switch.
-    // This query runs only for a matched chord with physical Right Alt held.
+    // 新建连接可以避免切换键盘布局后 Xlib 中过期的键盘映射缓存。
+    // 该查询仅在匹配到组合键且按住物理 Right Alt 时运行。
     let display = unsafe { xlib::XOpenDisplay(std::ptr::null()) };
     if display.is_null() {
         bail!("X display unavailable");
@@ -309,7 +309,7 @@ pub fn right_alt_is_level3_shift() -> ResultType<bool> {
         let symbol = unsafe {
             xlib::XkbKeycodeToKeysym(display, code as _, state.group.into(), 0)
         };
-        // Physical Right Alt is ordinary Alt on layouts such as US English.
+        // 在美式英语等布局中，物理 Right Alt 就是普通的 Alt。
         Ok(matches!(symbol as u32, keysym::XK_ISO_Level3_Shift
             | keysym::XK_ISO_Level3_Latch | keysym::XK_ISO_Level3_Lock
             | keysym::XK_Mode_switch))
@@ -318,8 +318,8 @@ pub fn right_alt_is_level3_shift() -> ResultType<bool> {
     result
 }
 
-// X11 error event structure for the custom error handler.
-// See: https://www.x.org/releases/current/doc/libX11/libX11/libX11.html#Using-the-Default-Error-Handlers
+// 供自定义错误处理器使用的 X11 错误事件结构。
+// 参见：https://www.x.org/releases/current/doc/libX11/libX11/libX11.html#Using-the-Default-Error-Handlers
 #[repr(C)]
 struct XErrorEvent {
     type_: c_int,
@@ -337,13 +337,13 @@ const X11_BAD_WINDOW: u8 = 3;
 const XDO_SUCCESS: c_int = 0;
 const XDO_ERROR: c_int = 1;
 
-/// Atomic flag set by the custom X error handler when a BadWindow error occurs.
+/// 发生 BadWindow 错误时由自定义 X 错误处理器设置的原子标志。
 static X_BAD_WINDOW_DETECTED: AtomicBool = AtomicBool::new(false);
 static X_UNEXPECTED_ERROR_DETECTED: AtomicBool = AtomicBool::new(false);
 
-/// Custom X error handler that catches BadWindow errors (error_code == 3) instead of
-/// letting the default handler terminate the process.
-/// See issue: https://github.com/rustdesk/rustdesk/issues/9003
+/// 自定义 X 错误处理器，捕获 BadWindow 错误（error_code == 3），而不是
+/// 任由默认处理器终止进程。
+/// 参见 issue：https://github.com/rustdesk/rustdesk/issues/9003
 unsafe extern "C" fn handle_x_error(_display: *mut c_void, event: *mut XErrorEvent) -> c_int {
     if !event.is_null() && (*event).error_code == X11_BAD_WINDOW {
         X_BAD_WINDOW_DETECTED.store(true, Ordering::SeqCst);
@@ -395,32 +395,32 @@ pub fn is_login_screen_wayland() -> bool {
     is_gdm_user(&values[1]) && get_display_server_of_session(&values[0]) == DISPLAY_SERVER_WAYLAND
 }
 
-/// An explicit `RUSTDESK_FORCED_DISPLAY_SERVER` is an operator override, and the root service
-/// forwards it to the per-user server on purpose: the greeter correction may only fix an
-/// AUTO-detected answer, never argue with the operator — a half-applied override would leave
-/// `get_display_server()` and the DRM routing gates disagreeing with each other.
+/// 显式设置的 `RUSTDESK_FORCED_DISPLAY_SERVER` 属于运维人员的强制覆盖，root 服务
+/// 有意把它转发给按用户运行的服务器：登录界面的修正可能只是修正了一个
+/// AUTO 检测出的结果，绝不要与运维人员争辩 —— 只落实一半的覆盖会导致
+/// `get_display_server()` 与 DRM 路由判断彼此不一致。
 #[cfg(feature = "drm")]
 pub(crate) fn display_server_forced() -> bool {
     std::env::var("RUSTDESK_FORCED_DISPLAY_SERVER").is_ok()
 }
 
-/// X11 as far as the DRM path is concerned: a Wayland greeter is not, unless the operator
-/// forced the display server.
+/// 就 DRM 路径而言就是 X11：Wayland 登录界面不是，除非运维人员
+/// 强制指定了显示服务器。
 ///
-/// Both halves unmemoised, for the retry loops that must keep asking until seat0 can be named.
+/// 两半都不做记忆化，供那些必须持续询问直到能确定 seat0 的重试循环使用。
 #[cfg(feature = "drm")]
 pub fn is_x11_for_drm() -> bool {
     scrap::is_x11() && (display_server_forced() || !is_login_screen_wayland())
 }
 
-/// Memoised `is_login_screen_wayland`, for per-frame callers that must not run `loginctl`.
+/// 记忆化的 `is_login_screen_wayland`，供不得运行 `loginctl` 的逐帧调用方使用。
 ///
-/// Only from the per-session `--server`: it is spawned after the session is identified, so the
-/// answer is settled. Anything that can run mid-boot must use the uncached form.
+/// 仅供按会话启动的 `--server` 使用：它在会话确定之后才被派生，所以
+/// 结果已经确定。任何可能在启动过程中运行的代码都必须使用未缓存的形式。
 #[cfg(feature = "drm")]
 #[inline]
 pub fn is_login_screen_wayland_cached() -> bool {
-    *IS_LOGIN_SCREEN_WAYLAND
+    * IS_LOGIN_SCREEN_WAYLAND
 }
 
 #[inline]
@@ -439,7 +439,7 @@ pub fn get_cursor_pos() -> Option<(i32, i32)> {
             let mut y: c_int = 0;
             unsafe {
                 libxdo_sys::xdo_get_mouse_location(
-                    *xdo as *const _,
+                    * xdo as *const _,
                     &mut x as _,
                     &mut y as _,
                     std::ptr::null_mut(),
@@ -479,21 +479,21 @@ pub fn set_cursor_pos(x: i32, y: i32) -> bool {
     res
 }
 
-/// Clip cursor - Linux implementation is a no-op.
+/// 裁剪光标 —— Linux 上的实现是空操作。
 ///
-/// On X11, there's no direct equivalent to Windows ClipCursor. XGrabPointer
-/// can confine the pointer but requires a window handle and has side effects.
+/// 在 X11 上没有与 Windows ClipCursor 直接对应的东西。XGrabPointer
+/// 可以限制指针的活动范围，但需要窗口句柄且有副作用。
 ///
-/// On Wayland, pointer constraints require the zwp_pointer_constraints_v1
-/// protocol which is compositor-dependent.
+/// 在 Wayland 上，指针约束需要 zwp_pointer_constraints_v1
+/// 协议，而它依赖具体的合成器。
 ///
-/// For relative mouse mode on Linux, the Flutter side uses pointer warping
-/// (set_cursor_pos) to re-center the cursor after each movement, which achieves
-/// a similar effect without requiring cursor clipping.
+/// 在 Linux 上实现相对鼠标模式时，Flutter 端使用指针 warp
+/// （set_cursor_pos）在每次移动后重新居中光标，从而获得
+/// 类似效果，而无需裁剪光标。
 ///
-/// Returns true (always succeeds as no-op).
+/// 返回 true（始终以空操作成功）。
 pub fn clip_cursor(_rect: Option<(i32, i32, i32, i32)>) -> bool {
-    // Log only once per process to avoid flooding logs when called frequently.
+    // 每个进程只记录一次日志，避免频繁调用时日志泛滥。
     static LOGGED: AtomicBool = AtomicBool::new(false);
     if !LOGGED.swap(true, Ordering::Relaxed) {
         log::debug!("clip_cursor called (no-op on Linux, this message is logged only once)");
@@ -521,16 +521,16 @@ pub fn get_focused_display(displays: Vec<DisplayInfo>) -> Option<usize> {
                     return;
                 }
 
-                // XSetErrorHandler is process-global, not scoped to this Display/thread.
-                // This path is currently called by the single window_focus service thread.
-                // While installed, this handler can still observe unrelated X11 errors from
-                // other threads; unexpected errors make this geometry query fail.
+                // XSetErrorHandler 是进程级的，并不局限于这个 Display/线程。
+                // 该路径目前由唯一的 window_focus 服务线程调用。
+                // 在安装期间，该处理器仍可能观察到来自
+                // 其他线程的无关 X11 错误；意外错误会导致这次几何查询失败。
                 X_BAD_WINDOW_DETECTED.store(false, Ordering::SeqCst);
                 X_UNEXPECTED_ERROR_DETECTED.store(false, Ordering::SeqCst);
                 let prev_handler = XSetErrorHandler(Some(handle_x_error));
 
                 let loc_ret = libxdo_sys::xdo_get_window_location(
-                    *xdo as *const _,
+                    * xdo as *const _,
                     window,
                     &mut x as _,
                     &mut y as _,
@@ -538,7 +538,7 @@ pub fn get_focused_display(displays: Vec<DisplayInfo>) -> Option<usize> {
                 );
                 let size_ret = if loc_ret == XDO_SUCCESS {
                     libxdo_sys::xdo_get_window_size(
-                        *xdo as *const _,
+                        * xdo as *const _,
                         window,
                         &mut width,
                         &mut height,
@@ -547,11 +547,11 @@ pub fn get_focused_display(displays: Vec<DisplayInfo>) -> Option<usize> {
                     XDO_ERROR
                 };
 
-                // Do not call XSync(DISPLAY) here: DISPLAY is a separate
-                // XOpenDisplay() connection, while libxdo owns the Display*
-                // used by these geometry queries. These libxdo calls are
-                // synchronous XGetWindowAttributes-based queries, so the target
-                // BadWindow is expected to be delivered before the calls return.
+                // 此处不要调用 XSync(DISPLAY)：DISPLAY 是另一个独立的
+                // XOpenDisplay() 连接，而 libxdo 拥有的是这些几何查询所用的 Display*
+                // 。这些 libxdo 调用是基于 XGetWindowAttributes 的
+                // 同步查询，因此目标窗口的
+                // BadWindow 预期会在调用返回之前送达。
                 XSetErrorHandler(prev_handler);
                 if X_BAD_WINDOW_DETECTED.load(Ordering::SeqCst)
                     || X_UNEXPECTED_ERROR_DETECTED.load(Ordering::SeqCst)
@@ -576,23 +576,23 @@ pub fn get_focused_display(displays: Vec<DisplayInfo>) -> Option<usize> {
 }
 
 pub fn get_cursor() -> ResultType<Option<u64>> {
-    // DRM/KMS capture: the hardware cursor arrives over the `_drm` stream, not from XFixes.
+    // DRM/KMS 采集：硬件光标通过 `_drm` 流到达，而不是来自 XFixes。
     //
-    // The MEMOISED `is_x11()` here, deliberately, unlike the capture-path callers that take the
-    // unmemoised `scrap::is_x11()` because this one latches on first use. The tradeoff is the other
-    // way round at cursor cadence: the unmemoised form forks `loginctl` per call, and this runs on
-    // every cursor poll. A latch that guessed wrong costs a cursor served by the wrong source until
-    // the process restarts, not a capture that cannot start -- and by the time a cursor is being
-    // polled there is a live session, which is the case the latch reads correctly.
+    // 此处特意使用记忆化的 `is_x11()`，不同于采集路径上的调用方——它们使用的是
+    // 未记忆化的 `scrap::is_x11()`，因为这一版是首次使用即锁定。取舍正好相反：
+    // 在光标轮询频率下，未记忆化版本每次调用都会 fork `loginctl`，而这里
+    // 在每次光标轮询时都会运行。锁定一旦猜错，代价只是直到
+    // 进程重启之前光标由错误的来源提供，而不是采集无法启动 —— 而且等到真的在轮询光标时
+    // ，说明存在活动会话，而这正是锁定读取正确的情况。
     #[cfg(feature = "drm")]
     if !is_x11() {
         if let Some(id) = crate::server::drm_capturer::drm_cursor_id() {
-            // In a mixed DRM + PipeWire session the DRM streams only cover the DRM-backed displays;
-            // when the pointer sits on a PipeWire-served display every DRM stream reports the hidden
-            // sentinel. Returning that sentinel here would hide the cursor globally, including on the
-            // PipeWire display where it is still visible, so only report a hidden DRM cursor when it
-            // is authoritative -- a pure-DRM session. A visible DRM cursor is always authoritative;
-            // otherwise fall through to the normal cursor path.
+            // 在 DRM + PipeWire 混合会话中，DRM 流只覆盖由 DRM 支撑的显示器；
+            // 当指针位于由 PipeWire 提供的显示器上时，每个 DRM 流都会报告那个隐藏
+            // 哨兵值。在这里返回该哨兵值会在全局隐藏光标，包括在
+            // 光标依然可见的 PipeWire 显示器上也是如此，所以只有当 DRM 光标
+            // 具有权威性时（即纯 DRM 会话）才报告它被隐藏。可见的 DRM 光标始终具有权威性；
+            // 否则继续走常规的光标路径。
             if id != scrap::drm_reader::HIDDEN_CURSOR_ID
                 || !crate::server::display_service::has_non_drm_backed_display()
             {
@@ -618,18 +618,18 @@ pub fn get_cursor() -> ResultType<Option<u64>> {
 }
 
 pub fn get_cursor_data(hcursor: u64) -> ResultType<CursorData> {
-    // DRM/KMS capture: return the latest hardware-cursor snapshot from the `_drm` stream. Its id may
-    // have advanced past `hcursor` between get_cursor() and here, so return the latest rather than
-    // bailing (which would trigger a MouseCursorService backoff).
+    // DRM/KMS 采集：返回来自 `_drm` 流的最新硬件光标快照。它的 id 可能
+    // 在 get_cursor() 与此处之间已经越过了 `hcursor`，所以返回最新的那个，而不是
+    // 直接放弃（那会触发 MouseCursorService 的退避）。
     //
-    // Memoised `is_x11()` on purpose, for the reason spelled out in `get_cursor()`; the two must
-    // agree anyway, since a caller that took the DRM branch there has to take it here.
+    // 出于 `get_cursor()` 中详细说明的原因，这里特意使用记忆化的 `is_x11()`；两者必须
+    // 保持一致，因为在那里走了 DRM 分支的调用方在这里也必须走该分支。
     #[cfg(feature = "drm")]
     if !is_x11() {
         if let Some(c) = crate::server::drm_capturer::drm_cursor() {
-            // See get_cursor(): a hidden DRM sentinel is authoritative only in a pure-DRM session. In
-            // a mixed DRM + PipeWire session fall through so the PipeWire display's cursor is served
-            // by the normal path instead of being hidden everywhere.
+            // 参见 get_cursor()：隐藏的 DRM 哨兵值仅在纯 DRM 会话中才具有权威性。在
+            // DRM + PipeWire 混合会话中继续往下走，让 PipeWire 显示器的光标由
+            // 常规路径提供，而不是到处都被隐藏。
             if c.id != scrap::drm_reader::HIDDEN_CURSOR_ID
                 || !crate::server::display_service::has_non_drm_backed_display()
             {
@@ -656,7 +656,7 @@ pub fn get_cursor_data(hcursor: u64) -> ResultType<CursorData> {
                         cd.hoty = (*img).yhot as _;
                         cd.width = (*img).width as _;
                         cd.height = (*img).height as _;
-                        // to-do: how about if it is 0
+                        // 待办：如果它是 0 怎么办
                         cd.id = (*img).cursor_serial as _;
                         let pixels =
                             std::slice::from_raw_parts((*img).pixels, (cd.width * cd.height) as _);
@@ -709,17 +709,17 @@ fn start_uinput_service() {
     });
 }
 
-/// Suggests the best terminal type based on the environment.
+/// 根据环境推测最佳终端类型。
 ///
-/// The function prioritizes terminal types in the following order:
-/// 1. `screen-256color`: Preferred when running inside `tmux` or `screen` sessions,
-///    as these multiplexers often support advanced terminal features.
-/// 2. `xterm-256color`: Selected if the terminal supports 256 colors, which is
-///    suitable for modern terminal applications.
-/// 3. `xterm`: Used as a fallback for basic terminal compatibility.
+/// 该函数按以下顺序确定终端类型的优先级：
+/// 1. `screen-256color`：在 `tmux` 或 `screen` 会话中运行时优先使用，
+///    因为这些多路复用器通常支持高级终端特性。
+/// 2. `xterm-256color`：当终端支持 256 色时选用，它
+///    适合现代终端应用。
+/// 3. `xterm`：作为基本终端兼容性的兜底。
 ///
-/// Terminals like `linux` and `vt100` are excluded because they lack support for
-/// modern features required by many applications.
+/// 像 `linux` 和 `vt100` 这样的终端被排除，因为它们不支持
+/// 许多应用所需的现代特性。
 fn suggest_best_term() -> String {
     if is_running_in_tmux() || is_running_in_screen() {
         return TERM_SCREEN_256COLOR.to_string();
@@ -752,7 +752,7 @@ fn term_supports_256_colors(term: &str) -> bool {
 }
 
 fn get_cur_term(uid: &str) -> Option<String> {
-    // Check cache first - if TERM_XTERM_256COLOR was found before, reuse it
+    // 先查缓存 —— 如果之前找到了 TERM_XTERM_256COLOR，就复用它
     if let Ok(cache) = CACHED_TERM.lock() {
         if let Some(ref cached) = *cache {
             if cached == TERM_XTERM_256COLOR {
@@ -765,28 +765,28 @@ fn get_cur_term(uid: &str) -> Option<String> {
         return None;
     }
 
-    // Check current process environment
+    // 检查当前进程的环境变量
     if let Ok(term) = std::env::var("TERM") {
         if term == TERM_XTERM_256COLOR {
             if let Ok(mut cache) = CACHED_TERM.lock() {
-                *cache = Some(term.clone());
+                * cache = Some(term.clone());
             }
             return Some(term);
         }
     }
 
-    // Collect all TERM values from shell processes, looking for TERM_XTERM_256COLOR
+    // 从 shell 进程收集所有 TERM 值，寻找 TERM_XTERM_256COLOR
     let terms = get_all_term_values(uid);
 
-    // Prefer TERM_XTERM_256COLOR
+    // 优先使用 TERM_XTERM_256COLOR
     if terms.iter().any(|t| t == TERM_XTERM_256COLOR) {
         if let Ok(mut cache) = CACHED_TERM.lock() {
-            *cache = Some(TERM_XTERM_256COLOR.to_string());
+            * cache = Some(TERM_XTERM_256COLOR.to_string());
         }
         return Some(TERM_XTERM_256COLOR.to_string());
     }
 
-    // Return first valid TERM if no TERM_XTERM_256COLOR found
+    // 如果没找到 TERM_XTERM_256COLOR，就返回第一个有效的 TERM
     let fallback = terms.into_iter().next();
     if let Some(ref term) = fallback {
         log::debug!(
@@ -797,16 +797,16 @@ fn get_cur_term(uid: &str) -> Option<String> {
     fallback
 }
 
-/// Get all TERM values from shell processes (bash, zsh, fish, sh).
-/// Returns a Vec of unique, valid TERM values.
+/// 获取所有 shell 进程（bash、zsh、fish、sh）的 TERM 值。
+/// 返回由不重复的有效 TERM 值组成的 Vec。
 fn get_all_term_values(uid: &str) -> Vec<String> {
     let Ok(uid_num) = uid.parse::<u32>() else {
         return Vec::new();
     };
 
-    // Build regex pattern to match shell processes using only argv[0] (the executable path)
-    // Pattern: match process name at start or after '/', followed by space or end
-    // e.g., "bash", "/bin/bash", "/usr/bin/zsh"
+    // 构造正则表达式，只用 argv[0]（可执行文件路径）匹配 shell 进程
+    // 模式：匹配位于开头或 '/' 之后的进程名，后面跟空格或结尾
+    // 例如 "bash"、"/bin/bash"、"/usr/bin/zsh"
     let shell_pattern = SHELL_PROCESSES
         .iter()
         .map(|p| format!(r"(^|/){p}(\s|$)"))
@@ -833,7 +833,7 @@ fn get_all_term_values(uid: &str) -> Vec<String> {
 
         let proc_path = entry.path();
 
-        // Check if process belongs to the specified uid
+        // 检查进程是否属于指定的 uid
         if let Ok(meta) = std::fs::metadata(&proc_path) {
             use std::os::unix::fs::MetadataExt;
             if meta.uid() != uid_num {
@@ -843,10 +843,10 @@ fn get_all_term_values(uid: &str) -> Vec<String> {
             continue;
         }
 
-        // Check cmdline matches process pattern
-        // /proc/<pid>/cmdline is a sequence of null-terminated strings; the first
-        // one (argv[0]) is the executable path. Match the regex only against that
-        // to avoid false positives from arguments (e.g., "python /path/to/bash-script.py").
+        // 检查 cmdline 是否匹配进程模式
+        // /proc/<pid>/cmdline 是一串以 null 结尾的字符串；第一个
+        // （argv[0]）是可执行文件路径。只对该
+        // 做正则匹配，以避免参数带来的误判（例如 "python /path/to/bash-script.py"）。
         let cmdline_path = proc_path.join("cmdline");
         let Ok(cmdline) = std::fs::read(&cmdline_path) else {
             continue;
@@ -860,7 +860,7 @@ fn get_all_term_values(uid: &str) -> Vec<String> {
             continue;
         }
 
-        // Read environ and extract TERM
+        // 读取 environ 并提取 TERM
         let environ_path = proc_path.join("environ");
         let Ok(environ) = std::fs::read(&environ_path) else {
             continue;
@@ -876,7 +876,7 @@ fn get_all_term_values(uid: &str) -> Vec<String> {
                     let val_bytes = &part[eq + 1..];
                     let term = String::from_utf8_lossy(val_bytes).into_owned();
                     if !INVALID_TERM_VALUES.contains(&term.as_str()) && !terms.contains(&term) {
-                        // Early return if we found the preferred term
+                        // 如果找到了首选的 term 就提前返回
                         if term == TERM_XTERM_256COLOR {
                             return vec![term];
                         }
@@ -985,14 +985,14 @@ fn start_server(desktop: Option<&Desktop>, server: &mut Option<Child>) {
     }
 }
 
-/// Whether a just-spawned `--server` is still running after a short grace period, taking ownership of
-/// the corpse (clearing `server`) when it is not. `start_server` reports only whether the SPAWN
-/// succeeded, which is not the same question: a child that execs and exits immediately still leaves
-/// `Some(child)` behind.
+/// 刚派生的 `--server` 在一段短暂宽限期后是否仍在运行，若不在则接管
+/// 这具尸体（并清空 `server`）。`start_server` 只报告派生
+/// 是否成功，这与问题并不相同：一个 exec 之后立刻退出的子进程仍然会留下
+/// `Some(child)`。
 ///
-/// A child that exits is detected as soon as it does; a healthy one costs the full grace, once per
-/// start. A server that dies LATER than this is a different (transient) failure, and the restart
-/// throttle in `should_start_server` already bounds that case.
+/// 退出的子进程一退出就会被检测到；健康的子进程每次启动都要花满整个宽限期，
+/// 每次 start 一次。晚于此才死掉的服务器属于另一种（瞬时）故障，而重启
+/// 节流已经放在 `should_start_server` 中，限制了这种情况。
 #[cfg(feature = "drm")]
 fn server_survived_grace(server: &mut Option<Child>) -> bool {
     const GRACE: Duration = Duration::from_millis(1000);
@@ -1005,11 +1005,11 @@ fn server_survived_grace(server: &mut Option<Child>) -> bool {
         match ps.try_wait() {
             Ok(Some(status)) => {
                 log::warn!("--server exited {status} within {GRACE:?} of starting");
-                *server = None;
+                * server = None;
                 return false;
             }
             Ok(None) => sleep_millis(STEP_MS),
-            // We cannot tell; treat it as alive rather than tearing down a possibly healthy child.
+            // 无法判断；把它当作仍在运行，而不是拆掉一个可能健康的子进程。
             Err(err) => {
                 log::error!("error waiting on the just-started --server: {err}");
                 return true;
@@ -1066,7 +1066,7 @@ fn should_start_server(
     let mut should_kill = false;
 
     if is_display_changed || desktop.uid != *uid && !desktop.uid.is_empty() {
-        *uid = desktop.uid.clone();
+        * uid = desktop.uid.clone();
         if try_x11 {
             set_x11_env(&desktop);
         }
@@ -1080,13 +1080,13 @@ fn should_start_server(
     {
         let terminal_session_count = crate::ipc::get_terminal_session_count().unwrap_or(0);
         if terminal_session_count > 0 {
-            // There are terminal sessions, so we don't restart the server.
-            // We also need to keep `cm0` unchanged, so that we can reach this branch the next time.
+            // 存在终端会话，因此我们不重启服务器。
+            // 我们还需要保持 `cm0` 不变，这样下次才能再次走到这个分支。
             return false;
         }
-        // restart server if new connections all closed, or every one hour,
-        // as a workaround to resolve "SpotUdp" (dns resolve)
-        // and x server get displays failure issue
+        // 当所有新连接都已关闭时，或者每隔一小时，重启服务器，
+        // 作为解决 "SpotUdp"（DNS 解析）问题的变通办法
+        // 以及 X server 获取显示器失败的问题
         should_kill = true;
         log::info!("restart server");
     }
@@ -1095,14 +1095,14 @@ fn should_start_server(
         if let Some(ps) = server.as_mut() {
             allow_err!(ps.kill());
             sleep_millis(30);
-            *last_restart = Instant::now();
+            * last_restart = Instant::now();
         }
     }
 
     if let Some(ps) = server.as_mut() {
         match ps.try_wait() {
             Ok(Some(_)) => {
-                *server = None;
+                * server = None;
                 start_new = true;
             }
             _ => {}
@@ -1114,8 +1114,8 @@ fn should_start_server(
     start_new
 }
 
-// to-do: stop_server(&mut user_server); may not stop child correctly
-// stop_rustdesk_servers() is just a temp solution here.
+// 待办：stop_server(&mut user_server)；可能无法正确停止子进程
+// 这里的 stop_rustdesk_servers() 只是一个临时方案。
 fn force_stop_server() {
     stop_rustdesk_servers();
     sleep_millis(super::SERVICE_INTERVAL);
@@ -1130,16 +1130,16 @@ pub fn start_os_service() {
         allow_err!(crate::ipc::start(crate::POSTFIX_SERVICE));
     });
 
-    // DRM/KMS capture producer (opt-in `drm` feature): a dedicated thread + runtime that streams
-    // scanout frames to the user `--server` over the `_drm` service-scoped channel. Runs here
-    // because this process is the root service that already holds CAP_SYS_ADMIN for the in-process
-    // (direct-mode) libdrmtap read.
+    // DRM/KMS 采集生产者（可选的 `drm` 特性）：一个专用线程 + 运行时，用于把
+    // 扫描输出帧通过 `_drm` 服务范围通道送到用户的 `--server`。在这里运行，
+    // 因为这个进程就是 root 服务，已经为进程内的
+    // （direct-mode）libdrmtap 读取持有 CAP_SYS_ADMIN。
     //
-    // Builder, like every other thread this feature starts: `thread::spawn` PANICS if the thread
-    // cannot be created (EAGAIN under a thread-count or memory limit), and here that panic would
-    // unwind out of `start_os_service` -- taking down the root service itself, for a feature whose
-    // failure should only cost DRM capture. Losing the producer leaves the consumer to fall back to
-    // PipeWire/X11, which is the same path a host without the feature takes.
+    // Builder，与该特性启动的其他每个线程一样：`thread::spawn` 在无法创建线程时会 PANIC
+    // （在线程数或内存限制下会出现 EAGAIN），而这里这个 panic 会
+    // 从 `start_os_service` 中展开出去 —— 把 root 服务本身带崩，而该特性的
+    // 失败本应只损失 DRM 采集。失去生产者后，消费者只能回退到
+    // PipeWire/X11，这与未启用该特性的主机走的路径相同。
     #[cfg(feature = "drm")]
     if let Err(err) = std::thread::Builder::new()
         .name("drm-producer".into())
@@ -1173,12 +1173,12 @@ pub fn start_os_service() {
         desktop.refresh();
         update_active_user_lookup_cache(&desktop);
 
-        // Duplicate logic here with should_start_server.
+        // 此处与 should_start_server 的逻辑重复。
         if desktop.username == "root" || desktop.is_login_wayland() {
-            // try kill subprocess "--server"
+            // 尝试 kill 子进程 "--server"
             stop_server(&mut user_server);
-            // try start subprocess "--server"
-            // No need to check is_display_changed here.
+            // 尝试启动子进程 "--server"
+            // 此处无需检查 is_display_changed。
             if should_start_server(
                 true,
                 false,
@@ -1189,29 +1189,29 @@ pub fn start_os_service() {
                 &mut server,
             ) {
                 force_stop_server();
-                // Run the login-screen --server as the active seat0 session user (the greeter
-                // account) rather than root, so the DRM capture GPU/EGL convert never loads the
-                // vendor GPU userspace in a privileged process. is_login_wayland() matches a GDM or
-                // SDDM Wayland greeter (is_gdm_user covers both), and desktop.uid is that greeter's
-                // uid, so this drops to whichever greeter owns seat0. A greeter is_gdm_user does not
-                // recognize (e.g. LightDM) never reaches this branch -- it takes the unprivileged
-                // else-branch below already. A genuine root graphical session (username=="root")
-                // has no lower uid to drop to, so it stays root. The whole branch is gated on the drm
-                // feature, so the drm-off build is upstream's single `start_server(None, ..)` line.
+                // 以活动的 seat0 会话用户（登录界面
+                // 账户）而非 root 的身份运行登录界面的 --server，这样 DRM 采集的 GPU/EGL 转换就不会在特权进程中加载
+                // 厂商的 GPU 用户态。is_login_wayland() 会匹配 GDM 或
+                // SDDM 的 Wayland 登录界面（is_gdm_user 覆盖两者），而 desktop.uid 就是该登录界面的
+                // uid，因此这里会降权到占有 seat0 的那个登录界面。is_gdm_user 无法识别的登录界面
+                // （例如 LightDM）根本不会走到这个分支 —— 它走的是下面那个非特权的
+                // else 分支。真正的 root 图形会话（username=="root"）
+                // 没有更低的 uid 可降，因此保持 root。整个分支都以 drm
+                // 特性为前提，所以关闭 drm 的构建就是上游那一行 `start_server(None, ..)`。
                 #[cfg(not(feature = "drm"))]
                 start_server(None, &mut server);
                 #[cfg(feature = "drm")]
                 if desktop.username != "root" && !desktop.uid.is_empty() {
                     start_server(Some(&desktop), &mut server);
-                    // If dropping to the greeter uid did not produce a RUNNING server, fall back to a
-                    // root --server so the login screen stays remotable instead of looping on a
-                    // failing greeter spawn. This pays the GPU-in-root tradeoff only on that failure
-                    // path, never in the normal greeter case. Liveness, not just spawn success: a
-                    // greeter account that cannot actually run it (a nologin shell, a hardened home,
-                    // no writable config dir) leaves a child that exits at once, and the loop above
-                    // notices only that the child is gone and respawns it, forever, without ever
-                    // reaching this fallback -- so the login screen becomes permanently un-remotable
-                    // on a host where it used to work.
+                    // 如果降权到登录界面 uid 之后没有产生一个 RUNNING 的服务器，就回退到以
+                    // root 运行 --server，让登录界面仍可被远程访问，而不是在
+                    // 失败的登录界面派生上反复循环。这样只在那条失败路径上才付出 GPU 在 root 中运行的代价，
+                    // 正常的登录界面场景绝不会付出。这里看的是存活，而不只是派生成功：一个
+                    // 根本无法真正运行它的登录界面账户（nologin shell、受限的主目录、
+                    // 没有可写配置目录）会留下一个立刻退出的子进程，而上面的循环
+                    // 只会发现子进程不见了并无休止地重新派生，永远不会
+                    // 走到这个回退 —— 于是登录界面会变得永久无法远程访问，
+                    // 在原本可以正常工作的主机上。
                     if !server_survived_grace(&mut server) {
                         log::warn!(
                             "greeter --server did not stay up; falling back to a root --server"
@@ -1223,14 +1223,14 @@ pub fn start_os_service() {
                 }
             }
         } else if desktop.username != "" {
-            // try kill subprocess "--server"
+            // 尝试 kill 子进程 "--server"
             stop_server(&mut server);
 
             let is_display_changed = desktop.display != display || desktop.xauth != xauth;
             display = desktop.display.clone();
             xauth = desktop.xauth.clone();
 
-            // try start subprocess "--server"
+            // 尝试启动子进程 "--server"
             if should_start_server(
                 !desktop.is_wayland(),
                 is_display_changed,
@@ -1251,7 +1251,7 @@ pub fn start_os_service() {
 
         let keeps_session = sid == desktop.sid;
         if keeps_session {
-            // for fixing https://github.com/rustdesk/rustdesk/issues/3129 to avoid too much dbus calling,
+            // 用于修复 https://github.com/rustdesk/rustdesk/issues/3129，避免过多 dbus 调用，
             sleep_millis(500);
         } else {
             sleep_millis(super::SERVICE_INTERVAL);
@@ -1269,8 +1269,8 @@ pub fn start_os_service() {
 }
 
 #[inline]
-/// Returns the cached active `(uid, username)` snapshot when available.
-/// Callers that require a fresh seat0 lookup should call `get_values_of_seat0` directly.
+/// 在可用时返回缓存的活动 `(uid, username)` 快照。
+/// 需要重新查询 seat0 的调用方应直接调用 `get_values_of_seat0`。
 pub fn get_active_user_id_name() -> (String, String) {
     if let Some(id_name) = get_active_user_id_name_from_cache() {
         return id_name;
@@ -1280,8 +1280,8 @@ pub fn get_active_user_id_name() -> (String, String) {
 }
 
 #[inline]
-/// Returns the cached active uid when available.
-/// Callers that require a fresh seat0 lookup should call `get_values_of_seat0` directly.
+/// 在可用时返回缓存的活动 uid。
+/// 需要重新查询 seat0 的调用方应直接调用 `get_values_of_seat0`。
 pub fn get_active_userid() -> String {
     if let Some((uid, _)) = get_active_user_id_name_from_cache() {
         return uid;
@@ -1290,10 +1290,10 @@ pub fn get_active_userid() -> String {
 }
 
 #[inline]
-/// Returns the active uid from a fresh seat0 lookup, bypassing the service-loop cache.
+/// 通过重新查询 seat0 返回活动 uid，绕过服务循环的缓存。
 pub fn get_active_userid_fresh() -> String {
-    // A Wayland greeter owns seat0 while it is up and the DRM backend serves it, so a uid gate that
-    // cannot see it rejects the greeter's own `--server`. `Desktop::refresh` reads it the same way.
+    // Wayland 登录界面在显示期间占有 seat0，并且由 DRM 后端提供画面，所以一个看不到它的 uid 判断
+    // 会拒绝登录界面自己的 `--server`。`Desktop::refresh` 也以同样方式读取它。
     #[cfg(feature = "drm")]
     return get_values_of_seat0_with_gdm_wayland(&[1])[0].clone();
     #[cfg(not(feature = "drm"))]
@@ -1301,17 +1301,17 @@ pub fn get_active_userid_fresh() -> String {
 }
 
 #[inline]
-/// The cached active uid as a number, or `None` when the cache is empty. Unlike `get_active_userid`
-/// this NEVER falls back to a blocking `loginctl` seat0 lookup, so it is safe to call on an async
-/// runtime thread and on a hot path (e.g. per-frame re-auth): a cache miss returns `None` for the
-/// caller to treat as "active session momentarily unknown" rather than stalling on a subprocess.
+/// 以数字形式返回缓存的活动 uid，缓存为空时返回 `None`。与 `get_active_userid` 不同，
+/// 它绝不会退回到阻塞式的 `loginctl` seat0 查询，因此可以安全地在异步
+/// 运行时线程和热点路径（如逐帧重新认证）上调用：缓存未命中时返回 `None`，由
+/// 调用方将其视为"活动会话暂时未知"，而不是阻塞在子进程上。
 pub fn get_active_userid_cached() -> Option<u32> {
     get_active_user_id_name_from_cache().and_then(|(uid, _)| uid.parse::<u32>().ok())
 }
 
 fn get_cm() -> bool {
-    // Runs twice a second in the service loop, so walk /proc rather than forking `ps aux`; that
-    // fork is also what the `CMD_PS` audit-message workaround this replaces was for.
+    // 它在服务循环中每秒运行两次，所以应该遍历 /proc 而不是 fork `ps aux`；那个
+    // fork 正是它所替换的 `CMD_PS` 审计消息变通方案的目的。
     let cm = format!(
         "{} --cm",
         std::env::current_exe()
@@ -1344,7 +1344,7 @@ pub fn current_is_wayland() -> bool {
     return is_desktop_wayland() && unsafe { UNMODIFIED };
 }
 
-// to-do: test the other display manager
+// 待办：测试其他显示管理器
 fn _get_display_manager() -> String {
     if let Ok(x) = std::fs::read_to_string("/etc/X11/default-display-manager") {
         if let Some(x) = x.split("/").last() {
@@ -1355,11 +1355,11 @@ fn _get_display_manager() -> String {
 }
 
 #[inline]
-/// Returns the cached active username when available.
-/// Callers that require a fresh seat0 lookup should call `get_values_of_seat0` directly.
+/// 在可用时返回缓存的活动用户名。
+/// 需要重新查询 seat0 的调用方应直接调用 `get_values_of_seat0`。
 pub fn get_active_username() -> String {
-    // Flatpak runs only inside the logged-in user's session, and Flathub builds
-    // cannot reach the host's loginctl.
+    // Flatpak 只在已登录用户的会话内运行，而 Flathub 构建
+    // 无法访问主机的 loginctl。
     if is_flatpak() {
         return crate::username();
     }
@@ -1388,7 +1388,7 @@ pub fn get_active_user_home() -> Option<PathBuf> {
     if !username.is_empty() {
         match get_user_home_by_name(&username) {
             None => {
-                // fallback to most common default pattern
+                // 回退到最常见的默认模式
                 let home = PathBuf::from(format!("/home/{}", username));
                 if home.exists() {
                     return Some(home);
@@ -1424,18 +1424,18 @@ pub fn is_prelogin() -> bool {
     false
 }
 
-// Check "Lock".
-// "Switch user" can't be checked, because `get_values_of_seat0(&[0])` does not return the session.
-// The logged in session is "online" not "active".
-// And the "Switch user" screen is usually Wayland login session, which we do not support.
+// 检查 "Lock"。
+// 无法检查 "Switch user"，因为 `get_values_of_seat0(&[0])` 不会返回该会话。
+// 已登录的会话是 "online" 而不是 "active"。
+// 而且 "Switch user" 界面通常是 Wayland 登录会话，我们并不支持。
 pub fn is_locked() -> bool {
     if is_prelogin() {
         return false;
     }
 
     let values = get_values_of_seat0(&[0]);
-    // Though the values can't be empty, we still add check here for safety.
-    // Because we cannot guarantee whether the internal implementation will change in the future.
+    // 虽然这些值不可能为空，我们仍在这里加上检查以确保安全。
+    // 因为我们无法保证内部实现将来是否会变化。
     // https://github.com/rustdesk/hbb_common/blob/ebb4d4a48cf7ed6ca62e93f8ed124065c6408536/src/platform/linux.rs#L119
     if values.is_empty() {
         log::debug!("Failed to check is locked, values vector is empty.");
@@ -1483,25 +1483,25 @@ where
 
     let xdg = &format!("XDG_RUNTIME_DIR=/run/user/{uid}");
     if *SUDO_E_PRESERVES_ENV {
-        // Original logic: use sudo -E to preserve environment
+        // 原有逻辑：使用 sudo -E 保留环境变量
         let mut args = vec![xdg, "-u", &username, cmd.to_str().unwrap_or("")];
         args.append(&mut arg.clone());
-        // -E is required to preserve env
+        // 需要 -E 才能保留环境变量
         args.insert(0, "-E");
         let task = Command::new("sudo").envs(envs).args(args).spawn()?;
         Ok(Some(task))
     } else {
-        // Fallback: sudo -u username env VAR=VALUE ... cmd args
-        // For systems where sudo -E is not supported (e.g., Ubuntu 25.10+)
+        // 回退方案：sudo -u username env VAR=VALUE ... cmd args
+        // 用于不支持 sudo -E 的系统（例如 Ubuntu 25.10+）
         //
-        // SECURITY: No shell is involved here (we use execve-style argv).
-        // Environment is passed via `env` arguments,
-        // so there is no shell injection vector.
+        // 安全：此处不涉及 shell（我们使用 execve 风格的 argv）。
+        // 环境变量通过 `env` 参数传递，
+        // 因此不存在命令注入的途径。
         //
-        // Only accept portable env var names (POSIX portable character set for shells).
-        // Most legitimate env vars follow [A-Za-z_][A-Za-z0-9_]* convention.
-        // Variables with dots (e.g., "java.home") are Java system properties, not env vars.
-        // Being restrictive here is intentional for security in this sudo context.
+        // 只接受可移植的环境变量名（shell 的 POSIX 可移植字符集）。
+        // 大多数合法的环境变量遵循 [A-Za-z_][A-Za-z0-9_]* 的约定。
+        // 带点的变量（例如 "java.home"）是 Java 系统属性，而不是环境变量。
+        // 这里刻意采取严格限制，是为了这个 sudo 场景下的安全性。
         fn is_valid_env_key(key: &str) -> bool {
             let mut it = key.chars();
             match it.next() {
@@ -1520,8 +1520,8 @@ where
                 log::warn!("Skipping environment variable with invalid key: '{}'. Only [A-Za-z_][A-Za-z0-9_]* are allowed in sudo context.", key);
                 continue;
             }
-            // IMPORTANT: do NOT add shell quotes here; `Command` does not invoke a shell.
-            // Passing KEY=VALUE as a single argv element is safe and preserves spaces.
+            // 重要：此处不要添加 shell 引号；`Command` 不会调用 shell。
+            // 把 KEY=VALUE 作为单个 argv 元素传递是安全的，并且能保留空格。
             let mut arg = OsString::from(&*key);
             arg.push("=");
             arg.push(v.as_ref());
@@ -1612,21 +1612,21 @@ pub fn is_installed() -> bool {
     }
 }
 
-/// Get multiple environment variables from a process matching the given criteria.
-/// This version reads /proc directly instead of spawning shell commands.
+/// 从匹配给定条件的进程获取多个环境变量。
+/// 该版本直接读取 /proc，而不是派生 shell 命令。
 ///
-/// # Arguments
-/// * `uid` - User ID to filter processes
-/// * `process_pat` - Regex pattern to match process cmdline
-/// * `names` - Environment variable names to retrieve. **Must be <= 64 elements** due to
-///   the internal bitmask used for tie-breaking.
+/// # 参数
+/// * `uid` —— 用于筛选进程的用户 ID
+/// * `process_pat` —— 匹配进程 cmdline 的正则表达式
+/// * `names` —— 要获取的环境变量名。**必须 <= 64 个元素**，因为
+///   内部用于打破平局的位掩码。
 ///
-/// # Panics (debug builds)
-/// Panics if `names.len() > 64`.
+/// # panic（debug 构建）
+/// 当 `names.len() > 64` 时 panic。
 ///
-/// # Implementation notes
-/// - Returns values from a *single* best-matching process_pat (for consistency).
-/// - Avoids repeated scanning by parsing `environ` once per process.
+/// # 实现说明
+/// - 只返回来自*单个*最佳匹配 process_pat 的值（为保持一致性）。
+/// - 每个进程只解析一次 `environ`，避免重复扫描。
 fn get_envs<'a>(
     uid: &str,
     process_pat: &str,
@@ -1635,10 +1635,10 @@ fn get_envs<'a>(
     get_envs_where(uid, process_pat, names, false, |count| count == names.len())
 }
 
-/// The newest process matching `process_pat`, whatever it happens to carry: the semantics of the
-/// `ps -u <uid> -f | grep <pat> | tail -1` pipeline the callers below used before. A variable this
-/// process does not have means moving on to the next pattern, never on to an older process that
-/// may belong to a session which has since logged out.
+/// 匹配 `process_pat` 的最新进程，无论它恰好带着什么：这就是下面这些调用方
+/// 此前使用的 `ps -u <uid> -f | grep <pat> | tail -1` 管道语义。该进程
+/// 没有的某个变量意味着转向下一个模式，而绝不转向更老的进程——
+/// 那个进程可能属于此后已注销的会话。
 fn get_envs_of_newest<'a>(
     uid: &str,
     process_pat: &str,
@@ -1647,9 +1647,9 @@ fn get_envs_of_newest<'a>(
     get_envs_where(uid, process_pat, names, true, |_| true)
 }
 
-/// `get_envs` with the caller's own process order and its own notion of a complete answer, told
-/// how many of `names` the process carries: the first process `accept` takes wins outright, and
-/// the count-based ranking is only the fallback for when no process is accepted at all.
+/// `get_envs` 带有调用方自己的进程顺序和对完整答案的判断，并被告知
+/// 该进程携带了 `names` 中的多少项：第一个被 `accept` 接受的进程直接胜出，而
+/// 基于数量的排序只是在完全没有进程被接受时的兜底。
 fn get_envs_where<'a, F>(
     uid: &str,
     process_pat: &str,
@@ -1660,7 +1660,7 @@ fn get_envs_where<'a, F>(
 where
     F: FnMut(usize) -> bool,
 {
-    // The tie-breaking logic uses a u64 bitmask, limiting us to 64 variables.
+    // 打破平局的逻辑使用 u64 位掩码，把我们限制在 64 个变量以内。
     debug_assert!(
         names.len() <= 64,
         "get_envs: names.len() must be <= 64, got {}",
@@ -1677,8 +1677,8 @@ where
         return empty;
     };
 
-    // Used for stable tie-breaking when multiple processes match.
-    // Higher bits correspond to earlier entries in `names`.
+    // 当匹配到多个进程时用于稳定地打破平局。
+    // 更高的位对应 `names` 中更靠前的条目。
     let name_indices: std::collections::HashMap<&'a str, usize> =
         names.iter().enumerate().map(|(i, &n)| (n, i)).collect();
 
@@ -1686,11 +1686,11 @@ where
     let mut best_count = 0usize;
     let mut best_mask: u64 = 0;
 
-    // Iterate /proc to find matching processes. `newest_first` is only for `get_envs_of_newest`,
-    // whose callers need the last PID-ordered match their `ps ... | tail -1` pipelines took;
-    // without it the order is whatever readdir returns, which is what `get_envs` has always used.
-    // Neither order identifies the active session -- a user with two live graphical sessions has
-    // one of each, and picking by PID guesses. See `Desktop::refresh` for who owns that question.
+    // 遍历 /proc 以查找匹配的进程。`newest_first` 只用于 `get_envs_of_newest`，
+    // 其调用方需要的是它们的 `ps ... | tail -1` 管道所取到的最后一个按 PID 排序的匹配项；
+    // 没有它时，顺序取决于 readdir 的返回顺序，`get_envs` 一直都是这么做的。
+    // 两种顺序都无法确定活动会话 —— 一个拥有两个活动图形会话的用户
+    // 两者各有一个，靠 PID 选就是猜。参见 `Desktop::refresh` 了解谁负责这个问题。
     let Ok(entries) = std::fs::read_dir("/proc") else {
         return best;
     };
@@ -1705,7 +1705,7 @@ where
     for pid in pids {
         let proc_path = std::path::Path::new("/proc").join(pid.to_string());
 
-        // Check if process belongs to the specified uid
+        // 检查进程是否属于指定的 uid
         if let Ok(meta) = std::fs::metadata(&proc_path) {
             use std::os::unix::fs::MetadataExt;
             if meta.uid() != uid_num {
@@ -1715,23 +1715,23 @@ where
             continue;
         }
 
-        // Check cmdline matches process pattern
+        // 检查 cmdline 是否匹配进程模式
         let cmdline_path = proc_path.join("cmdline");
         let Ok(cmdline) = std::fs::read(&cmdline_path) else {
             continue;
         };
         let cmdline_str = String::from_utf8_lossy(&cmdline).replace('\0', " ");
-        // The `grep -v 'grep'` of the pipeline this replaces. A user grepping for one of these
-        // patterns is otherwise the newest match for it, and answers with whatever environment
-        // their shell had -- an X forwarding endpoint over ssh, say.
+        // 相当于它所替换的管道中的 `grep -v 'grep'`。否则，一个 grep 这些
+        // 模式之一的用户会得到它的最新匹配项，而它返回的是该用户 shell 所带的
+        // 环境变量 —— 比如通过 ssh 转发的 X 转发端点。
         if cmdline_str.contains("grep") || !re.is_match(&cmdline_str) {
             continue;
         }
 
-        // Read environ and extract matching variables. A read that fails -- the process exited
-        // between these two reads -- is a process carrying none of `names`, not a process to
-        // skip: skipping it would hand `newest_first` on to an older PID, where the pipeline
-        // this replaces stopped at the single PID its `tail -1` had already picked.
+        // 读取 environ 并提取匹配的变量。读取失败 —— 进程在
+        // 这两次读取之间退出 —— 说明这是一个不携带任何 `names` 中变量的进程，而不是一个
+        // 应该跳过的进程：跳过它会把 `newest_first` 交给更老的 PID，而它所替换的管道
+        // 早已停在 `tail -1` 选中的那一个 PID 上。
         let environ = std::fs::read(proc_path.join("environ")).unwrap_or_default();
 
         let mut found = empty.clone();
@@ -1753,7 +1753,7 @@ where
             };
             if let Some(slot) = found.get_mut(key) {
                 if slot.is_empty() {
-                    *slot = String::from_utf8_lossy(val_bytes).into_owned();
+                    * slot = String::from_utf8_lossy(val_bytes).into_owned();
                     found_count += 1;
 
                     if let Some(&idx) = name_indices.get(key) {
@@ -1781,9 +1781,9 @@ where
     best
 }
 
-/// True when `pred` accepts the `/proc/<pid>/<file>` of any process, NULs turned into spaces,
-/// optionally only of processes owned by `uid`.
-/// Reads `/proc` directly instead of forking `ps` / `pgrep`, for the service-loop callers below.
+/// 当 `pred` 接受任意进程的 `/proc/<pid>/<file>`（NUL 转换为空格）时为真，
+/// 可选地只限于 `uid` 拥有的进程。
+/// 直接读取 `/proc` 而不是 fork `ps` / `pgrep`，供下面的服务循环调用方使用。
 fn any_process<F: Fn(&str) -> bool>(uid: Option<u32>, file: &str, pred: F) -> bool {
     let Ok(entries) = std::fs::read_dir("/proc") else {
         return false;
@@ -1851,7 +1851,7 @@ pub fn elevate(args: Vec<&str>) -> ResultType<bool> {
         Some(cmd) => {
             let mut args_with_exe = vec![cmd];
             args_with_exe.append(&mut args.clone());
-            // -E required for opensuse
+            // opensuse 需要 -E
             if is_opensuse() {
                 args_with_exe.insert(0, "-E");
             }
@@ -1947,7 +1947,7 @@ pub fn resolutions(name: &str) -> Vec<Resolution> {
     if let Ok(re) = Regex::new(&format!("{}{}", connected_pat, resolutions_pat)) {
         match run_cmds("xrandr --query | tr -s ' '") {
             Ok(xrandr_output) => {
-                // There'are different kinds of xrandr output.
+                // xrandr 输出有不同种类。
                 /*
                 1.
                 Screen 0: minimum 320 x 175, current 1920 x 1080, maximum 1920 x 1080
@@ -2049,13 +2049,13 @@ pub fn change_resolution_directly(name: &str, width: usize, height: usize) -> Re
     Ok(())
 }
 
-/// Scoped to `uid`, the user of the session being refreshed: the compositor starts Xwayland as
-/// that user, so another user's Xwayland -- a switched-away session, a second seat -- answering
-/// this used to route a pure-Wayland session into the Xwayland probe, which has no display for
-/// it to find. A uid that cannot be parsed falls back to the unscoped answer.
+/// 限定在 `uid`（正在刷新的会话所属用户）范围内：合成器以该用户身份启动 Xwayland，
+/// 所以另一个用户的 Xwayland —— 被切换走的会话、第二个座位 —— 一旦响应
+/// 就会把纯 Wayland 会话引到 Xwayland 探测上，而它没有可用的显示器
+/// 供其查找。无法解析的 uid 会回退到无范围限制的结果。
 #[inline]
 pub fn is_xwayland_running(uid: &str) -> bool {
-    // Same test as the `pgrep -a Xwayland` this replaces: the process name, not its command line.
+    // 与它所替换的 `pgrep -a Xwayland` 相同的检测：看进程名，而不是命令行。
     any_process(uid.parse::<u32>().ok(), "comm", |comm| {
         comm.contains("Xwayland")
     })
@@ -2067,7 +2067,7 @@ mod desktop {
     pub const XFCE4_PANEL: &str = "xfce4-panel";
     pub const SDDM_GREETER: &str = "sddm-greeter";
 
-    // xdg-desktop-portal runs on all Wayland desktops (GNOME, KDE, wlroots, etc.)
+    // xdg-desktop-portal 在所有 Wayland 桌面（GNOME、KDE、wlroots 等）上都会运行
     const XDG_DESKTOP_PORTAL: &str = "xdg-desktop-portal";
     const XWAYLAND: &str = "Xwayland";
     const IBUS_DAEMON: &str = "ibus-daemon";
@@ -2079,9 +2079,9 @@ mod desktop {
     const ENV_KEY_WAYLAND_DISPLAY: &str = "WAYLAND_DISPLAY";
     const ENV_KEY_DBUS_SESSION_BUS_ADDRESS: &str = "DBUS_SESSION_BUS_ADDRESS";
 
-    /// A compositor that runs Xwayland without exporting `XAUTHORITY` (wlroots, e.g. Hyprland)
-    /// still hands out a usable session through the Wayland side. Requiring xauth there never
-    /// succeeded, so every refresh ran the retry loop to the end.
+    /// 运行 Xwayland 却不导出 `XAUTHORITY` 的合成器（例如基于 wlroots 的 Hyprland）
+    /// 仍然能通过 Wayland 一侧提供可用会话。在那里要求 xauth 从来
+    /// 不会成功，所以每次刷新都会把重试循环跑到底。
     /// https://github.com/rustdesk/rustdesk/issues/15952
     fn is_session_env_complete(envs: &std::collections::HashMap<&str, String>) -> bool {
         let value = |key: &str| envs.get(key).map_or("", |v| v.as_str());
@@ -2117,7 +2117,7 @@ mod desktop {
 
         fn get_display_xauth_wayland(&mut self) {
             for _ in 1..=10 {
-                // Prefer Wayland-related variables first when multiple portal processes match.
+                // 当匹配到多个 portal 进程时，优先选择与 Wayland 相关的变量。
                 let mut envs = get_envs(
                     &self.uid,
                     XDG_DESKTOP_PORTAL,
@@ -2134,9 +2134,9 @@ mod desktop {
                 self.dbus = envs
                     .remove(ENV_KEY_DBUS_SESSION_BUS_ADDRESS)
                     .unwrap_or_default();
-                // For pure Wayland sessions, prefer `WAYLAND_DISPLAY`.
+                // 对于纯 Wayland 会话，优先使用 `WAYLAND_DISPLAY`。
                 // NOTE: On some systems (e.g. Ubuntu 25.10), `DISPLAY`/`XAUTHORITY` may exist even when XWayland
-                // is not running, so do NOT treat them as a success condition here.
+                // 并未运行，所以此处不要把它们当作成功条件。
                 let has_wayland = !self.wl_display.is_empty();
                 let has_dbus = !self.dbus.is_empty();
                 if has_wayland && has_dbus {
@@ -2180,16 +2180,16 @@ mod desktop {
                     let dbus = envs
                         .remove(ENV_KEY_DBUS_SESSION_BUS_ADDRESS)
                         .unwrap_or_default();
-                    // Take a candidate whole. Two graphical sessions of one user each answer
-                    // some of these, and a display paired with another session's xauth or
-                    // compositor is a pair that never existed. So rank candidates rather than
-                    // merge them, and keep the best seen: the later patterns are fallbacks.
+                    // 完整地取一个候选。同一用户的两个图形会话各自都会回答
+                    // 其中的一部分，而把某个显示器与另一个会话的 xauth 或
+                    // 合成器配在一起，则是一对根本不存在的组合。所以应该对候选进行排序，而不是
+                    // 把它们合并起来，并保留目前见过的最佳项：靠后的模式是兜底。
                     //
-                    // The Wayland-only rank matters when `is_xwayland_running` matched some other
-                    // user's Xwayland and this session has none of its own. Nothing here can then
-                    // answer with a display, and dropping the candidate for that would leave the
-                    // child server without the compositor and bus of a session that is perfectly
-                    // serveable through them.
+                    // 当 `is_xwayland_running` 匹配到别的
+                    // 用户的 Xwayland，而当前会话没有自己的 Xwayland 时，纯 Wayland 的排序就很重要了。这时这里没有任何东西能
+                    // 给出显示器，而丢掉那个候选会让
+                    // 子服务器失去一个本可正常
+                    // 通过它们访问的会话的合成器和总线。
                     let rank = if complete {
                         3
                     } else if !wl_display.is_empty() && !dbus.is_empty() {
@@ -2210,11 +2210,11 @@ mod desktop {
                         return;
                     }
                 }
-                // The Wayland pair on its own is a session the child server can be started
-                // against -- it is what `get_display_xauth_wayland` returns on. Retrying is for a
-                // session that has not finished coming up, and a compositor whose Xwayland starts
-                // on demand may never export a `DISPLAY` for this walk to find, so waiting ten
-                // more rounds for one costs the whole probe again on every refresh.
+                // 仅凭这一对 Wayland 信息，本身就是一个子服务器可以
+                // 据此启动的会话 —— 那正是 `get_display_xauth_wayland` 会返回的内容。重试针对的是
+                // 尚未完全启动起来的会话，以及 Xwayland 按需启动的
+                // 合成器 —— 它可能永远不会导出可供本次遍历查找的 `DISPLAY`，所以为一次探测多等十轮
+                // ，每次刷新都要重新付出整个探测的代价。
                 if kept >= 2 {
                     break;
                 }
@@ -2247,12 +2247,12 @@ mod desktop {
             }
 
             if self.display.is_empty() {
-                // logind stores the value pam_systemd was handed at session creation, which is not
-                // necessarily a local display: it can be qualified with this host (`myhost:0`) or
-                // name an X forwarding endpoint (`localhost:10.0`), and some setups record a bare
-                // `:`. Strip this host, then require a display number. `localhost` is deliberately
-                // left in place: a non-empty display here suppresses every fallback below, both
-                // `get_display_by_user` and the `:0` default, so anything not local must not pass.
+                // logind 保存的是会话创建时交给 pam_systemd 的值，它并不
+                // 一定是本地显示器：它可能带有本机主机名限定（`myhost:0`），或者
+                // 指向某个 X 转发端点（`localhost:10.0`），有些配置只记录一个裸的
+                // `:`。先去掉主机名，然后要求有显示器编号。`localhost` 是刻意
+                // 保留在原处的：这里非空的显示器会抑制下面所有兜底逻辑，包括
+                // `get_display_by_user` 和 `:0` 默认值，所以任何非本地的值都不能通过。
                 let display = Self::get_display_from_session(&self.sid)
                     .replace(&hbb_common::whoami::hostname(), "");
                 if display.strip_prefix(':').map_or(false, |number| {
@@ -2342,7 +2342,7 @@ mod desktop {
                                         self.xauth = format!("{}/{}", base_dir, v);
                                     };
                                 } else {
-                                    // unreachable!
+                                    // 不可达！
                                 }
                             }
                             return;
@@ -2353,7 +2353,7 @@ mod desktop {
         }
 
         fn get_xauth_x11(&mut self) {
-            // try by direct access to window manager process by name
+            // 尝试按名称直接访问窗口管理器进程
             let tray = format!("{} +--tray", crate::get_app_name().to_lowercase());
             for _ in 1..=10 {
                 let display_proc = vec![
@@ -2379,12 +2379,12 @@ mod desktop {
                 sleep_millis(300);
             }
 
-            // get from Xorg process, parameter and environment
+            // 从 Xorg 进程获取参数和环境变量
             if self.xauth.is_empty() {
                 self.get_xauth_from_xorg();
             }
 
-            // fallback to default file name
+            // 回退到默认文件名
             if self.xauth.is_empty() {
                 let gdm = format!("/run/user/{}/gdm/Xauthority", self.uid);
                 self.xauth = if std::path::Path::new(&gdm).exists() {
@@ -2428,8 +2428,8 @@ mod desktop {
                     }
                 }
             }
-            // above not work for gdm user
-            //log::debug!("ls -l /tmp/.X11-unix/");
+            // 上面的方法对 gdm 用户无效
+            // log::debug!("ls -l /tmp/.X11-unix/");
             let mut last = "".to_owned();
             if let Ok(output) = std::process::Command::new("ls")
                 .args(vec!["-l", "/tmp/.X11-unix/"])
@@ -2451,13 +2451,13 @@ mod desktop {
             last
         }
 
-        /// Preserves an active seat0 session's cached identity so the service loop only retries
-        /// late Wayland display discovery instead of repeating the full seat lookup.
+        /// 保留活动 seat0 会话的缓存身份，使服务循环只需重试
+        /// 后期的 Wayland 显示器发现，而不必重复完整的 seat 查询。
         pub fn refresh(&mut self) {
             if !self.sid.is_empty() && is_active_and_seat0(&self.sid) {
-                // Xwayland display and xauth may not be available in a short time after login.
-                // Avoid scanning processes on X11, where Xwayland discovery cannot provide any
-                // useful session information.
+                // 登录后短时间内 Xwayland 显示器和 xauth 可能还不可用。
+                // 在 X11 上避免扫描进程，因为 Xwayland 发现无法提供任何
+                // 有用的会话信息。
                 if self.is_wayland()
                     && !self.is_login_wayland()
                     && is_xwayland_running(&self.uid)
@@ -2471,7 +2471,7 @@ mod desktop {
 
             let seat0_values = get_values_of_seat0_with_gdm_wayland(&[0, 1, 2]);
             if seat0_values[0].is_empty() {
-                *self = Self::default();
+                * self = Self::default();
                 return;
             }
 
@@ -2482,20 +2482,20 @@ mod desktop {
             if self.is_login_wayland() {
                 self.display = "".to_owned();
                 self.xauth = "".to_owned();
-                // Resolve HOME even on this path. Upstream returned without it because nothing then
-                // consumed a login-Wayland Desktop, but the drm build starts a `--server` as the
-                // greeter uid here, and a child with no HOME has nowhere to put its config. The
-                // compositor variables (WAYLAND_DISPLAY, DBUS, DISPLAY, XAUTHORITY) are left blank
-                // on purpose and are NOT an oversight: the drm capture path talks to the root
-                // service over `_drm` and to a render node, never to the compositor or the portal,
-                // which is the entire reason it works at a login screen. `try_start_server_` skips
-                // empty entries, so the greeter child simply does not get them.
+                // 即使走这条路径也解析 HOME。上游当时直接返回是因为那之后没有东西
+                // 会消费登录 Wayland 的 Desktop，但 drm 构建会在这里以
+                // 登录界面 uid 启动一个 `--server`，而没有 HOME 的子进程无处存放其配置。合成器
+                // 变量（WAYLAND_DISPLAY、DBUS、DISPLAY、XAUTHORITY）被留空，
+                // 这是有意为之，并非疏漏：drm 采集路径是与 root
+                // 服务通过 `_drm` 以及渲染节点通信，从不与合成器或 portal 通信，
+                // 这正是它能在登录界面工作的全部原因。`try_start_server_` 会跳过
+                // 空条目，所以登录界面子进程根本拿不到它们。
                 //
-                // `is_login_wayland` needs `is_gdm_user(username)`, and a current GDM runs its
-                // greeter as `gdm-greeter`, which that helper does not match -- measured on the
-                // test host, where the greeter server therefore takes the branch below and gets a
-                // fully populated environment. This is for the display managers whose greeter user
-                // does match.
+                // `is_login_wayland` 需要 `is_gdm_user(username)`，而当前的 GDM 把它的
+                // 登录界面以 `gdm-greeter` 运行，该辅助函数匹配不上 —— 在测试主机上实测
+                // ，因此登录界面服务器会走下面的分支，得到一个
+                // 完整填充的环境变量。这适用于那些登录界面用户
+                // 能够匹配的显示管理器。
                 #[cfg(feature = "drm")]
                 self.get_home();
                 return;
@@ -2516,23 +2516,23 @@ mod desktop {
     }
 }
 
-/// A session-bus idle-inhibit interface, tried in order; the first that answers wins.
-/// `org.freedesktop.ScreenSaver` is absent on purpose: that is the one `keepawake` already tried.
+/// 会话总线上的空闲抑制接口，按顺序尝试；第一个响应的胜出。
+/// 故意不包含 `org.freedesktop.ScreenSaver`：那正是 `keepawake` 已经尝试过的。
 struct SessionInhibitTarget {
     dest: &'static str,
     path: &'static str,
     iface: &'static str,
-    /// GNOME takes `(app_id, xid, reason, flags)`; PowerManagement takes `(app, reason)`.
+    /// GNOME 接受 `(app_id, xid, reason, flags)`；PowerManagement 接受 `(app, reason)`。
     gnome_shape: bool,
     uninhibit: &'static str,
 }
 
-/// `org.gnome.SessionManager.Inhibit` flag 8 = idle only; logout/switch-user/suspend would take
-/// away actions the person at the machine should keep.
+/// `org.gnome.SessionManager.Inhibit` 的标志 8 = 仅空闲；注销/切换用户/挂起会占用
+/// 坐在机器前的人应当保留的操作。
 const GNOME_INHIBIT_IDLE: u32 = 8;
 
 const SESSION_INHIBIT_TARGETS: &[SessionInhibitTarget] = &[
-    // Measured on a GDM greeter: output held 129.9 s with the inhibit, 30.3 s without.
+    // 在 GDM 登录界面上实测：带抑制时输出维持 129.9 秒，不带时为 30.3 秒。
     SessionInhibitTarget {
         dest: "org.gnome.SessionManager",
         path: "/org/gnome/SessionManager",
@@ -2540,8 +2540,8 @@ const SESSION_INHIBIT_TARGETS: &[SessionInhibitTarget] = &[
         gnome_shape: true,
         uninhibit: "Uninhibit",
     },
-    // What powerdevil and xfce4-power-manager implement. NOT tested here; costs one failed call
-    // where absent, and the log below names every interface tried.
+    // powerdevil 和 xfce4-power-manager 实现的就是这个。此处未做测试；在接口缺失时
+    // 只需付出一次失败调用的代价，而下面的日志会列出尝试过的每个接口。
     SessionInhibitTarget {
         dest: "org.freedesktop.PowerManagement",
         path: "/org/freedesktop/PowerManagement/Inhibit",
@@ -2551,9 +2551,9 @@ const SESSION_INHIBIT_TARGETS: &[SessionInhibitTarget] = &[
     },
 ];
 
-/// Idle inhibit for the case `keepawake` cannot serve: it inhibits `org.freedesktop.ScreenSaver`,
-/// which a GDM greeter bus neither provides nor can activate, so its `create()` fails outright.
-/// The connection is kept because the inhibit is bound to it: dropping it releases the inhibit.
+/// 用于 `keepawake` 无法处理的场景的空闲抑制：它抑制 `org.freedesktop.ScreenSaver`，
+/// 而 GDM 登录界面的总线既不提供也无法激活它，所以它的 `create()` 会直接失败。
+/// 之所以保留该连接，是因为抑制与它绑定：丢弃连接就会释放抑制。
 struct SessionIdleInhibit {
     conn: dbus::blocking::Connection,
     target: &'static SessionInhibitTarget,
@@ -2579,7 +2579,7 @@ impl SessionIdleInhibit {
                     std::time::Duration::from_secs(3),
                 );
                 if target.gnome_shape {
-                    // Inhibit(s app_id, u xid, s reason, u flags) -> u cookie; xid 0 = no window.
+                    // Inhibit(s app_id, u xid, s reason, u flags) -> u cookie；xid 0 表示无窗口。
                     proxy.method_call(
                         target.iface,
                         "Inhibit",
@@ -2604,8 +2604,8 @@ impl SessionIdleInhibit {
                 Err(err) => refused.push(format!("{}: {err}", target.dest)),
             }
         }
-        // Name every interface tried and why it failed: on an untested desktop this log is what
-        // turns "the screen still blanks" into a report naming the missing interface.
+        // 列出尝试过的每个接口以及失败原因：在未测试的桌面上，正是这条日志
+        // 把"屏幕还是会黑屏"变成一份指出缺失接口的报告。
         log::info!(
             "wakelock: no session idle inhibitor answered, so the compositor may still blank this \
              screen ({})",
@@ -2622,8 +2622,8 @@ impl Drop for SessionIdleInhibit {
             self.target.path,
             std::time::Duration::from_secs(3),
         );
-        // Best effort: the session manager ties the inhibit to the caller's bus name, so dropping
-        // `conn` below releases it even if this call does not get through.
+        // 尽力而为：会话管理器把抑制与调用方的总线名称绑定，因此丢弃
+        // 下面的 `conn` 即便这次调用没成功也会释放它。
         let res: Result<(), dbus::Error> =
             proxy.method_call(self.target.iface, self.target.uninhibit, (self.cookie,));
         if let Err(err) = res {
@@ -2644,12 +2644,12 @@ impl WakeLock {
         {
             Ok(handle) => WakeLock(Some(handle), None),
             Err(err) => {
-                // Not `.ok()`: a discarded error is how a login screen ran with no inhibitor at
-                // all and nobody noticed.
+                // 不用 `.ok()`：被丢弃的错误曾导致登录界面在完全没有抑制器的情况下运行，
+                // 而且没有人察觉。
                 log::info!("wakelock: keepawake could not take the inhibit ({err})");
-                // keepawake asks for the ScreenSaver inhibit first and abandons the whole request
-                // if it fails, losing the logind idle/sleep inhibits that stop the HOST suspending
-                // mid-session. Re-ask without the display part: those are on the system bus.
+                // keepawake 先请求 ScreenSaver 抑制，若失败就放弃整个请求，
+                // 从而失去那些能阻止主机在会话中途挂起的 logind 空闲/睡眠抑制，
+                // 。重新请求时去掉显示部分：它们位于系统总线上。
                 let system = if idle || sleep {
                     match keepawake::Builder::new()
                         .display(false)
@@ -2692,15 +2692,15 @@ pub fn run_cmds_privileged(cmds: &str) -> bool {
     crate::platform::gtk_sudo::run(vec![cmds]).is_ok()
 }
 
-/// Spawn the current executable after a delay.
+/// 延迟一段时间后派生当前可执行文件。
 ///
-/// # Security
-/// The executable path is safely quoted using `shell_quote()` to prevent
-/// command injection vulnerabilities. The `secs` parameter is a u32, so it
-/// cannot contain malicious input.
+/// # 安全
+/// 可执行文件路径使用 `shell_quote()` 安全加引号，以防止
+/// 命令注入漏洞。`secs` 参数是 u32，因此它
+/// 不可能包含恶意输入。
 ///
-/// # Arguments
-/// * `secs` - Number of seconds to wait before spawning
+/// # 参数
+/// * `secs` —— 派生前等待的秒数
 pub fn run_me_with(secs: u32) {
     let exe = match std::env::current_exe() {
         Ok(path) => path,
@@ -2710,13 +2710,13 @@ pub fn run_me_with(secs: u32) {
         }
     };
 
-    // SECURITY: Use shell_quote to safely escape the executable path,
-    // preventing command injection even if the path contains special characters.
+    // 安全：使用 shell_quote 安全地转义可执行文件路径，
+    // 即使路径包含特殊字符也能防止命令注入。
     let exe_quoted = shell_quote(&exe.to_string_lossy());
 
-    // Spawn a background process that sleeps and then executes.
-    // The child process is automatically orphaned when parent exits,
-    // and will be adopted by init (PID 1).
+    // 派生一个先休眠再执行的后台进程。
+    // 父进程退出时子进程会自动成为孤儿进程，
+    // 并被 init（PID 1）收养。
     Command::new(CMD_SH.as_str())
         .arg("-c")
         .arg(&format!("sleep {secs}; exec {exe_quoted}"))
@@ -2725,8 +2725,8 @@ pub fn run_me_with(secs: u32) {
 }
 
 fn switch_service(stop: bool) -> String {
-    // SECURITY: Use trusted home directory lookup via getpwuid instead of $HOME env var
-    // to prevent confused-deputy attacks where an attacker manipulates environment variables.
+    // 安全：使用 getpwuid 进行可信的主目录查询，而不是 $HOME 环境变量，
+    // 以防止攻击者操纵环境变量的混淆代理攻击。
     let home = get_home_dir_trusted()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_default();
@@ -2736,8 +2736,8 @@ fn switch_service(stop: bool) -> String {
         let app_name0 = crate::get_app_name();
         let config_subdir = format!(".config/{}", app_name_lower);
 
-        // SECURITY: Quote all paths to prevent shell injection from paths containing
-        // spaces, semicolons, or other special characters.
+        // 安全：对所有路径加引号，防止包含
+        // 空格、分号或其他特殊字符的路径引发命令注入。
         let src1 = shell_quote(&format!("{}/{}/{}.toml", home, config_subdir, app_name0));
         let src2 = shell_quote(&format!("{}/{}/{}2.toml", home, config_subdir, app_name0));
         let dst = shell_quote(&format!("/root/{}/", config_subdir));
@@ -2750,20 +2750,20 @@ fn switch_service(stop: bool) -> String {
 
 pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
     if !has_cmd("systemctl") {
-        // Failed when installed + flutter run + started by `show_new_window`.
+        // 在已安装 + flutter run + 由 `show_new_window` 启动时失败。
         return false;
     }
     log::info!("Uninstalling service...");
     let cp = switch_service(true);
     let app_name = crate::get_app_name().to_lowercase();
-    // systemctl kill rustdesk --tray, execute cp first
+    // systemctl kill rustdesk --tray，先执行 cp
     if !run_cmds_privileged(&format!(
         "{cp} systemctl disable {app_name}; systemctl stop {app_name};"
     )) {
         Config::set_option("stop-service".into(), "".into());
         return true;
     }
-    // systemctl stop will kill child processes, below may not be executed.
+    // systemctl stop 会杀掉子进程，下面的代码可能不会被执行。
     if show_new_window {
         run_me_with(2);
     }
@@ -2796,8 +2796,8 @@ fn check_if_stop_service() {
 }
 
 pub fn check_autostart_config() -> ResultType<()> {
-    // SECURITY: Use trusted home directory lookup via getpwuid instead of $HOME env var
-    // to prevent confused-deputy attacks where an attacker manipulates environment variables.
+    // 安全：使用 getpwuid 进行可信的主目录查询，而不是 $HOME 环境变量，
+    // 以防止攻击者操纵环境变量的混淆代理攻击。
     let home = match get_home_dir_trusted() {
         Some(p) => p.to_string_lossy().to_string(),
         None => {
@@ -2813,7 +2813,7 @@ pub fn check_autostart_config() -> ResultType<()> {
     /*
         std::fs::create_dir_all(&path).ok();
         if !Path::new(&file).exists() {
-            // write text to the desktop file
+            // 把文本写入 desktop 文件
             let mut file = std::fs::File::create(&file)?;
             file.write_all(
                 format!(
@@ -2900,15 +2900,15 @@ pub fn is_selinux_enforcing() -> bool {
     }
 }
 
-/// Get the app ID for shortcuts inhibitor permission.
-/// Returns different ID based on whether running in Flatpak or native.
-/// The ID must match the installed .desktop filename, as GNOME Shell's
-/// inhibitShortcutsDialog uses `Shell.WindowTracker.get_window_app(window).get_id()`.
+/// 获取用于快捷键抑制权限的应用 ID。
+/// 根据是运行在 Flatpak 还是原生环境中返回不同的 ID。
+/// 该 ID 必须与已安装的 .desktop 文件名一致，因为 GNOME Shell 的
+/// inhibitShortcutsDialog 使用了 `Shell.WindowTracker.get_window_app(window).get_id()`。
 fn get_shortcuts_inhibitor_app_id() -> String {
     if is_flatpak() {
-        // In Flatpak, FLATPAK_ID is set automatically by the runtime to the app ID
-        // (e.g., "com.rustdesk.RustDesk"). This is the most reliable source.
-        // Fall back to constructing from app name if not available.
+        // 在 Flatpak 中，FLATPAK_ID 会由运行时自动设置为应用 ID
+        // （例如 "com.rustdesk.RustDesk"）。这是最可靠的来源。
+        // 如果拿不到，就回退到根据应用名构造。
         match std::env::var("FLATPAK_ID") {
             Ok(id) if !id.is_empty() => format!("{}.desktop", id),
             _ => {
@@ -2925,8 +2925,8 @@ const PERMISSION_STORE_DEST: &str = "org.freedesktop.impl.portal.PermissionStore
 const PERMISSION_STORE_PATH: &str = "/org/freedesktop/impl/portal/PermissionStore";
 const PERMISSION_STORE_IFACE: &str = "org.freedesktop.impl.portal.PermissionStore";
 
-/// Clear GNOME shortcuts inhibitor permission via D-Bus.
-/// This allows the permission dialog to be shown again.
+/// 通过 D-Bus 清除 GNOME 快捷键抑制权限。
+/// 这会让权限对话框能够再次显示。
 pub fn clear_gnome_shortcuts_inhibitor_permission() -> ResultType<()> {
     let app_id = get_shortcuts_inhibitor_app_id();
     log::info!(
@@ -2956,7 +2956,7 @@ pub fn clear_gnome_shortcuts_inhibitor_permission() -> ResultType<()> {
         }
         Err(e) => {
             let err_name = e.name().unwrap_or("");
-            // If the permission doesn't exist, that's also fine
+            // 如果该权限不存在，那也没关系
             if err_name == "org.freedesktop.portal.Error.NotFound"
                 || err_name == "org.freedesktop.DBus.Error.UnknownObject"
                 || err_name == "org.freedesktop.DBus.Error.ServiceUnknown"
@@ -2973,7 +2973,7 @@ pub fn clear_gnome_shortcuts_inhibitor_permission() -> ResultType<()> {
     }
 }
 
-/// Check if GNOME shortcuts inhibitor permission exists.
+/// 检查 GNOME 快捷键抑制权限是否存在。
 pub fn has_gnome_shortcuts_inhibitor_permission() -> bool {
     let app_id = get_shortcuts_inhibitor_app_id();
 
@@ -2991,7 +2991,7 @@ pub fn has_gnome_shortcuts_inhibitor_permission() -> bool {
     );
 
     // Lookup(s table, s id) -> (a{sas} permissions, v data)
-    // We only need the permissions dict; check if app_id is a key.
+    // 我们只需要权限字典；检查 app_id 是否为其中的键。
     let result: Result<
         (
             std::collections::HashMap<String, Vec<String>>,

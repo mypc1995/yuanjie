@@ -164,7 +164,7 @@ class _MyGroupState extends State<MyGroup> {
         }
         return true;
       }).toList();
-      // Count occurrences of each displayNameOrName to detect duplicates
+      // 统计每个 displayNameOrName 的出现次数以检测重复
       final displayNameCount = <String, int>{};
       for (final u in userItems) {
         final dn = u.displayNameOrName;

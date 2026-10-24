@@ -8,10 +8,10 @@ abstract class BaseEvent<EventType, Data> {
   EventType type;
   Data data;
 
-  /// Constructor.
+  /// 构造函数。
   BaseEvent(this.type, this.data);
 
-  /// Consume this event.
+  /// 消费该事件。
   @visibleForTesting
   Future<dynamic> consume() async {
     final cb = findCallback(type);
@@ -32,17 +32,17 @@ abstract class BaseEventLoop<EventType, Data> {
   List<BaseEvent<EventType, Data>> get evts => _evts;
 
   Future<void> onReady() async {
-    // Poll every 100ms.
+    // 每 100ms 轮询一次。
     _timer = Timer.periodic(Duration(milliseconds: 100), _handleTimer);
   }
 
-  /// An Event is about to be consumed.
+  /// 某个事件即将被消费。
   Future<void> onPreConsume(BaseEvent<EventType, Data> evt) async {}
-  /// An Event was consumed.
+  /// 某个事件已被消费。
   Future<void> onPostConsume(BaseEvent<EventType, Data> evt) async {}
-  /// Events are all handled and cleared.
+  /// 所有事件都已处理并清空。
   Future<void> onEventsClear() async {}
-  /// Events start to consume.
+  /// 开始消费事件。
   Future<void> onEventsStartConsuming() async {}
 
   Future<void> _handleTimer(Timer timer) async {
@@ -51,7 +51,7 @@ abstract class BaseEventLoop<EventType, Data> {
       }
       timer.cancel();
       _timer = null;
-      // Handle the logic.
+      // 处理逻辑。
       await onEventsStartConsuming();
       while (_evts.isNotEmpty) {
         final evt = _evts.first;
@@ -61,7 +61,7 @@ abstract class BaseEventLoop<EventType, Data> {
         await onPostConsume(evt);
       }
       await onEventsClear();
-      // Now events are all processed.
+      // 现在所有事件都已处理完毕。
       _timer = Timer.periodic(Duration(milliseconds: 100), _handleTimer);
   }
 

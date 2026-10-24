@@ -175,7 +175,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         update = true;
       }
 
-      // start on boot depends on ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS and SYSTEM_ALERT_WINDOW
+      // 开机启动依赖 ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS 和 SYSTEM_ALERT_WINDOW
       var enableStartOnBoot =
           await gFFI.invokeMethod(AndroidChannel.kGetStartOnBootOpt);
       if (enableStartOnBoot) {
@@ -608,7 +608,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         ]),
         onToggle: (toValue) async {
           if (toValue) {
-            // 1. request kIgnoreBatteryOptimizations
+            // 1. 申请 kIgnoreBatteryOptimizations
             if (!await AndroidPermissionManager.check(
                 kRequestIgnoreBatteryOptimizations)) {
               if (!await AndroidPermissionManager.request(
@@ -617,14 +617,14 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               }
             }
 
-            // 2. request kSystemAlertWindow
+            // 2. 申请 kSystemAlertWindow
             if (!await AndroidPermissionManager.check(kSystemAlertWindow)) {
               if (!await AndroidPermissionManager.request(kSystemAlertWindow)) {
                 return;
               }
             }
 
-            // (Optional) 3. request input permission
+            // （可选）3. 申请输入权限
           }
           setState(() => _enableStartOnBoot = toValue);
 
@@ -1094,7 +1094,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
   }
 
   Future<bool> canStartOnBoot() async {
-    // start on boot depends on ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS and SYSTEM_ALERT_WINDOW
+    // 开机启动依赖 ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS 和 SYSTEM_ALERT_WINDOW
     if (_hasIgnoreBattery && !_ignoreBatteryOpt) {
       return false;
     }

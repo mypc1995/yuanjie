@@ -30,7 +30,7 @@ fn tls_acceptor() -> TlsAcceptor {
 }
 
 async fn proxy_connection(bind: &str, tls_type: TlsType, fixed_local_port: bool) {
-    *APP_NAME.write().unwrap() = format!("RustDesk-proxy-review-{}", std::process::id());
+    * APP_NAME.write().unwrap() = format!("RustDesk-proxy-review-{}", std::process::id());
     OVERWRITE_SETTINGS
         .write()
         .unwrap()
@@ -122,7 +122,7 @@ async fn https_nativetls_with_fixed_local_port() {
 
 #[tokio::test]
 async fn https_reconnects_for_tls_fallback() {
-    *APP_NAME.write().unwrap() = format!("RustDesk-proxy-review-{}", std::process::id());
+    * APP_NAME.write().unwrap() = format!("RustDesk-proxy-review-{}", std::process::id());
     OVERWRITE_SETTINGS
         .write()
         .unwrap()
@@ -130,7 +130,7 @@ async fn https_reconnects_for_tls_fallback() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("https://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(async move {
-        // Reject both Rustls attempts so the uncached route must reach NativeTls.
+        // 拒绝两次 Rustls 尝试，这样未缓存的路径就必须走到 NativeTls。
         for _ in 0..2 {
             let (tcp, _) = listener.accept().await.unwrap();
             drop(tcp);
@@ -144,7 +144,7 @@ async fn https_reconnects_for_tls_fallback() {
         .await
         .err()
         .unwrap();
-    // The third connection reaches NativeTls and still rejects the untrusted identity.
+    // 第三次连接到达 NativeTls，仍然拒绝不受信任的身份。
     assert!(
         matches!(
             error.downcast_ref::<ProxyError>(),

@@ -1,21 +1,21 @@
-//! Shell and command-path helpers.
+//! shell 与命令路径辅助函数。
 //!
-//! These live here rather than with the rest of the platform code because
-//! `config::patch()` resolves a home directory through them.
+//! 它们放在这里而不是与其余平台代码放在一起，是因为
+//! `config::patch()` 会通过它们来解析主目录。
 
 use crate::ResultType;
 use std::process::Command;
 
-// to-do: There seems to be some runtime issue that causes the audit logs to be generated.
-// We may need to fix this and remove this workaround in the future.
+// 待办：似乎存在某种运行时问题导致生成了审计日志。
+// 我们以后可能需要修复它并移除这个变通做法。
 //
-// We use the pre-search method to find the command path to avoid the audit logs on some systems.
-// No idea why the audit logs happen.
-// Though the audit logs may disappear after rebooting.
+// 我们采用预先搜索的方式查找命令路径，以避免在某些系统上产生审计日志。
+// 不清楚审计日志为何会出现。
+// 不过重启后审计日志可能会消失。
 //
-// See https://github.com/rustdesk/rustdesk/discussions/11959
+// 参见 https://github.com/rustdesk/rustdesk/discussions/11959
 //
-// `ausearch -x /usr/share/rustdesk/rustdesk` will return
+// `ausearch -x /usr/share/rustdesk/rustdesk` 将返回
 // ...
 // time->Tue Jun 24 10:40:43 2025
 // type=PROCTITLE msg=audit(1750776043.446:192757): proctitle=2F7573722F62696E2F727573746465736B002D2D73657276696365
@@ -66,8 +66,8 @@ pub fn run_cmds_trim_newline(cmds: &str) -> ResultType<String> {
 mod tests {
     use super::*;
 
-    // `config::patch()` resolves the root home directory through this, so the
-    // trailing-newline strip has to keep working in this crate on its own.
+    // `config::patch()` 通过它来解析 root 的主目录，因此
+    // 去除末尾换行的逻辑必须在本 crate 内独立工作。
     #[test]
     fn trims_one_trailing_newline() {
         assert_eq!(run_cmds_trim_newline("printf 123").unwrap(), "123");

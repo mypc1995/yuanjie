@@ -36,7 +36,7 @@ pub fn convert_to_yuv(
         || src_pixfmt == crate::Pixfmt::RGBA
         || src_pixfmt == crate::Pixfmt::RGB565LE
     {
-        // stride is calculated, not real, so we need to check it
+        // stride 是计算出来的而非真实值，因此需要检查它
         if src_stride[0] < src_width * src_pixfmt.bytes_per_pixel() {
             bail!(
                 "src_stride too small: {} < {}",

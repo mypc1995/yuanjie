@@ -380,7 +380,7 @@ pub struct HwRamDecoderImage<'a> {
 }
 
 impl HwRamDecoderImage<'_> {
-    // rgb [in/out] fmt and stride must be set in ImageRgb
+    // rgb [in/out] 的 fmt 和 stride 必须在 ImageRgb 中设置
     pub fn to_fmt(&self, rgb: &mut ImageRgb, i420: &mut Vec<u8>) -> ResultType<()> {
         let frame = self.frame;
         let width = frame.width;
@@ -392,7 +392,7 @@ impl HwRamDecoderImage<'_> {
         rgb.raw.resize(rgb.h * bytes_per_row, 0);
         match frame.pixfmt {
             AVPixelFormat::AV_PIX_FMT_NV12 => {
-                // I420ToARGB is much faster than NV12ToARGB in tests on Windows
+                // 在 Windows 上的测试中，I420ToARGB 比 NV12ToARGB 快得多
                 if cfg!(windows) {
                     let Ok((linesize_i420, offset_i420, len_i420)) = ffmpeg_linesize_offset_length(
                         AVPixelFormat::AV_PIX_FMT_YUV420P,
@@ -506,19 +506,19 @@ pub struct HwCodecConfig {
     pub vram_decode: Vec<hwcodec::vram::DecodeContext>,
 }
 
-// HwCodecConfig2 is used to store the config in json format,
-// confy can't serde HwCodecConfig successfully if the non-first struct Vec is empty due to old toml version.
-// struct T { a: Vec<A>, b: Vec<String>} will fail if b is empty, but struct T { a: Vec<String>, b: Vec<String>} is ok.
+// HwCodecConfig2 用于以 json 格式保存配置，
+// 由于 toml 版本较旧，如果非第一个结构体字段的 Vec 为空，confy 就无法成功 serde HwCodecConfig。
+// struct T { a: Vec<A>, b: Vec<String>} 在 b 为空时会失败，而 struct T { a: Vec<String>, b: Vec<String>} 则没问题。
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 struct HwCodecConfig2 {
     #[serde(default)]
     pub config: String,
 }
 
-// ipc server process start check process once, other process get from ipc server once
-// install: --server start check process, check process send to --server,  ui get from --server
-// portable: ui start check process, check process send to ui
-// sciter and unilink: get from ipc server
+// ipc 服务端进程启动时检查一次进程，其他进程从 ipc 服务端获取一次
+// 安装版：--server 启动时检查进程，检查结果发给 --server，ui 从 --server 获取
+// 便携版：ui 启动时检查进程，检查结果发给 ui
+// sciter 和 unilink：从 ipc 服务端获取
 impl HwCodecConfig {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub fn set(config: String) {
@@ -532,8 +532,8 @@ impl HwCodecConfig {
             },
             "_hwcodec",
         );
-        *CONFIG.lock().unwrap() = Some(config);
-        *CONFIG_SET_BY_IPC.lock().unwrap() = true;
+        * CONFIG.lock().unwrap() = Some(config);
+        * CONFIG_SET_BY_IPC.lock().unwrap() = true;
     }
 
     pub fn get() -> HwCodecConfig {
@@ -576,7 +576,7 @@ impl HwCodecConfig {
                     {
                         best = Some(codec.name.clone());
                     } else {
-                        // find the max resolution
+                        // 查找最大分辨率
                         let mut max_area = 0;
                         for codec in codecs.iter() {
                             if codec.max_width * codec.max_height > max_area {
@@ -614,7 +614,7 @@ impl HwCodecConfig {
                     let new_signature = hwcodec::common::get_gpu_signature();
                     if c.signature == new_signature {
                         log::debug!("load cached hwcodec config: {c:?}");
-                        *CONFIG.lock().unwrap() = Some(c.clone());
+                        * CONFIG.lock().unwrap() = Some(c.clone());
                         c
                     } else {
                         log::info!(
@@ -731,7 +731,7 @@ pub fn start_check_process() {
                 if let Ok(mut child) = std::process::Command::new(exe).arg(arg).spawn() {
                     #[cfg(windows)]
                     hwcodec::common::child_exit_when_parent_exit(child.id());
-                    // wait up to 30 seconds, it maybe slow on windows startup for poorly performing machines
+                    // 最多等待 30 秒，性能较差的机器在 Windows 启动时可能会很慢
                     for _ in 0..30 {
                         std::thread::sleep(std::time::Duration::from_secs(1));
                         if let Ok(Some(_)) = child.try_wait() {

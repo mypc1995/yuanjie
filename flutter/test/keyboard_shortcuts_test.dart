@@ -42,10 +42,10 @@ ShortcutPlatformCapabilities capabilities({
 
 void main() {
   test('kDefaultShortcutBindings matches fixture', () {
-    // The fixture is the cross-language source of truth for default
-    // bindings. Rust has its own parity test against the same file
-    // (`default_bindings_match_fixture_json` in src/keyboard/shortcuts.rs),
-    // so a drift on either side breaks CI.
+    // 该 fixture 是跨语言默认绑定的唯一事实来源。
+    // Rust 侧有针对同一文件的一致性测试
+    // （src/keyboard/shortcuts.rs 中的 `default_bindings_match_fixture_json`），
+    // 因此任何一侧发生偏移都会让 CI 失败。
     final fixturePath = 'test/fixtures/default_keyboard_shortcuts.json';
     final fixture =
         jsonDecode(File(fixturePath).readAsStringSync()) as List<dynamic>;
@@ -224,8 +224,8 @@ void main() {
         includeToolbarShortcut: false,
         includeCloseTabShortcut: false,
         includeSwitchSidesShortcut: false,
-        // Recording / Reset Canvas are intentionally still included here —
-        // they have non-desktop platforms (mobile Android / mobile both).
+        // 录屏 / 重置画布在此处仍被有意保留 ——
+        // 它们也有非桌面端平台（移动端 Android / 两者均为移动端）。
         includeRecordingShortcut: true,
         includeResetCanvasShortcut: true,
         includePinToolbarShortcut: false,
@@ -234,7 +234,7 @@ void main() {
       ),
     );
     final ids = idSet(groups);
-    // Desktop-only actions are stripped.
+    // 仅桌面端的操作会被剔除。
     expect(ids, isNot(contains(kShortcutActionToggleFullscreen)));
     expect(ids, isNot(contains(kShortcutActionToggleRelativeMouseMode)));
     expect(ids, isNot(contains(kShortcutActionScreenshot)));
@@ -246,7 +246,7 @@ void main() {
     expect(ids, isNot(contains(kShortcutActionViewModeAdaptive)));
     expect(ids, isNot(contains(kShortcutActionSwitchTabNext)));
     expect(ids, isNot(contains(kShortcutActionSwitchTabPrev)));
-    // Cross-platform actions survive.
+    // 跨平台的操作被保留。
     expect(ids, contains(kShortcutActionSendCtrlAltDel));
     expect(ids, contains(kShortcutActionInsertLock));
     expect(ids, contains(kShortcutActionRestartRemote));
@@ -264,7 +264,7 @@ void main() {
     );
     final ids = idSet(groups);
     expect(ids, isNot(contains(kShortcutActionToggleRecording)));
-    // Other Session Control entries unaffected.
+    // “会话控制”中的其他条目不受影响。
     expect(ids, contains(kShortcutActionSendCtrlAltDel));
     expect(ids, contains(kShortcutActionInsertLock));
   });
@@ -286,10 +286,10 @@ void main() {
   });
 
   test('filterKeyboardShortcutActionGroupsForPlatform drops empty groups', () {
-    // With every capability flag off, groups whose items are all behind
-    // those flags get dropped. Display / Keyboard parent groups still carry
-    // cross-platform direct items so they survive even when the gated
-    // subgroups thin out.
+    // 当所有能力标志都关闭时，条目全部被这些标志
+    // 挡住的分组会被丢弃。显示 / 键盘父分组仍带有
+    // 跨平台的直属条目，因此即使受控的
+    // 子分组被清空，它们依然保留。
     final groups = filterKeyboardShortcutActionGroupsForPlatform(
       capabilities(
         includeFullscreenShortcut: false,
@@ -307,13 +307,13 @@ void main() {
       ),
     );
     final titles = groups.map((g) => g.titleKey).toList();
-    // "Other" has nothing but platform-gated entries → dropped entirely.
+    // "其他"只剩下受平台控制的条目 → 被整体丢弃。
     expect(titles, isNot(contains('Other')));
-    // Parent groups with cross-platform direct items survive.
+    // 带有跨平台直属条目的父分组被保留。
     expect(titles, contains('Display'));
     expect(titles, contains('Keyboard'));
-    // The "View Mode" subgroup under Display is gated by includeViewModeShortcut,
-    // so it must be absent from Display's surviving children.
+    // 显示下的 "View Mode" 子分组受 includeViewModeShortcut 控制，
+    // 因此它必须不出现在显示保留下来的子项中。
     final displayChildren =
         groups.firstWhere((g) => g.titleKey == 'Display').children;
     final subgroupTitles = displayChildren
@@ -321,9 +321,9 @@ void main() {
         .map((s) => s.titleKey)
         .toList();
     expect(subgroupTitles, isNot(contains('View Mode')));
-    // No surviving group is empty either way.
+    // 无论哪种情况，保留下来的分组都不为空。
     expect(groups.every((g) => g.children.isNotEmpty), isTrue);
-    // No surviving subgroup is empty.
+    // 保留下来的子分组都不为空。
     for (final group in groups) {
       for (final child in group.children) {
         if (child is KeyboardShortcutActionSubgroup) {
@@ -335,10 +335,10 @@ void main() {
   });
 
   test('physicalKeyName covers the supported-keys fixture', () {
-    // `shortcut_key_usb_hid.json` pins every key name to the USB HID usage
-    // it is recorded and matched from. Rust has a mirror test against the
-    // same file (`usb_hid_keys_match_fixture` in src/keyboard/shortcuts.rs),
-    // and the set of names must equal `supported_shortcut_keys.json`.
+    // `shortcut_key_usb_hid.json` 把每个键名固定到它记录和匹配所依据的 USB HID usage
+    // 上。Rust 侧有针对同一文件的镜像测试
+    // （src/keyboard/shortcuts.rs 中的 `usb_hid_keys_match_fixture`），
+    // 并且这些名字的集合必须与 `supported_shortcut_keys.json` 相等。
     final supported = (jsonDecode(
                 File('test/fixtures/supported_shortcut_keys.json')
                     .readAsStringSync()) as List<dynamic>)
@@ -357,7 +357,7 @@ void main() {
     }
     expect(pairs.map((p) => p[0] as String).toSet(), equals(supported));
 
-    // Modifier-only / unsupported keys must return null.
+    // 仅含修饰键或不支持的键必须返回 null。
     expect(physicalKeyName(PhysicalKeyboardKey.shiftLeft), isNull);
     expect(physicalKeyName(PhysicalKeyboardKey.escape), isNull);
     expect(physicalKeyName(PhysicalKeyboardKey.f13), isNull);
@@ -370,7 +370,7 @@ void main() {
         shouldSeedDefaultShortcutBindings(
             <String, dynamic>{'enabled': false, 'pass_through': true}),
         isTrue);
-    // The user cleared every binding: re-enabling must not bring defaults back.
+    // 用户清空了所有绑定：重新启用不得把默认绑定带回来。
     expect(
         shouldSeedDefaultShortcutBindings(
             <String, dynamic>{'enabled': false, 'bindings': <dynamic>[]}),
@@ -464,9 +464,9 @@ void main() {
   });
 
   test('non-US layouts record and match the physical key', () {
-    // AZERTY: the key labelled "A" sits where US QWERTY has Q. The native
-    // matcher only sees the physical position (USB HID usage), so the
-    // binding must name that position too.
+    // AZERTY：标为 "A" 的键位于美式 QWERTY 中 Q 的位置。原生
+    // 匹配器只能看到物理位置（USB HID usage），所以
+    // 绑定也必须使用该位置名称。
     const azertyA = KeyDownEvent(
       physicalKey: PhysicalKeyboardKey.keyQ,
       logicalKey: LogicalKeyboardKey.keyA,
@@ -475,7 +475,7 @@ void main() {
     );
     expect(shortcutKeyNameForEvent(azertyA), 'q');
 
-    // QWERTZ: the key labelled "Z" sits where US QWERTY has Y.
+    // QWERTZ：标为 "Z" 的键位于美式 QWERTY 中 Y 的位置。
     const qwertzZ = KeyDownEvent(
       physicalKey: PhysicalKeyboardKey.keyY,
       logicalKey: LogicalKeyboardKey.keyZ,
@@ -487,8 +487,8 @@ void main() {
 
   test('kShortcutActionsRunOnKeyUp matches the fixture and names real actions',
       () {
-    // Rust has a mirror test against the same file
-    // (`key_up_actions_match_fixture` in src/keyboard/shortcuts.rs).
+    // Rust 侧有针对同一文件的镜像测试
+    // （src/keyboard/shortcuts.rs 中的 `key_up_actions_match_fixture`）。
     final fixture = (jsonDecode(
                 File('test/fixtures/key_up_shortcut_actions.json')
                     .readAsStringSync()) as List<dynamic>)

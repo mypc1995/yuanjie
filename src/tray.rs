@@ -32,8 +32,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
         TrayIcon, TrayIconBuilder, TrayIconEvent as TrayEvent,
     };
 
-    // Duplicated tray icons kept piling up through the blind spots of
-    // `check_process("--tray", ..)`. https://github.com/rustdesk/rustdesk/issues/15689
+    // 重复的托盘图标不断堆积，源于
+    // `check_process("--tray", ..)` 的盲区。https://github.com/rustdesk/rustdesk/issues/15689
     #[cfg(windows)]
     if !crate::platform::windows::try_lock_tray_single_instance() {
         log::info!("Another tray process is already running in this session, exit");
@@ -67,8 +67,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
     let hide_stop_service = crate::ui_interface::get_builtin_option(
         keys::OPTION_HIDE_STOP_SERVICE,
     ) == "Y";
-    // The tray icon is only shown when the service is running, so we don't need to check
-    // the `stop-service` option here.
+    // 托盘图标只在服务运行时才显示，所以这里不需要检查
+    // `stop-service` 选项。
     let quit_i = if !hide_stop_service {
         Some(MenuItem::new(translate("Stop service".to_owned()), true, None))
     } else {
@@ -112,15 +112,15 @@ fn make_tray() -> hbb_common::ResultType<()> {
         crate::platform::macos::handle_application_should_open_untitled_file();
         #[cfg(target_os = "windows")]
         {
-            // Do not use "start uni link" way, it may not work on some Windows, and pop out error
-            // dialog, I found on one user's desktop, but no idea why, Windows is shit.
-            // Use `run_me` instead.
-            // `allow_multiple_instances` in `flutter/windows/runner/main.cpp` allows only one instance without args.
+            // 不要用 "start uni link" 的方式，在某些 Windows 上可能无效，还会弹出错误
+            // 对话框，我在某个用户的桌面上遇到过，但不知道为什么，Windows 就是烂。
+            // 改用 `run_me`。
+            // `flutter/windows/runner/main.cpp` 中的 `allow_multiple_instances` 只允许一个不带参数的实例。
             crate::run_me::<&str>(vec![]).ok();
         }
         #[cfg(target_os = "linux")]
         {
-            // Do not use "xdg-open", it won't read the config.
+            // 不要用 "xdg-open"，它不会读取配置。
             if crate::dbus::invoke_new_connection(crate::get_uri_prefix()).is_err() {
                 if let Ok(task) = crate::run_me::<&str>(vec![]) {
                     crate::server::CHILD_PROCESS.lock().unwrap().push(task);
@@ -141,18 +141,18 @@ fn make_tray() -> hbb_common::ResultType<()> {
         event_loop.set_activation_policy(tao::platform::macos::ActivationPolicy::Accessory);
     }
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::WaitUntil(
+        * control_flow = ControlFlow::WaitUntil(
             std::time::Instant::now() + std::time::Duration::from_millis(100),
         );
 
         if let tao::event::Event::NewEvents(tao::event::StartCause::Init) = event {
-            // for fixing https://github.com/rustdesk/rustdesk/discussions/10210#discussioncomment-14600745
-            // so we start tray, but not to show it
+            // 用于修复 https://github.com/rustdesk/rustdesk/discussions/10210#discussioncomment-14600745
+            // 所以我们启动托盘，但并不显示它
             if crate::ui_interface::get_builtin_option(keys::OPTION_HIDE_TRAY) == "Y" {
                 return;
             }
-            // We create the icon once the event loop is actually running
-            // to prevent issues like https://github.com/tauri-apps/tray-icon/issues/90
+            // 我们在事件循环真正运行起来后才创建图标
+            // 以避免 https://github.com/tauri-apps/tray-icon/issues/90 之类的问题
             let mut builder = TrayIconBuilder::new()
                 .with_id(crate::get_app_name().to_lowercase())
                 .with_menu(Box::new(tray_menu.clone()))
@@ -164,8 +164,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
             }
             #[cfg(target_os = "windows")]
             {
-                // Required since tray-icon 0.17
-                // Fixes #15215, #15222, #15410
+                // 自 tray-icon 0.17 起为必需
+                // 修复 #15215、#15222、#15410
                 builder = builder.with_menu_on_left_click(false);
             }
             let tray = builder.build();
@@ -176,8 +176,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
                 }
             };
 
-            // We have to request a redraw here to have the icon actually show up.
-            // Tao only exposes a redraw method on the Window so we use core-foundation directly.
+            // 必须在这里请求重绘，图标才会真正显示出来。
+            // Tao 只在 Window 上暴露了重绘方法，所以这里直接使用 core-foundation。
             #[cfg(target_os = "macos")]
             unsafe {
                 use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
@@ -190,15 +190,15 @@ fn make_tray() -> hbb_common::ResultType<()> {
         if let Ok(event) = menu_channel.try_recv() {
             if let Some(quit_i) = &quit_i {
                 if event.id == quit_i.id() {
-                    /* failed in windows, seems no permission to check system process
+                    /* 在 windows 下失败，似乎没有权限检查系统进程
                     if !crate::check_process("--server", false) {
-                        *control_flow = ControlFlow::Exit;
+                        * control_flow = ControlFlow::Exit;
                         return;
                     }
                     */
-                    // Remove the icon first: on success `uninstall_service()` ends
-                    // this process with `std::process::exit`, which skips the
-                    // destructor that would remove it, leaving a ghost icon behind.
+                    // 先移除图标：成功时 `uninstall_service()` 会以
+                    // `std::process::exit` 结束本进程，这会跳过
+                    // 本该移除它的析构函数，留下一个幽灵图标。
                     #[cfg(windows)]
                     let _ = _tray_icon
                         .lock()
@@ -206,10 +206,10 @@ fn make_tray() -> hbb_common::ResultType<()> {
                         .as_mut()
                         .map(|t| t.set_visible(false));
                     if !crate::platform::uninstall_service(false, false) {
-                        *control_flow = ControlFlow::Exit;
+                        * control_flow = ControlFlow::Exit;
                     }
-                    // Still alive, so stopping the service failed or was cancelled
-                    // in the UAC prompt. Show the icon again.
+                    // 进程还活着，说明停止服务失败或被
+                    // UAC 提示中取消了。重新显示图标。
                     #[cfg(windows)]
                     let _ = _tray_icon
                         .lock()

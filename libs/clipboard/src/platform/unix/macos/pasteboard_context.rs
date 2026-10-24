@@ -165,7 +165,7 @@ impl PasteboardContext {
         })
     }
 
-    // Just removing the file can also make paste option in the context menu disappear.
+    // 仅仅删除该文件也可能导致右键菜单中的粘贴选项消失。
     fn empty_clipboard_(&mut self, _conn_id: i32) -> bool {
         self.tx_remove_file
             .as_ref()
@@ -199,8 +199,8 @@ impl PasteboardContext {
             ClipboardFile::FormatList { format_list } => {
                 let temp_files = Self::temp_files_count();
                 if temp_files >= 3 {
-                    // The temp files should be 0 or 1 in normal case.
-                    // We should not continue to paste files if there are more than 3 temp files.
+                    // 正常情况下临时文件应为 0 个或 1 个。
+                    // 如果临时文件超过 3 个，就不应继续粘贴文件。
                     return Err(CliprdrError::CommonError {
                         description: format!(
                             "too many temp files, current: {}, limit: {}",
@@ -314,7 +314,7 @@ impl PasteboardContext {
     ) -> Result<(), CliprdrError> {
         log::debug!("handle format data response, msg_flags: {msg_flags}");
         if msg_flags != 0x1 {
-            // return failure message?
+            // 返回失败信息？
         }
 
         let mut task_lock = self.paste_task.lock().unwrap();
@@ -323,13 +323,13 @@ impl PasteboardContext {
             .unwrap()
             .as_ref()
             .map(|task| task.target_path.clone());
-        // unreachable in normal case
+        // 正常情况下不可达
         let Some(target_dir) = target_dir.as_ref().map(|d| Path::new(d).parent()).flatten() else {
             return Err(CliprdrError::CommonError {
                 description: "failed to get parent path".to_string(),
             });
         };
-        // unreachable in normal case
+        // 正常情况下不可达
         if !target_dir.exists() {
             return Err(CliprdrError::CommonError {
                 description: "target path does not exist".to_string(),
@@ -399,7 +399,7 @@ fn handle_paste_result(task_info: &PasteObserverInfo) {
         .lock()
         .unwrap()
         .replace(task_info.clone());
-    // to-do: add a timeout to clear data in `PASTE_OBSERVER_INFO`.
+    // 待办：加一个超时，用于清理 `PASTE_OBSERVER_INFO` 中的数据。
     std::fs::remove_file(&task_info.source_path).ok();
     std::fs::remove_file(&task_info.target_path).ok();
     let data = ClipboardFile::FormatDataRequest {

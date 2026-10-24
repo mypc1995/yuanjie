@@ -32,12 +32,12 @@ class RefreshWrapperState extends State<RefreshWrapper> {
     if (Get.context != null) {
       (context as Element).visitChildren(_rebuildElement);
     }
-    // Synchronize the window theme of the system.
+    // 同步系统的窗口主题。
     updateSystemWindowTheme();
     setState(() {});
   }
 
-  /// set root tree dirty to trigger global rebuild
+  /// 将根树标记为 dirty 以触发全局重建
   void _rebuildElement(Element el) {
     el.markNeedsBuild();
     el.visitChildren(_rebuildElement);

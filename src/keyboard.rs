@@ -36,25 +36,25 @@ const OS_LOWER_ANDROID: &str = "android";
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 static KEYBOARD_HOOKED: AtomicBool = AtomicBool::new(false);
 
-// Track key down state for relative mouse mode exit shortcut.
-// macOS: Cmd+G (track G key)
-// Windows/Linux: Ctrl+Alt (track whichever modifier was pressed last)
-// This prevents the exit from retriggering on OS key-repeat.
+// 跟踪按键按下状态，用于相对鼠标模式的退出快捷键。
+// macOS：Cmd+G（跟踪 G 键）
+// Windows/Linux：Ctrl+Alt（跟踪最后按下的那个修饰键）
+// 这可以避免操作系统按键重复时再次触发退出。
 #[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 static EXIT_SHORTCUT_KEY_DOWN: AtomicBool = AtomicBool::new(false);
 
-// Track whether relative mouse mode is currently active.
-// This is set by Flutter via set_relative_mouse_mode_state() and checked
-// by the rdev grab loop to determine if exit shortcuts should be processed.
+// 跟踪相对鼠标模式当前是否处于激活状态。
+// 该状态由 Flutter 通过 set_relative_mouse_mode_state() 设置，并被
+// rdev 抓取循环用来判断是否应处理退出快捷键。
 #[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 static RELATIVE_MOUSE_MODE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// Set the relative mouse mode state from Flutter.
-/// This is called when entering or exiting relative mouse mode.
+/// 从 Flutter 设置相对鼠标模式状态。
+/// 进入或退出相对鼠标模式时会调用此函数。
 #[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 pub fn set_relative_mouse_mode_state(active: bool) {
     RELATIVE_MOUSE_MODE_ACTIVE.store(active, Ordering::SeqCst);
-    // Reset exit shortcut state when mode changes to avoid stale state
+    // 模式变化时重置退出快捷键状态，避免状态残留
     if !active {
         EXIT_SHORTCUT_KEY_DOWN.store(false, Ordering::SeqCst);
     }
@@ -85,29 +85,29 @@ pub mod shortcuts;
 pub mod client {
     use super::*;
 
-    /// Tracks grab ownership and serializes transitions across threads.
+    /// 跟踪抓取归属，并在各线程之间串行化状态切换。
     ///
-    /// Multiple Flutter isolates (one per session window) call
-    /// `change_grab_status(Run/Wait)` concurrently. Without serialization a
-    /// stale `Wait` from session A can clobber session B's freshly acquired
-    /// grab on any desktop OS.
+    /// 多个 Flutter isolate（每个会话窗口一个）会并发调用
+    /// `change_grab_status(Run/Wait)`。如果不加串行化，会话 A 的
+    /// 过期 `Wait` 就可能覆盖会话 B 刚刚获取的
+    /// 抓取（在任何桌面操作系统上）。
     ///
-    /// Windows and macOS are less susceptible in practice because the Flutter
-    /// side triggers `enterView` only after a mouse click inside the window,
-    /// but we cannot rely on that. On Linux/X11, `XGrabKeyboard` can also
-    /// cause a focus-change feedback loop (~10 Hz), so `last_grab` debounces
-    /// spurious `Wait` events that arrive shortly after a `Run`.
+    /// 在实践中 Windows 和 macOS 不太容易出现这种情况，因为 Flutter
+    /// 侧只有在窗口内发生鼠标点击后才会触发 `enterView`，
+    /// 但我们不能依赖这一点。在 Linux/X11 上，`XGrabKeyboard` 还可能
+    /// 引发焦点变化反馈循环（约 10 Hz），因此 `last_grab` 会对
+    /// `Run` 之后不久到达的虚假 `Wait` 事件做去抖。
     #[derive(Default)]
     struct GrabOwnerState {
         owner: Option<u128>,
         last_grab: Option<std::time::Instant>,
-        /// True while a deferred-release thread is in flight. Prevents
-        /// spawning redundant threads during the X11 feedback loop.
+        /// 延迟释放线程在飞行过程中为 true。用于防止
+        /// 在 X11 反馈循环期间派生多余的线程。
         deferred_pending: bool,
     }
 
-    /// How long after a grab acquisition we suppress Wait from the same session.
-    /// Must exceed one full X11 feedback cycle (~100 ms: 50 ms enable + 50 ms disable).
+    /// 获取抓取之后，我们抑制同一会话 Wait 的时长。
+    /// 必须超过一个完整的 X11 反馈周期（约 100 毫秒：50 毫秒启用 + 50 毫秒禁用）。
     #[cfg(target_os = "linux")]
     const GRAB_DEBOUNCE_MS: u128 = 300;
 
@@ -154,7 +154,7 @@ pub mod client {
             return;
         }
         super::start_grab_loop();
-        *lock = true;
+        * lock = true;
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -163,8 +163,8 @@ pub mod client {
         if !IS_RDEV_ENABLED.load(Ordering::SeqCst) {
             return;
         }
-        // Serialize transitions so a stale `Wait` from a previous owner cannot
-        // clobber a fresh `Run` from a different session window.
+        // 串行化状态切换，避免上一个持有者的过期 `Wait` 
+        // 覆盖来自另一个会话窗口的新 `Run`。
         let mut release_after_unlock = None;
         #[cfg(target_os = "linux")]
         let mut run_grab_after_unlock = None;
@@ -177,13 +177,13 @@ pub mod client {
                 #[cfg(windows)]
                 update_grab_get_key_name(keyboard_mode);
 
-                // Idempotent: if this session already owns the grab, just
-                // refresh the debounce timer (proves the session is still
-                // actively focused) and skip the actual grab call.
+                // 幂等：如果该会话已经拥有抓取，只需
+                // 刷新去抖定时器（这证明该会话仍然
+                // 处于活动焦点状态），并跳过真正的抓取调用。
                 if gs.owner == Some(session_id) {
                     gs.last_grab = Some(std::time::Instant::now());
-                    // Reset so the next Wait can spawn a fresh deferred-release
-                    // timer with an up-to-date snapshot of last_grab.
+                    // 重置，使下一个 Wait 能够派生一个新的延迟释放
+                    // 定时器，并带上最新的 last_grab 快照。
                     gs.deferred_pending = false;
                     log::debug!(
                         "[grab] Run(0x{:x}): already owner, refresh debounce",
@@ -207,8 +207,8 @@ pub mod client {
                 let had_owner = gs.owner.is_some();
                 gs.owner = Some(session_id);
                 gs.last_grab = Some(std::time::Instant::now());
-                // Invalidate any in-flight deferred release from the previous
-                // owner so it cannot suppress a fresh timer for the new owner.
+                // 使上一个持有者正在进行的延迟释放失效，
+                // 以免它抑制新持有者的新定时器。
                 gs.deferred_pending = false;
                 #[cfg(target_os = "linux")]
                 {
@@ -216,9 +216,9 @@ pub mod client {
                 }
             }
             GrabState::Wait => {
-                // Drop stale `Wait` events that do not correspond to the
-                // current grab owner. This prevents a late PointerExit from
-                // session A from releasing session B's freshly acquired grab.
+                // 丢弃与当前抓取持有者不对应的过期 `Wait` 事件。
+                // 这可以防止迟到的 PointerExit 让
+                // 会话 A 释放会话 B 刚刚获取的抓取。
                 if gs.owner != Some(session_id) {
                     log::debug!(
                         "[grab] Wait(0x{:x}): ignored, owner={}",
@@ -229,12 +229,12 @@ pub mod client {
                     return;
                 }
 
-                // Debounce: on Linux/X11, XGrabKeyboard causes a focus-change
-                // feedback loop (grab -> PointerExit -> ungrab -> PointerEnter ->
-                // grab -> ...). Suppress Wait if the grab was acquired recently
-                // by this same session -- it is X11 feedback, not a real leave.
-                // A deferred release is scheduled so that a genuine leave within
-                // the debounce window is not permanently lost.
+                // 去抖：在 Linux/X11 上，XGrabKeyboard 会引发焦点变化
+                // 反馈循环（抓取 -> PointerExit -> 解除抓取 -> PointerEnter ->
+                // 抓取 -> ...）。如果抓取是最近才获取的，就抑制 Wait
+                // 且由同一会话发起 —— 那是 X11 反馈，而不是真正的离开。
+                // 会安排一次延迟释放，以免在
+                // 去抖窗口内的真正离开被永久丢失。
                 #[cfg(target_os = "linux")]
                 if let Some(t) = gs.last_grab {
                     let elapsed = t.elapsed().as_millis();
@@ -252,7 +252,7 @@ pub mod client {
                                 std::thread::sleep(std::time::Duration::from_millis(remaining));
                                 let release_keys = {
                                     let mut gs = GRAB_STATE.lock().unwrap();
-                                    // Release only if no new Run has refreshed the grab since.
+                                    // 只有在此期间没有新的 Run 刷新过抓取时才释放。
                                     if gs.owner == Some(session_id) && gs.last_grab == snapshot {
                                         let to_release = take_remote_keys();
                                         gs.deferred_pending = false;
@@ -322,27 +322,27 @@ pub mod client {
     }
 
     pub fn process_event(keyboard_mode: &str, event: &Event, lock_modes: Option<i32>) {
-        // Shortcut intercept — must come before any wire encoding.
-        // A press that fires a shortcut is consumed, and so are its auto repeats
-        // and its release; every other event passes through to the
-        // encode/forward path.
+        // 快捷键拦截 —— 必须放在任何线路编码之前。
+        // 触发快捷键的按下事件会被消费，其自动重复
+        // 和松开事件也一样；其他所有事件都会继续传递到
+        // 编码/转发路径。
         //
         // NOTE: Shortcut matching intentionally happens BEFORE any key swapping
-        // (swap_modifier_key) so that shortcuts bind to the physical keys pressed,
-        // not the swapped keys. This makes shortcut setup intuitive: users bind
-        // shortcuts to the actual keys they press, regardless of swap settings.
-        // Key swapping only affects what gets sent to the remote.
+        // （swap_modifier_key），使快捷键绑定到实际按下的物理按键，
+        // 而不是交换后的按键。这让快捷键设置更直观：用户绑定的是
+        // 他们实际按下的按键，与交换设置无关。
+        // 按键交换只影响发送到远端的内容。
         //
-        // Gated on `feature = "flutter"` because the dispatch target
-        // (`flutter::push_session_event`) is Flutter-only. Sciter builds never
-        // call `reload_from_config`, so the cache stays disabled and the
-        // matcher would no-op anyway — but we still skip the call entirely so
-        // a hand-edited config can't silently swallow keys on a UI that has
-        // no way to surface the action.
+        // 以 `feature = "flutter"` 做条件门控，因为派发目标
+        // （`flutter::push_session_event`）仅 Flutter 可用。Sciter 构建从不
+        // 调用 `reload_from_config`，因此缓存保持禁用状态，而
+        // 匹配器本来也只会空操作 —— 但我们仍然完全跳过该调用，以免
+        // 在无法呈现该动作的界面上，被手工修改的配置悄悄吞掉按键。
+        // 没有途径来呈现该动作。
         //
-        // `None` for session_id makes the helper resolve through
-        // `flutter::get_cur_session_id()` — the rdev grab loop is process-wide
-        // and has no per-event session context to thread.
+        // session_id 为 `None` 会让辅助函数通过
+        // `flutter::get_cur_session_id()` 解析 —— rdev 抓取循环是进程级的，
+        // 没有可供传递的逐事件会话上下文。
         #[cfg(feature = "flutter")]
         if crate::keyboard::shortcuts::try_dispatch(
             None,
@@ -371,11 +371,11 @@ pub mod client {
         session: &Session<T>,
         session_id: SessionID,
     ) {
-        // Shortcut intercept — see the long comment in `process_event` above
-        // for the consume / feature-gate rationale. The only difference
-        // here is that the Flutter FFI path threads an explicit SessionID
-        // through, so dispatch targets the exact tab the keystroke originated
-        // from — no dependency on the global focus tracker.
+        // 快捷键拦截 —— 参见上面 `process_event` 中的详细注释，
+        // 其中说明了消费事件/特性门控的理由。唯一的区别是
+        // 这里 Flutter 的 FFI 路径会显式传递 SessionID，
+        // 因此派发会准确指向按键产生的那个标签页，
+        // 而不依赖全局焦点跟踪器。
         #[cfg(feature = "flutter")]
         if crate::keyboard::shortcuts::try_dispatch(
             Some(&session_id),
@@ -534,11 +534,11 @@ fn get_keyboard_mode() -> String {
     "legacy".to_string()
 }
 
-/// Check if exit shortcut for relative mouse mode is active.
-/// Exit shortcuts (only exits, not toggles):
-/// - macOS: Cmd+G
-/// - Windows/Linux: Ctrl+Alt (triggered when both are pressed)
-/// Note: This shortcut is only available in Flutter client. Sciter client does not support relative mouse mode.
+/// 检查相对鼠标模式的退出快捷键是否处于激活状态。
+/// 退出快捷键（只退出，不切换）：
+/// - macOS：Cmd+G
+/// - Windows/Linux：Ctrl+Alt（两者同时按下时触发）
+/// 注意：该快捷键仅在 Flutter 客户端可用。Sciter 客户端不支持相对鼠标模式。
 #[cfg(feature = "flutter")]
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 fn is_exit_relative_mouse_shortcut(key: Key) -> bool {
@@ -546,7 +546,7 @@ fn is_exit_relative_mouse_shortcut(key: Key) -> bool {
 
     #[cfg(target_os = "macos")]
     {
-        // macOS: Cmd+G to exit
+        // macOS：Cmd+G 退出
         if key != Key::KeyG {
             return false;
         }
@@ -557,8 +557,8 @@ fn is_exit_relative_mouse_shortcut(key: Key) -> bool {
 
     #[cfg(not(target_os = "macos"))]
     {
-        // Windows/Linux: Ctrl+Alt to exit
-        // Triggered when Ctrl is pressed while Alt is down, or Alt is pressed while Ctrl is down
+        // Windows/Linux：Ctrl+Alt 退出
+        // 在 Alt 按下时按下 Ctrl，或在 Ctrl 按下时按下 Alt 时触发
         let is_ctrl_key = key == Key::ControlLeft || key == Key::ControlRight;
         let is_alt_key = key == Key::Alt || key == Key::AltGr;
 
@@ -571,13 +571,13 @@ fn is_exit_relative_mouse_shortcut(key: Key) -> bool {
         let alt = *modifiers.get(&Key::Alt).unwrap_or(&false)
             || *modifiers.get(&Key::AltGr).unwrap_or(&false);
 
-        // When Ctrl is pressed and Alt is already down, or vice versa
+        // 当按下 Ctrl 而 Alt 已经按下，或反之
         (is_ctrl_key && alt) || (is_alt_key && ctrl)
     }
 }
 
-/// Notify Flutter to exit relative mouse mode.
-/// Note: This is Flutter-only. Sciter client does not support relative mouse mode.
+/// 通知 Flutter 退出相对鼠标模式。
+/// 注意：这是 Flutter 专用的。Sciter 客户端不支持相对鼠标模式。
 #[cfg(feature = "flutter")]
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 fn notify_exit_relative_mouse_mode() {
@@ -585,14 +585,14 @@ fn notify_exit_relative_mouse_mode() {
     flutter::push_session_event(&session_id, "exit_relative_mouse_mode", vec![]);
 }
 
-/// Handle relative mouse mode shortcuts in the rdev grab loop.
-/// Returns true if the event should be blocked from being sent to the peer.
+/// 在 rdev 抓取循环中处理相对鼠标模式的快捷键。
+/// 如果该事件应被阻止发送到对端，则返回 true。
 #[cfg(feature = "flutter")]
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 #[inline]
 fn can_exit_relative_mouse_mode_from_grab_loop() -> bool {
-    // Only process exit shortcuts when relative mouse mode is actually active.
-    // This prevents blocking Ctrl+Alt (or Cmd+G) when not in relative mouse mode.
+    // 只在相对鼠标模式真正激活时才处理退出快捷键。
+    // 这样在非相对鼠标模式下就不会屏蔽 Ctrl+Alt（或 Cmd+G）。
     if !RELATIVE_MOUSE_MODE_ACTIVE.load(Ordering::SeqCst) {
         return false;
     }
@@ -601,12 +601,12 @@ fn can_exit_relative_mouse_mode_from_grab_loop() -> bool {
         return false;
     };
 
-    // Only for remote desktop sessions.
+    // 仅用于远程桌面会话。
     if !session.is_default() {
         return false;
     }
 
-    // Must have keyboard permission and not be in view-only mode.
+    // 必须拥有键盘权限，且不处于仅查看模式。
     if !*session.server_keyboard_enabled.read().unwrap() {
         return false;
     }
@@ -615,7 +615,7 @@ fn can_exit_relative_mouse_mode_from_grab_loop() -> bool {
         return false;
     }
 
-    // Peer must support relative mouse mode.
+    // 对端必须支持相对鼠标模式。
     crate::common::is_support_relative_mouse_mode_num(lc.version)
 }
 
@@ -627,7 +627,7 @@ fn should_block_relative_mouse_shortcut(key: Key, is_press: bool) -> bool {
         return false;
     }
 
-    // Determine which key to track for key-up blocking based on platform
+    // 根据平台确定要跟踪哪个键以屏蔽 key-up
     #[cfg(target_os = "macos")]
     let is_tracked_key = key == Key::KeyG;
     #[cfg(not(target_os = "macos"))]
@@ -636,23 +636,23 @@ fn should_block_relative_mouse_shortcut(key: Key, is_press: bool) -> bool {
         || key == Key::Alt
         || key == Key::AltGr;
 
-    // Block key up if key down was blocked (to avoid orphan key up event on remote).
-    // This must be checked before clearing the flag below.
+    // 如果 key down 被屏蔽，则屏蔽 key up（避免远端出现孤立的 key up 事件）。
+    // 这必须在清除下面的标志之前检查。
     if is_tracked_key && !is_press && EXIT_SHORTCUT_KEY_DOWN.swap(false, Ordering::SeqCst) {
         return true;
     }
 
-    // Exit relative mouse mode shortcuts:
-    // - macOS: Cmd+G
-    // - Windows/Linux: Ctrl+Alt
-    // Guard it to supported/eligible sessions to avoid blocking the chord unexpectedly.
+    // 退出相对鼠标模式的快捷键：
+    // - macOS：Cmd+G
+    // - Windows/Linux：Ctrl+Alt
+    // 加上限制，只对受支持/符合条件的会话生效，以避免意外屏蔽该组合键。
     if is_exit_relative_mouse_shortcut(key) {
         if !can_exit_relative_mouse_mode_from_grab_loop() {
             return false;
         }
         if is_press {
-            // Only trigger exit on transition from "not pressed" to "pressed".
-            // This prevents retriggering on OS key-repeat.
+            // 只在从“未按下”变为“已按下”时触发退出。
+            // 这可以避免操作系统按键重复时再次触发。
             if !EXIT_SHORTCUT_KEY_DOWN.swap(true, Ordering::SeqCst) {
                 notify_exit_relative_mouse_mode();
             }
@@ -668,7 +668,7 @@ fn start_grab_loop() {
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     std::thread::spawn(move || {
         let try_handle_keyboard = move |event: Event, key: Key, is_press: bool| -> Option<Event> {
-            // fix #2211：CAPS LOCK don't work
+            // 修复 #2211：CAPS LOCK 不生效
             if key == Key::CapsLock || key == Key::NumLock {
                 return Some(event);
             }
@@ -699,7 +699,7 @@ fn start_grab_loop() {
                 0x2A => rdev::set_modifier(Key::ShiftLeft, is_press),
                 0x36 => rdev::set_modifier(Key::ShiftRight, is_press),
                 0x38 => rdev::set_modifier(Key::Alt, is_press),
-                // Right Alt
+                // 右 Alt
                 0xE038 => rdev::set_modifier(Key::AltGr, is_press),
                 0xE05B => rdev::set_modifier(Key::MetaLeft, is_press),
                 0xE05C => rdev::set_modifier(Key::MetaRight, is_press),
@@ -758,7 +758,7 @@ fn start_grab_loop() {
     };
 }
 
-// #[allow(dead_code)] is ok here. No need to stop grabbing loop.
+// 这里使用 `#[allow(dead_code)]` 没问题。无需停止抓取循环。
 #[allow(dead_code)]
 fn stop_grab_loop() -> Result<(), rdev::GrabError> {
     #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -796,8 +796,8 @@ fn release_remote_keys_for_events(keyboard_mode: &str, to_release: HashMap<Key, 
         }
         event.event_type = EventType::KeyRelease(key);
         client::process_event(keyboard_mode, &event, None);
-        // If Alt or AltGr is pressed, we need to send another key stoke to release it.
-        // Because the controlled side may hold the alt state, if local window is switched by [Alt + Tab].
+        // 如果按下了 Alt 或 AltGr，我们需要再发送一次按键事件来释放它。
+        // 因为受控端可能保持着 alt 状态，比如本地窗口通过 [Alt + Tab] 切换时。
         if key == Key::Alt || key == Key::AltGr {
             event.event_type = EventType::KeyPress(key);
             client::process_event(keyboard_mode, &event, None);
@@ -809,7 +809,7 @@ fn release_remote_keys_for_events(keyboard_mode: &str, to_release: HashMap<Key, 
 
 #[allow(dead_code)]
 pub fn release_remote_keys(keyboard_mode: &str) {
-    // todo!: client quit suddenly, how to release keys?
+    // 待办！：客户端突然退出，如何释放按键？
     release_remote_keys_for_events(keyboard_mode, take_remote_keys());
 }
 
@@ -905,7 +905,7 @@ pub fn is_letter_rdev_key(key: &rdev::Key) -> bool {
 }
 
 // https://github.com/rustdesk/rustdesk/issues/8599
-// We just add these keys as letter keys.
+// 我们只是把这些键当作字母键添加。
 #[inline]
 pub fn is_letter_rdev_key_ex(key: &rdev::Key) -> bool {
     matches!(
@@ -919,8 +919,8 @@ fn is_numpad_key(event: &Event) -> bool {
     matches!(event.event_type, EventType::KeyPress(key) | EventType::KeyRelease(key) if is_numpad_rdev_key(&key))
 }
 
-// Check is letter key for lock modes.
-// Only letter keys need to check and send Lock key state.
+// 检查是否为字母键，以处理锁定模式。
+// 只有字母键才需要检查并发送锁定键状态。
 #[inline]
 fn is_letter_key_4_lock_modes(event: &Event) -> bool {
     matches!(event.event_type, EventType::KeyPress(key) | EventType::KeyRelease(key) if (is_letter_rdev_key(&key) || is_letter_rdev_key_ex(&key)))
@@ -978,7 +978,7 @@ pub fn convert_numpad_keys(key: Key) -> Key {
 }
 
 fn update_modifiers_state(event: &Event) {
-    // for mouse
+    // 用于鼠标
     let mut keys = MODIFIERS_STATE.lock().unwrap();
     match event.event_type {
         EventType::KeyPress(k) => {
@@ -1075,7 +1075,7 @@ pub fn get_peer_platform() -> String {
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn legacy_keyboard_mode(event: &Event, mut key_event: KeyEvent) -> Vec<KeyEvent> {
     let mut events = Vec::new();
-    // legacy mode(0): Generate characters locally, look for keycode on other side.
+    // legacy 模式(0)：在本地生成字符，在对端查找键码。
     let (mut key, down_or_up) = match event.event_type {
         EventType::KeyPress(key) => (key, true),
         EventType::KeyRelease(key) => (key, false),
@@ -1119,8 +1119,8 @@ pub fn legacy_keyboard_mode(event: &Event, mut key_event: KeyEvent) -> Vec<KeyEv
         Key::AltGr => Some(ControlKey::RAlt),
         Key::Backspace => Some(ControlKey::Backspace),
         Key::ControlLeft => {
-            // when pressing AltGr, an extra VK_LCONTROL with a special
-            // scancode with bit 9 set is sent, let's ignore this.
+            // 按下 AltGr 时，会额外发送一个 VK_LCONTROL，带特殊的
+            // 扫描码（bit 9 置位），这里忽略它。
             #[cfg(windows)]
             if (event.position_code >> 8) == 0xE0 {
                 unsafe {
@@ -1216,7 +1216,7 @@ pub fn legacy_keyboard_mode(event: &Event, mut key_event: KeyEvent) -> Vec<KeyEv
         let mut chr = match &name {
             Some(ref s) => {
                 if s.len() <= 2 {
-                    // exclude chinese characters
+                    // 排除中文字符
                     s.chars().next().unwrap_or('\0')
                 } else {
                     '\0'
@@ -1225,7 +1225,7 @@ pub fn legacy_keyboard_mode(event: &Event, mut key_event: KeyEvent) -> Vec<KeyEv
             _ => '\0',
         };
         if chr == '·' {
-            // special for Chinese
+            // 针对中文的特殊处理
             chr = '`';
         }
         if chr == '\0' {
@@ -1323,11 +1323,11 @@ fn windows_peer_special_key(peer: &str, event: &Event) -> Option<KeyEvent> {
         _ => return None,
     };
 
-    // Handle only `Pause` for Windows peers for now.
-    // Windows has no normal scan code for `Pause`, so send it as a legacy control key.
+    // 目前对 Windows 对端只处理 `Pause`。
+    // Windows 没有 `Pause` 的常规扫描码，因此把它作为旧式控制键发送。
     #[cfg(target_os = "windows")]
     let is_pause = {
-        // The Windows scan code can look like `NumLock`; VK_PAUSE distinguishes it.
+        // Windows 的扫描码看起来可能像 `NumLock`；VK_PAUSE 可以区分它。
         let pause_vk_code = rdev::win_code_from_key(Key::Pause);
         key == Key::Pause || pause_vk_code == Some(event.platform_code as _)
     };
@@ -1361,7 +1361,7 @@ fn _map_keyboard_mode(_peer: &str, event: &Event, mut key_event: KeyEvent) -> Op
     let keycode = match _peer {
         OS_LOWER_WINDOWS => {
             // https://github.com/rustdesk/rustdesk/issues/1371
-            // Filter scancodes that are greater than 255 and the height word is not 0xE0.
+            // 过滤掉大于 255 且高字节不是 0xE0 的扫描码。
             if event.position_code > 255 && (event.position_code >> 8) != 0xE0 {
                 return None;
             }
@@ -1526,7 +1526,7 @@ pub fn translate_keyboard_mode(peer: &str, event: &Event, key_event: KeyEvent) -
         if unicode_info.is_dead {
             #[cfg(target_os = "macos")]
             if peer != OS_LOWER_MACOS && unsafe { IS_LEFT_OPTION_DOWN } {
-                // try clear dead key state
+                // 尝试清除 dead key 状态
                 // rdev::clear_dead_key_state();
             } else {
                 return events;
@@ -1543,7 +1543,7 @@ pub fn translate_keyboard_mode(peer: &str, event: &Event, key_event: KeyEvent) -
     }
 
     #[cfg(target_os = "macos")]
-    // ignore right option key
+    // 忽略右 option 键
     if event.platform_code == rdev::kVK_RightOption as u32 {
         return events;
     }
@@ -1566,7 +1566,7 @@ pub fn translate_keyboard_mode(peer: &str, event: &Event, key_event: KeyEvent) -
         try_fill_unicode(peer, event, &key_event, &mut events);
     }
 
-    // If AltGr is down, no need to send events other than unicode.
+    // 如果 AltGr 处于按下状态，除 unicode 之外无需发送其他事件。
     #[cfg(target_os = "windows")]
     unsafe {
         if IS_0X021D_DOWN {
@@ -1607,10 +1607,10 @@ pub mod input_source {
     use crate::ui_interface::{get_local_option, set_local_option};
 
     pub const CONFIG_OPTION_INPUT_SOURCE: &str = "input-source";
-    // rdev grab mode
+    // rdev 抓取模式
     pub const CONFIG_INPUT_SOURCE_1: &str = "Input source 1";
     pub const CONFIG_INPUT_SOURCE_1_TIP: &str = "input_source_1_tip";
-    // flutter grab mode
+    // flutter 抓取模式
     pub const CONFIG_INPUT_SOURCE_2: &str = "Input source 2";
     pub const CONFIG_INPUT_SOURCE_2_TIP: &str = "input_source_2_tip";
 
@@ -1619,8 +1619,8 @@ pub mod input_source {
     pub fn init_input_source() {
         #[cfg(target_os = "linux")]
         if !crate::platform::linux::is_x11() {
-            // If switching from X11 to Wayland, the grab loop will not be started.
-            // Do not change the config here.
+            // 如果从 X11 切换到 Wayland，将不会启动抓取循环。
+            // 不要在这里修改配置。
             return;
         }
         #[cfg(target_os = "macos")]
@@ -1650,12 +1650,12 @@ pub mod input_source {
                 log::error!("change_input_source, is_can_input_monitoring() false");
                 return;
             }
-            // It is ok to start grab loop multiple times.
+            // 多次启动抓取循环也没问题。
             super::client::start_grab_loop();
             super::IS_RDEV_ENABLED.store(true, super::Ordering::SeqCst);
             crate::flutter_ffi::session_enter_or_leave(session_id, true);
         } else if input_source == CONFIG_INPUT_SOURCE_2 {
-            // No need to stop grab loop.
+            // 无需停止抓取循环。
             crate::flutter_ffi::session_enter_or_leave(session_id, false);
             super::IS_RDEV_ENABLED.store(false, super::Ordering::SeqCst);
         }

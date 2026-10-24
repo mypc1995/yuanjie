@@ -108,8 +108,8 @@ impl EncoderApi for VRamEncoder {
             frame.texture()?
         };
         if rotation != 0 {
-            // to-do: support rotation
-            // Both the encoder and display(w,h) information need to be changed.
+            // 待办：支持旋转
+            // 编码器和显示 (w,h) 信息两者都需要改。
             bail!("rotation not supported");
         }
         let mut vf = VideoFrame::new();
@@ -147,7 +147,7 @@ impl EncoderApi for VRamEncoder {
     }
 
     fn yuvfmt(&self) -> EncodeYuvFormat {
-        // useless
+        // 没有用
         EncodeYuvFormat {
             pixfmt: Pixfmt::BGRA,
             w: self.ctx.d.width as _,
@@ -206,7 +206,7 @@ impl VRamEncoder {
             .filter(|e| e.luid == device.luid)
             .collect();
         if v.len() > 0 {
-            // prefer ffmpeg
+            // 优先使用 ffmpeg
             if let Some(ctx) = v.iter().find(|c| c.driver == Driver::FFMPEG) {
                 return Some(ctx.clone());
             }
@@ -239,7 +239,7 @@ impl VRamEncoder {
             .filter(|c| c.data_format == data_format)
             .collect();
         if crate::hwcodec::HwRamEncoder::try_get(format).is_some() {
-            // has fallback, no need to require all adapters support
+            // 有回退方案，不需要要求所有适配器都支持
             v
         } else {
             let Ok(displays) = crate::Display::all() else {
@@ -319,7 +319,7 @@ impl VRamDecoder {
     pub fn try_get(format: CodecFormat, luid: Option<i64>) -> Option<DecodeContext> {
         let v: Vec<_> = Self::available(format, luid);
         if v.len() > 0 {
-            // prefer ffmpeg
+            // 优先使用 ffmpeg
             if let Some(ctx) = v.iter().find(|c| c.driver == Driver::FFMPEG) {
                 return Some(ctx.clone());
             }

@@ -1,5 +1,5 @@
 import 'dart:js' as js;
-// cycle imports, maybe we can improve this
+// 循环导入，也许我们可以改进这一点
 import 'package:flutter_hbb/consts.dart';
 
 final isAndroid_ = false;

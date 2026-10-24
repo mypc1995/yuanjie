@@ -74,12 +74,12 @@ pub(super) fn create_event_loop() -> ResultType<()> {
     let mut resized = final_size.is_none();
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
+        * control_flow = ControlFlow::Poll;
 
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
-                    *control_flow = ControlFlow::Exit;
+                    * control_flow = ControlFlow::Exit;
                 }
                 _ => {}
             },
@@ -128,7 +128,7 @@ pub(super) fn create_event_loop() -> ResultType<()> {
                     let (radius, alpha) = ripple.get_radius_alpha();
 
                     let mut ripple_paint = Paint::default();
-                    // Note: The real color is bgra here.
+                    // 注意：这里真正的颜色格式是 bgra。
                     ripple_paint.set_color_rgba8(64, 64, 255, (alpha * 128.0) as u8);
                     ripple_paint.anti_alias = true;
 
@@ -162,7 +162,7 @@ pub(super) fn create_event_loop() -> ResultType<()> {
                     if let Some(path) = pb.finish() {
                         let rgba = super::argb_to_rgba(cursor.argb);
                         let mut arrow_paint = Paint::default();
-                        // Note: The real color is bgra here.
+                        // 注意：这里真正的颜色格式是 bgra。
                         arrow_paint.set_color_rgba8(rgba.2, rgba.1, rgba.0, rgba.3);
                         arrow_paint.anti_alias = true;
                         pixmap.fill_path(
@@ -220,7 +220,7 @@ pub(super) fn create_event_loop() -> ResultType<()> {
                     last_cursors.insert(k, cursor);
                 }
                 CustomEvent::Exit => {
-                    *control_flow = ControlFlow::Exit;
+                    * control_flow = ControlFlow::Exit;
                 }
                 _ => {}
             },

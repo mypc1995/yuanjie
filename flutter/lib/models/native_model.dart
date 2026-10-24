@@ -25,10 +25,10 @@ typedef F3 = Pointer<Uint8> Function(Pointer<Utf8>, int);
 typedef F3Dart = Pointer<Uint8> Function(Pointer<Utf8>, Int32);
 typedef HandleEvent = Future<void> Function(Map<String, dynamic> evt);
 
-/// The Linux bundle keeps the core library at lib/librustdesk.so next to the
-/// executable. Prefer that copy, mirroring flutter/linux/main.cc: the plain
-/// name relies on the loader search path, which repackaged installs may not
-/// cover. https://github.com/rustdesk/rustdesk/discussions/14407
+/// Linux 安装包把核心库放在可执行文件旁的 lib/librustdesk.so，
+/// 优先使用该副本，这与 flutter/linux/main.cc 保持一致：单纯的名字
+/// 依赖加载器的搜索路径，重新打包的安装版本可能并不覆盖。
+/// https://github.com/rustdesk/rustdesk/discussions/14407
 DynamicLibrary _openLinuxCoreLib() {
   final bundled =
       '${File(Platform.resolvedExecutable).parent.path}/lib/librustdesk.so';
@@ -42,11 +42,11 @@ DynamicLibrary _openLinuxCoreLib() {
   return DynamicLibrary.open('librustdesk.so');
 }
 
-/// FFI wrapper around the native Rust core.
-/// Hides the platform differences.
+/// 对原生 Rust 核心的 FFI 封装。
+/// 屏蔽平台差异。
 class PlatformFFI {
   String _dir = '';
-  // _homeDir is only needed for Android and IOS.
+  // _homeDir 只有 Android 和 IOS 需要。
   String _homeDir = '';
   final _eventHandlers = <String, Map<String, HandleEvent>>{};
   late RustdeskImpl _ffiBind;
@@ -134,7 +134,7 @@ class PlatformFFI {
       _ffiBind.sessionRegisterGpuTexture(
           sessionId: sessionId, display: display, ptr: ptr);
 
-  /// Init the FFI class, loads the native Rust core library.
+  /// 初始化 FFI 类，加载原生 Rust 核心库。
   Future<void> init(String appType) async {
     _appType = appType;
     final dylib = isAndroid
@@ -144,9 +144,9 @@ class PlatformFFI {
             : isWindows
                 ? DynamicLibrary.open('librustdesk.dll')
                 :
-                // Use executable itself as the dynamic library for MacOS.
-                // Multiple dylib instances will cause some global instances to be invalid.
-                // eg. `lazy_static` objects in rust side, will be created more than once, which is not expected.
+                // 在 MacOS 上直接使用可执行文件本身作为动态库。
+                // 多个 dylib 实例会导致某些全局实例失效。
+                // 例如 rust 端的 `lazy_static` 对象会被创建多次，这并不是预期行为。
                 //
                 // isMacOS? DynamicLibrary.open("liblibrustdesk.dylib") :
                 DynamicLibrary.process();
@@ -154,7 +154,7 @@ class PlatformFFI {
     try {
       _session_get_rgba = dylib.lookupFunction<F3Dart, F3>("session_get_rgba");
       try {
-        // SYSTEM user failed
+        // SYSTEM 用户失败
         _dir = (await getApplicationDocumentsDirectory()).path;
       } catch (e) {
         debugPrint('Failed to get documents directory: $e');
@@ -163,27 +163,27 @@ class PlatformFFI {
 
       if (isLinux) {
         if (isMain) {
-          // Start a dbus service for uri links, no need to await
+          // 为 uri 链接启动 dbus 服务，无需 await
           _ffiBind.mainStartDbusServer();
         }
       } else if (isMacOS && isMain) {
-        // Start ipc service for uri links.
+        // 为 uri 链接启动 ipc 服务。
         _ffiBind.mainStartIpcUrlServer();
       }
       _startListenEvent(_ffiBind); // global event
       try {
         if (isAndroid) {
-          // Android file transfer uses app-specific storage. User-selected
-          // files enter and leave this workspace through the system picker.
+          // Android 文件传输使用应用专属存储。用户选择的
+          // 文件通过系统选择器进入和离开该工作区。
           _homeDir = (await getExternalStorageDirectory())?.path ??
               (await getApplicationSupportDirectory()).path;
         } else if (isIOS) {
-          // The previous code was `_homeDir = (await getDownloadsDirectory())?.path ?? '';`,
-          // which provided the `downloads` path in the sandbox.
-          // It is unclear why we now use the `data` directory in the sandbox instead.
+          // 之前的代码是 `_homeDir = (await getDownloadsDirectory())?.path ?? '';`，
+          // 它提供的是沙箱中的 `downloads` 路径。
+          // 不清楚为什么我们现在改用沙箱中的 `data` 目录。
           _homeDir = _ffiBind.mainGetDataDirIos(appDir: _dir);
         } else {
-          // no need to set home dir
+          // 无需设置 home 目录
         }
       } catch (e) {
         debugPrintStack(label: 'initialize failed: $e');
@@ -206,7 +206,7 @@ class PlatformFFI {
         id = linuxInfo.machineId ?? linuxInfo.id;
       } else if (isWindows) {
         try {
-          // request windows build number to fix overflow on win7
+          // 获取 windows 版本号以修复 win7 上的溢出问题
           windowsBuildNumber = getWindowsTargetBuildNumber();
           WindowsDeviceInfo winInfo = await deviceInfo.windowsInfo;
           name = winInfo.computerName;
@@ -260,7 +260,7 @@ class PlatformFFI {
     return false;
   }
 
-  /// Start listening to the Rust core's events and frames.
+  /// 开始监听 Rust 核心的事件和帧。
   void _startListenEvent(RustdeskImpl rustdeskImpl) {
     final appType =
         _appType == kAppTypeDesktopRemote ? '$_appType,$kWindowId' : _appType;
@@ -269,7 +269,7 @@ class PlatformFFI {
       () async {
         try {
           Map<String, dynamic> event = json.decode(message);
-          // _tryHandle here may be more flexible than _eventCallback
+          // 这里的 _tryHandle 可能比 _eventCallback 更灵活
           if (!await tryHandle(event)) {
             if (_eventCallback != null) {
               await _eventCallback!(event);
@@ -288,11 +288,11 @@ class PlatformFFI {
 
   void setRgbaCallback(void Function(int, Uint8List) fun) async {}
 
-  // web only
+  // 仅 web
   void setCursorDataCallback(
       void Function(String, int, int, int, int, Uint8List) fun) async {}
 
-  // web only, decoded WebCodecs frames arriving as ready-made images
+  // 仅 web，解码后的 WebCodecs 帧以现成的图像形式到达
   void setVideoFrameCallback(
       Future<void> Function(int, ui.Image, bool Function()) fun) {}
 

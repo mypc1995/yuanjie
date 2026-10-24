@@ -30,7 +30,7 @@ pub fn run(rx: Receiver<RecordState>) {
             Config::get_option("api-server"),
             Config::get_option("custom-rendezvous-server"),
         );
-        // This URL is used for TLS connectivity testing and fallback detection.
+        // 这个 URL 用于 TLS 连通性测试和回退检测。
         let login_option_url = format!("{}/api/login-options", &api_server);
         let client = create_http_client_with_url(&login_option_url);
         let mut uploader = RecordUploader {

@@ -587,8 +587,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
         return Offstage();
       }
 
-      // Find the first job that is in progress (the one actually transferring data)
-      // Rust backend processes jobs sequentially, so the first inProgress job is the active one
+      // 找到第一个进行中的任务（即真正在传输数据的那个）
+      // Rust 后端按顺序处理任务，因此第一个 inProgress 任务就是当前活动任务
       final activeJob = jobTable
               .firstWhereOrNull((job) => job.state == JobState.inProgress) ??
           jobTable.last;
@@ -797,7 +797,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                   if (entries[index].isDirectory || entries[index].isDrive) {
                     controller.openDirectory(entries[index].path);
                   } else {
-                    // Perform file-related tasks.
+                    // 执行与文件相关的任务。
                   }
                 },
                 onLongPress: entries[index].isDrive
@@ -840,7 +840,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                   () => controller.goToHomeDirectory(), (list) {
                 var path = "";
                 if (home.startsWith(list[0])) {
-                  // absolute path
+                  // 绝对路径
                   for (var item in list) {
                     path = PathUtil.join(path, item, isWindows);
                   }
@@ -878,8 +878,8 @@ class _FileManagerViewState extends State<FileManagerView> {
                         .toList();
                   },
                   onSelected: (sortBy) {
-                    // If selecting the same sort option, flip the order
-                    // If selecting a different sort option, use ascending order
+                    // 如果选择的是同一个排序选项，则反转顺序
+                    // 如果选择的是不同的排序选项，则使用升序
                     if (controller.sortBy.value == sortBy) {
                       ascending.value = !controller.sortAscending;
                     } else {

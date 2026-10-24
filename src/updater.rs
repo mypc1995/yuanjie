@@ -51,9 +51,9 @@ fn acquire_mac_update_lock() -> ResultType<MacUpdateLock> {
     }
     handle.set_permissions(std::fs::Permissions::from_mode(0o600))?;
 
-    // Keep the descriptor open through update preparation and detached-script
-    // launch. O_CLOEXEC means this lock does not cover the detached bundle
-    // swap; flock is released when this guard is dropped or the process exits.
+    // 在更新准备和分离脚本
+    // 启动期间保持描述符打开。O_CLOEXEC 意味着这把锁不覆盖那个分离的 bundle
+    // 替换；flock 会在这个 guard 被 drop 或进程退出时释放。
     let lock_result = unsafe {
         hbb_common::libc::flock(
             handle.as_raw_fd(),
@@ -81,16 +81,16 @@ lazy_static::lazy_static! {
 
 static CONTROLLING_SESSION_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-/// Initial wait after startup before the first update check (30 seconds).
+/// 启动后到首次更新检查之前的初始等待时间（30 秒）。
 pub const INITIAL_CHECK_DELAY: Duration = Duration::from_secs(30);
 
-/// One full day — default interval between update checks.
+/// 一整天——更新检查之间的默认间隔。
 pub const DUR_ONE_DAY: Duration = Duration::from_secs(60 * 60 * 24);
 
-/// Minimum interval between consecutive update checks (10 minutes).
+/// 两次连续更新检查之间的最小间隔（10 分钟）。
 pub const MIN_INTERVAL: Duration = Duration::from_secs(60 * 10);
 
-/// Retry interval when an update check fails or a session is active (30 minutes).
+/// 更新检查失败或有会话活动时的重试间隔（30 分钟）。
 pub const RETRY_INTERVAL: Duration = Duration::from_secs(60 * 30);
 
 pub fn update_controlling_session_count(count: usize) {
@@ -116,8 +116,8 @@ pub fn stop_auto_update() {
 }
 
 #[inline]
-/// Returns true when there are no active incoming or outgoing connections.
-/// Used to avoid updating while a remote session is in progress.
+/// 当没有活动的入站或出站连接时返回 true。
+/// 用于避免在远程会话进行中更新。
 pub fn has_no_active_conns() -> bool {
     let conns = crate::Connection::alive_conns();
     conns.is_empty() && has_no_controlling_conns()
@@ -168,7 +168,7 @@ fn start_auto_update_check_(rx_msg: Receiver<UpdateMsg>) {
                     // log::debug!("Update check skipped due to minimum interval.");
                     continue;
                 }
-                // Don't check update if there are alive connections.
+                // 存在存活连接时不要检查更新。
                 if !has_no_active_conns() {
                     check_interval = RETRY_INTERVAL;
                     continue;
@@ -187,8 +187,8 @@ fn start_auto_update_check_(rx_msg: Receiver<UpdateMsg>) {
 }
 
 fn check_update(manually: bool) -> ResultType<()> {
-    // On macOS, auto-update is handled by check_update_as_root() in the service process.
-    // The shared check_update() path is only used for manual update checks from the GUI.
+    // 在 macOS 上，自动更新由服务进程中的 check_update_as_root() 处理。
+    // 共享的 check_update() 路径只用于 GUI 发起的手动更新检查。
     #[cfg(target_os = "macos")]
     if !manually {
         return Ok(());
@@ -226,9 +226,9 @@ fn check_update(manually: bool) -> ResultType<()> {
             bail!("Failed to get the file path from the URL: {}", download_url);
         };
         ensure_verified_update_artifact(download_url, &file_path, artifact.size, &artifact.sha256)?;
-        // We have checked if the `conns` is empty before, but we need to check again.
-        // No need to care about the downloaded file here, because it's rare case that the `conns` are empty
-        // before the download, but not empty after the download.
+        // 我们之前已经检查过 `conns` 是否为空，但需要再检查一次。
+        // 这里不必在意已下载的文件，因为 `conns` 为空
+        // 在下载之前、下载之后却不为空的情况很少见。
         if has_no_active_conns() {
             #[cfg(target_os = "windows")]
             update_new_version(update_msi, version, &file_path, &artifact.sha256);
@@ -327,7 +327,7 @@ fn update_new_version(update_msi: bool, version: &str, file_path: &PathBuf, expe
                     }
                     Some(custom_client_staging_dir)
                 } else {
-                    // Clean up any residual staging directory from previous custom client
+                    // 清理上一次自定义客户端留下的任何残留暂存目录
                     let staging_dir = crate::platform::get_custom_client_staging_dir();
                     hbb_common::allow_err!(crate::platform::remove_custom_client_staging_dir(
                         &staging_dir
@@ -381,13 +381,13 @@ fn update_new_version(update_msi: bool, version: &str, file_path: &PathBuf, expe
     }
 }
 
-/// Queries all active connections (remote, file-transfer, port-forward, camera, terminal)
-/// from every logged-in user's --server process via IPC.
-/// The root service cannot read connection state directly since connections
-/// live in user --server processes. Handles fast user switching by querying
-/// all GUI users, including the login-window server at UID 0. Falls back to
-/// false (assumes sessions active) on any IPC error to avoid updating during
-/// an unknown session state.
+/// 通过 IPC 查询所有活动连接（远程、文件传输、端口转发、摄像头、终端）
+/// ，来自每个已登录用户的 --server 进程。
+/// root 服务无法直接读取连接状态，因为连接
+/// 存在于用户的 --server 进程中。通过查询所有 GUI 用户来处理快速切换用户，
+/// 包括 UID 0 的登录窗口服务。任何 IPC 出错时都回退为
+/// false（假定有活动会话），以避免在
+/// 会话状态未知时更新。
 #[cfg(target_os = "macos")]
 pub fn has_no_active_conns_ipc() -> bool {
     let result = match hbb_common::tokio::runtime::Runtime::new() {
@@ -411,7 +411,7 @@ pub fn has_no_active_conns_ipc() -> bool {
 #[cfg(target_os = "macos")]
 async fn query_no_active_conns_ipc() -> ResultType<bool> {
     const IPC_TIMEOUT_MS: u64 = 1_000;
-    // An empty GUI user set maps to UID 0 so LoginWindow must also confirm it is idle.
+    // 空的 GUI 用户集合会映射到 UID 0，所以 LoginWindow 也必须确认自己空闲。
     let uids = crate::platform::get_logged_in_uids();
     for uid in uids {
         let mut conn = crate::ipc::connect_for_uid(IPC_TIMEOUT_MS, uid, "")
@@ -441,9 +441,9 @@ fn wait_for_failed_update_retry() {
         return;
     }
 
-    // The updater script records failure immediately before launchd restarts
-    // the old daemon. Preserve the retry deadline across that restart instead
-    // of consuming the marker and retrying the same broken release in 30 sec.
+    // 更新脚本在 launchd 重启旧守护进程之前立即记录失败
+    // 。要跨这次重启保留重试截止时间，而不是
+    // 消耗掉该标记并在 30 秒后重试同一个损坏的版本。
     let remaining = std::fs::metadata(marker)
         .and_then(|metadata| metadata.modified())
         .ok()
@@ -468,8 +468,8 @@ fn wait_for_failed_update_retry() {
     }
 }
 
-/// Starts the background silent auto-update scheduler for macOS.
-/// Called from `start_os_service()` which runs as root via LaunchDaemon.
+/// 启动 macOS 的后台静默自动更新调度器。
+/// 由以 root 身份通过 LaunchDaemon 运行的 `start_os_service()` 调用。
 #[cfg(target_os = "macos")]
 pub fn start_auto_update_macos() {
     let spawn_result = std::thread::Builder::new()
@@ -489,9 +489,9 @@ pub fn start_auto_update_macos() {
                     match check_update_as_root() {
                         Ok(update_started) => {
                             if update_started {
-                                // The replacement script is detached and may fail
-                                // after this process returns. Always retry at the
-                                // failure interval until the new daemon replaces us.
+                                // 替换脚本是分离的，可能会在本进程返回之后
+                                // 失败。始终按失败间隔重试，
+                                // 直到新的守护进程取代我们。
                                 interval = RETRY_INTERVAL;
                             } else {
                                 interval = DUR_ONE_DAY;
@@ -514,7 +514,7 @@ pub fn start_auto_update_macos() {
 #[cfg(target_os = "macos")]
 pub fn check_update_as_root() -> ResultType<bool> {
     let _update_lock = acquire_mac_update_lock()?;
-    // Allow-auto-update setting
+    // 允许自动更新的设置
     if !config::Config::get_bool_option(keys::OPTION_ALLOW_AUTO_UPDATE) {
         log::info!("[root-update] Auto update is disabled, skipping.");
         return Ok(false);
@@ -523,10 +523,10 @@ pub fn check_update_as_root() -> ResultType<bool> {
         log::info!("[root-update] Custom client detected, skipping stock update.");
         return Ok(false);
     }
-    // Clean up only old temp dirs from previous failed updates. The detached
-    // installer keeps using its update directory after this process exits and
-    // releases the advisory lock, so a newly-started daemon must not remove a
-    // directory that still belongs to the active transaction.
+    // 只清理上一次更新失败留下的旧临时目录。那个分离的
+    // 安装器在本进程退出后仍会使用它的更新目录，并且
+    // 会释放咨询锁，所以新启动的守护进程不能删除
+    // 仍属于活跃事务的目录。
     if let Ok(entries) = std::fs::read_dir("/tmp") {
         for entry in entries.flatten() {
             let name = entry.file_name();
@@ -573,13 +573,13 @@ pub fn check_update_as_root() -> ResultType<bool> {
         artifact.version,
         dmg_url
     );
-    // Validate URL against GitHub release allowlist before downloading as root
+    // 以 root 下载之前，先对照 GitHub 发布白名单校验 URL
     let Some(file_path_validated) = get_update_download_file_from_url(dmg_url) else {
         bail!("[root-update] URL failed allowlist check: {}", dmg_url);
     };
     drop(file_path_validated);
-    // Use mktemp so a local user cannot pre-create a predictable path and
-    // permanently deny updates for a reused service PID.
+    // 使用 mktemp，这样本地用户无法预先创建一个可预测的路径，
+    // 从而对一个被复用的服务 PID 永久阻断更新。
     let private_tmp_output = std::process::Command::new("/usr/bin/mktemp")
         .args(["-d", "/tmp/.rustdeskdownload-XXXXXX"])
         .output()?;
@@ -615,16 +615,16 @@ pub fn check_update_as_root() -> ResultType<bool> {
         return Err(err);
     }
     log::info!("[root-update] Downloaded and verified at {}", tmp_path);
-    // Recheck active sessions before installing — download can take minutes
+    // 安装之前重新检查活动会话——下载可能耗时数分钟
     if !has_no_active_conns_ipc() {
         if let Err(e) = std::fs::remove_dir_all(&private_tmp) {
             log::warn!("[root-update] Failed to remove temp dir {}: {}", private_tmp, e);
         }
         bail!("[root-update] Active session started during download, deferring update.");
     }
-    // Install silently as root
+    // 以 root 静默安装
     let result = crate::platform::update_from_dmg_as_root(&tmp_path, &artifact.version);
-    // Clean up download directory
+    // 清理下载目录
     if let Err(e) = std::fs::remove_dir_all(&private_tmp) {
         log::warn!(
             "[root-update] Failed to remove temp dir {}: {}",

@@ -39,7 +39,7 @@ class JobID {
     } catch (e) {
       debugPrint("Failed to get transfer job id: $e");
     }
-    // Finally increase the count if on the web or if failed to get the id.
+    // 最后，如果是在 web 上或者获取 id 失败，则增加计数。
     _count++;
     return _count;
   }
@@ -111,7 +111,7 @@ class FileModel {
 
   void receiveFileDir(Map<String, dynamic> evt) {
     if (evt['is_local'] == "false") {
-      // init remote home, the remote connection will send one dir event when established. TODO opt
+      // 初始化远端主目录，连接建立后远端会发送一个目录事件。TODO opt
       remoteController.initDirAndHome(evt);
     }
     fileFetcher.tryCompleteTask(evt['value'], evt['is_local']);
@@ -121,22 +121,22 @@ class FileModel {
     fileFetcher.tryCompleteEmptyDirsTask(evt['value'], evt['is_local']);
   }
 
-  // This method fixes a deadlock that occurred when the previous code directly
-  // called jobController.jobError(evt) in the job_error event handler.
+  // 该方法修复了旧代码直接
+  // 在 job_error 事件处理函数中调用 jobController.jobError(evt) 所导致的死锁。
   //
-  // The problem with directly calling jobController.jobError():
-  //   1. fetchDirectoryRecursiveToRemove(jobID) registers readRecursiveTasks[jobID]
-  //      and waits for completion
-  //   2. If the remote has no permission (or some other errors), it returns a FileTransferError
-  //   3. The error triggers job_error event, which called jobController.jobError()
-  //   4. jobController.jobError() calls getJob(jobID) to find the job in jobTable
-  //   5. But addDeleteDirJob() is called AFTER fetchDirectoryRecursiveToRemove(),
-  //      so the job doesn't exist yet in jobTable
-  //   6. Result: jobController.jobError() does nothing useful, and
-  //      readRecursiveTasks[jobID] never completes, causing a 2s timeout
+  // 直接调用 jobController.jobError() 的问题：
+  //   1. fetchDirectoryRecursiveToRemove(jobID) 注册了 readRecursiveTasks[jobID]
+  //      并等待其完成
+  //   2. 如果远端没有权限（或出现其他错误），它会返回 FileTransferError
+  //   3. 该错误触发 job_error 事件，进而调用 jobController.jobError()
+  //   4. jobController.jobError() 调用 getJob(jobID)，在 jobTable 中查找该任务
+  //   5. 但 addDeleteDirJob() 是在 fetchDirectoryRecursiveToRemove() 之后才被调用的，
+  //      此时该任务在 jobTable 中还不存在
+  //   6. 结果：jobController.jobError() 什么也没做成，并且
+  //      readRecursiveTasks[jobID] 永远无法完成，导致 2 秒超时
   //
-  // Solution: Before calling jobController.jobError(), we first check if there's
-  // a pending readRecursiveTasks with this ID and complete it with the error.
+  // 解决方案：在调用 jobController.jobError() 之前，先检查是否存在
+  // 带有该 ID 的待处理的 readRecursiveTasks，并用这个错误将其完成。
   void handleJobError(Map<String, dynamic> evt) {
     final id = int.tryParse(evt['id']?.toString() ?? '');
     if (id != null) {
@@ -147,9 +147,9 @@ class FileModel {
         fileFetcher.tryCompleteRecursiveTaskWithError(id, err);
       }
     }
-    // Always call jobController.jobError(evt) to ensure all error events are processed,
-    // even if the event does not have a valid job ID. This allows for generic error handling
-    // or logging of unexpected errors.
+    // 始终调用 jobController.jobError(evt)，以确保所有错误事件都被处理，
+    // 即使事件没有有效的任务 ID也是如此。这样可以实现通用的错误处理
+    // 或对意外错误进行记录。
     jobController.jobError(evt);
   }
 
@@ -170,9 +170,9 @@ class FileModel {
       debugPrint("Ignore override confirm for inactive job: $evt");
       return;
     }
-    // If `skip == true`, it means to skip this file without showing dialog.
-    // Because `resp` may be null after the user operation or the last remembered operation,
-    // and we should distinguish them.
+    // 如果 `skip == true`，表示跳过该文件且不显示对话框。
+    // 因为在用户操作之后或记住上次操作之后，`resp` 可能为 null，
+    // 我们应该区分这两种情况。
     final resp = overrideConfirm ??
         (!skip
             ? await showFileConfirmDialog(translate("Overwrite"),
@@ -187,13 +187,13 @@ class FileModel {
     } else {
       var need_override = false;
       if (resp == null) {
-        // skip
+        // 跳过
         need_override = false;
       } else {
-        // overwrite
+        // 覆盖
         need_override = true;
       }
-      // Update the loop config.
+      // 更新循环配置。
       if (fileConfirmCheckboxRemember) {
         jobController.rememberTransferConflictBatch(id, resp);
         evtLoop.setSkip(!need_override);
@@ -206,7 +206,7 @@ class FileModel {
           remember: fileConfirmCheckboxRemember,
           isUpload: evt['is_upload'] == "true");
     }
-    // Update the loop config.
+    // 更新循环配置。
     if (fileConfirmCheckboxRemember) {
       evtLoop.setOverrideConfirm(resp);
     }
@@ -362,7 +362,7 @@ class FileController {
   final history = RxList<String>.empty(growable: true);
   final sortBy = SortBy.name.obs;
   var sortAscending = true;
-  // Incremented for each navigation; only the latest generation applies results.
+  // 每次导航都会递增；只有最新一代的结果才会被应用。
   int _directoryRequestGeneration = 0;
   final JobController jobController;
   final WeakReference<FFI> rootState;
@@ -396,7 +396,7 @@ class FileController {
       var path = dirPath.replaceFirst(homePath, "");
       if (path.isEmpty) return "";
       if (path[0] == "/" || path[0] == "\\") {
-        // remove more '/' or '\'
+        // 移除多余的 '/' 或 '\'
         path = path.replaceFirst(path[0], "");
       }
       return path;
@@ -449,14 +449,14 @@ class FileController {
     await Future.delayed(Duration(seconds: 1));
 
     if (!opened) {
-      // The peer may become ready during the reconnect delay, so retry the
-      // same candidates instead of only retrying the default home directory.
+      // 设备可能在重连延迟期间变为就绪状态，因此要重试
+      // 相同的候选项，而不是只重试默认的主目录。
       await tryOpenReadyDirs();
     }
   }
 
   Future<void> close() async {
-    // save config
+    // 保存配置
     Map<String, String> msgMap = {};
     msgMap[isLocal ? "local_dir" : "remote_dir"] = directory.value.path;
     msgMap[isLocal ? "local_show_hidden" : "remote_show_hidden"] =
@@ -483,8 +483,8 @@ class FileController {
   }
 
   Future<bool> refresh() async {
-    // "." can be both a refresh command and a real remote directory path.
-    // Refresh must bypass openDirectory's command dispatch to avoid recursion.
+    // "." 既可能是刷新命令，也可能是真实的远端目录路径。
+    // 刷新必须绕过 openDirectory 的命令分发，以避免递归。
     return await _openDirectoryPath(directory.value.path, isBack: true);
   }
 
@@ -610,15 +610,15 @@ class FileController {
     }
   }
 
-  /// sendFiles from current side (FileController.isLocal) to other side (SelectedItems).
+  /// 从当前端（FileController.isLocal）向另一端（SelectedItems）发送文件。
   Future<void> sendFiles(
       SelectedItems items, DirectoryData otherSideData) async {
-    /// ignore wrong items side status
+    /// 忽略状态错误的条目端
     if (items.isLocal != isLocal) {
       return;
     }
 
-    // alias
+    // 别名
     final isRemoteToLocal = !isLocal;
 
     final toPath = otherSideData.directory.path;
@@ -628,8 +628,8 @@ class FileController {
     final transferJobIds = <int>[];
     for (var from in items.items) {
       final jobID = jobController.addTransferJob(from, isRemoteToLocal);
-      // Keep this check before PathUtil.join: Rust does not receive the selected
-      // root separately, and Web transfers bypass Rust validation.
+      // 把这个检查保留在 PathUtil.join 之前：Rust 不会单独收到所选的
+      // 根目录，而且 Web 传输会绕过 Rust 的校验。
       if (isRemoteToLocal &&
           !DownloadPaths.validName(from.name, windows: isWindows)) {
         jobController.jobError({
@@ -1094,7 +1094,7 @@ class JobController {
     }
   }
 
-  // return jobID
+  // 返回 jobID
   int addTransferJob(Entry from, bool isRemoteToLocal) {
     final jobID = JobController.jobID.next();
     jobTable.add(JobProgress()
@@ -1330,7 +1330,7 @@ class JobController {
     bool isAutoStart = jobDetail['auto_start'] == true;
     int currJobId = -1;
     if (isAutoStart) {
-      // Ensure jobDetail['id'] exists and is an int
+      // 确保 jobDetail['id'] 存在且为 int
       if (jobDetail.containsKey('id') &&
           jobDetail['id'] != null &&
           jobDetail['id'] is int) {
@@ -1338,19 +1338,19 @@ class JobController {
       }
     }
     if (currJobId < 0) {
-      // If id is missing or invalid, disable auto-start and assign a new job id
+      // 如果 id 缺失或无效，则禁用自动启动并分配新的任务 id
       isAutoStart = false;
       currJobId = JobController.jobID.next();
     }
 
     if (!isAutoStart) {
       if (!(isDesktop || isWebDesktop)) {
-        // Don't add to job table if not auto start on mobile.
-        // Because mobile does not support job list view now.
+        // 在移动端未自动启动时，不要加入任务表。
+        // 因为移动端目前不支持任务列表视图。
         return;
       }
 
-      // Add to job table if not auto start on desktop.
+      // 在桌面端未自动启动时，加入任务表。
       String fileName = path.basename(isRemote ? remote : to);
       final jobProgress = JobProgress()
         ..type = JobType.transfer
@@ -1470,7 +1470,7 @@ class _RemoteReadTask {
 }
 
 class FileFetcher {
-  // Map<String,Completer<FileDirectory>> localTasks = {}; // now we only use read local dir sync
+  // Map<String,Completer<FileDirectory>> localTasks = {}; // 目前我们只使用读取本地目录同步
   final Map<String, _RemoteReadTask> _remoteReadTasks = {};
   Map<String, Completer<List<FileDirectory>>> remoteEmptyDirsTasks = {};
   Map<int, Completer<FileDirectory>> readRecursiveTasks = {};
@@ -1535,7 +1535,7 @@ class FileFetcher {
 
   Future<List<FileDirectory>> registerReadEmptyDirsTask(
       bool isLocal, String path) {
-    // final jobs = isLocal?localJobs:remoteJobs; // maybe we will use read local dir async later
+    // final jobs = isLocal?localJobs:remoteJobs; // 也许我们以后会异步读取本地目录
     final tasks = remoteEmptyDirsTasks; // bypass now
     if (tasks.containsKey(path)) {
       throw "Failed to registerReadEmptyDirsTask, already have same read job";
@@ -1591,7 +1591,7 @@ class FileFetcher {
     try {
       final fd = FileDirectory.fromJson(jsonDecode(msg));
       if (fd.id > 0) {
-        // fd.id > 0 is result for read recursive
+        // fd.id > 0 表示递归读取的结果
         final completer = readRecursiveTasks.remove(fd.id);
         completer?.complete(fd);
         return;
@@ -1600,7 +1600,7 @@ class FileFetcher {
         if (_completeRemoteReadTask(fd.path, fd)) {
           return;
         }
-        // A Home request uses an empty path but returns its resolved path.
+        // Home 请求使用空路径，但返回解析后的路径。
         if (isLikelyRemoteHomeResponse(fd.path)) {
           _completeRemoteReadTask("", fd);
         }
@@ -1619,8 +1619,8 @@ class FileFetcher {
     return true;
   }
 
-  // Complete a pending recursive read task with an error.
-  // See FileModel.handleJobError() for why this is necessary.
+  // 用错误完成待处理的递归读取任务。
+  // 为什么需要这样做，请参见 FileModel.handleJobError()。
   void tryCompleteRecursiveTaskWithError(int id, String error) {
     final completer = readRecursiveTasks.remove(id);
     if (completer != null && !completer.isCompleted) {
@@ -1717,7 +1717,7 @@ class FileDirectory {
     });
   }
 
-  // generate full path for every entry , init sort style if need.
+  // 为每个条目生成完整路径，必要时初始化排序方式。
   format(bool isWindows, {SortBy? sort}) {
     for (var entry in entries) {
       entry.path = PathUtil.join(path, entry.name, isWindows);
@@ -1796,9 +1796,9 @@ class JobProgress {
   var finishedSize = 0;
   var totalSize = 0;
   var fileCount = 0;
-  // [isRemote == true] means [remote -> local]
+  // [isRemote == true] 表示 [远端 -> 本地]
   // var isRemote = false;
-  // to-do use enum
+  // 待办：改用枚举
   var isRemoteToLocal = false;
   var jobName = "";
   var fileName = "";
@@ -2025,58 +2025,58 @@ class SelectedItems {
 
   static bool valid(RxList<Entry> items) {
     if (items.isNotEmpty) {
-      // exclude DirDrive type
+      // 排除 DirDrive 类型
       return items.any((item) => !item.isDrive);
     }
     return false;
   }
 }
 
-// edited from [https://github.com/DevsOnFlutter/file_manager/blob/c1bf7f0225b15bcb86eba602c60acd5c4da90dd8/lib/file_manager.dart#L22]
+// 改自 [https://github.com/DevsOnFlutter/file_manager/blob/c1bf7f0225b15bcb86eba602c60acd5c4da90dd8/lib/file_manager.dart#L22]
 List<Entry> _sortList(List<Entry> list, SortBy sortType, bool ascending) {
   if (sortType == SortBy.name) {
-    // making list of only folders.
+    // 生成只包含文件夹的列表。
     final dirs = list
         .where((element) => element.isDirectory || element.isDrive)
         .toList();
-    // sorting folder list by name.
+    // 按名称对文件夹列表排序。
     dirs.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
-    // making list of only flies.
+    // 生成只包含文件的列表。
     final files = list.where((element) => element.isFile).toList();
-    // sorting files list by name.
+    // 按名称对文件列表排序。
     files.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
-    // first folders will go to list (if available) then files will go to list.
+    // 先放入文件夹（如果有），再放入文件。
     return ascending
         ? [...dirs, ...files]
         : [...dirs.reversed.toList(), ...files.reversed.toList()];
   } else if (sortType == SortBy.modified) {
-    // making the list of Path & DateTime
+    // 生成 Path 与 DateTime 的列表
     List<_PathStat> pathStat = [];
     for (Entry e in list) {
       pathStat.add(_PathStat(e.name, e.lastModified()));
     }
 
-    // sort _pathStat according to date
+    // 按日期对 _pathStat 排序
     pathStat.sort((b, a) => a.dateTime.compareTo(b.dateTime));
 
-    // sorting [list] according to [_pathStat]
+    // 按 [_pathStat] 对 [list] 排序
     list.sort((a, b) => pathStat
         .indexWhere((element) => element.path == a.name)
         .compareTo(pathStat.indexWhere((element) => element.path == b.name)));
     return ascending ? list : list.reversed.toList();
   } else if (sortType == SortBy.type) {
-    // making list of only folders.
+    // 生成只包含文件夹的列表。
     final dirs = list.where((element) => element.isDirectory).toList();
 
-    // sorting folders by name.
+    // 按名称对文件夹排序。
     dirs.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
-    // making the list of files
+    // 生成文件列表
     final files = list.where((element) => element.isFile).toList();
 
-    // sorting files list by extension.
+    // 按扩展名对文件列表排序。
     files.sort((a, b) => a.name
         .toLowerCase()
         .split('.')
@@ -2086,25 +2086,25 @@ List<Entry> _sortList(List<Entry> list, SortBy sortType, bool ascending) {
         ? [...dirs, ...files]
         : [...dirs.reversed.toList(), ...files.reversed.toList()];
   } else if (sortType == SortBy.size) {
-    // create list of path and size
+    // 创建路径和大小列表
     Map<String, int> sizeMap = {};
     for (Entry e in list) {
       sizeMap[e.name] = e.size;
     }
 
-    // making list of only folders.
+    // 生成只包含文件夹的列表。
     final dirs = list.where((element) => element.isDirectory).toList();
-    // sorting folder list by name.
+    // 按名称对文件夹列表排序。
     dirs.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
-    // making list of only flies.
+    // 生成只包含文件的列表。
     final files = list.where((element) => element.isFile).toList();
 
-    // creating sorted list of [_sizeMapList] by size.
+    // 按大小创建排序后的 [_sizeMapList] 列表。
     final List<MapEntry<String, int>> sizeMapList = sizeMap.entries.toList();
     sizeMapList.sort((b, a) => a.value.compareTo(b.value));
 
-    // sort [list] according to [_sizeMapList]
+    // 按 [_sizeMapList] 对 [list] 排序
     files.sort((a, b) => sizeMapList
         .indexWhere((element) => element.key == a.name)
         .compareTo(sizeMapList.indexWhere((element) => element.key == b.name)));
@@ -2115,10 +2115,10 @@ List<Entry> _sortList(List<Entry> list, SortBy sortType, bool ascending) {
   return [];
 }
 
-/// Define a general queue which can accepts different dialog type.
+/// 定义一个可以接受不同对话框类型的通用队列。
 ///
 /// [Visibility]
-/// The `_FileDialogType` and `_DialogEvent` are invisible for other models.
+/// `_FileDialogType` 和 `_DialogEvent` 对其他模型不可见。
 enum FileDialogType { overwrite, unknown }
 
 class _FileDialogEvent extends BaseEvent<FileDialogType, Map<String, dynamic>> {
@@ -2172,8 +2172,8 @@ class FileDialogEventLoop
         : model.jobController.transferConflictBatchId(jobId);
     final keepRemembered = model != null &&
         model.jobController.isTransferConflictRememberBatch(batchId);
-    // The loop only preloads the remembered batch choice. The model updates it
-    // after the user answers the current overwrite dialog.
+    // 循环只预加载记住的批量选项。模型会在
+    // 用户回答当前的覆盖对话框之后更新它。
     if (_batchId != batchId && !keepRemembered) {
       _batchId = batchId;
       _overrideConfirm = null;

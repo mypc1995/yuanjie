@@ -108,7 +108,7 @@ impl Display {
     pub fn primary() -> io::Result<Display> {
         let mut size = SCREEN_SIZE.lock().unwrap();
         if size.0 == 0 || size.1 == 0 {
-            *size = get_size().unwrap_or_default();
+            * size = get_size().unwrap_or_default();
         }
         Ok(Display {
             default: true,
@@ -152,12 +152,12 @@ impl Display {
 
     pub fn refresh_size() {
         let mut size = SCREEN_SIZE.lock().unwrap();
-        *size = get_size().unwrap_or_default();
+        * size = get_size().unwrap_or_default();
     }
 
-    // Big android screen size will be shrinked, to improve performance when screen-capturing and encoding
-    // e.g 2280x1080 size will be set to 1140x540, and `scale` is 2
-    // need to multiply by `4` (2*2) when compute the bitrate
+    // 过大的 android 屏幕尺寸会被缩小，以提升屏幕采集和编码时的性能
+    // 例如 2280x1080 会被设置为 1140x540，`scale` 为 2
+    // 计算码率时需要乘以 `4`（2*2）
     pub fn fix_quality() -> u16 {
         let scale = SCREEN_SIZE.lock().unwrap().2;
         if scale <= 0 {

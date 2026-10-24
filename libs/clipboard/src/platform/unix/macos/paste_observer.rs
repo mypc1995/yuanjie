@@ -30,7 +30,7 @@ pub struct PasteObserver {
 
 impl Drop for PasteObserver {
     fn drop(&mut self) {
-        *self.exit.lock().unwrap() = true;
+        * self.exit.lock().unwrap() = true;
         if let Some(handle_observer_thread) = self.handle_observer_thread.take() {
             handle_observer_thread.join().ok();
         }

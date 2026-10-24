@@ -106,20 +106,20 @@ class _TerminalPageState extends State<TerminalPage>
   final GlobalKey _keyboardKey = GlobalKey();
   double _keyboardHeight = 0;
   late bool _showTerminalExtraKeys;
-  // Ctrl lock state for virtual keyboard: active key presses are mapped to control codes
+  // 虚拟键盘的 Ctrl 锁定状态：当前按下的按键会被映射为控制码
   bool _ctrlLocked = false;
   bool _altLocked = false;
-  // Row3 expand/collapse state for compact keyboard layout
+  // 紧凑键盘布局中 Row3 的展开/折叠状态
   bool _row3Expanded = false;
-  // For iOS edge swipe gesture
+  // 用于 iOS 的边缘滑动手势
   double _swipeStartX = 0;
   double _swipeCurrentX = 0;
   ScaffoldFeatureController<MaterialBanner, MaterialBannerClosedReason>?
       _terminalClipboardNoticeController;
   final _terminalClipboardNotice = TerminalClipboardNoticeCoordinator<int>();
 
-  // For web only.
-  // 'monospace' does not work on web, use Google Fonts, `??` is only for null safety.
+  // 仅用于 web。
+  // 'monospace' 在 web 上无效，请使用 Google Fonts，`??` 只是用于空安全。
   final String _robotoMonoFontFamily = isWeb
       ? (GoogleFonts.robotoMono().fontFamily ?? 'monospace')
       : 'monospace';
@@ -138,7 +138,7 @@ class _TerminalPageState extends State<TerminalPage>
     debugPrint(
         '[TerminalPage] Initializing terminal ${widget.terminalId} for peer ${widget.id}');
 
-    // Use shared FFI instance from connection manager
+    // 使用连接管理器提供的共享 FFI 实例
     _ffi = TerminalConnectionManager.getConnection(
       peerId: widget.id,
       password: widget.password,
@@ -147,7 +147,7 @@ class _TerminalPageState extends State<TerminalPage>
       connToken: widget.connToken,
     );
 
-    // Create terminal model with specific terminal ID
+    // 用指定的终端 ID 创建终端模型
     _terminalModel = TerminalModel(_ffi, widget.terminalId);
     if (_canHandleTerminalClipboardWriteRequest) {
       _terminalModel.onClipboardWriteBlocked =
@@ -162,18 +162,18 @@ class _TerminalPageState extends State<TerminalPage>
       _cellHeight = ph * 1.0;
     };
 
-    // Register this terminal model with FFI for event routing
+    // 把该终端模型注册到 FFI 以进行事件路由
     _ffi.registerTerminalModel(widget.terminalId, _terminalModel);
 
-    // Auto-close connection when shell exits
+    // shell 退出时自动关闭连接
     _terminalModel.onClosed = () {
       if (mounted) {
         closeConnection(id: widget.id);
       }
     };
 
-    // Web desktop users have full hardware keyboard access, so the on-screen
-    // terminal extra keys bar is unnecessary and disabled.
+    // Web 桌面端用户可以完全使用硬件键盘，因此屏幕上的
+    // 终端扩展按键栏没有必要，已禁用。
     _showTerminalExtraKeys = !isWebDesktop &&
         mainGetLocalBoolOptionSync(kOptionEnableShowTerminalExtraKeys);
     _terminalModel.isCtrlLocked = () => _ctrlLocked;
@@ -184,11 +184,11 @@ class _TerminalPageState extends State<TerminalPage>
     _terminalModel.clearAltLock = () {
       if (_altLocked) setState(() => _altLocked = false);
     };
-    // Load Row3 expand/collapse state from persistent storage. The raw option
-    // read keeps Row3 collapsed when no value has been saved yet.
+    // 从持久化存储中加载 Row3 的展开/折叠状态。直接读取原始选项
+    // 可以在尚未保存任何值时保持 Row3 折叠。
     _row3Expanded =
         bind.mainGetLocalOption(key: kOptionShowTerminalCtrlKeys) == 'Y';
-    // Initialize terminal connection
+    // 初始化终端连接
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ffi.dialogManager
           .showLoading(translate('Connecting...'), onCancel: closeConnection);
@@ -332,7 +332,7 @@ class _TerminalPageState extends State<TerminalPage>
 
   @override
   void dispose() {
-    // Unregister terminal model from FFI
+    // 从 FFI 注销终端模型
     _ffi.unregisterTerminalModel(widget.terminalId);
     _terminalModel.dispose();
     _keyboardDebounce?.cancel();
@@ -374,8 +374,8 @@ class _TerminalPageState extends State<TerminalPage>
     return EdgeInsets.only(left: 5.0, right: 5.0, top: topBottom, bottom: topBottom + _sysKeyboardHeight + _keyboardHeight);
   }
 
-  /// Pastes clipboard text through TerminalModel so keyboard-only modifiers and
-  /// mobile Enter normalization never alter clipboard data.
+  /// 通过 TerminalModel 粘贴剪贴板文本，这样纯键盘的修饰键和
+  /// 移动端回车归一化都不会改动剪贴板数据。
   Future<void> _pasteClipboardText() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text;
@@ -402,8 +402,8 @@ class _TerminalPageState extends State<TerminalPage>
     );
     if (!shouldPaste) return KeyEventResult.ignored;
 
-    // Only locked virtual modifiers need interception. Without a lock, keep
-    // xterm's default hardware paste behavior, including bracketed paste mode.
+    // 只有锁定的虚拟修饰键才需要拦截。没有锁定时，保留
+    // xterm 默认的硬件粘贴行为，包括 bracketed paste 模式。
     unawaited(_pasteClipboardText());
     return KeyEventResult.handled;
   }
@@ -438,12 +438,12 @@ class _TerminalPageState extends State<TerminalPage>
                     terminal: _terminalModel.terminal,
                     controller: _terminalModel.terminalController,
                     textStyle: _getTerminalStyle(),
-                    // The following comment is from xterm.dart source code:
-                    // Workaround to detect delete key for platforms and IMEs that do not
-                    // emit a hardware delete event. Preferred on mobile platforms. [false] by
-                    // default.
+                    // 下面的注释来自 xterm.dart 源码：
+                    // 用于在不
+                    // 发出硬件 delete 事件的平台和输入法上检测删除键的变通方案。移动平台上优先使用。[false] 为
+                    // 默认值。
                     //
-                    // Android works fine without this workaround.
+                    // Android 上不用这个变通方案也没问题。
                     deleteDetection: isIOS,
                     shortcuts: platformTerminalShortcuts(),
                     onKeyEvent: terminalCopyHandler(
@@ -468,21 +468,21 @@ class _TerminalPageState extends State<TerminalPage>
             ),
           ),
           if (_showTerminalExtraKeys) _buildFloatingKeyboard(),
-          // iOS-style circular close button in top-right corner
+          // 右上角 iOS 风格的圆形关闭按钮
           if (isIOS) _buildCloseButton(),
         ],
       ),
     );
 
-    // Add iOS edge swipe gesture to exit (similar to Android back button)
+    // 添加 iOS 边缘滑动退出手势（类似 Android 的返回键）
     if (isIOS) {
       return LayoutBuilder(
         builder: (context, constraints) {
           final screenWidth = constraints.maxWidth;
-          // Base thresholds on screen width but clamp to reasonable logical pixel ranges
-          // Edge detection region: ~10% of width, clamped between 20 and 80 logical pixels
+          // 阈值以屏幕宽度为基准，但要限制在合理的逻辑像素范围内
+          // 边缘检测区域：宽度的约 10%，限制在 20 到 80 逻辑像素之间
           final edgeThreshold = (screenWidth * 0.1).clamp(20.0, 80.0);
-          // Required horizontal movement: ~25% of width, clamped between 80 and 300 logical pixels
+          // 所需的水平移动距离：宽度的约 25%，限制在 80 到 300 逻辑像素之间
           final swipeThreshold = (screenWidth * 0.25).clamp(80.0, 300.0);
 
           return RawGestureDetector(
@@ -491,12 +491,12 @@ class _TerminalPageState extends State<TerminalPage>
               HorizontalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<HorizontalDragGestureRecognizer>(
                 () => HorizontalDragGestureRecognizer(
                   debugOwner: this,
-                  // Only respond to touch input, exclude mouse/trackpad
+                  // 只响应触摸输入，排除鼠标/触控板
                   supportedDevices: kTouchBasedDeviceKinds,
                 ),
                 (HorizontalDragGestureRecognizer instance) {
                   instance
-                    // Capture initial touch-down position (before touch slop)
+                    // 记录最初的按下位置（在触摸容差生效之前）
                     ..onDown = (details) {
                       _swipeStartX = details.localPosition.dx;
                       _swipeCurrentX = details.localPosition.dx;
@@ -505,7 +505,7 @@ class _TerminalPageState extends State<TerminalPage>
                       _swipeCurrentX = details.localPosition.dx;
                     }
                     ..onEnd = (details) {
-                      // Check if swipe started from left edge and moved right
+                      // 检查滑动是否从左边缘开始并向右移动
                       if (_swipeStartX < edgeThreshold && (_swipeCurrentX - _swipeStartX) > swipeThreshold) {
                         clientClose(sessionId, _ffi);
                       }
@@ -586,12 +586,12 @@ class _TerminalPageState extends State<TerminalPage>
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Row 1 follows the latest reviewed PR layout.
+            // 第 1 行遵循最近评审过的 PR 布局。
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: _buildKeyboardKeyButtons(terminalKeyboardRow1Keys),
             ),
-            // Row 2 ends with the full-width Row3 collapse/expand toggle.
+            // 第 2 行以全宽的 Row3 折叠/展开开关结尾。
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -600,7 +600,7 @@ class _TerminalPageState extends State<TerminalPage>
                 _buildCollapseButton(),
               ],
             ),
-            // Row 3 restores paging keys and trailing alignment placeholders.
+            // 第 3 行恢复翻页按键和末尾的对齐占位符。
             if (_row3Expanded)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -620,7 +620,7 @@ class _TerminalPageState extends State<TerminalPage>
     );
   }
 
-  // Ctrl toggle button with highlighted locked state
+  // 带锁定态高亮的 Ctrl 切换按钮
   Widget _buildCtrlKeyButton() {
     return _buildModifierToggleButton(
       text: 'Ctrl',
@@ -630,7 +630,7 @@ class _TerminalPageState extends State<TerminalPage>
     );
   }
 
-  // Alt toggle button with highlighted locked state
+  // 带锁定态高亮的 Alt 切换按钮
   Widget _buildAltKeyButton() {
     return _buildModifierToggleButton(
       text: 'Alt',
@@ -640,7 +640,7 @@ class _TerminalPageState extends State<TerminalPage>
     );
   }
 
-  // Collapse/expand toggle button for Row3
+  // Row3 的折叠/展开切换按钮
   void _toggleRow3Expanded() {
     final willExpand = !_row3Expanded;
     final shouldClearModifiers = shouldClearTerminalModifiersWhenRow3Collapses(
@@ -658,8 +658,8 @@ class _TerminalPageState extends State<TerminalPage>
     });
     mainSetLocalBoolOption(kOptionShowTerminalCtrlKeys, willExpand);
 
-    // The floating keyboard height changes after Row3 is inserted/removed.
-    // Re-measure on the next frame so terminal padding uses the new height.
+    // 插入/移除 Row3 后浮动键盘的高度会变化。
+    // 在下一帧重新测量，使终端内边距使用新的高度。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_showTerminalExtraKeys) return;
       setState(() {
@@ -687,7 +687,7 @@ class _TerminalPageState extends State<TerminalPage>
     );
   }
 
-  /// Builds a fixed-width key sequence with the reviewed 2dp spacing.
+  /// 构建固定宽度的按键序列，采用评审过的 2dp 间距。
   List<Widget> _buildKeyboardKeyButtons(List<String> labels) {
     return [
       for (var i = 0; i < labels.length; i++) ...[
@@ -698,9 +698,9 @@ class _TerminalPageState extends State<TerminalPage>
     ];
   }
 
-  /// Build a modifier toggle button (Ctrl/Alt) with one-shot behavior.
-  /// When [isLocked] is true, the button highlights in blue and the next
-  /// single-character input is mapped to its modified equivalent.
+  /// 构建带一次性行为的修饰键切换按钮（Ctrl/Alt）。
+  /// 当 [isLocked] 为 true 时，按钮以蓝色高亮，下一次
+  /// 单字符输入会被映射为对应的带修饰键形式。
   Widget _buildModifierToggleButton({
     required String text,
     required String semanticsLabel,
@@ -708,7 +708,7 @@ class _TerminalPageState extends State<TerminalPage>
     required VoidCallback onPressed,
   }) {
     return Semantics(
-      // Ctrl and Alt are technical key names and intentionally stay unchanged.
+      // Ctrl 和 Alt 是技术上的按键名，故意保持不变。
       label: semanticsLabel,
       toggled: isLocked,
       child: ElevatedButton(

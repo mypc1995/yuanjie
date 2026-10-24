@@ -5,16 +5,16 @@ use std::{
     path::Path,
 };
 
-// The generic payload, shared by every customer and compiled in once per release.
+// 通用负载，所有客户共用，每个版本只编译一次。
 #[cfg(windows)]
 const BIN_DATA: &[u8] = include_bytes!("../data.bin");
 
-// The per-customer payload, injected into the RCDATA resource after the template
-// has been built, so that customizing a client needs no recompilation.
+// 按客户定制的负载，在模板
+// 构建完成后注入到 RCDATA 资源中，从而定制一个客户端无需重新编译。
 #[cfg(windows)]
 const PACKAGE_RESOURCE_NAME: &str = "RDPKG";
 
-// 4bytes
+// 4 字节
 const LENGTH: usize = 4;
 const IDENTIFIER: &[u8] = b"rustdesk";
 const IDENTIFIER_LENGTH: usize = 8;
@@ -23,7 +23,7 @@ const BUF_SIZE: usize = 4096;
 
 pub(crate) struct BinaryData {
     pub md5_code: &'static [u8],
-    // compressed gzip data
+    // 压缩后的 gzip 数据
     pub raw: &'static [u8],
     pub path: String,
 }
@@ -31,10 +31,10 @@ pub(crate) struct BinaryData {
 pub(crate) struct BinaryReader {
     pub files: Vec<BinaryData>,
     pub exe: String,
-    // Paths supplied by the per-customer package. Recorded so that a file dropped
-    // from a later package -- a logo the customer removed, say -- can be deleted
-    // from an existing extraction, which the timestamp wipe no longer covers now
-    // that the packer is built once per release rather than once per customer.
+    // 由按客户定制的包提供的路径。记录下来，这样某个被丢弃的文件
+    // （比如客户移除的某个 logo）就能被删除，
+    // 而它来自已有的解压目录——按时间戳的清理现在已覆盖不到它，
+    // 因为打包器是每个版本构建一次，而不是每个客户构建一次。
     pub package_paths: Vec<String>,
 }
 
@@ -51,7 +51,7 @@ impl BinaryReader {
     }
 }
 
-// Folds the per-customer package into the generic payload.
+// 把按客户定制的包折叠进通用负载。
 fn merge(
     embedded: (Vec<BinaryData>, String),
     package: (Vec<BinaryData>, String),
@@ -65,9 +65,9 @@ fn merge(
         package_exe
     };
 
-    // The generic payload ships the executable under its stock name, the package
-    // decides the final one. Rename on extraction so the process is always
-    // `<appname>.exe`, which the app itself relies on to find its own sessions.
+    // 通用负载以原始名称附带可执行文件，而包
+    // 决定最终的名字。在解压时重命名，使进程始终是
+    // `<appname>.exe`，应用自身正是靠这个名字来找到自己的会话。
     if !generic_exe.is_empty() && normalize_path(&exe) != normalize_path(&generic_exe) {
         let generic_key = normalize_path(&generic_exe);
         for file in files.iter_mut() {
@@ -77,7 +77,7 @@ fn merge(
         }
     }
 
-    // Per-customer entries replace the generic ones they shadow.
+    // 按客户定制的条目会替换掉它们所遮蔽的通用条目。
     if !package_files.is_empty() {
         let overridden: HashSet<String> = package_files
             .iter()
@@ -101,7 +101,7 @@ fn read_u32(blob: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
 }
 
-// Returns the files and the executable to launch, or None if the blob is absent or malformed.
+// 返回要启动的文件和可执行程序，若该 blob 缺失或格式错误则返回 None。
 fn parse(blob: &'static [u8]) -> Option<(Vec<BinaryData>, String)> {
     let mut base = 0usize;
     let mut parsed = Vec::new();
@@ -167,15 +167,15 @@ fn read_package() -> Result<(Vec<BinaryData>, String), String> {
     Ok(Default::default())
 }
 
-// Reads an RCDATA resource out of the running image. Resources live in the mapped
-// image for the lifetime of the process, so the slice is genuinely 'static and no
-// copy is needed.
+// 从正在运行的映像中读取一个 RCDATA 资源。资源在映射的
+// 映像中存活于整个进程生命周期，因此该切片确实是 'static 的，无需
+// 任何复制。
 #[cfg(windows)]
 fn read_resource(name: &str) -> Option<&'static [u8]> {
     use std::ptr::null_mut;
     use winapi::um::libloaderapi::{FindResourceW, LoadResource, LockResource, SizeofResource};
 
-    // MAKEINTRESOURCEW(10), avoids depending on the winuser feature for RT_RCDATA.
+    // MAKEINTRESOURCEW(10)，避免为了 RT_RCDATA 而依赖 winuser feature。
     const RT_RCDATA: *const u16 = 10 as _;
 
     let name: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
@@ -217,12 +217,12 @@ impl BinaryData {
             }
         }
         if p.exists() {
-            // check md5
+            // 检查 md5
             let f = fs::read(p.clone()).unwrap_or_default();
             let digest = format!("{:x}", md5::compute(&f));
             let md5_record = String::from_utf8_lossy(self.md5_code);
             if digest == md5_record {
-                // same, skip this file
+                // 相同，跳过该文件
                 println!("skip {}", &self.path);
                 return;
             } else {
@@ -256,8 +256,8 @@ impl BinaryReader {
 mod tests {
     use super::*;
 
-    // Builds a blob in the same layout generate.py writes, so these tests pin the
-    // cross-language format contract as well as the merge rules.
+    // 按 generate.py 写出的相同布局构造一个 blob，因此这些测试同时钉住了
+    // 跨语言的格式约定以及合并规则。
     fn blob(files: &[(&str, &[u8])], exe: &str) -> &'static [u8] {
         let mut out = Vec::new();
         out.extend_from_slice(IDENTIFIER);
@@ -296,7 +296,7 @@ mod tests {
 
     #[test]
     fn renames_the_stock_executable_to_the_package_name() {
-        // x86: the big executable stays in the generic payload and only gets renamed.
+        // x86：大的可执行文件仍留在通用负载中，只是被重命名。
         let embedded = parse(blob(
             &[("./rustdesk.exe", b"app"), ("./sciter.dll", b"dll")],
             "./rustdesk.exe",
@@ -309,14 +309,14 @@ mod tests {
         assert_eq!(exe, "./acme.exe");
         assert!(entry(&files, "./acme.exe").is_some());
         assert!(entry(&files, "./rustdesk.exe").is_none());
-        // Untouched neighbours survive.
+        // 未被触及的相邻项得以保留。
         assert_eq!(entry(&files, "./sciter.dll").unwrap().raw, b"dll");
         assert_eq!(entry(&files, "./custom.txt").unwrap().raw, b"cfg");
     }
 
     #[test]
     fn package_entries_win_over_the_generic_payload() {
-        // x64: the customized executable and icons ship in the package instead.
+        // x64：定制后的可执行文件和图标改为放在包中。
         let embedded = parse(blob(
             &[
                 ("./data/flutter_assets/assets/icon.ico", b"stock-icon"),

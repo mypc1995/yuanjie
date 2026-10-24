@@ -66,31 +66,31 @@ var isMobile = isAndroid || isIOS;
 var version = '';
 int androidVersion = 0;
 
-// Only used on Linux.
-// `windowManager.setResizable(false)` will reset the window size to the default size on Linux.
+// 仅在 Linux 上使用。
+// 在 Linux 上，`windowManager.setResizable(false)` 会把窗口尺寸重置为默认尺寸。
 // https://stackoverflow.com/questions/8193613/gtk-window-resize-disable-without-going-back-to-default
-// So we need to use this flag to enable/disable resizable.
+// 所以我们需要用这个标志来启用/禁用窗口尺寸调整。
 bool _linuxWindowResizable = true;
 
-// Only used on Windows(window manager).
+// 仅在 Windows（窗口管理器）上使用。
 bool _ignoreDevicePixelRatio = true;
 
-/// only available for Windows target
+/// 仅 Windows 目标平台可用
 int windowsBuildNumber = 0;
 DesktopType? desktopType;
 
-// Tolerance used for floating-point position comparisons to avoid precision errors.
+// 用于浮点位置比较的容差，避免精度误差。
 const double _kPositionEpsilon = 1e-6;
 
 bool get isMainDesktopWindow =>
     desktopType == DesktopType.main || desktopType == DesktopType.cm;
 
-/// Check if the app is running with single view mode.
+/// 检查应用是否以单视图模式运行。
 bool isSingleViewApp() {
   return desktopType == DesktopType.cm;
 }
 
-/// * debug or test only, DO NOT enable in release build
+/// * 仅用于调试或测试，发布构建中请勿启用
 bool isTest = false;
 
 typedef F = String Function(String);
@@ -292,11 +292,11 @@ class MyTheme {
   );
 
   // TextButton
-  // Value is used to calculate "dialog.actionsPadding"
+  // 该值用于计算 "dialog.actionsPadding"
   static const double mobileTextButtonPaddingLR = 20;
 
-  // TextButton on mobile needs a fixed padding, otherwise small buttons
-  // like "OK" has a larger left/right padding.
+  // 移动端上的 TextButton 需要固定内边距，否则像
+  // "OK" 这样的小按钮左右内边距会更大。
   static TextButtonThemeData mobileTextButtonTheme = TextButtonThemeData(
     style: TextButton.styleFrom(
       padding: EdgeInsets.symmetric(horizontal: mobileTextButtonPaddingLR),
@@ -306,24 +306,24 @@ class MyTheme {
     ),
   );
 
-  //tooltip
+  // 工具提示
   static TooltipThemeData tooltipTheme() {
     return TooltipThemeData(
       waitDuration: Duration(seconds: 1, milliseconds: 500),
     );
   }
 
-  // Dialogs
+  // 对话框
   static const double dialogPadding = 24;
 
-  // padding bottom depends on content (some dialogs has no content)
+  // 底部内边距取决于内容（有些对话框没有内容）
   static EdgeInsets dialogTitlePadding({bool content = true}) {
     final double p = dialogPadding;
 
     return EdgeInsets.fromLTRB(p, p, p, content ? 0 : p);
   }
 
-  // padding bottom depends on actions (mobile has dialogs without actions)
+  // 底部内边距取决于操作按钮（移动端有些对话框没有操作按钮）
   static EdgeInsets dialogContentPadding({bool actions = true}) {
     final double p = dialogPadding;
 
@@ -592,7 +592,7 @@ class MyTheme {
             key: kCommConfKeyTheme, value: mode.toShortString());
       }
       if (!isWeb) await bind.mainChangeTheme(dark: mode.toShortString());
-      // Synchronize the window theme of the system.
+      // 同步系统的窗口主题。
       updateSystemWindowTheme();
     }
   }
@@ -717,10 +717,10 @@ closeConnection({String? id}) {
       final controller = Get.find<DesktopTabController>();
       if (controller.tabType == DesktopTabType.terminal &&
           controller.onCloseWindow != null) {
-        // Terminal windows are scoped to one peer. The optional id passed to
-        // closeConnection() is that peer id, not a terminal tab key
-        // (${peerId}_${terminalId}). Closing from terminal dialogs should close
-        // the peer's whole terminal window, including all terminal tabs.
+        // 终端窗口的作用域限定为单个被控端。传递给
+        // closeConnection() 的是该被控端 ID，而不是终端标签页的 key
+        // （${peerId}_${terminalId}）。从终端对话框关闭时应当关闭
+        // 该被控端的整个终端窗口，包含所有终端标签页。
         unawaited(controller.onCloseWindow!().catchError((e, _) {
           debugPrint('[closeConnection] Failed to close terminal window: $e');
         }));
@@ -737,7 +737,7 @@ Future<void> windowOnTop(int? id) async {
   }
   print("Bring window '$id' on top");
   if (id == null) {
-    // main window
+    // 主窗口
     if (stateGlobal.isMinimized) {
       await windowManager.restore();
     }
@@ -777,7 +777,7 @@ class Dialog<T> {
 class OverlayKeyState {
   final _overlayKey = GlobalKey<OverlayState>();
 
-  /// use global overlay by default
+  /// 默认使用全局 overlay
   OverlayState? get state =>
       _overlayKey.currentState ?? globalKey.currentState?.overlay;
 
@@ -796,8 +796,8 @@ class OverlayDialogManager {
     if (store) {
       bind.setLocalFlutterOption(k: kOptionShowMobileAction, v: v ? 'Y' : 'N');
     }
-    // No need to read the value from local storage after setting it.
-    // It better to toggle the value directly.
+    // 设置后无需再从本地存储读取该值。
+    // 更好的做法是直接切换该值。
     mobileActionsOverlayVisible.value = v;
   }
 
@@ -1056,9 +1056,9 @@ void showToast(String text,
 }
 
 // TODO
-// - Remove argument "contentPadding", no need for it, all should look the same.
-// - Remove "required" for argument "content". See simple confirm dialog "delete peer", only title and actions are used. No need to "content: SizedBox.shrink()".
-// - Make dead code alive, transform arguments "onSubmit" and "onCancel" into correspondenting buttons "ConfirmOkButton", "CancelButton".
+// - 移除参数 "contentPadding"，不需要它，所有地方显示效果应保持一致。
+// - 移除参数 "content" 的 "required"。参见简单确认对话框 "delete peer"，只使用了 title 和 actions。不需要 "content: SizedBox.shrink()"。
+// - 让死代码复活，把参数 "onSubmit" 和 "onCancel" 转换为对应的按钮 "ConfirmOkButton"、"CancelButton"。
 class CustomAlertDialog extends StatelessWidget {
   const CustomAlertDialog(
       {Key? key,
@@ -1083,7 +1083,7 @@ class CustomAlertDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // request focus
+    // 请求焦点
     FocusScopeNode scopeNode = FocusScopeNode();
     Future.delayed(Duration.zero, () {
       if (!scopeNode.hasFocus) scopeNode.requestFocus();
@@ -1136,7 +1136,7 @@ Widget createDialogContent(String text) {
   final RegExp linkRegExp = RegExp(r'(https?://[^\s]+)');
   bool hasLink = linkRegExp.hasMatch(text);
 
-  // Early return: no link, use default theme color
+  // 提前返回：没有链接，使用默认主题色
   if (!hasLink) {
     return SelectableText(text, style: const TextStyle(fontSize: 15));
   }
@@ -1282,14 +1282,14 @@ void msgBox(SessionID sessionId, String type, String title, String text,
   if (reconnect != null &&
       title == "Connection Error" &&
       reconnectTimeout != null) {
-    // `enabled` is used to disable the dialog button once the button is clicked.
+    // `enabled` 用于在按钮被点击后禁用该对话框按钮。
     final enabled = true.obs;
     final button = Obx(() => _CountDownButton(
           text: 'Reconnect',
           second: reconnectTimeout,
           onPressed: enabled.isTrue
               ? () {
-                  // Disable the button
+                  // 禁用按钮
                   enabled.value = false;
                   reconnect(dialogManager, sessionId, false);
                 }
@@ -1350,7 +1350,7 @@ Widget msgboxIcon(String type) {
   return Offstage();
 }
 
-// title should be null
+// title 应为 null
 Widget msgboxContent(String type, String title, String text) {
   String translateText(String text) {
     if (text.indexOf('Failed') == 0 && text.indexOf(': ') > 0) {
@@ -1469,10 +1469,10 @@ String readableFileSize(double size) {
   }
 }
 
-/// Flutter can't not catch PointerMoveEvent when size is 1
-/// This will happen in Android AccessibilityService Input
-/// android can't init dispatching size yet ,see: https://stackoverflow.com/questions/59960451/android-accessibility-dispatchgesture-is-it-possible-to-specify-pressure-for-a
-/// use this temporary solution until flutter or android fixes the bug
+/// 当尺寸为 1 时，Flutter 无法捕获 PointerMoveEvent
+/// 这会在 Android AccessibilityService 输入时发生
+/// android 尚无法初始化手势分发尺寸，参见：https://stackoverflow.com/questions/59960451/android-accessibility-dispatchgesture-is-it-possible-to-specify-pressure-for-a
+/// 在 flutter 或 android 修复该 bug 之前，先用这个临时方案
 class AccessibilityListener extends StatelessWidget {
   final Widget? child;
   static final offset = 100;
@@ -1527,13 +1527,13 @@ class AndroidPermissionManager {
     return gFFI.invokeMethod("check_permission", type);
   }
 
-  // startActivity goto Android Setting's page to request permission manually by user
+  // 通过 startActivity 跳转到 Android 设置页面，由用户手动申请权限
   static void startAction(String action) {
     gFFI.invokeMethod(AndroidChannel.kStartAction, action);
   }
 
-  /// We use XXPermissions to request permissions,
-  /// for supported types, see https://github.com/getActivity/XXPermissions/blob/e46caea32a64ad7819df62d448fb1c825481cd28/library/src/main/java/com/hjq/permissions/Permission.java
+  /// 我们使用 XXPermissions 来申请权限，
+  /// 支持的类型参见 https://github.com/getActivity/XXPermissions/blob/e46caea32a64ad7819df62d448fb1c825481cd28/library/src/main/java/com/hjq/permissions/Permission.java
   static Future<bool> request(String type) {
     if (isDesktop || isWeb) {
       return Future.value(true);
@@ -1541,7 +1541,7 @@ class AndroidPermissionManager {
 
     gFFI.invokeMethod("request_permission", type);
 
-    // clear last task
+    // 清除上一个任务
     if (_completer?.isCompleted == false) {
       _completer?.complete(false);
     }
@@ -1585,13 +1585,13 @@ RadioListTile<T> getRadio<T>(
   );
 }
 
-/// find ffi, tag is Remote ID
-/// for session specific usage
+/// 查找 ffi，tag 为 Remote ID
+/// 供会话专用
 FFI ffi(String? tag) {
   return Get.find<FFI>(tag: tag);
 }
 
-/// Global FFI object
+/// 全局 FFI 对象
 late FFI _globalFFI;
 
 FFI get gFFI => _globalFFI;
@@ -1600,7 +1600,7 @@ Future<void> initGlobalFFI() async {
   debugPrint("_globalFFI init");
   _globalFFI = FFI(null);
   debugPrint("_globalFFI init end");
-  // after `put`, can also be globally found by Get.find<FFI>();
+  // 执行 `put` 之后，也可以通过 Get.find<FFI>() 全局找到；
   Get.put<FFI>(_globalFFI, permanent: true);
 }
 
@@ -1611,9 +1611,9 @@ String translate(String name) {
   return platformFFI.translate(name, localeName);
 }
 
-// This function must be kept the same as the one in rust and sciter code.
-// rust: libs/hbb_common/src/config.rs -> option2bool()
-// sciter: Does not have the function, but it should be kept the same.
+// 此函数必须与 rust 和 sciter 代码中的实现保持一致。
+// rust：libs/hbb_common/src/config.rs -> option2bool()
+// sciter：没有该函数，但仍应保持一致。
 bool option2bool(String option, String value) {
   bool res;
   if (option.startsWith("enable-")) {
@@ -1624,7 +1624,7 @@ bool option2bool(String option, String value) {
       option == kOptionForceAlwaysRelay) {
     res = value == "Y";
   } else {
-    // "" is true
+    // "" 为 true
     res = value != "N";
   }
   return res;
@@ -1674,9 +1674,9 @@ bool mainGetPeerBoolOptionSync(String id, String key) {
   return option2bool(key, bind.mainGetPeerOptionSync(id: id, key: key));
 }
 
-// Don't use `option2bool()` and `bool2option()` to convert the session option.
-// Use `sessionGetToggleOption()` and `sessionToggleOption()` instead.
-// Because all session options use `Y` and `<Empty>` as values.
+// 不要使用 `option2bool()` 和 `bool2option()` 来转换会话选项。
+// 请改用 `sessionGetToggleOption()` 和 `sessionToggleOption()`。
+// 因为所有会话选项都使用 `Y` 和 `<Empty>` 作为值。
 
 Future<bool> matchPeer(
     String searchText, Peer peer, PeerTabIndex peerTabIndex) async {
@@ -1700,7 +1700,7 @@ Future<bool> matchPeer(
   return false;
 }
 
-/// Get the image for the current [platform].
+/// 获取当前 [platform] 的镜像。
 Widget getPlatformImage(String platform, {double size = 50}) {
   if (platform.isEmpty) {
     return Container(width: size, height: size);
@@ -1780,8 +1780,8 @@ typedef WindowKey = ({WindowType type, int? windowId});
 LastWindowPosition? _lastWindowPosition = null;
 final Debouncer _saveWindowDebounce = Debouncer(delay: Duration(seconds: 1));
 
-/// Save window position and size on exit
-/// Note that windowId must be provided if it's subwindow
+/// 退出时保存窗口位置和尺寸
+/// 注意，如果是子窗口必须提供 windowId
 Future<void> saveWindowPosition(WindowType type,
     {int? windowId, bool? flush}) async {
   if (type != WindowType.Main && windowId == null) {
@@ -1809,11 +1809,11 @@ Future<void> saveWindowPosition(WindowType type,
 
   switch (type) {
     case WindowType.Main:
-      // Checking `bind.isIncomingOnly()` is a simple workaround for MacOS.
-      // `await windowManager.isMaximized()` will always return true
-      // if is not resizable. The reason is unknown.
+      // 检查 `bind.isIncomingOnly()` 是针对 MacOS 的一个简单变通方案。
+      // `await windowManager.isMaximized()` 总是返回 true
+      // 当窗口不可调整大小时。原因未知。
       //
-      // `setResizable(!bind.isIncomingOnly());` in main.dart
+      // main.dart 中的 `setResizable(!bind.isIncomingOnly());`
       isMaximized =
           bind.isIncomingOnly() ? false : await windowManager.isMaximized();
       if (isFullscreen || isMaximized) {
@@ -1869,7 +1869,7 @@ Future<void> saveWindowPosition(WindowType type,
     _lastWindowPosition = pos;
 
     if (flush ?? false) {
-      // If a previous update is pending, replace it.
+      // 如果之前的更新还在等待中，就替换它。
       _saveWindowDebounce.cancel();
       await _saveWindowPositionActual(key);
     } else if (haveNewWindowPosition) {
@@ -1959,8 +1959,8 @@ Future<Size> _adjustRestoreMainWindowSize(double? width, double? height) async {
   return Size(restoreWidth, restoreHeight);
 }
 
-// Consider using Rect.contains() instead,
-// though the implementation is not exactly the same.
+// 可以考虑改用 Rect.contains()，
+// 尽管实现并不完全相同。
 bool isPointInRect(Offset point, Rect rect) {
   return point.dx >= rect.left &&
       point.dx <= rect.right &&
@@ -1968,7 +1968,7 @@ bool isPointInRect(Offset point, Rect rect) {
       point.dy <= rect.bottom;
 }
 
-/// return null means center
+/// 返回 null 表示居中
 Future<Offset?> _adjustRestoreMainWindowOffset(
   double? left,
   double? top,
@@ -2020,10 +2020,10 @@ Future<Offset?> _adjustRestoreMainWindowOffset(
   }
 }
 
-/// Restore window position and size on start
-/// Note that windowId must be provided if it's subwindow
+/// 启动时恢复窗口位置和尺寸
+/// 注意，如果是子窗口必须提供 windowId
 //
-// display is used to set the offset of the window in individual display mode.
+// display 用于在单显示器模式下设置窗口的偏移量。
 Future<bool> restoreWindowPosition(WindowType type,
     {int? windowId, String? peerId, int? display}) async {
   if (bind
@@ -2039,8 +2039,8 @@ Future<bool> restoreWindowPosition(WindowType type,
 
   bool isRemotePeerPos = false;
   String? pos;
-  // No need to check mainGetLocalBoolOptionSync(kOptionOpenNewConnInTabs)
-  // Though "open in tabs" is true and the new window restore peer position, it's ok.
+  // 无需检查 mainGetLocalBoolOptionSync(kOptionOpenNewConnInTabs)
+  // 虽然 "open in tabs" 为 true 且新窗口会恢复被控端位置，但这样也没问题。
   if ((type == WindowType.RemoteDesktop || type == WindowType.ViewCamera) &&
       windowId != null &&
       peerId != null) {
@@ -2058,17 +2058,17 @@ Future<bool> restoreWindowPosition(WindowType type,
     debugPrint("No window position saved, trying to center the window.");
     switch (type) {
       case WindowType.Main:
-        // Center the main window only if no position is saved (on first run).
+        // 仅在没有保存过位置时（首次运行时）把主窗口居中。
         if (isWindows || isLinux) {
           await windowManager.center();
         }
-        // For MacOS, the window is already centered by default.
-        // See https://github.com/rustdesk/rustdesk/blob/9b9276e7524523d7f667fefcd0694d981443df0e/flutter/macos/Runner/Base.lproj/MainMenu.xib#L333
-        // If `<windowPositionMask>` in `<window>` is not set, the window will be centered.
+        // 对于 MacOS，窗口默认已经居中。
+        // 参见 https://github.com/rustdesk/rustdesk/blob/9b9276e7524523d7f667fefcd0694d981443df0e/flutter/macos/Runner/Base.lproj/MainMenu.xib#L333
+        // 如果 `<window>` 中的 `<windowPositionMask>` 没有设置，窗口将居中显示。
         break;
       default:
-        // No need to change the position of a sub window if no position is saved,
-        // since the default position is already centered.
+        // 如果没有保存过位置，就无需改变子窗口的位置，
+        // 因为默认位置已经是居中的。
         // https://github.com/rustdesk/rustdesk/blob/317639169359936f7f9f85ef445ec9774218772d/flutter/lib/utils/multi_window_manager.dart#L163
         break;
     }
@@ -2122,11 +2122,11 @@ Future<bool> restoreWindowPosition(WindowType type,
         final storeSize = !bind.isIncomingOnly() || bind.isOutgoingOnly();
         if (isWindows) {
           if (storeSize) {
-            // We need to set the window size first to avoid the incorrect size in some special cases.
-            // E.g. There are two monitors, the left one is 100% DPI and the right one is 175% DPI.
-            // The window belongs to the left monitor, but if it is moved a little to the right, it will belong to the right monitor.
-            // After restoring, the size will be incorrect.
-            // See known issue in https://github.com/rustdesk/rustdesk/pull/9840
+            // 我们需要先设置窗口尺寸，以避免某些特殊情况下的尺寸错误。
+            // 例如有两个显示器，左边是 100% DPI，右边是 175% DPI。
+            // 窗口属于左边的显示器，但如果稍微向右移动，就会被认为属于右边的显示器。
+            // 恢复之后尺寸就会不正确。
+            // 参见 https://github.com/rustdesk/rustdesk/pull/9840 中的已知问题
             await windowManager.setSize(size,
                 ignoreDevicePixelRatio: _ignoreDevicePixelRatio);
           }
@@ -2159,19 +2159,19 @@ Future<bool> restoreWindowPosition(WindowType type,
         if (!isMacOS) {
           await restoreFrame();
         }
-        // An duration is needed to avoid the window being restored after fullscreen.
+        // 需要一段延时，以避免全屏后窗口又被恢复。
         Future.delayed(Duration(milliseconds: 300), () async {
           if (kWindowId == windowId) {
             stateGlobal.setFullscreen(true);
           } else {
-            // If is not current window, we need to send a fullscreen message to `windowId`
+            // 如果不是当前窗口，需要向 `windowId` 发送全屏消息
             DesktopMultiWindow.invokeMethod(
                 windowId, kWindowEventSetFullscreen, 'true');
           }
         });
       } else if (lpos.isMaximized == true) {
         await restoreFrame();
-        // An duration is needed to avoid the window being restored after maximized.
+        // 需要一段延时，以避免最大化后窗口又被恢复。
         Future.delayed(Duration(milliseconds: 300), () async {
           await wc.maximize();
         });
@@ -2185,16 +2185,16 @@ Future<bool> restoreWindowPosition(WindowType type,
 
 var webInitialLink = "";
 
-/// Initialize uni links for macos/windows
+/// 为 macos/windows 初始化 uni links
 ///
-/// [Availability]
-/// initUniLinks should only be used on macos/windows.
-/// we use dbus for linux currently.
+/// [可用性]
+/// initUniLinks 只应在 macos/windows 上使用。
+/// 目前 linux 上我们使用 dbus。
 Future<bool> initUniLinks() async {
   if (isLinux) {
     return false;
   }
-  // check cold boot
+  // 检查冷启动
   try {
     final initialLink = await getInitialLink();
     print("initialLink: $initialLink");
@@ -2213,11 +2213,11 @@ Future<bool> initUniLinks() async {
   }
 }
 
-/// Listen for uni links.
+/// 监听 uni links。
 ///
-/// * handleByFlutter: Should uni links be handled by Flutter.
+/// * handleByFlutter：uni links 是否交由 Flutter 处理。
 ///
-/// Returns a [StreamSubscription] which can listen the uni links.
+/// 返回一个可用于监听 uni links 的 [StreamSubscription]。
 StreamSubscription? listenUniLinks({handleByFlutter = true}) {
   if (isLinux || isWeb) {
     return null;
@@ -2253,7 +2253,7 @@ setEnvTerminalAdmin() {
   bind.mainSetEnv(key: 'IS_TERMINAL_ADMIN', value: 'Y');
 }
 
-// uri link handler
+// uri 链接处理器
 bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
   List<String>? args;
   if (cmdArgs != null && cmdArgs.isNotEmpty) {
@@ -2406,7 +2406,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
       uri.path.split('').every((char) => char == '/')) {
     return [];
   } else if (uri.authority == "connection" && uri.path.startsWith("/new/")) {
-    // For compatibility
+    // 为了兼容
     command = '--connect';
     id = uri.path.substring("/new/".length);
   } else if (uri.authority == "config") {
@@ -2417,15 +2417,15 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
       if (!allowDeepLinkServerSettings) {
         debugPrint(
             "Ignore rustdesk://config because $kOptionAllowDeepLinkServerSettings is not enabled.");
-        // Keep the user-facing error generic; detailed rejection reason is in debug logs.
-        // Delay toast to avoid missing overlay during cold-start deeplink handling.
+        // 面向用户的错误提示保持笼统；详细的拒绝原因记录在调试日志中。
+        // 延迟弹出 toast，避免冷启动处理 deeplink 时 overlay 丢失。
         Timer(Duration(seconds: 1), () {
           showToast(translate('Failed'));
         });
         return null;
       }
       final config = uri.path.substring("/".length);
-      // add a timer to make showToast work
+      // 加一个定时器让 showToast 生效
       Timer(Duration(seconds: 1), () {
         importConfig(null, null, config);
       });
@@ -2438,8 +2438,8 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
       if (!allowDeepLinkPassword) {
         debugPrint(
             "Ignore rustdesk://password because $kOptionAllowDeepLinkPassword is not enabled.");
-        // Keep the user-facing error generic; detailed rejection reason is in debug logs.
-        // Delay toast to avoid missing overlay during cold-start deeplink handling.
+        // 面向用户的错误提示保持笼统；详细的拒绝原因记录在调试日志中。
+        // 延迟弹出 toast，避免冷启动处理 deeplink 时 overlay 丢失。
         Timer(Duration(seconds: 1), () {
           showToast(translate('Failed'));
         });
@@ -2486,7 +2486,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     final forceRelay = queryParameters["relay"] != null;
     final password = queryParameters["password"];
 
-    // Determine connection type based on command
+    // 根据命令确定连接类型
     if (command == '--file-transfer') {
       connect(Get.context!, id,
           isFileTransfer: true, forceRelay: forceRelay, password: password);
@@ -2501,7 +2501,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
       connect(Get.context!, id,
           isTerminal: true, forceRelay: forceRelay, password: password);
     } else {
-      // Default to remote desktop for '--connect', '--play', or direct connection
+      // 对 '--connect'、'--play' 或直连，默认使用远程桌面
       connect(Get.context!, id, forceRelay: forceRelay, password: password);
     }
     return null;
@@ -2565,11 +2565,11 @@ connectMainDesktop(String id,
   }
 }
 
-/// Connect to a peer with [id].
-/// If [isFileTransfer], starts a session only for file transfer.
-/// If [isViewCamera], starts a session only for view camera.
-/// If [isTcpTunneling], starts a session only for tcp tunneling.
-/// If [isRDP], starts a session only for rdp.
+/// 连接 ID 为 [id] 的被控端。
+/// 如果 [isFileTransfer]，则只启动文件传输会话。
+/// 如果 [isViewCamera]，则只启动查看摄像头会话。
+/// 如果 [isTcpTunneling]，则只启动 tcp 隧道会话。
+/// 如果 [isRDP]，则只启动 rdp 会话。
 connect(BuildContext context, String id,
     {bool isFileTransfer = false,
     bool isViewCamera = false,
@@ -2733,31 +2733,31 @@ Map<String, String> getHttpHeaders() {
   };
 }
 
-// Simple wrapper of built-in types for reference use.
+// 内置类型的简单封装，供参考使用。
 class SimpleWrapper<T> {
   T value;
   SimpleWrapper(this.value);
 }
 
-/// Wakelock manager with reference counting for desktop.
-/// Ensures wakelock is only disabled when all sessions are closed/minimized.
+/// 桌面端带引用计数的屏幕常亮管理器。
+/// 确保只有在所有会话都关闭/最小化后才禁用 wakelock。
 ///
-/// Note: Each isolate has its own WakelockPlus instance with independent assertion.
-/// As long as one isolate has wakelock enabled, the screen stays awake.
-/// This manager handles multiple tabs within the same isolate.
+/// 注意：每个 isolate 都有自己的 WakelockPlus 实例，断言相互独立。
+/// 只要有一个 isolate 启用了 wakelock，屏幕就会保持常亮。
+/// 该管理器负责同一个 isolate 内的多个标签页。
 class WakelockManager {
   static final Set<UniqueKey> _enabledKeys = {};
-  // Don't use WakelockPlus.enabled, it causes error on Android:
+  // 不要使用 WakelockPlus.enabled，它在 Android 上会报错：
   // Unhandled Exception: FormatException: Message corrupted
   //
-  // On Linux, multiple enable() calls create only one inhibit, but each disable()
-  // only releases if _cookie != null. So we need our own _enabled state to avoid
-  // calling disable() when not enabled.
-  // See: https://github.com/fluttercommunity/wakelock_plus/blob/0c74e5bbc6aefac57b6c96bb7ef987705ed559ec/wakelock_plus/lib/src/wakelock_plus_linux_plugin.dart#L48
+  // 在 Linux 上，多次调用 enable() 只会创建一个 inhibit，但每次调用 disable()
+  // 只有在 _cookie != null 时才会释放。所以我们需要自己的 _enabled 状态，以避免
+  // 在未启用时调用 disable()。
+  // 参见：https://github.com/fluttercommunity/wakelock_plus/blob/0c74e5bbc6aefac57b6c96bb7ef987705ed559ec/wakelock_plus/lib/src/wakelock_plus_linux_plugin.dart#L48
   static bool _enabled = false;
 
   static void enable(UniqueKey key, {bool isServer = false}) {
-    // Check if we should keep awake during outgoing sessions
+    // 检查在主动连接的会话中是否需要保持常亮
     if (!isServer) {
       final keepAwake =
           mainGetLocalBoolOptionSync(kOptionKeepAwakeDuringOutgoingSessions);
@@ -2788,13 +2788,13 @@ class WakelockManager {
   }
 }
 
-/// call this to reload current window.
+/// 调用此函数以重新加载当前窗口。
 ///
-/// [Note]
-/// Must have [RefreshWrapper] on the top of widget tree.
+/// [注意]
+/// widget 树的顶层必须有 [RefreshWrapper]。
 void reloadCurrentWindow() {
   if (Get.context != null) {
-    // reload self window
+    // 重新加载自身窗口
     RefreshWrapper.of(Get.context!)?.rebuild();
   } else {
     debugPrint(
@@ -2802,7 +2802,7 @@ void reloadCurrentWindow() {
   }
 }
 
-/// call this to reload all windows, including main + all sub windows.
+/// 调用此函数以重新加载所有窗口，包括主窗口和所有子窗口。
 Future<void> reloadAllWindows() async {
   reloadCurrentWindow();
   try {
@@ -2811,14 +2811,14 @@ Future<void> reloadAllWindows() async {
       DesktopMultiWindow.invokeMethod(id, kWindowActionRebuild);
     }
   } on AssertionError {
-    // ignore
+    // 忽略
   }
 }
 
-/// Indicate the flutter app is running in portable mode.
+/// 表示 flutter 应用正以便携模式运行。
 ///
-/// [Note]
-/// Portable build is only available on Windows.
+/// [注意]
+/// 便携版构建仅在 Windows 上可用。
 bool isRunningInPortableMode() {
   if (!isWindows) {
     return false;
@@ -2826,12 +2826,12 @@ bool isRunningInPortableMode() {
   return bool.hasEnvironment(kEnvPortableExecutable);
 }
 
-/// Window status callback
+/// 窗口状态回调
 Future<void> onActiveWindowChanged() async {
   print(
       "[MultiWindowHandler] active window changed: ${rustDeskWinManager.getActiveWindows()}");
   if (rustDeskWinManager.getActiveWindows().isEmpty) {
-    // close all sub windows
+    // 关闭所有子窗口
     try {
       if (isLinux) {
         await Future.wait([
@@ -2848,15 +2848,15 @@ Future<void> onActiveWindowChanged() async {
       await windowManager.setPreventClose(false);
       await windowManager.close();
       if (isMacOS) {
-        // If we call without delay, `flutter/macos/Runner/MainFlutterWindow.swift` can handle the "terminate" event.
-        // But the app will not close.
+        // 如果不加延时直接调用，`flutter/macos/Runner/MainFlutterWindow.swift` 能处理 "terminate" 事件。
+        // 但应用不会退出。
         //
-        // No idea why we need to delay here, `terminate()` itself is also an async function.
+        // 不清楚为什么这里需要延时，`terminate()` 本身也是一个异步函数。
         //
-        // A quick workaround, use `Timer.periodic` to avoid the app not closing.
-        // Because `await windowManager.close()` and `RdPlatformChannel.instance.terminate()`
-        // may not work since `Flutter 3.24.4`, see the following logs.
-        // A delay will allow the app to close.
+        // 一个临时的变通办法：使用 `Timer.periodic` 以避免应用退不出去。
+        // 因为 `await windowManager.close()` 和 `RdPlatformChannel.instance.terminate()`
+        // 自 `Flutter 3.24.4` 起可能不生效，参见下面的日志。
+        // 加上延时就能让应用正常退出。
         //
         //```
         // embedder.cc (2725): 'FlutterPlatformMessageCreateResponseHandle' returned 'kInvalidArguments'. Engine handle was invalid.
@@ -2878,7 +2878,7 @@ Timer periodic_immediate(Duration duration, Future<void> Function() callback) {
   });
 }
 
-/// return a human readable windows version
+/// 返回易读的 windows 版本号
 WindowsTarget getWindowsTarget(int buildNumber) {
   if (!isWindows) {
     return WindowsTarget.naw;
@@ -2896,23 +2896,23 @@ WindowsTarget getWindowsTarget(int buildNumber) {
   } else if (buildNumber >= 6002) {
     return WindowsTarget.vista;
   } else {
-    // minimum support
+    // 最低支持版本
     return WindowsTarget.xp;
   }
 }
 
-/// Get windows target build number.
+/// 获取 windows 目标的 build number。
 ///
-/// [Note]
-/// Please use this function wrapped with `Platform.isWindows`.
+/// [注意]
+/// 请把此函数与 `Platform.isWindows` 一起使用以做平台判断。
 int getWindowsTargetBuildNumber() {
   return getWindowsTargetBuildNumber_();
 }
 
-/// Indicating we need to use compatible ui mode.
+/// 表示需要使用兼容 ui 模式。
 ///
-/// [Conditions]
-/// - Windows 7, window will overflow when we use frameless ui.
+/// [适用条件]
+/// - Windows 7，使用无边框 ui 时窗口会溢出。
 bool get kUseCompatibleUiMode =>
     isWindows &&
     const [WindowsTarget.w7].contains(windowsBuildNumber.windowsVersion);
@@ -2933,13 +2933,13 @@ class ServerConfig {
     this.key = key?.trim() ?? '';
   }
 
-  /// decode from shared string (from user shared or rustdesk-server generated)
-  /// also see [encode]
-  /// throw when decoding failure
+  /// 从共享字符串解码（由用户分享或 rustdesk-server 生成）
+  /// 另见 [encode]
+  /// 解码失败时抛出异常
   ServerConfig.decode(String msg) {
     var json = {};
     try {
-      // back compatible
+      // 向后兼容
       json = jsonDecode(msg);
     } catch (err) {
       final input = msg.split('').reversed.join('');
@@ -2952,8 +2952,8 @@ class ServerConfig {
     key = json['key'] ?? '';
   }
 
-  /// encode to shared string
-  /// also see [ServerConfig.decode]
+  /// 编码为共享字符串
+  /// 另见 [ServerConfig.decode]
   String encode() {
     Map<String, String> config = {};
     config['host'] = idServer.trim();
@@ -2966,7 +2966,7 @@ class ServerConfig {
         .join();
   }
 
-  /// from local options
+  /// 来自本地选项
   ServerConfig.fromOptions(Map<String, dynamic> options)
       : idServer = options['custom-rendezvous-server'] ?? "",
         relayServer = options['relay-server'] ?? "",
@@ -3045,7 +3045,7 @@ String getWindowNameWithId(String id, {WindowType? overrideType}) {
 }
 
 Future<void> updateSystemWindowTheme() async {
-  // Set system window theme for macOS.
+  // 为 macOS 设置系统窗口主题。
   final userPreference = MyTheme.getThemeModePreference();
   if (userPreference != ThemeMode.system) {
     if (isMacOS) {
@@ -3057,10 +3057,10 @@ Future<void> updateSystemWindowTheme() async {
   }
 }
 
-/// macOS only
+/// 仅 macOS
 ///
-/// Note: not found a general solution for rust based AVFoundation bingding.
-/// [AVFoundation] crate has compile error.
+/// 注意：尚未找到基于 rust 的 AVFoundation 绑定的通用解决方案。
+/// [AVFoundation] crate 存在编译错误。
 const kMacOSPermChannel = MethodChannel("org.rustdesk.rustdesk/host");
 
 enum PermissionAuthorizeType {
@@ -3138,11 +3138,11 @@ Future<void> start_service(bool is_start) async {
 
 Future<bool> canBeBlocked() async {
   if (isWeb) {
-    // Web can only act as a controller, never as a controlled side,
-    // so it should never be blocked by a remote session.
+    // Web 只能作为控制端，绝不能作为被控端，
+    // 因此它不应被远程会话阻塞。
     return false;
   }
-  // First check control permission
+  // 先检查控制权限
   final controlPermission = await bind.mainGetCommon(
       key: "is-remote-modify-enabled-by-control-permissions");
   if (controlPermission == "true") {
@@ -3151,7 +3151,7 @@ Future<bool> canBeBlocked() async {
     return true;
   }
 
-  // Check local settings
+  // 检查本地设置
   var accessMode = await bind.mainGetOption(key: kOptionAccessMode);
   var isCustomAccessMode = accessMode != 'full' && accessMode != 'view';
   var option = option2bool(kOptionAllowRemoteConfigModification,
@@ -3159,7 +3159,7 @@ Future<bool> canBeBlocked() async {
   return accessMode == 'view' || (isCustomAccessMode && !option);
 }
 
-// to-do: web not implemented
+// 待办：web 端尚未实现
 Future<void> shouldBeBlocked(RxBool block, WhetherUseRemoteBlock? use) async {
   if (use != null && !await use()) {
     block.value = false;
@@ -3189,9 +3189,9 @@ Widget buildRemoteBlock(
         },
         onExit: (event) => block.value = false,
         child: Stack(children: [
-          // scope block tab
+          // 阻止作用范围仅限于当前 tab
           preventMouseKeyBuilder(child: child, block: block.value),
-          // mask block click, cm not block click and still use check_click_time to avoid block local click
+          // 遮罩层阻止点击，cm 不阻止点击，仍然使用 check_click_time 以避免阻止本地点击
           if (mask)
             Offstage(
                 offstage: !block.value,
@@ -3366,7 +3366,7 @@ Future<List<Rect>> getScreenListNotWayland() async {
   }
   try {
     for (var display in jsonDecode(displays) as List<dynamic>) {
-      // to-do: scale factor ?
+      // 待办：缩放系数？
       // final scale = kIgnoreDpi ? 1.0 : screen.scaleFactor;
       double l = display['x'].toDouble();
       double t = display['y'].toDouble();
@@ -3396,13 +3396,13 @@ openMonitorInTheSameTab(int i, FFI ffi, PeerInfo pi,
   final displays = i == kAllDisplayValue
       ? List.generate(pi.displays.length, (index) => index)
       : [i];
-  // Try clear image model before switching from all displays
-  // 1. The remote side has multiple displays.
-  // 2. Do not use texture render.
-  // 3. Connect to Display 1.
-  // 4. Switch to multi-displays `kAllDisplayValue`
-  // 5. Switch to Display 2.
-  // Then the remote page will display last picture of Display 1 at the beginning.
+  // 在从所有显示器切换之前，尝试清理图像模型
+  // 1. 被控端有多个显示器。
+  // 2. 不使用纹理渲染。
+  // 3. 连接到显示器 1。
+  // 4. 切换到多显示器 `kAllDisplayValue`
+  // 5. 切换到显示器 2。
+  // 这样远端页面一开始会显示显示器 1 的最后一张画面。
   if (pi.forceTextureRender && i != kAllDisplayValue) {
     ffi.imageModel.clearImage();
   }
@@ -3415,10 +3415,10 @@ openMonitorInTheSameTab(int i, FFI ffi, PeerInfo pi,
       updateCursorPos: updateCursorPos);
 }
 
-// Open new tab or window to show this monitor.
-// For now just open new window.
+// 打开新标签页或窗口来显示该显示器。
+// 目前只打开新窗口。
 //
-// screenRect is used to move the new window to the specified screen and set fullscreen.
+// screenRect 用于把新窗口移动到指定屏幕并设置为全屏。
 openMonitorInNewTabOrWindow(int i, String peerId, PeerInfo pi,
     {Rect? screenRect}) {
   final args = {
@@ -3443,7 +3443,7 @@ openMonitorInNewTabOrWindow(int i, String peerId, PeerInfo pi,
 setNewConnectWindowFrame(int windowId, String peerId, int preSessionCount,
     WindowType windowType, int? display, Rect? screenRect) async {
   if (screenRect == null) {
-    // Do not restore window position to new connection if there's a pre-session.
+    // 如果之前已有会话，则不要为新连接恢复窗口位置。
     // https://github.com/rustdesk/rustdesk/discussions/8825
     if (preSessionCount == 0) {
       await restoreWindowPosition(windowType,
@@ -3470,7 +3470,7 @@ tryMoveToScreenAndSetFullscreen(Rect? screenRect) async {
     return;
   }
   await wc.setFrame(frame);
-  // An duration is needed to avoid the window being restored after fullscreen.
+  // 需要一段延时，以避免全屏后窗口又被恢复。
   Future.delayed(Duration(milliseconds: 300), () async {
     stateGlobal.setFullscreen(true);
   });
@@ -3628,7 +3628,7 @@ Future<bool> setServerConfig(
   }
   final oldApiServer = await bind.mainGetApiServer();
 
-  // should set one by one
+  // 应该逐个设置
   await bind.mainSetOption(
       key: 'custom-rendezvous-server', value: config.idServer);
   await bind.mainSetOption(key: 'relay-server', value: config.relayServer);
@@ -3819,7 +3819,7 @@ class _LogoState extends State<_Logo> {
   }
 }
 
-// max 300 x 60
+// 最大 300 x 60
 Widget loadLogo() => const _Logo();
 
 Widget loadIcon(double size) {
@@ -3953,11 +3953,11 @@ Widget buildVirtualWindowFrame(BuildContext context, Widget child) {
 get windowResizeEdgeSize =>
     isLinux && !_linuxWindowResizable ? 0.0 : kWindowResizeEdgeSize;
 
-// `windowManager.setResizable(false)` will reset the window size to the default size on Linux and then set unresizable.
-// See _linuxWindowResizable for more details.
-// So we use `setResizable()` instead of `windowManager.setResizable()`.
+// 在 Linux 上，`windowManager.setResizable(false)` 会先把窗口尺寸重置为默认尺寸，然后再设置为不可调整大小。
+// 更多细节参见 _linuxWindowResizable。
+// 因此我们使用 `setResizable()` 而不是 `windowManager.setResizable()`。
 //
-// We can only call `windowManager.setResizable(false)` if we need the default size on Linux.
+// 只有在 Linux 上需要默认尺寸时，才调用 `windowManager.setResizable(false)`。
 setResizable(bool resizable) {
   if (isLinux) {
     _linuxWindowResizable = resizable;
@@ -4004,14 +4004,14 @@ bool idWhitelistNotEmpty() {
   return v != '' && v != ',';
 }
 
-// `setMovable()` is only supported on macOS.
+// `setMovable()` 仅在 macOS 上受支持。
 //
-// On macOS, the window can be dragged by the tab bar by default.
-// We need to disable the movable feature to prevent the window from being dragged by the tabs in the tab bar.
+// 在 macOS 上，默认可以通过标签栏拖动窗口。
+// 我们需要禁用可移动特性，以防窗口被标签栏中的标签页拖动。
 //
-// When we drag the blank tab bar (not the tab), the window will be dragged normally by adding the `onPanStart` handle.
+// 拖动空白标签栏（而非标签页）时，通过添加 `onPanStart` 处理器来正常拖动窗口。
 //
-// See the following code for more details:
+// 更多细节参见下面的代码：
 // https://github.com/rustdesk/rustdesk/blob/ce1dac3b8613596b4d8ae981275f9335489eb935/flutter/lib/desktop/widgets/tabbar_widget.dart#L385
 // https://github.com/rustdesk/rustdesk/blob/ce1dac3b8613596b4d8ae981275f9335489eb935/flutter/lib/desktop/widgets/tabbar_widget.dart#L399
 //
@@ -4084,10 +4084,10 @@ void checkUpdate() {
 }
 
 // https://github.com/flutter/flutter/issues/153560#issuecomment-2497160535
-// For TextField, TextFormField
+// 适用于 TextField、TextFormField
 extension WorkaroundFreezeLinuxMint on Widget {
   Widget workaroundFreezeLinuxMint() {
-    // No need to check if is Linux Mint, because this workaround is harmless on other platforms.
+    // 无需判断是否为 Linux Mint，因为这个变通方案在其他平台上也无害。
     if (isLinux) {
       return ExcludeSemantics(child: this);
     } else {
@@ -4096,7 +4096,7 @@ extension WorkaroundFreezeLinuxMint on Widget {
   }
 }
 
-// Don't use `extension` here, the border looks weird if using `extension` in my test.
+// 这里不要使用 `extension`，我测试时用 `extension` 边框看起来很奇怪。
 Widget workaroundWindowBorder(BuildContext context, Widget child) {
   if (!isWin10) {
     return child;
@@ -4154,11 +4154,11 @@ Widget workaroundWindowBorder(BuildContext context, Widget child) {
 
 void updateTextAndPreserveSelection(
     TextEditingController controller, String text) {
-  // Only care about select all for now.
+  // 目前只关心全选。
   final isSelected = controller.selection.isValid &&
       controller.selection.end > controller.selection.start;
 
-  // Set text will make the selection invalid.
+  // 设置文本会使选区失效。
   controller.text = text;
 
   if (isSelected) {
@@ -4220,7 +4220,7 @@ String decode_http_response(http.Response resp) {
     return utf8.decode(resp.bodyBytes, allowMalformed: true);
   } catch (e) {
     debugPrint('Failed to decode response as UTF-8: $e');
-    // Fallback to bodyString which handles encoding automatically
+    // 回退到 bodyString，它会自动处理编码
     return resp.body;
   }
 }
@@ -4230,8 +4230,8 @@ bool peerTabShowNote(PeerTabIndex peerTabIndex) {
 }
 
 // TODO: We should support individual bits combinations in the future.
-// But for now, just keep it simple, because the old code only supports single button.
-// No users have requested multi-button support yet.
+// 不过目前先保持简单，因为旧代码只支持单个按钮。
+// 目前还没有用户要求支持多按钮。
 String mouseButtonsToPeer(int buttons) {
   switch (buttons) {
     case kPrimaryMouseButton:
@@ -4249,9 +4249,9 @@ String mouseButtonsToPeer(int buttons) {
   }
 }
 
-/// Build an avatar widget from an avatar URL or data URI string.
-/// Returns [fallback] if avatar is empty or cannot be decoded.
-/// [borderRadius] defaults to [size]/2 (circle).
+/// 根据头像 URL 或 data URI 字符串构建头像组件。
+/// 如果头像为空或无法解码，返回 [fallback]。
+/// [borderRadius] 默认为 [size]/2（圆形）。
 Widget? buildAvatarWidget({
   required String avatar,
   required double size,

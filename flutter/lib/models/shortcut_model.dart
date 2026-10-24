@@ -21,13 +21,13 @@ import '../models/state_model.dart';
 
 typedef ShortcutCallback = FutureOr<void> Function();
 
-/// Per-session shortcut dispatcher. Attached to FFI when a session is created.
+/// 按会话分发的快捷键调度器。创建会话时挂接到 FFI。
 ///
-/// The Rust matcher (src/keyboard/shortcuts.rs) emits `shortcut_triggered`
-/// session events containing the matched `action` id. The session event
-/// listener in [FfiModel.startEventListener] forwards those to this model
-/// via [onTriggered], which runs whatever callback the toolbar / menu
-/// builders previously registered for that action id.
+/// Rust 匹配器（src/keyboard/shortcuts.rs）发出 `shortcut_triggered`
+/// 会话事件，其中包含匹配到的 `action` id。会话事件
+/// 监听器（位于 [FfiModel.startEventListener] 中）将这些事件转发给本 model
+/// ，通过 [onTriggered] 触发，执行工具栏 / 菜单
+/// 构建器此前为该 action id 注册的回调。
 class ShortcutModel {
   static WeakReference<ShortcutModel>? _activeWebModel;
 
@@ -37,8 +37,8 @@ class ShortcutModel {
 
   ShortcutModel(this.parent);
 
-  /// Called by toolbar / menu builders to register what to do when the
-  /// matched shortcut fires.
+  /// 由工具栏 / 菜单构建器调用，用于注册匹配到的快捷键触发时
+  /// 要执行的操作。
   void register(String actionId, ShortcutCallback callback) {
     if (parent.target?.closed != false) return;
     _callbacks[actionId] = callback;
@@ -73,13 +73,13 @@ class ShortcutModel {
     }
   }
 
-  /// Called by the session event listener when a `shortcut_triggered` event
-  /// arrives for this session.
+  /// 由会话事件监听器调用，当本会话收到 `shortcut_triggered` 事件
+  /// 到达时触发。
   ///
-  /// The matcher has already consumed the chord. With no handler the action
-  /// is unavailable in this session (e.g. screenshot on a peer without
-  /// support), and the chord is a deliberate no-op: a bound chord always
-  /// belongs to RustDesk and is never forwarded to the remote.
+  /// 匹配器已经消费了该组合键。若没有对应的处理函数，该操作
+  /// 在本会话中不可用（例如在对端不支持截图时）
+  /// ，此时该组合键是有意不做任何事：已绑定的组合键始终
+  /// 属于 RustDesk，绝不会被转发到远端。
   void onTriggered(String actionId) {
     if (parent.target?.closed != false) return;
     unawaited(Future.sync(() async {
@@ -104,11 +104,11 @@ class ShortcutModel {
   static ShortcutConfig _config = ShortcutConfig.parse('');
   static ShortcutConfig _activeConfig = _config;
 
-  /// The stored config, parsed once per distinct stored value. The Flutter
-  /// matcher reads it on every key press, so a key press costs one config
-  /// read and no JSON parsing while the config is unchanged.
-  /// Runtime matching requests [active] to exclude platform-hidden bindings
-  /// while retaining the stored config for other platforms.
+  /// 已保存的配置，按不同的存储值只解析一次。Flutter
+  /// 匹配器每次按键都会读取它，因此在配置未变时，一次按键只需一次配置
+  /// 读取，无需 JSON 解析。
+  /// 运行时匹配会请求 [active]，以排除被平台隐藏的绑定，
+  /// 同时保留供其他平台使用的存储配置。
   static ShortcutConfig config({bool active = false}) {
     final raw = bind.mainGetLocalOption(key: kShortcutLocalConfigKey);
     if (raw != _configRaw) {
@@ -119,8 +119,8 @@ class ShortcutModel {
     return active ? _activeConfig : _config;
   }
 
-  /// Read the bindings JSON from LocalConfig. Returns a copy the caller may
-  /// edit.
+  /// 从 LocalConfig 读取绑定 JSON。返回一份副本，调用方可以
+  /// 对其进行修改。
   static List<Map<String, dynamic>> readBindings() => [
         for (final binding in config().bindings)
           Map<String, dynamic>.of(binding)
@@ -130,10 +130,10 @@ class ShortcutModel {
 
   static bool isPassThrough() => config().passThrough;
 
-  /// Persistent companion to [isEnabled]: when on, the matchers return early
-  /// and every keystroke flows through to the remote (i.e. all bindings are
-  /// suspended). Stored in the same JSON blob so a single reload refreshes
-  /// both flags on every active matcher.
+  /// [isEnabled] 的持久化搭档：开启时匹配器会提前返回，
+  /// 所有按键都会直接透传到远端（即所有绑定都被
+  /// 暂停）。它保存在同一个 JSON 数据块中，因此一次重新加载即可刷新
+  /// 每个活动匹配器上的这两个标志。
   static Future<void> setPassThrough(bool v) async {
     final raw = bind.mainGetLocalOption(key: kShortcutLocalConfigKey);
     Map<String, dynamic> json = {};
@@ -150,11 +150,11 @@ class ShortcutModel {
     bind.mainReloadKeyboardShortcuts();
   }
 
-  /// Flip the master `enabled` flag and persist. On the first enable we seed
-  /// the default bindings so common combos work out of the box; otherwise we
-  /// preserve whatever the user already has, an empty list included. Refreshes the matcher cache so
-  /// the change takes effect immediately (Rust on native, JS via the bridge
-  /// on Web).
+  /// 翻转主 `enabled` 标志并持久化。首次启用时会写入
+  /// 默认绑定，使常用组合键开箱即用；否则我们
+  /// 保留用户已有的配置（包括空列表）。同时刷新匹配器缓存，使
+  /// 改动立即生效（原生端用 Rust，Web 端通过 bridge
+  /// 使用 JS）。
   static Future<void> setEnabled(bool v) async {
     final raw = bind.mainGetLocalOption(key: kShortcutLocalConfigKey);
     Map<String, dynamic> json = {};
@@ -179,30 +179,30 @@ class ShortcutModel {
     bind.mainReloadKeyboardShortcuts();
   }
 
-  /// Single source of truth for the per-platform "is this shortcut applicable"
-  /// decisions. Both [setEnabled]'s default-seeding pass and the configuration
-  /// page's reset / list-rendering paths read from here, so the seed list and
-  /// the visible action list can never disagree on which platform a given
-  /// action belongs to.
+  /// 判断"这个快捷键是否适用于该平台"的唯一事实来源。
+  /// [setEnabled] 的默认写入流程和配置页面的
+  /// 重置 / 列表渲染路径都从这里读取，因此写入列表与
+  /// 可见的操作列表在某个操作属于哪个平台这件事上
+  /// 绝不会出现分歧。
   ///
-  /// Capability rationale:
-  ///   * Fullscreen / Toolbar / Pin: rendered wherever the
-  ///     desktop layout applies (native desktop + Web). Native mobile is
-  ///     permanently full-screen and doesn't have a desktop-style toolbar.
-  ///   * Screenshot / Switch Sides: native desktop only. The Web bridge
-  ///     throws UnimplementedError for `sessionTakeScreenshot`; mobile
-  ///     toolbars don't surface either action.
-  ///   * Tab navigation / Close Tab: only native desktop ships
-  ///     `DesktopTabController`; Web's `RemotePage` is invoked without one.
-  ///   * Recording: native desktop has the `_RecordMenu` widget +
-  ///     `registerSessionShortcutActions` registration; native Android has
-  ///     the `toolbarControls` entry; iOS short-circuits inside
-  ///     `recordingModel.toggle()`; Web has no implementation.
-  ///   * Reset Canvas: only the mobile toolbar builds the menu entry
-  ///     (`isDefaultConn && isMobile` in `toolbarControls`).
-  ///   * Voice Call: iOS has no audio capture implementation; Web bridge throws
-  ///     `UnimplementedError` for both `sessionRequestVoiceCall` and
-  ///     `sessionCloseVoiceCall`.
+  /// 能力判定依据：
+  ///   * 全屏 / 工具栏 / 固定：在适用
+  ///     桌面布局的地方渲染（原生桌面端 + Web）。原生移动端
+  ///     始终全屏，没有桌面风格的工具栏。
+  ///   * 截图 / 切换屏幕：仅原生桌面端。Web bridge
+  ///     对 `sessionTakeScreenshot` 抛出 UnimplementedError；移动端
+  ///     工具栏也不提供这两项操作。
+  ///   * 标签页导航 / 关闭标签页：只有原生桌面端提供
+  ///     `DesktopTabController`；Web 的 `RemotePage` 调用时不带它。
+  ///   * 录屏：原生桌面端有 `_RecordMenu` 组件以及
+  ///     `registerSessionShortcutActions` 注册；原生 Android 有
+  ///     `toolbarControls` 中的入口；iOS 在
+  ///     `recordingModel.toggle()` 内部短路处理；Web 没有实现。
+  ///   * 重置画布：只有移动端工具栏会构建该菜单项
+  ///     （`toolbarControls` 中的 `isDefaultConn && isMobile`）。
+  ///   * 语音通话：iOS 没有音频采集实现；Web bridge 对
+  ///     `UnimplementedError` 对 `sessionRequestVoiceCall` 和
+  ///     `sessionCloseVoiceCall` 都会抛出 UnimplementedError。
   static ShortcutPlatformCapabilities currentPlatformCapabilities() {
     final desktopLayout = isDesktop || isWeb;
     return ShortcutPlatformCapabilities(
@@ -236,8 +236,8 @@ class ShortcutModel {
   }
 }
 
-/// One parsed view of the `keyboard-shortcuts` LocalConfig value. Malformed
-/// or missing input parses as disabled with no bindings.
+/// `keyboard-shortcuts` LocalConfig 值的一份解析视图。格式错误
+/// 或缺失的输入都按"已禁用且无绑定"解析。
 class ShortcutConfig {
   final bool enabled;
   final bool passThrough;
@@ -276,23 +276,23 @@ class ShortcutConfig {
   }
 }
 
-/// Register the default-bound shortcut actions that aren't already wired by
-/// `toolbarControls(...)` (which handles things like Ctrl+Alt+Shift+Del and the
-/// screenshot action). Called once per session from the desktop / mobile
-/// remote page, after the toolbar registrations have run.
+/// 注册尚未由
+/// `toolbarControls(...)` 接好的默认绑定快捷键操作（后者处理 Ctrl+Alt+Shift+Del 以及
+/// 截图等操作）。每个会话从桌面端 / 移动端
+/// 远程页面调用一次，且在工具栏注册完成之后。
 ///
-/// We register unconditionally — even when shortcuts are master-disabled —
-/// because the matcher (Rust + JS) gates dispatch via the `enabled` flag,
-/// so registered closures are functionally invisible until the user flips
-/// shortcuts on. This keeps the wiring simple (no rebind callbacks across
-/// sessions) and lets the user toggle shortcuts mid-session without
-/// reconnecting.
+/// 我们无条件注册 —— 即使快捷键被主开关禁用 ——
+/// 因为匹配器（Rust + JS）通过 `enabled` 标志控制分发，
+/// 所以在用户打开快捷键开关之前，已注册的闭包实际上不会生效。
+/// 这让接线保持简单（跨会话无需重新绑定回调），
+/// 并允许用户在会话中途开关快捷键而无需
+/// 重连。
 ///
-/// [tabController] is the desktop window's tab controller; `null` on mobile /
-/// web (where tab-switch shortcuts don't apply).
+/// [tabController] 是桌面窗口的标签页控制器；移动端 / Web 上为 `null`，
+/// 这些地方不适用切换标签页的快捷键。
 ///
-/// Each callback below is a no-op when the underlying state required to
-/// service the action isn't available (e.g. only one display, only one tab).
+/// 当执行该操作所需的底层状态不可用时（例如只有一个显示器、只有一个标签页），
+/// 下面的每个回调都什么也不做。
 void registerSessionShortcutActions(
   FFI ffi, {
   DesktopTabController? tabController,
@@ -300,35 +300,35 @@ void registerSessionShortcutActions(
 }) {
   final sessionId = ffi.sessionId;
 
-  // Note on disposal: every closure registered below captures `ffi` via
-  // closure environment, so the FFI object stays alive for the duration of
-  // the closure's execution — even across awaits, even if the session is
-  // closed mid-execution. We therefore don't add per-closure liveness
-  // guards: a `WeakReference<FFI>` check would never go null while the
-  // closure is on the call stack, and the underlying `bind.session*` /
-  // model setters tolerate stale-session calls (they no-op on torn-down
-  // sessions). ShortcutModel.onTriggered's existing entry guard
-  // (`_callbacks` lookup returning null after disposal) is the actual
-  // liveness gate.
+  // 关于释放的说明：下面注册的每个闭包都通过闭包环境捕获 `ffi`，
+  // 因此 FFI 对象在闭包执行期间始终存活 ——
+  // 即使跨越 await，即使会话在执行中途
+  // 被关闭也是如此。因此我们不添加逐闭包的存活
+  // 检查：闭包在调用栈上时，`WeakReference<FFI>` 检查永远不会为 null，
+  // 而底层的 `bind.session*` /
+  // model setter 也能容忍会话已失效的调用（在已销毁的
+  // 会话上不做任何事）。ShortcutModel.onTriggered 中已有的入口检查
+  // （释放后查找 `_callbacks` 返回 null）才是真正的
+  // 存活门禁。
 
-  // Toggle Fullscreen — available wherever the desktop layout renders
-  // (native desktop + every Web browser, since Web uses the desktop
-  // RemotePage). `stateGlobal.setFullscreen` handles native window vs.
-  // browser fullscreen. Native mobile is permanently full-screen, so the
-  // action is intentionally not registered there.
+  // 切换全屏 —— 在桌面布局渲染的地方都可用
+  // （原生桌面端 + 所有 Web 浏览器，因为 Web 使用桌面版
+  // RemotePage）。`stateGlobal.setFullscreen` 同时处理原生窗口与
+  // 浏览器全屏。原生移动端始终全屏，因此该
+  // 操作有意不在那里注册。
   if (isDesktop || isWeb) {
     ffi.shortcutModel.register(kShortcutActionToggleFullscreen, () {
       stateGlobal.setFullscreen(!stateGlobal.fullscreen.value);
     });
   }
 
-  // Toggle Recording — desktop only here. Mobile already wires this through
-  // `toolbarControls` (which adds a recording entry on `!(isDesktop||isWeb)`),
-  // but the desktop toolbar uses a separate `_RecordMenu` widget that has no
-  // `actionId`. Without this explicit registration a desktop user could bind
-  // Toggle Recording in settings and the press would have no handler.
-  // `recordingModel.toggle()` itself short-circuits on iOS and on sessions
-  // without recording permission.
+  // 切换录屏 —— 这里仅限桌面端。移动端已通过
+  // `toolbarControls` 接线（在 `!(isDesktop||isWeb)` 时添加录屏项），
+  // 但桌面端工具栏使用单独的 `_RecordMenu` 组件，它没有
+  // `actionId`。若没有这次显式注册，桌面端用户可以在设置中绑定
+  // "切换录屏"，但按下时不会有任何处理函数。
+  // `recordingModel.toggle()` 本身在 iOS 以及没有录屏权限的会话上
+  // 会短路处理。
   if (isDesktop) {
     ffi.shortcutModel.register(kShortcutActionToggleRecording, () {
       ffi.recordingModel.toggle();
@@ -347,10 +347,10 @@ void registerSessionShortcutActions(
     }
   }
 
-  // Switch Display Next / Prev — requires the peer to have at least 2
-  // displays. From the "All displays" merged view, Next jumps to display 0
-  // and Prev to the last display, so the user can always escape the merged
-  // view via these shortcuts.
+  // 切换到下一个 / 上一个显示器 —— 要求对端至少有 2 个
+  // 显示器。从 "All displays" 合并视图中，“下一个”跳到显示器 0，
+  // “上一个”跳到最后一个显示器，因此用户总能借此退出合并
+  // 视图。
   void switchDisplayBy(int delta) {
     final pi = ffi.ffiModel.pi;
     final privacyMode = PrivacyModeState.find(ffi.id).value;
@@ -377,19 +377,19 @@ void registerSessionShortcutActions(
     switchDisplayBy(-1);
   });
 
-  // Switch to all-monitors view — mirrors the toolbar Monitor menu's
-  // "all monitors" button (only built when peer has >1 display). Not a
-  // toggle: the toolbar button just sets the merged view; another action
-  // (Switch to next/previous display, or another monitor button) takes
-  // you back to a single display.
+  // 切换到全部显示器视图 —— 对应工具栏显示器菜单的
+  // "all monitors"按钮（仅在对端有多个显示器时构建）。它不是
+  // 开关：工具栏按钮只是设置合并视图；需要另一个操作
+  // （切换到下一个/上一个显示器，或点击另一个显示器按钮）才能
+  // 回到单个显示器。
   //
-  // For same-tab view, use `openMonitorInTheSameTab` rather than calling
-  // `sessionSwitchDisplay` with `[kAllDisplayValue]` directly — the toolbar
-  // path treats `kAllDisplayValue` as a UI sentinel and expands it to the
-  // real display index list (`[0, 1, ...]`) before sending, then updates
-  // local FfiModel state. Sending `[-1]` raw produces a wire value the
-  // remote can't act on and skips the local state update, so the merged
-  // view never engages.
+  // 若要在同一标签页中显示，请使用 `openMonitorInTheSameTab`，而不要直接
+  // 用 `[kAllDisplayValue]` 调用 `sessionSwitchDisplay` —— 工具栏
+  // 路径会把 `kAllDisplayValue` 视为 UI 哨兵值，并将其展开为
+  // 真实的显示器索引列表（`[0, 1, ...]`）后再发送，随后更新
+  // 本地 FfiModel 状态。直接发送 `[-1]` 会产生一个远端
+  // 无法处理的线上值，并且会跳过本地状态更新，导致合并
+  // 视图始终无法生效。
   ffi.shortcutModel.register(kShortcutActionSwitchDisplayAll, () {
     final pi = ffi.ffiModel.pi;
     final privacyMode = PrivacyModeState.find(ffi.id).value;
@@ -402,12 +402,12 @@ void registerSessionShortcutActions(
     openDisplay(kAllDisplayValue, pi);
   });
 
-  // Switch tab next / prev — desktop only. The remote-screen tabs live in
-  // the window-scoped DesktopTabController, not on the FFI itself, so we
-  // need the controller from the page that owns this session. We
-  // intentionally don't expose positional ("Switch to tab N") shortcuts:
-  // counting tabs in a long list is impractical, and AnyDesk / Chrome
-  // standard practice is to favour next/prev navigation.
+  // 切换到下一个 / 上一个标签页 —— 仅限桌面端。远程屏幕标签页位于
+  // 窗口级作用域的 DesktopTabController 上，而不在 FFI 上，因此我们
+  // 需要从拥有该会话的页面获取控制器。我们
+  // 有意不提供位置式（"Switch to tab N"）快捷键：
+  // 在长列表中数标签页并不现实，而 AnyDesk / Chrome
+  // 的惯例是优先使用上一个/下一个导航。
   if (tabController != null) {
     void switchTabBy(int delta) {
       final tabs = tabController.state.value.tabs;
@@ -423,9 +423,9 @@ void registerSessionShortcutActions(
     ffi.shortcutModel
         .register(kShortcutActionSwitchTabPrev, () => switchTabBy(-1));
 
-    // Close Tab — desktop only. Mirrors the tab right-click "Close" entry,
-    // including the audit-log confirmation dialog so a shortcut close goes
-    // through the same path as a menu close.
+    // 关闭标签页 —— 仅限桌面端。对应标签页右键菜单中的 "Close" 项，
+    // 包括审计日志确认对话框，因此快捷键关闭与菜单关闭
+    // 走的是同一条路径。
     ffi.shortcutModel.register(kShortcutActionCloseTab, () async {
       if (await desktopTryShowTabAuditDialogCloseCancelled(
         id: ffi.id,
@@ -437,8 +437,8 @@ void registerSessionShortcutActions(
     });
   }
 
-  // Toggle Toolbar — desktop only. ToolbarState is window/session-scoped,
-  // owned by the RemotePage that hosts this session.
+  // 切换工具栏 —— 仅限桌面端。ToolbarState 是窗口/会话作用域的，
+  // 由承载该会话的 RemotePage 持有。
   if (toolbarState != null) {
     ffi.shortcutModel.register(kShortcutActionToggleToolbar, () {
       toolbarState.switchHide(sessionId);
@@ -448,19 +448,19 @@ void registerSessionShortcutActions(
     });
   }
 
-  // Toggle Chat overlay (open/close the chat panel for this session).
-  // _ChatMenu is a standalone toolbar icon — not part of any toolbar
-  // helper that returns a TToggleMenu list — so its handler is wired
-  // here rather than picked up by helper auto-register.
+  // 切换聊天浮层（打开/关闭本会话的聊天面板）。
+  // _ChatMenu 是一个独立的工具栏图标 —— 不属于任何返回 TToggleMenu 列表的
+  // 工具栏辅助函数 —— 因此它的处理函数在这里
+  // 接线，而不是由辅助函数自动注册拾取。
   ffi.shortcutModel.register(kShortcutActionToggleChat, () {
     ffi.chatModel.changeCurrentKey(MessageKey(ffi.id, ChatModel.clientModeID));
     ffi.chatModel.toggleChatOverlay();
   });
 
-  // Toggle Voice Call — start when idle, hang up when active. Mirrors the
-  // toolbar's `_VoiceCallMenu` state-driven button. Web bridge throws
-  // UnimplementedError on both sessionRequestVoiceCall and
-  // sessionCloseVoiceCall; iOS has no audio capture implementation.
+  // 切换语音通话 —— 空闲时接通，通话中挂断。对应工具栏的
+  // `_VoiceCallMenu` 状态驱动按钮。Web bridge 对
+  // sessionRequestVoiceCall 和
+  // sessionCloseVoiceCall 都会抛出 UnimplementedError；iOS 没有音频采集实现。
   if (!isWeb && !isIOS) {
     ffi.shortcutModel.register(kShortcutActionToggleVoiceCall, () {
       final status = ffi.chatModel.voiceCallStatus.value;
@@ -473,27 +473,27 @@ void registerSessionShortcutActions(
     });
   }
 
-  // ── Inline _KeyboardMenu items + actions with no toolbar TToggleMenu/TRadioMenu ─
-  // The toolbar's TToggleMenu / TRadioMenu helpers (toolbarDisplayToggle,
-  // toolbarCursor, toolbarKeyboardToggles, toolbarCodec, toolbarPrivacyMode,
-  // toolbarViewStyle, toolbarImageQuality) auto-register their tagged entries
-  // from the bottom of each helper. The handlers below cover what those
-  // helpers DON'T own:
-  //   * Show my cursor / Keyboard mode (Map/Translate/Legacy) / View Only
-  //     (desktop) — built as widgets directly in `_KeyboardMenu`, not as
-  //     TToggleMenu lists. (Mobile View Only IS in toolbarDisplayToggle and
-  //     auto-registers; the desktop session-start handler below registers
-  //     first and the helper's auto-register on mobile takes over after its
-  //     unawaited future resolves.)
-  //   * Plug out all virtual displays — built in `getVirtualDisplayMenuChildren`
-  //     as a MenuButton, not a TToggleMenu.
-  //   * Toggle Input Source — cycle action; the toolbar exposes per-source
-  //     radios but no single "cycle to next source" entry.
+  // ── 内联的 _KeyboardMenu 项以及没有对应工具栏 TToggleMenu/TRadioMenu 的操作 ─
+  // 工具栏的 TToggleMenu / TRadioMenu 辅助函数（toolbarDisplayToggle、
+  // toolbarCursor、toolbarKeyboardToggles、toolbarCodec、toolbarPrivacyMode、
+  // toolbarViewStyle、toolbarImageQuality）会在各自辅助函数末尾
+  // 自动注册带标签的条目。下面的处理函数覆盖那些
+  // 辅助函数"不负责"的部分：
+  //   * 显示我的光标 / 键盘模式（Map/Translate/Legacy）/ 仅查看
+  //     （桌面端）—— 直接在 `_KeyboardMenu` 中以组件形式构建，而非
+  //     TToggleMenu 列表。（移动端的“仅查看”确实在 toolbarDisplayToggle 中，会
+  //     自动注册；下方的桌面端会话启动处理函数先注册，
+  //     而移动端在辅助函数的自动注册在其未等待的 future 解析后接管。
+  //     ）
+  //   * 拔出所有虚拟显示器 —— 在 `getVirtualDisplayMenuChildren`
+  //     中以 MenuButton 形式构建，而非 TToggleMenu。
+  //   * 切换输入源 —— 循环类操作；工具栏提供的是按输入源划分的
+  //     单选项，没有"循环到下一个输入源"这一项。
 
-  // Show my cursor — toolbar (`_KeyboardMenu.showMyCursor`) pushes the new
-  // value into FfiModel.setShowMyCursor and auto-enables view-only when the
-  // toggle goes on, so the user can never control the remote with their own
-  // cursor visible.
+  // 显示我的光标 —— 工具栏（`_KeyboardMenu.showMyCursor`）会把新
+  // 值写入 FfiModel.setShowMyCursor，并在开关打开时
+  // 自动开启仅查看模式，这样用户就不会在自己光标可见的情况下
+  // 控制远端。
   ffi.shortcutModel.register(kShortcutActionToggleShowMyCursor, () async {
     await bind.sessionToggleOption(
         sessionId: sessionId, value: kOptionToggleShowMyCursor);
@@ -511,8 +511,8 @@ void registerSessionShortcutActions(
     }
   });
 
-  // Keyboard mode (Map / Translate / Legacy). Mirrors the radio buttons in
-  // `_KeyboardMenu.keyboardMode()` (built as RdoMenuButton, not TRadioMenu).
+  // 键盘模式（Map / Translate / Legacy）。对应
+  // `_KeyboardMenu.keyboardMode()` 中的单选按钮（以 RdoMenuButton 构建，而非 TRadioMenu）。
   void registerKeyboardMode(String actionId, String mode) {
     ffi.shortcutModel.register(actionId, () async {
       if (!ffi.ffiModel.keyboard ||
@@ -538,9 +538,9 @@ void registerSessionShortcutActions(
   registerKeyboardMode(kShortcutActionKeyboardModeTranslate, kKeyTranslateMode);
   registerKeyboardMode(kShortcutActionKeyboardModeLegacy, kKeyLegacyMode);
 
-  // Plug out all virtual displays (Windows + IDD only). Mirrors the toolbar's
-  // "Plug out all" button — present in both IDD modes (RustDesk + Amyuni),
-  // built as a MenuButton inside `getVirtualDisplayMenuChildren`.
+  // 拔出所有虚拟显示器（仅 Windows + IDD）。对应工具栏的
+  // "Plug out all"按钮 —— 在两种 IDD 模式下都有（RustDesk + Amyuni），
+  // 在 `getVirtualDisplayMenuChildren` 中以 MenuButton 构建。
   ffi.shortcutModel.register(kShortcutActionPlugOutAllVirtualDisplays, () {
     if (ffi.connType != ConnType.defaultConn ||
         !showVirtualDisplayMenu(ffi) ||
@@ -556,14 +556,14 @@ void registerSessionShortcutActions(
     );
   });
 
-  // Privacy mode 1 / 2 — fallback handlers for the single-impl and null-impls
-  // branches of `toolbarPrivacyMode`. The multi-impl branch tags each entry
-  // with the matching actionId and `_registerToggleMenuShortcuts` overrides
-  // these closures with the toolbar's own onChanged. But when the peer only
-  // advertises a single impl (older Linux peers, certain platform configs)
-  // toolbarPrivacyMode returns a `getDefaultMenu` entry without an actionId,
-  // so the auto-register pass skips it — these fallbacks are what actually
-  // wire the shortcut in that case.
+  // 隐私模式 1 / 2 —— 单实现分支和空实现分支的
+  // 回退处理函数，对应 `toolbarPrivacyMode`。多实现分支会给每个条目打上匹配的 actionId，
+  // 而 `_registerToggleMenuShortcuts` 会用工具栏自身的 onChanged 覆盖
+  // 这些闭包。但当对端只
+  // 声明了一个实现时（较老的 Linux 对端、某些平台配置），
+  // toolbarPrivacyMode 返回的是没有 actionId 的 `getDefaultMenu` 条目，
+  // 自动注册流程会跳过它 —— 正是这些回退处理函数在这种情况下
+  // 真正接上了快捷键。
   String? findPrivacyImpl(String nameKey) {
     final impls = ffi.ffiModel.pi
             .platformAdditions[kPlatformAdditionsSupportedPrivacyModeImpl]
@@ -597,16 +597,16 @@ void registerSessionShortcutActions(
     return false;
   }
 
-  // Match the multi-impl branch of `toolbarPrivacyMode`: turn this impl on iff
-  // the active impl isn't already this one. Comparing `.value == implKey`
-  // (rather than `.value.isEmpty`) means pressing the mode-1 shortcut while
-  // mode 2 is on correctly turns mode 1 ON, instead of misreading the
-  // "any-mode-active" state as "this-mode-active" and toggling OFF.
+  // 与 `toolbarPrivacyMode` 的多实现分支保持一致：仅当
+  // 当前启用的实现不是本实现时才开启本实现。比较 `.value == implKey`
+  // （而不是 `.value.isEmpty`）意味着在模式 2 开启时按下模式 1 快捷键
+  // 会正确地把模式 1 打开，而不是把
+  // "任意模式已启用"误读为"本模式已启用"从而反向关闭。
   ffi.shortcutModel.register(kShortcutActionPrivacyMode1, () {
     if (ffi.ffiModel.pi
             .platformAdditions[kPlatformAdditionsSupportedPrivacyModeImpl] ==
         null) {
-      // Older peers use the legacy option instead of a named implementation.
+      // 较老的对端使用传统选项而非具名实现。
       if (!checkPrivacyModeAllowed(kPrivacyModeImplMag)) return;
       bind.sessionToggleOption(sessionId: sessionId, value: 'privacy-mode');
       return;
@@ -631,10 +631,10 @@ void registerSessionShortcutActions(
     );
   });
 
-  // View Only — desktop toolbar exposes this inline in `_KeyboardMenu.viewMode`
-  // (mobile is in toolbarDisplayToggle and goes through helper auto-register).
-  // Mirrors the desktop callback: toggle + sync FfiModel.viewOnly +
-  // FfiModel.showMyCursor (the toolbar keeps these in step).
+  // 仅查看 —— 桌面端工具栏在 `_KeyboardMenu.viewMode` 中内联提供
+  // （移动端在 toolbarDisplayToggle 中，通过辅助函数自动注册）。
+  // 对应桌面端回调：切换并同步 FfiModel.viewOnly +
+  // FfiModel.showMyCursor（工具栏会让两者保持一致）。
   ffi.shortcutModel.register(kShortcutActionToggleViewOnly, () async {
     await bind.sessionToggleOption(
         sessionId: sessionId, value: kOptionToggleViewOnly);
@@ -648,8 +648,8 @@ void registerSessionShortcutActions(
     ffi.ffiModel.setShowMyCursor(showMyCursor);
   });
 
-  // Toggle Reverse mouse wheel — read current 'Y'/'N' (falling back to user
-  // default), flip, write back.
+  // 切换反向鼠标滚轮 —— 读取当前的 'Y'/'N'（回退到用户
+  // 默认值），取反后写回。
   ffi.shortcutModel.register(kShortcutActionToggleReverseMouseWheel, () async {
     if (!ffi.ffiModel.keyboard || ffi.ffiModel.viewOnly) return;
     var cur = bind.sessionGetReverseMouseWheelSync(sessionId: sessionId) ?? '';
@@ -660,7 +660,7 @@ void registerSessionShortcutActions(
     await bind.sessionSetReverseMouseWheel(sessionId: sessionId, value: next);
   });
 
-  // Toggle Relative mouse mode (gaming mode). Desktop only.
+  // 切换相对鼠标模式（游戏模式）。仅限桌面端。
   if (isDesktop && !isWeb) {
     ffi.shortcutModel.register(kShortcutActionToggleRelativeMouseMode, () {
       ffi.inputModel.toggleRelativeMouseMode();

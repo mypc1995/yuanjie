@@ -46,7 +46,7 @@ pub const CONNECT_TIMEOUT: u64 = 18_000;
 pub const READ_TIMEOUT: u64 = 18_000;
 // https://github.com/quic-go/quic-go/issues/525#issuecomment-294531351
 // https://datatracker.ietf.org/doc/html/draft-hamilton-early-deployment-quic-00#section-6.10
-// 15 seconds is recommended by quic, though oneSIP recommend 25 seconds,
+// quic 推荐 15 秒，尽管 oneSIP 推荐 25 秒，
 // https://www.onsip.com/voip-resources/voip-fundamentals/what-is-nat-keepalive
 pub const REG_INTERVAL: i64 = 15_000;
 pub const COMPRESS_LEVEL: i32 = 3;
@@ -124,16 +124,16 @@ pub const WS_RELAY_PORT: i32 = 21119;
 
 #[inline]
 pub fn is_service_ipc_postfix(postfix: &str) -> bool {
-    // `_service` is a protected cross-user IPC channel used by the root service.
+    // `_service` 是 root 服务使用的受保护的跨用户 IPC 通道。
     //
-    // On Linux Wayland, input injection is implemented via uinput in the root service process.
-    // The user `--server` process must be able to connect to these uinput IPC channels, so they
-    // must share the same IPC parent directory as `_service`.
+    // 在 Linux Wayland 上，输入注入由 root 服务进程中的 uinput 实现。
+    // 用户态的 `--server` 进程必须能够连接这些 uinput IPC 通道，因此它们
+    // 必须与 `_service` 共享同一个 IPC 父目录。
     postfix == "_service" || postfix.starts_with("_uinput_")
 }
 
-// Keep Linux/macOS IPC parent directory rules in one place to avoid drift between
-// `ipc_path()` and Unix `ipc_path_for_uid()`.
+// 把 Linux/macOS 的 IPC 父目录规则集中在一处，避免
+// `ipc_path()` 与 Unix 的 `ipc_path_for_uid()` 之间出现偏差。
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[inline]
 fn ipc_parent_dir_for_uid(uid: u32, postfix: &str) -> String {
@@ -235,7 +235,7 @@ pub struct Socks5Server {
     pub password: String,
 }
 
-// more variable configs
+// 更多可变配置
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Config2 {
     #[serde(default, deserialize_with = "deserialize_string")]
@@ -252,7 +252,7 @@ pub struct Config2 {
     #[serde(default)]
     socks: Option<Socks5Server>,
 
-    // the other scalar value must before this
+    // 另一个标量值必须在此之前
     #[serde(default, deserialize_with = "deserialize_hashmap_string_string")]
     pub options: HashMap<String, String>,
 }
@@ -279,7 +279,7 @@ pub struct PeerConfig {
         skip_serializing_if = "String::is_empty"
     )]
     pub view_style: String,
-    // Image scroll style, scrolledge, scrollbar or scroll auto
+    // 图像滚动样式：scrolledge、scrollbar 或 scroll auto
     #[serde(
         default = "PeerConfig::default_scroll_style",
         deserialize_with = "PeerConfig::deserialize_scroll_style",
@@ -341,7 +341,7 @@ pub struct PeerConfig {
     pub show_my_cursor: ShowMyCursor,
     #[serde(flatten)]
     pub sync_init_clipboard: SyncInitClipboard,
-    // Mouse wheel or touchpad scroll mode
+    // 鼠标滚轮或触控板滚动模式
     #[serde(
         default = "PeerConfig::default_reverse_mouse_wheel",
         deserialize_with = "PeerConfig::deserialize_reverse_mouse_wheel",
@@ -374,14 +374,14 @@ pub struct PeerConfig {
     )]
     pub custom_resolutions: HashMap<String, Resolution>,
 
-    // The other scalar value must before this
+    // 另一个标量值必须在此之前
     #[serde(
         default,
         deserialize_with = "deserialize_hashmap_string_string",
         skip_serializing_if = "HashMap::is_empty"
     )]
     pub options: HashMap<String, String>, // not use delete to represent default values
-    // Various data for flutter ui
+    // flutter ui 的各类数据
     #[serde(default, deserialize_with = "deserialize_hashmap_string_string")]
     pub ui_flutter: HashMap<String, String>,
     #[serde(default)]
@@ -453,7 +453,7 @@ pub struct TransferSerde {
 
 #[inline]
 pub fn get_online_state() -> i64 {
-    *ONLINE.lock().unwrap().values().max().unwrap_or(&0)
+    * ONLINE.lock().unwrap().values().max().unwrap_or(&0)
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -538,7 +538,7 @@ impl Config2 {
         if *lock == cfg {
             return false;
         }
-        *lock = cfg;
+        * lock = cfg;
         lock.store();
         true
     }
@@ -619,9 +619,9 @@ impl Config {
             id_valid = true;
             store |= store2;
         } else if
-        // Comment out for forward compatible
+        // 为向前兼容而注释掉
         // crate::get_modified_time(&Self::file_(""))
-        // .checked_sub(std::time::Duration::from_secs(30)) // allow modification during installation
+        // .checked_sub(std::time::Duration::from_secs(30)) // 允许在安装期间修改
         // .unwrap_or_else(crate::get_exe_time)
         // < crate::get_exe_time()
         // &&
@@ -700,9 +700,9 @@ impl Config {
         match Self::validate_or_decrypt_permanent_password_storage(config) {
             Ok(_) => {}
             Err(err) => {
-                // This path is for unrecoverable permanent-password storage, such as
-                // hashed storage without its salt. Keep unrelated config writes working,
-                // but handle future transient migration errors separately.
+                // 此路径用于不可恢复的固定密码存储，例如
+                // 不含 salt 的哈希存储。保持无关的配置写入正常，
+                // 但将来临时的迁移错误单独处理。
                 log::error!(
                     "Clearing invalid permanent password storage before storing config: {err}"
                 );
@@ -745,23 +745,23 @@ impl Config {
         (self.id.is_empty() && self.enc_id.is_empty()) || self.key_pair.0.is_empty()
     }
 
-    /// Get the user's home directory for configuration purposes.
+    /// 获取用户的主目录，用于配置用途。
     ///
-    /// # Security Note
-    /// This function uses `dirs_next::home_dir()` which reads the `$HOME` environment
-    /// variable on Unix systems. This is acceptable for user-space operations (config
-    /// file storage, logging) where the user may intentionally redirect their home
-    /// directory.
+    /// # 安全提示
+    /// 此函数使用 `dirs_next::home_dir()`，在 Unix 系统上读取 `$HOME` 环境
+    /// 变量。对于用户态操作（配置
+    /// 文件存储、日志）是可接受的，因为用户可能有意重定向他们的主
+    /// 目录。
     ///
-    /// **DO NOT use this function in privileged contexts** (e.g., code executed via
-    /// `gtk_sudo` or system services running as root). For privileged operations on
-    /// Linux, use `get_home_dir_trusted()` -- a `getpwuid`-based lookup that
-    /// bypasses the `$HOME` environment variable and queries the system password
-    /// database directly. It lives with the platform code in the client tree.
+    /// **请勿在特权上下文中使用此函数**（例如通过
+    /// `gtk_sudo` 或以 root 身份运行的系统服务执行的代码）。在 Linux 上进行特权操作时，
+    /// 请使用 `get_home_dir_trusted()`——它基于 `getpwuid` 查询，
+    /// 绕过 `$HOME` 环境变量，直接查询系统密码
+    /// 数据库。它位于 client 代码树中的平台代码旁。
     ///
-    /// Using `$HOME` in privileged contexts creates a confused-deputy vulnerability
-    /// where an attacker can manipulate the environment variable to inject malicious
-    /// paths into privileged operations.
+    /// 在特权上下文中使用 `$HOME` 会造成 confused-deputy（困惑代理）漏洞，
+    /// 攻击者可以操纵该环境变量，把恶意
+    /// 路径注入到特权操作中。
     pub fn get_home() -> PathBuf {
         #[cfg(any(target_os = "android", target_os = "ios"))]
         return PathBuf::from(APP_HOME_DIR.read().unwrap().as_str());
@@ -790,7 +790,7 @@ impl Config {
             let org = "".to_owned();
             #[cfg(target_os = "macos")]
             let org = ORG.read().unwrap().clone();
-            // /var/root for root
+            // root 用户为 /var/root
             if let Some(project) =
                 directories_next::ProjectDirs::from("", &org, &APP_NAME.read().unwrap())
             {
@@ -802,12 +802,12 @@ impl Config {
         }
     }
 
-    /// Get the log directory path.
+    /// 获取日志目录路径。
     ///
-    /// # Security Note
-    /// On macOS, this function uses `dirs_next::home_dir()` which reads the `$HOME`
-    /// environment variable. On Linux/Android, it uses `Self::get_home()`.
-    /// See [`Self::get_home()`] for security considerations regarding `$HOME` usage.
+    /// # 安全提示
+    /// 在 macOS 上，此函数使用 `dirs_next::home_dir()`，读取 `$HOME`
+    /// 环境变量。在 Linux/Android 上，它使用 `Self::get_home()`。
+    /// 关于 `$HOME` 使用的安全注意事项，请参见 [`Self::get_home()`]。
     #[allow(unreachable_code)]
     pub fn log_path() -> PathBuf {
         #[cfg(target_os = "macos")]
@@ -843,11 +843,11 @@ impl Config {
         #[cfg(windows)]
         {
             // \\ServerName\pipe\PipeName
-            // where ServerName is either the name of a remote computer or a period, to specify the local computer.
+            // 其中 ServerName 可以是远程计算机的名称，也可以是一个点号，表示本机。
             // https://docs.microsoft.com/en-us/windows/win32/ipc/pipe-names
             format!(
                 "\\\\.\\pipe\\{}\\query{}",
-                *APP_NAME.read().unwrap(),
+                * APP_NAME.read().unwrap(),
                 postfix
             )
         }
@@ -865,10 +865,10 @@ impl Config {
             };
             #[cfg(not(any(target_os = "android", target_os = "linux", target_os = "macos")))]
             let mut path: PathBuf = format!("/tmp/{}", *APP_NAME.read().unwrap()).into();
-            // Android stores IPC sockets under app-controlled directories. Create the IPC parent
-            // dir and enforce the expected mode here. On other Unix platforms, `ipc_path()` is
-            // intentionally side-effect free (no mkdir/chmod); callers should enforce directory and
-            // socket permissions at the IPC server boundary.
+            // Android 把 IPC socket 存放在应用可控的目录下。创建 IPC 父
+            // 目录并在此处强制设定期望的权限模式。在其他 Unix 平台上，`ipc_path()` 是
+            // 有意保持无副作用（不做 mkdir/chmod）；调用方应在 IPC 服务端边界上强制设定目录和
+            // socket 权限。
             #[cfg(target_os = "android")]
             {
                 fs::create_dir_all(&path).ok();
@@ -958,7 +958,7 @@ impl Config {
     }
 
     pub fn reset_online() {
-        *ONLINE.lock().unwrap() = Default::default();
+        * ONLINE.lock().unwrap() = Default::default();
     }
 
     pub fn update_latency(host: &str, latency: i64) {
@@ -1114,8 +1114,8 @@ impl Config {
     }
 
     pub fn get_key_pair() -> KeyPair {
-        // lock here to make sure no gen_keypair more than once
-        // no use of CONFIG directly here to ensure no recursive calling in Config::load because of password dec which calling this function
+        // 此处加锁以确保不会多次调用 gen_keypair
+        // 这里不直接使用 CONFIG，以确保 Config::load 不会因密码解密而递归调用（解密过程会调用本函数）
         let mut lock = KEY_PAIR.lock().unwrap();
         if let Some(p) = lock.as_ref() {
             return p.clone();
@@ -1132,7 +1132,7 @@ impl Config {
                 config.store();
             });
         }
-        *lock = Some(config.key_pair.clone());
+        * lock = Some(config.key_pair.clone());
         config.key_pair
     }
 
@@ -1140,21 +1140,21 @@ impl Config {
         KEY_PAIR.lock().unwrap().clone().map(|k| k.1)
     }
 
-    /// Get existing key pair without generating a new one.
-    /// Returns None if no key pair exists in cache or config file.
+    /// 获取已有的密钥对，不生成新的。
+    /// 如果缓存或配置文件中都不存在密钥对，则返回 None。
     pub fn get_existing_key_pair() -> Option<KeyPair> {
         let mut lock = KEY_PAIR.lock().unwrap();
         if let Some(p) = lock.as_ref() {
             return Some(p.clone());
         }
 
-        // IMPORTANT: this path is called while holding KEY_PAIR lock.
-        // Config::load_ must remain a raw conf load/deserialize path and must never
-        // call decrypt_* / symmetric_crypt (directly or indirectly), otherwise this
-        // can re-enter key loading and deadlock.
+        // 重要：此路径是在持有 KEY_PAIR 锁的情况下被调用的。
+        // Config::load_ 必须保持为原始的配置加载/反序列化路径，绝不能
+        // 直接或间接调用 decrypt_* / symmetric_crypt，否则这里会
+        // 重新进入密钥加载而死锁。
         let config = Config::load_::<Config>("");
         if !config.key_pair.0.is_empty() {
-            *lock = Some(config.key_pair.clone());
+            * lock = Some(config.key_pair.clone());
             Some(config.key_pair)
         } else {
             None
@@ -1274,7 +1274,7 @@ impl Config {
     }
 
     pub fn update_id() {
-        // to-do: how about if one ip register a lot of ids?
+        // 待办：如果一个 IP 注册了很多 id 怎么办？
         let id = Self::get_id();
         let mut rng = rand::thread_rng();
         let new_id = rng.gen_range(1_000_000_000..2_000_000_000).to_string();
@@ -1282,11 +1282,11 @@ impl Config {
         log::info!("id updated from {} to {}", id, new_id);
     }
 
-    /// Sets the local permanent password.
+    /// 设置本地固定密码。
     ///
-    /// Returns `true` when the password is accepted or already matches the effective
-    /// preset password. Returns `false` when changing the password is disabled or
-    /// the new password cannot be prepared for storage.
+    /// 当密码被接受，或已与当前生效的
+    /// 预置密码一致时返回 `true`。当修改密码被禁用，或
+    /// 新密码无法准备好以供存储时，返回 `false`。
     pub fn set_permanent_password(password: &str) -> bool {
         if Self::is_disable_change_permanent_password() {
             return false;
@@ -1323,24 +1323,24 @@ impl Config {
         config: &mut Config,
         password: &str,
     ) -> Option<String> {
-        // Keep salt stable for user-initiated permanent password updates.
-        // Salt should only change when service->user sync updates storage and salt as a pair.
+        // 用户主动更新固定密码时，保持 salt 稳定。
+        // 只有当 service->user 同步成对更新存储和 salt 时，salt 才应改变。
         Self::ensure_permanent_password_salt(config);
         let h1 = compute_permanent_password_h1(password, &config.salt);
         encode_permanent_password_encrypted_storage_from_h1(&h1)
     }
 
-    /// Returns the locally persisted permanent password storage and salt (NOT the hard/preset one).
+    /// 返回本地持久化的固定密码存储和 salt（不是硬编码/预置的那个）。
     ///
-    /// This function is side-effect free:
-    /// - It does NOT call `get_salt()` (which may auto-generate salt).
-    /// - It returns a consistent snapshot under a single lock.
+    /// 此函数无副作用：
+    /// - 它不会调用 `get_salt()`（后者可能会自动生成 salt）。
+    /// - 它在单次加锁下返回一致的快照。
     pub fn get_local_permanent_password_storage_and_salt() -> (String, String) {
         let config = CONFIG.read().unwrap();
         (config.password.clone(), config.salt.clone())
     }
 
-    /// Persist permanent password storage and salt from service->user config sync.
+    /// 持久化来自 service->user 配置同步的固定密码存储和 salt。
     pub fn set_permanent_password_storage_for_sync(
         storage: &str,
         salt: &str,
@@ -1439,9 +1439,9 @@ impl Config {
         local_permanent_password_storage_is_usable_for_auth(&local_storage, &local_salt)
     }
 
-    // This shouldn't happen under normal circumstances because the salt
-    // should be automatically generated when migrating to hash storage.
-    // Actually, it is better to avoid calling set_salt at all.
+    // 正常情况下不应发生，因为 salt
+    // 在迁移到哈希存储时应自动生成。
+    // 实际上，最好完全避免调用 set_salt。
     pub fn set_salt(salt: &str) {
         let mut config = CONFIG.write().unwrap();
         if salt == config.salt {
@@ -1608,7 +1608,7 @@ impl Config {
             if store || devices.len() != len {
                 Self::set_trusted_devices(devices.clone());
             }
-            *TRUSTED_DEVICES.write().unwrap() = (devices.clone(), true);
+            * TRUSTED_DEVICES.write().unwrap() = (devices.clone(), true);
             devices
         } else {
             Default::default()
@@ -1627,7 +1627,7 @@ impl Config {
         let mut config = CONFIG2.write().unwrap();
         config.trusted_devices = devices;
         config.store();
-        *TRUSTED_DEVICES.write().unwrap() = (trusted_devices, true);
+        * TRUSTED_DEVICES.write().unwrap() = (trusted_devices, true);
     }
 
     pub fn add_trusted_device(device: TrustedDevice) {
@@ -1652,15 +1652,15 @@ impl Config {
     }
 
     // TODO: `Config::set()` does not invalidate trusted devices when permanent password/salt changes.
-    // This matches historical behavior, but may need revisiting in a separate PR.
+    // 这与历史行为一致，但可能需要在单独的 PR 中重新审视。
     pub fn set(cfg: Config) -> bool {
         let mut lock = CONFIG.write().unwrap();
         if *lock == cfg {
             return false;
         }
-        *lock = cfg;
+        * lock = cfg;
         lock.store();
-        // Drop CONFIG lock before acquiring KEY_PAIR lock to avoid potential deadlock.
+        // 在获取 KEY_PAIR 锁之前释放 CONFIG 锁，以避免潜在死锁。
         #[cfg(target_os = "macos")]
         let new_key_pair = lock.key_pair.clone();
         drop(lock);
@@ -1669,17 +1669,17 @@ impl Config {
         true
     }
 
-    /// Invalidate KEY_PAIR cache if it differs from the new key_pair.
-    /// Use None to invalidate the cache instead of Some(key_pair).
-    /// If we use Some with an empty key_pair, get_key_pair() would always return
-    /// the empty key_pair from cache without regenerating.
-    /// By clearing the cache, get_key_pair() will reload and regenerate if needed.
+    /// 如果 KEY_PAIR 缓存与新的 key_pair 不同，则使其失效。
+    /// 使用 None 使缓存失效，而不是 Some(key_pair)。
+    /// 如果使用 Some 而 key_pair 为空，get_key_pair() 将总是返回
+    /// 缓存中的空 key_pair，而不会重新生成。
+    /// 通过清空缓存，get_key_pair() 会重新加载，必要时重新生成。
     #[cfg(target_os = "macos")]
     fn invalidate_key_pair_cache_if_changed(new_key_pair: &KeyPair) {
         let mut key_pair_cache = KEY_PAIR.lock().unwrap();
         if let Some(cached) = key_pair_cache.as_ref() {
             if cached != new_key_pair {
-                *key_pair_cache = None;
+                * key_pair_cache = None;
                 log::info!("key pair cache invalidated");
             }
         }
@@ -1713,7 +1713,7 @@ impl PeerConfig {
                     if let Some(v) = config.options.get_mut(opt) {
                         let (encrypted, _, store2) =
                             decrypt_str_or_original(v, PASSWORD_ENC_VERSION);
-                        *v = encrypted;
+                        * v = encrypted;
                         store = store || store2;
                     }
                 }
@@ -1745,7 +1745,7 @@ impl PeerConfig {
             encrypt_vec_or_original(&config.password, PASSWORD_ENC_VERSION, ENCRYPT_MAX_LEN);
         for opt in ["rdp_password", "os-username", "os-password"] {
             if let Some(v) = config.options.get_mut(opt) {
-                *v = encrypt_str_or_original(v, PASSWORD_ENC_VERSION, ENCRYPT_MAX_LEN)
+                * v = encrypt_str_or_original(v, PASSWORD_ENC_VERSION, ENCRYPT_MAX_LEN)
             }
         }
         if let Err(err) = store_path(Self::path(id), config) {
@@ -1759,7 +1759,7 @@ impl PeerConfig {
     }
 
     fn path(id: &str) -> PathBuf {
-        //If the id contains invalid chars, encode it
+        // 如果 id 含有非法字符，则对其编码
         let forbidden_paths = Regex::new(r".*[<>:/\\|\?\*].*");
         let path: PathBuf;
         if let Ok(forbidden_paths) = forbidden_paths {
@@ -1771,16 +1771,16 @@ impl PeerConfig {
             path = [PEERS, id_encoded.as_str()].iter().collect();
         } else {
             log::warn!("Regex create failed: {:?}", forbidden_paths.err());
-            // fallback for failing to create this regex.
+            // 创建该正则失败时的兜底方案。
             path = [PEERS, id.replace(":", "_").as_str()].iter().collect();
         }
         Config::with_extension(Config::path(path))
     }
 
-    // The number of peers to load in the first round when showing the peers card list in the main window.
-    // When there're too many peers, loading all of them at once will take a long time.
-    // We can load them in two rouds, the first round loads the first 100 peers, and the second round loads the rest.
-    // Then the UI will show the first 100 peers first, and the rest will be loaded and shown later.
+    // 在主窗口显示设备卡片列表时，第一轮加载的对端数量。
+    // 当对端过多时，一次性加载全部会耗时很长。
+    // 我们可以分两轮加载，第一轮加载前 100 个对端，第二轮加载其余的。
+    // 这样 UI 会先显示前 100 个对端，其余的稍后加载并显示。
     pub const BATCH_LOADING_COUNT: usize = 100;
 
     pub fn get_vec_id_modified_time_path(
@@ -1853,7 +1853,7 @@ impl PeerConfig {
                 let first_load_start = std::time::Instant::now();
                 futures::future::join_all(futs).await;
                 if first_load_start.elapsed().as_millis() < 10 {
-                    // No need to preload the rest if the first load is fast.
+                    // 如果首次加载很快，就无需预加载其余的。
                     return;
                 }
                 futs = vec![];
@@ -1870,11 +1870,11 @@ impl PeerConfig {
         );
     }
 
-    // We have to preload all peers in a background thread.
-    // Because we find that opening files the first time after the system (Windows) booting will be very slow, up to 200~400ms.
-    // The reason is that the Windows has "Microsoft Defender Antivirus Service" running in the background, which will scan the file when it's opened the first time.
-    // So we have to preload all peers in a background thread to avoid the delay when opening the file the first time.
-    // We can temporarily stop "Microsoft Defender Antivirus Service" or add the fold to the white list, to verify this. But don't do this in the release version.
+    // 我们必须在后台线程中预加载所有对端。
+    // 因为我们发现系统（Windows）开机后第一次打开文件会非常慢，高达 200~400ms。
+    // 原因是 Windows 在后台运行着 "Microsoft Defender Antivirus Service"，会在文件首次被打开时扫描它。
+    // 所以我们必须在后台线程中预加载所有对端，以避免首次打开文件时的延迟。
+    // 我们可以临时停止 "Microsoft Defender Antivirus Service" 或把该目录加入白名单来验证这一点。但不要在发布版本中这样做。
     pub fn preload_peers() {
         std::thread::spawn(|| {
             Self::preload_peers_async();
@@ -1905,7 +1905,7 @@ impl PeerConfig {
             None => (from + Self::BATCH_LOADING_COUNT).min(all.len()),
         };
 
-        // to <= from is unexpected, but we can just return an empty vec in this case.
+        // to <= from 属于意外情况，但此时直接返回一个空 vec 即可。
         if to <= from {
             return (vec![], from);
         }
@@ -2133,7 +2133,7 @@ pub struct LocalConfig {
     pub fav: Vec<String>,
     #[serde(default, deserialize_with = "deserialize_hashmap_string_string")]
     options: HashMap<String, String>,
-    // Various data for flutter ui
+    // flutter ui 的各类数据
     #[serde(default, deserialize_with = "deserialize_hashmap_string_string")]
     ui_flutter: HashMap<String, String>,
 }
@@ -2207,7 +2207,7 @@ impl LocalConfig {
         .unwrap_or_default()
     }
 
-    // Usually get_option should be used.
+    // 通常应使用 get_option。
     pub fn get_option_from_file(k: &str) -> String {
         get_or(
             &OVERWRITE_LOCAL_SETTINGS,
@@ -2231,7 +2231,7 @@ impl LocalConfig {
             return;
         }
         let mut config = LOCAL_CONFIG.write().unwrap();
-        // The custom client will explictly set "default" as the default language.
+        // 自定义客户端会显式把 "default" 设为默认语言。
         let is_custom_client_default_lang = k == keys::OPTION_LANGUAGE && v == "default";
         if is_custom_client_default_lang {
             config.options.insert(k, "".to_owned());
@@ -2340,10 +2340,10 @@ pub struct UserDefaultConfig {
 impl UserDefaultConfig {
     fn read(key: &str) -> String {
         let mut cfg = USER_DEFAULT_CONFIG.write().unwrap();
-        // we do so, because default config may changed in another process, but we don't sync it
-        // but no need to read every time, give a small interval to avoid too many redundant read waste
+        // 这样做的原因是默认配置可能在另一个进程中发生了变化，而我们并不同步它
+        // 但没必要每次都读，设置一个小的间隔以避免过多冗余读取的浪费
         if cfg.1.elapsed() > Duration::from_secs(1) {
-            *cfg = (Self::load(), Instant::now());
+            * cfg = (Self::load(), Instant::now());
         }
         cfg.0.get(key)
     }
@@ -2543,7 +2543,7 @@ impl Ab {
             let data = compress(json.as_bytes());
             let max_len = 64 * 1024 * 1024;
             if data.len() > max_len {
-                // maxlen of function decompress
+                // 函数 decompress 的最大长度
                 log::error!("ab data too large, {} > {}", data.len(), max_len);
                 return;
             }
@@ -2574,7 +2574,7 @@ impl Ab {
     }
 }
 
-// use default value when field type is wrong
+// 字段类型错误时使用默认值
 macro_rules! deserialize_default {
     ($func_name:ident, $return_type:ty) => {
         fn $func_name<'de, D>(deserializer: D) -> Result<$return_type, D::Error>
@@ -2673,7 +2673,7 @@ impl Group {
             let data = compress(json.as_bytes());
             let max_len = 64 * 1024 * 1024;
             if data.len() > max_len {
-                // maxlen of function decompress
+                // 函数 decompress 的最大长度
                 return;
             }
             if let Ok(data) = symmetric_crypt(&data, true) {
@@ -2820,9 +2820,9 @@ pub fn is_disable_installation() -> bool {
     is_some_hard_opton("disable-installation")
 }
 
-// This function must be kept the same as the one in flutter and sciter code.
+// 此函数必须与 flutter 和 sciter 代码中的那个保持一致。
 // flutter: flutter/lib/common.dart -> option2bool()
-// sciter: Does not have the function, but it should be kept the same.
+// sciter：没有该函数，但仍应保持一致。
 pub fn option2bool(option: &str, value: &str) -> bool {
     if option.starts_with("enable-") {
         value != "N"
@@ -2848,7 +2848,7 @@ pub fn allow_insecure_tls_fallback() -> bool {
 }
 
 pub mod keys {
-    // Only the keys hbb_common itself references.
+    // 仅包含 hbb_common 自身引用的键。
     pub const OPTION_COLLAPSE_TOOLBAR: &str = "collapse_toolbar";
     pub const OPTION_ZOOM_CURSOR: &str = "zoom-cursor";
     pub const OPTION_ENABLE_FILE_COPY_PASTE: &str = "enable-file-copy-paste";
@@ -2881,9 +2881,9 @@ pub mod keys {
     pub const OPTION_DISABLE_CHANGE_ID: &str = "disable-change-id";
     pub const OPTION_DISABLE_UNLOCK_PIN: &str = "disable-unlock-pin";
 
-    // proxy settings
-    // The following options are not real keys, they are just used for custom client advanced settings.
-    // The real keys are in Config2::socks.
+    // 代理设置
+    // 以下选项不是真实的键，它们只用于自定义客户端的高级设置。
+    // 真实的键在 Config2::socks 中。
     pub const OPTION_PROXY_URL: &str = "proxy-url";
     pub const OPTION_PROXY_USERNAME: &str = "proxy-username";
     pub const OPTION_PROXY_PASSWORD: &str = "proxy-password";
@@ -2957,8 +2957,8 @@ mod tests {
         fn new(config: Config, hard_settings: HashMap<String, String>) -> Self {
             let original_config = Config::get();
             let original_hard_settings = HARD_SETTINGS.read().unwrap().clone();
-            *CONFIG.write().unwrap() = config;
-            *HARD_SETTINGS.write().unwrap() = hard_settings;
+            * CONFIG.write().unwrap() = config;
+            * HARD_SETTINGS.write().unwrap() = hard_settings;
             Self {
                 original_config,
                 original_hard_settings,
@@ -2968,8 +2968,8 @@ mod tests {
 
     impl Drop for ConfigStateTestGuard {
         fn drop(&mut self) {
-            *CONFIG.write().unwrap() = self.original_config.clone();
-            *HARD_SETTINGS.write().unwrap() = self.original_hard_settings.clone();
+            * CONFIG.write().unwrap() = self.original_config.clone();
+            * HARD_SETTINGS.write().unwrap() = self.original_hard_settings.clone();
         }
     }
 
@@ -3143,7 +3143,7 @@ mod tests {
             base64::Variant::Original,
         )
         .unwrap();
-        *invalid_payload.last_mut().unwrap() ^= 1;
+        * invalid_payload.last_mut().unwrap() ^= 1;
 
         let mut cfg = Config::default();
         cfg.password = PASSWORD_ENC_VERSION.to_owned()
@@ -3594,7 +3594,7 @@ mod tests {
     #[test]
     fn test_peer_config_deserialize() {
         let default_peer_config = toml::from_str::<PeerConfig>("").unwrap();
-        // test custom_resolution
+        // 测试 custom_resolution
         {
             let wrong_type_str = r#"
             view_style = "adaptive"
@@ -3646,7 +3646,7 @@ mod tests {
         {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(
-                // ignore file type information by masking with 0o777 (see https://stackoverflow.com/a/50045872)
+                // 用 0o777 掩码忽略文件类型信息（见 https://stackoverflow.com/a/50045872）
                 fs::metadata(PeerConfig::path(&peerconfig_id))
                     .expect("reading metadata failed")
                     .permissions()

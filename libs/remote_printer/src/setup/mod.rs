@@ -38,12 +38,12 @@ fn get_wstr_bytes(p: LPWSTR) -> Vec<u16> {
 
 fn is_name_equal(name: &PCWSTR, name_from_api: LPCWSTR) -> bool {
     // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-lstrcmpiw
-    // For some locales, the lstrcmpi function may be insufficient.
-    // If this occurs, use `CompareStringEx` to ensure proper comparison.
-    // For example, in Japan call with the NORM_IGNORECASE, NORM_IGNOREKANATYPE, and NORM_IGNOREWIDTH values to achieve the most appropriate non-exact string comparison.
-    // Note that specifying these values slows performance, so use them only when necessary.
+    // 对某些区域设置，lstrcmpi 函数可能不够用。
+    // 如果出现这种情况，请使用 `CompareStringEx` 以确保比较正确。
+    // 例如在日本，应带上 NORM_IGNORECASE、NORM_IGNOREKANATYPE 和 NORM_IGNOREWIDTH 这几个值来调用，以获得最合适的非精确字符串比较。
+    // 请注意，指定这些值会降低性能，因此只在必要时使用。
     //
-    //  No need to consider `CompareStringEx` for now.
+    //  目前无需考虑 `CompareStringEx`。
     unsafe { lstrcmpiW(name.as_ptr(), name_from_api) == 0 }
 }
 
@@ -84,7 +84,7 @@ fn common_enum<T, R: Sized>(
         )
     }
 
-    // to-do: how to free the buffers in *const T?
+    // 待办：如何释放 *const T 中的缓冲区？
 
     let p_enum_info = buffer.as_ptr() as *const T;
     unsafe {

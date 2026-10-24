@@ -18,7 +18,7 @@ import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import 'home_page.dart';
 
-/// Connection page for connecting to a remote peer.
+/// 用于连接远端设备的连接页面。
 class ConnectionPage extends StatefulWidget implements PageShape {
   ConnectionPage({Key? key, required this.appBarActions}) : super(key: key);
 
@@ -35,9 +35,9 @@ class ConnectionPage extends StatefulWidget implements PageShape {
   State<ConnectionPage> createState() => _ConnectionPageState();
 }
 
-/// State for the connection page.
+/// 连接页面的 State。
 class _ConnectionPageState extends State<ConnectionPage> {
-  /// Controller for the id input bar.
+  /// ID 输入栏的 Controller。
   final _idController = IDTextEditingController();
   final RxBool _idEmpty = true.obs;
 
@@ -96,8 +96,8 @@ class _ConnectionPageState extends State<ConnectionPage> {
     ).marginOnly(top: 2, left: 10, right: 10);
   }
 
-  /// Callback for the connect button.
-  /// Connects to the selected peer.
+  /// 连接按钮的回调。
+  /// 连接到选中的设备。
   void onConnect() {
     var id = _idController.id;
     connect(context, id);
@@ -111,14 +111,14 @@ class _ConnectionPageState extends State<ConnectionPage> {
       }
 
       final textLength = _idEditingController.value.text.length;
-      // Select all to facilitate removing text, just following the behavior of address input of chrome.
+      // 全选以便删除文本，这与 Chrome 地址栏输入框的行为一致。
       _idEditingController.selection =
           TextSelection(baseOffset: 0, extentOffset: textLength);
     }
   }
 
-  /// UI for software update.
-  /// If _updateUrl] is not empty, shows a button to update the software.
+  /// 软件更新的界面。
+  /// 如果 _updateUrl] 不为空，显示一个更新软件的按钮。
   Widget _buildUpdateUI(String updateUrl) {
     return updateUrl.isEmpty
         ? const SizedBox(height: 0)
@@ -128,11 +128,11 @@ class _ConnectionPageState extends State<ConnectionPage> {
               // https://pub.dev/packages/url_launcher#configuration
               // https://developer.android.com/training/package-visibility/use-cases#open-urls-custom-tabs
               //
-              // `await launchUrl(Uri.parse(url))` can also run if skip
-              // 1. The following check
-              // 2. `<action android:name="android.support.customtabs.action.CustomTabsService" />` in AndroidManifest.xml
+              // 如果跳过，`await launchUrl(Uri.parse(url))` 也可以运行
+              // 1. 下面的检查
+              // 2. AndroidManifest.xml 中的 `<action android:name="android.support.customtabs.action.CustomTabsService" />`
               //
-              // But it is better to add the check.
+              // 但加上该检查更好。
               await launchUrl(Uri.parse(url));
             },
             child: Container(
@@ -145,8 +145,8 @@ class _ConnectionPageState extends State<ConnectionPage> {
                         color: Colors.white, fontWeight: FontWeight.bold))));
   }
 
-  /// UI for the remote ID TextField.
-  /// Search for a peer and connect to it if the id exists.
+  /// 远端 ID TextField 的界面。
+  /// 搜索设备，如果 ID 存在则连接。
   Widget _buildRemoteIDTextField() {
     final w = SizedBox(
       height: 84,

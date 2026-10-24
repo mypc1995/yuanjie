@@ -24,7 +24,7 @@ class CursorData {
   });
 }
 
-/// The cursor manager
+/// 光标管理器
 class CursorManager {
   final Map<String, CursorData> _cursors = <String, CursorData>{};
   String latestKey = '';
@@ -106,7 +106,7 @@ MouseCursor buildCursorOfCache(
   } else {
     final key = cursor.nativeKey(cache, scale);
     if (!cursor.cachedKeys.contains(key)) {
-      // data should be checked here, because it may be changed after `updateGetKey()`
+      // 数据应在此处检查，因为它可能在 `updateGetKey()` 之后被改变
       final data = cache.data;
       if (data == null) {
         cursor.restorePixels(cache.id);
@@ -129,7 +129,7 @@ MouseCursor buildCursorOfCache(
   }
 }
 
-// The last shape's cursor stays while the one in use is made, rather than the system one.
+// 在生成当前使用的光标期间，保持的是上一个图形的光标，而不是系统光标。
 MouseCursor _shownCursor(model.CursorModel cursor) {
   final key = cursor.shownKey;
   return key == null

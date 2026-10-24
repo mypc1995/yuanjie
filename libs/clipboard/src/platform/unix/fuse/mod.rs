@@ -16,13 +16,13 @@ use std::{
 lazy_static::lazy_static! {
     static ref FUSE_MOUNT_POINT_CLIENT: Arc<String> = {
         let mnt_path = fuse_mount_point("cliprdr-client");
-        // No need to run `canonicalize()` here.
+        // 这里无需调用 `canonicalize()`。
         Arc::new(mnt_path)
     };
 
     static ref FUSE_MOUNT_POINT_SERVER: Arc<String> = {
         let mnt_path = fuse_mount_point("cliprdr-server");
-        // No need to run `canonicalize()` here.
+        // 这里无需调用 `canonicalize()`。
         Arc::new(mnt_path)
     };
 
@@ -130,8 +130,8 @@ pub fn init_fuse_context(is_client: bool) -> Result<(), CliprdrError> {
         MountOption::RO,
     ];
     log::info!("mounting clipboard FUSE to {}", mount_point.display());
-    // to-do: ignore the error if the mount point is already mounted
-    // Because the sciter version uses separate processes as the controlling side.
+    // 待办：如果挂载点已经挂载，忽略该错误
+    // 因为 sciter 版本使用独立进程作为控制端。
     let session = fuser::spawn_mount2(
         FuseServer::client(server.clone()),
         mount_point.clone(),
@@ -150,7 +150,7 @@ pub fn init_fuse_context(is_client: bool) -> Result<(), CliprdrError> {
         session,
         conn_id: 0,
     };
-    *fuse_context_lock = Some(ctx);
+    * fuse_context_lock = Some(ctx);
     Ok(())
 }
 
@@ -177,7 +177,7 @@ pub fn handle_file_content_response(
     is_client: bool,
     clip: ClipboardFile,
 ) -> Result<(), CliprdrError> {
-    // we don't know its corresponding request, no resend can be performed
+    // 我们不知道它对应的请求，无法执行重发
     let ctx = if is_client {
         FUSE_CONTEXT_CLIENT.lock()
     } else {
@@ -209,13 +209,13 @@ struct FuseContext {
     server: Arc<Mutex<FuseServer>>,
     tx: Sender<ClipboardFile>,
     mount_point: PathBuf,
-    // stores fuse background session handle
+    // 存储 fuse 后台会话句柄
     session: Mutex<Option<fuser::BackgroundSession>>,
-    // Indicates the connection ID of that set the clipboard content
+    // 表示设置剪贴板内容的那个连接的连接 ID
     conn_id: i32,
 }
 
-// this function must be called after the main IPC is up
+// 此函数必须在主 IPC 启动之后调用
 fn prepare_fuse_mount_point(mount_point: &PathBuf) -> Result<(), CliprdrError> {
     use std::{
         fs::{self, Permissions},

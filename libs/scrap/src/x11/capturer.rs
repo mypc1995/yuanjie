@@ -15,19 +15,19 @@ pub struct Capturer {
 
 impl Capturer {
     pub fn new(display: Display) -> io::Result<Capturer> {
-        // Calculate dimensions.
+        // 计算尺寸。
 
         let pixel_width = display.pixfmt().bytes_per_pixel();
         let rect = display.rect();
         let size = (rect.w as usize) * (rect.h as usize) * pixel_width;
 
-        // Create a shared memory segment.
+        // 创建共享内存段。
 
         let shmid = unsafe {
             libc::shmget(
                 libc::IPC_PRIVATE,
                 size,
-                // Everyone can do anything.
+                // 任何人都可以做任何事。
                 libc::IPC_CREAT | 0o777,
             )
         };
@@ -36,7 +36,7 @@ impl Capturer {
             return Err(io::Error::last_os_error());
         }
 
-        // Attach the segment to a readable address.
+        // 把该内存段映射到一个可读地址。
 
         let buffer = unsafe { libc::shmat(shmid, ptr::null(), libc::SHM_RDONLY) } as *mut u8;
 
@@ -44,7 +44,7 @@ impl Capturer {
             return Err(io::Error::last_os_error());
         }
 
-        // Attach the segment to XCB.
+        // 把该内存段挂接到 XCB。
 
         let server = display.server().raw();
         let xcbid = unsafe { xcb_generate_id(server) };
@@ -104,11 +104,11 @@ impl Capturer {
 impl Drop for Capturer {
     fn drop(&mut self) {
         unsafe {
-            // Detach segment from XCB.
+            // 把该内存段从 XCB 上摘下。
             xcb_shm_detach(self.display.server().raw(), self.xcbid);
-            // Detach segment from our space.
+            // 把该内存段从我们的地址空间摘下。
             libc::shmdt(self.buffer as *mut _);
-            // Destroy the shared memory segment.
+            // 销毁该共享内存段。
             libc::shmctl(self.shmid, libc::IPC_RMID, ptr::null_mut());
         }
     }

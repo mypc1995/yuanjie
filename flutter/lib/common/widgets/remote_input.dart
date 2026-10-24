@@ -31,7 +31,7 @@ class RawKeyFocusScope extends StatelessWidget {
     // https://github.com/flutter/flutter/issues/154053
     final useRawKeyEvents = isLinux && !isWeb;
     // FIXME: On Windows, `AltGr` will generate `Alt` and `Control` key events,
-    // while `Alt` and `Control` are separated key events for en-US input method.
+    // 同时对于 en-US 输入法，`Alt` 和 `Control` 是分开的关键事件。
     return FocusScope(
         autofocus: true,
         child: Focus(
@@ -51,11 +51,11 @@ class RawKeyFocusScope extends StatelessWidget {
   }
 }
 
-// For virtual mouse when using the mouse mode on mobile.
-// Special hold-drag mode: one finger holds a button (left/right button), another finger pans.
-// This flag is to override the scale gesture to a pan gesture.
+// 用于移动端鼠标模式下的虚拟鼠标。
+// 特殊的按住拖拽模式：一根手指按住某个按键（左键/右键），另一根手指负责平移。
+// 该标志用于把缩放手势覆盖为平移手势。
 bool isSpecialHoldDragActive = false;
-// Cache the last focal point to calculate deltas in special hold-drag mode.
+// 缓存上一次的焦点位置，以便在特殊按住拖拽模式下计算增量。
 Offset _lastSpecialHoldDragFocalPoint = Offset.zero;
 
 class RawTouchGestureDetectorRegion extends StatefulWidget {
@@ -76,38 +76,38 @@ class RawTouchGestureDetectorRegion extends StatefulWidget {
       _RawTouchGestureDetectorRegionState();
 }
 
-/// touchMode only:
-///   LongPress -> right click
-///   OneFingerPan -> start/end -> left down start/end
-///   onDoubleTapDown -> move to
-///   onLongPressDown => move to
+/// 仅 touchMode：
+///   LongPress -> 右键单击
+///   OneFingerPan -> start/end -> 左键按下 start/end
+///   onDoubleTapDown -> 移动到
+///   onLongPressDown => 移动到
 ///
-/// mouseMode only:
-///   DoubleFiner -> right click
-///   HoldDrag -> left drag
+/// 仅 mouseMode：
+///   DoubleFiner -> 右键单击
+///   HoldDrag -> 左键拖拽
 class _RawTouchGestureDetectorRegionState
     extends State<RawTouchGestureDetectorRegion> {
   Offset _cacheLongPressPosition = Offset(0, 0);
-  // Timestamp of the last long press event.
+  // 上一次长按事件的时间戳。
   int _cacheLongPressPositionTs = 0;
   double _mouseScrollIntegral = 0; // mouse scroll speed controller
   double _scale = 1;
 
-  // Workaround tap down event when two fingers are used to scale(mobile)
+  // 双指缩放（移动端）时 tap down 事件的变通处理
   TapDownDetails? _lastTapDownDetails;
 
   PointerDeviceKind? lastDeviceKind;
 
-  // For touch mode, onDoubleTap
-  // `onDoubleTap()` does not provide the position of the tap event.
+  // 对于触摸模式，onDoubleTap
+  // `onDoubleTap()` 不提供点击事件的位置。
   Offset _lastPosOfDoubleTapDown = Offset.zero;
   bool _touchModePanStarted = false;
   Offset _doubleFinerTapPosition = Offset.zero;
 
-  // For mouse mode, we need to block the events when the cursor is in a blocked area.
-  // So we need to cache the last tap down position.
+  // 对于鼠标模式，当光标位于被屏蔽区域时我们需要屏蔽事件。
+  // 所以我们需要缓存上一次的 tap down 位置。
   Offset? _lastTapDownPositionForMouseMode;
-  // Cache global position for onTap (which lacks position info).
+  // 为 onTap（缺少位置信息）缓存全局位置。
   Offset? _lastTapDownGlobalPosition;
 
   FFI get ffi => widget.ffi;
@@ -129,8 +129,8 @@ class _RawTouchGestureDetectorRegionState
     return !kTouchBasedDeviceKinds.contains(lastDeviceKind);
   }
 
-  // Mobile, mouse mode.
-  // Check if should block the mouse tap event (`_lastTapDownPositionForMouseMode`).
+  // 移动端，鼠标模式。
+  // 检查是否应屏蔽鼠标点击事件（`_lastTapDownPositionForMouseMode`）。
   bool shouldBlockMouseModeEvent() {
     return _lastTapDownPositionForMouseMode != null &&
         ffi.cursorModel.shouldBlock(_lastTapDownPositionForMouseMode!.dx,
@@ -145,7 +145,7 @@ class _RawTouchGestureDetectorRegionState
     }
     if (handleTouch) {
       _lastPosOfDoubleTapDown = d.localPosition;
-      // Desktop or mobile "Touch mode"
+      // 桌面端或移动端的 "Touch mode"
       _lastTapDownDetails = d;
     } else {
       _lastTapDownPositionForMouseMode = d.localPosition;
@@ -158,7 +158,7 @@ class _RawTouchGestureDetectorRegionState
     if (isNotTouchBasedDevice()) {
       return;
     }
-    // Filter duplicate touch tap events on iOS (Magic Mouse issue).
+    // 过滤 iOS 上重复的触摸点击事件（Magic Mouse 问题）。
     if (inputModel.shouldIgnoreTouchTap(d.globalPosition)) {
       return;
     }
@@ -166,7 +166,7 @@ class _RawTouchGestureDetectorRegionState
       final isMoved =
           await ffi.cursorModel.move(d.localPosition.dx, d.localPosition.dy);
       if (isMoved) {
-        // If pan already handled 'down', don't send it again.
+        // 如果平移已经处理过 'down'，就不要再发送。
         if (lastTapDownDetails != null && !_touchModePanStarted) {
           await inputModel.tapDown(MouseButtons.left);
         }
@@ -179,18 +179,18 @@ class _RawTouchGestureDetectorRegionState
     if (isNotTouchBasedDevice()) {
       return;
     }
-    // Filter duplicate touch tap events on iOS (Magic Mouse issue).
+    // 过滤 iOS 上重复的触摸点击事件（Magic Mouse 问题）。
     final lastPos = _lastTapDownGlobalPosition;
     if (lastPos != null && inputModel.shouldIgnoreTouchTap(lastPos)) {
       return;
     }
     if (!handleTouch) {
-      // Cannot use `_lastTapDownDetails` because Flutter calls `onTapUp` before `onTap`, clearing the cached details.
-      // Using `_lastTapDownPositionForMouseMode` instead.
+      // 不能使用 `_lastTapDownDetails`，因为 Flutter 会在 `onTap` 之前调用 `onTapUp`，清空缓存的详情。
+      // 改用 `_lastTapDownPositionForMouseMode`。
       if (shouldBlockMouseModeEvent()) {
         return;
       }
-      // Mobile, "Mouse mode"
+      // 移动端，"Mouse mode"
       await inputModel.tap(MouseButtons.left);
     }
   }
@@ -219,7 +219,7 @@ class _RawTouchGestureDetectorRegionState
         !ffi.cursorModel.isInRemoteRect(_lastPosOfDoubleTapDown)) {
       return;
     }
-    // Check if the position is in a blocked area when using the mouse mode.
+    // 使用鼠标模式时检查位置是否位于被屏蔽区域内。
     if (!handleTouch) {
       if (shouldBlockMouseModeEvent()) {
         return;
@@ -260,7 +260,7 @@ class _RawTouchGestureDetectorRegionState
     }
   }
 
-  // for mobiles
+  // 用于移动端
   onLongPress() async {
     if (isNotTouchBasedDevice()) {
       return;
@@ -279,9 +279,9 @@ class _RawTouchGestureDetectorRegionState
       }
       await inputModel.tap(MouseButtons.right);
     } else {
-      // It's better to send a message to tell the controlled device that the long press event is triggered.
-      // We're now using a `TimerTask` in `InputService.kt` to decide whether to trigger the long press event.
-      // It's not accurate and it's better to use the same detection logic in the controlling side.
+      // 更好的做法是发送消息，告知被控端长按事件已触发。
+      // 我们现在使用 `InputService.kt` 中的 `TimerTask` 来判断是否触发长按事件。
+      // 这样并不准确，最好在控制端使用相同的检测逻辑。
     }
   }
 
@@ -303,7 +303,7 @@ class _RawTouchGestureDetectorRegionState
       return;
     }
     _doubleFinerTapPosition = d.localPosition;
-    // ignore for desktop and mobile
+    // 桌面端和移动端忽略
   }
 
   onDoubleFinerTap(TapDownDetails d) async {
@@ -312,9 +312,9 @@ class _RawTouchGestureDetectorRegionState
       return;
     }
 
-    // mobile mouse mode or desktop touch screen
+    // 移动端鼠标模式或桌面端触摸屏
     final isMobileMouseMode = isMobile && !ffiModel.touchMode;
-    // We can't use `d.localPosition` here because it's always (0, 0) on desktop.
+    // 这里不能使用 `d.localPosition`，因为在桌面端它始终是 (0, 0)。
     final isDesktopInRemoteRect = (isDesktop || isWebDesktop) &&
         ffi.cursorModel.isInRemoteRect(_doubleFinerTapPosition);
     if (isMobileMouseMode || isDesktopInRemoteRect) {
@@ -376,9 +376,9 @@ class _RawTouchGestureDetectorRegionState
         ffi.cursorModel.trySetRemoteWindowCoords();
       }
 
-      // Workaround for the issue that the first pan event is sent a long time after the start event.
-      // If the time interval between the start event and the first pan event is less than 500ms,
-      // we consider to use the long press position as the start position.
+      // 针对第一个平移事件在 start 事件之后很久才发出这一问题的变通处理。
+      // 如果 start 事件与第一个平移事件之间的时间间隔小于 500ms，
+      // 我们就考虑使用长按位置作为起始位置。
       //
       // TODO: We should find a better way to send the first pan event as soon as possible.
       if (DateTime.now().millisecondsSinceEpoch - _cacheLongPressPositionTs <
@@ -386,7 +386,7 @@ class _RawTouchGestureDetectorRegionState
         await ffi.cursorModel
             .move(_cacheLongPressPosition.dx, _cacheLongPressPosition.dy);
       }
-      // In relative mouse mode, skip mouse down - only send movement via sendMobileRelativeMouseMove
+      // 在相对鼠标模式下，跳过 mouse down —— 只通过 sendMobileRelativeMouseMove 发送移动
       if (!inputModel.relativeMouseMode.value) {
         await inputModel.sendMouse('down', MouseButtons.left);
       }
@@ -414,7 +414,7 @@ class _RawTouchGestureDetectorRegionState
     if (handleTouch && !_touchModePanStarted) {
       return;
     }
-    // In relative mouse mode, send delta directly without position tracking.
+    // 在相对鼠标模式下，直接发送增量而不做位置跟踪。
     if (inputModel.relativeMouseMode.value) {
       await inputModel.sendMobileRelativeMouseMove(d.delta.dx, d.delta.dy);
     } else {
@@ -431,29 +431,29 @@ class _RawTouchGestureDetectorRegionState
       ffi.cursorModel.clearRemoteWindowCoords();
     }
     if (handleTouch) {
-      // In relative mouse mode, skip mouse up - matches the skipped mouse down in onOneFingerPanStart
+      // 在相对鼠标模式下，跳过 mouse up —— 与 onOneFingerPanStart 中跳过的 mouse down 相对应
       if (!inputModel.relativeMouseMode.value) {
         await inputModel.sendMouse('up', MouseButtons.left);
       }
     }
   }
 
-  // Reset `_touchModePanStarted` if the one-finger pan gesture is cancelled
-  // or rejected by the gesture arena. Without this, the flag can remain
-  // stuck in the "started" state and cause issues such as the Magic Mouse
-  // double-click problem on iPad with magic mouse.
+  // 如果单指平移手势被取消，则重置 `_touchModePanStarted`
+  // 或被手势竞技场拒绝。没有这段处理，该标志可能一直
+  // 停留在 "started" 状态，并引发诸如 Magic Mouse
+  // 在 iPad 上搭配 magic mouse 出现的双击问题。
   onOneFingerPanCancel() {
     _touchModePanStarted = false;
   }
 
-  // scale + pan event
+  // 缩放 + 平移事件
   onTwoFingerScaleStart(ScaleStartDetails d) {
     _lastTapDownDetails = null;
     if (isNotTouchBasedDevice()) {
       return;
     }
     if (isSpecialHoldDragActive) {
-      // Initialize the last focal point to calculate deltas manually.
+      // 初始化上一次的焦点位置，以便手动计算增量。
       _lastSpecialHoldDragFocalPoint = d.focalPoint;
     }
   }
@@ -463,9 +463,9 @@ class _RawTouchGestureDetectorRegionState
       return;
     }
 
-    // If in special drag mode, perform a pan instead of a scale.
+    // 如果处于特殊拖拽模式，则执行平移而不是缩放。
     if (isSpecialHoldDragActive) {
-      // Calculate delta manually to avoid the jumpy behavior.
+      // 手动计算增量，避免出现跳动行为。
       final delta = d.focalPoint - _lastSpecialHoldDragFocalPoint;
       _lastSpecialHoldDragFocalPoint = d.focalPoint;
       await ffi.cursorModel.updatePan(delta * 2.0, d.focalPoint, handleTouch);
@@ -487,7 +487,7 @@ class _RawTouchGestureDetectorRegionState
                     .toJson()));
       }
     } else {
-      // mobile
+      // 移动端
       ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
       _scale = d.scale;
       ffi.canvasModel.panX(d.focalPointDelta.dx);
@@ -506,9 +506,9 @@ class _RawTouchGestureDetectorRegionState
           msg: json.encode(
               PointerEventToRust(kPointerEventKindTouch, 'scale', 0).toJson()));
     } else {
-      // mobile
+      // 移动端
       _scale = 1;
-      // No idea why we need to set the view style to "" here.
+      // 不知道为什么这里需要把视图样式设为 ""。
       // bind.sessionSetViewStyle(sessionId: sessionId, value: "");
     }
     if (!isSpecialHoldDragActive) {
@@ -532,7 +532,7 @@ class _RawTouchGestureDetectorRegionState
 
   makeGestures(BuildContext context) {
     return <Type, GestureRecognizerFactory>{
-      // Official
+      // 官方
       TapGestureRecognizer:
           GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
               () => TapGestureRecognizer(), (instance) {
@@ -557,7 +557,7 @@ class _RawTouchGestureDetectorRegionState
           ..onLongPress = onLongPress
           ..onLongPressMoveUpdate = onLongPressMoveUpdate;
       }),
-      // Customized
+      // 自定义
       HoldTapMoveGestureRecognizer:
           GestureRecognizerFactoryWithHandlers<HoldTapMoveGestureRecognizer>(
               () => HoldTapMoveGestureRecognizer(),

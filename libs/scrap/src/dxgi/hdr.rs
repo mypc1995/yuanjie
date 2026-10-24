@@ -1,30 +1,30 @@
-//! HDR desktop -> SDR normalization for Desktop Duplication frames.
+//! 把桌面复制（Desktop Duplication）得到的帧从 HDR 桌面归一化到 SDR。
 //!
-//! With HDR enabled Windows composes the desktop as linear scRGB in
-//! R16G16B16A16_FLOAT, and SDR "white" sits at the user's SDR content
-//! brightness (DISPLAYCONFIG_SDR_WHITE_LEVEL) rather than at 1.0. The legacy
-//! DuplicateOutput converts that to BGRA8 by clipping, which is the washed-out
-//! picture reported for HDR hosts. This pass divides by the SDR white level,
-//! clamps, and applies the sRGB transfer, so SDR content comes out exactly as
-//! it would from an SDR desktop.
+//! 开启 HDR 后，Windows 会以线性 scRGB、
+//! R16G16B16A16_FLOAT 的形式合成桌面，而 SDR 的“白色”位于用户 SDR 内容的
+//! 亮度（DISPLAYCONFIG_SDR_WHITE_LEVEL）上，而不是 1.0。旧的
+//! DuplicateOutput 会通过裁剪把它转成 BGRA8，这正是
+//! HDR 主机上所报告的灰暗画面的来源。这一步用 SDR 白点电平做除法，
+//! 再做截断，并应用 sRGB 传递函数，于是 SDR 内容的输出效果完全
+//! 等同于在 SDR 桌面上得到的效果。
 //!
-//! It is a normalization, not a tone map: anything brighter than SDR white
-//! (HDR video, HDR games) clips to white on the SDR viewer, where the local
-//! HDR display would show it brighter than white. A roll-off would have to
-//! move SDR white below 1.0 to make headroom, trading the accuracy of the SDR
-//! content this pass exists for, so it is deliberately not done.
+//! 这是归一化，而不是色调映射：任何比 SDR 白色更亮的内容
+//! （HDR 视频、HDR 游戏）在 SDR 观看端会被裁剪为纯白，而在本地的
+//! HDR 显示器上本可以显示得比白色更亮。而做 roll-off 就必须
+//! 把 SDR 白色降到 1.0 以下来腾出余量，这会牺牲这一步所追求的 SDR
+//! 内容的准确性，因此刻意不做。
 //!
-//! Windows 11 22H2 also composes Advanced Color SDR (WCG) desktops in FP16,
-//! but there 1.0 is the display's reference white rather than 80 nits and no
-//! SDR white level applies. IDXGIOutput6 tells the two apart, and for a
-//! non-HDR output the pass only applies the scRGB -> sRGB transfer.
+//! Windows 11 22H2 也会以 FP16 合成 Advanced Color SDR（WCG）桌面，
+//! 但那时 1.0 是显示器的参考白，而不是 80 尼特，也不存在
+//! SDR 白点电平这回事。IDXGIOutput6 能把两者区分开，而对于
+//! 非 HDR 输出，这一步只应用 scRGB -> sRGB 传递函数。
 //!
-//! The conversion is automatic and stays on the controlled side on purpose:
-//! the controller renders through Flutter external textures, which are 8-bit
-//! on every desktop platform, so there is nothing to gain from sending HDR.
-//! Real HDR pass-through, if the renderer ever supports it, should follow the
-//! Sunshine/Moonlight pattern instead: an `hdr` capability bit advertised by
-//! the controller behind an explicit user toggle, negotiated like i444.
+//! 这个转换是自动进行的，而且刻意只留在可控范围内：
+//! 控制器通过 Flutter external texture 渲染，而它在所有桌面平台上都是 8-bit
+//! 的，所以传送 HDR 没有收益。
+//! 如果渲染器将来支持真正的 HDR 直通，应当遵循
+//! Sunshine/Moonlight 的做法：由控制器在明确的用户开关之后声明一个 `hdr` 能力位，
+//! 并像 i444 一样协商。
 
 use super::ComPtr;
 use hbb_common::log;
@@ -60,14 +60,14 @@ use winapi::{
     },
 };
 
-/// Set once the tone-map can never work in this process (no d3dcompiler, the
-/// shaders do not compile). Capturers then stop asking DXGI for float frames.
-/// Device-specific failures are not recorded here; the capturer that hit one
-/// re-duplicates without the tone-map on its own.
+/// 当色调映射在这个进程里已不可能生效时（没有 d3dcompiler，
+/// 着色器无法编译）就设置一次。此后各捕获器就不再向 DXGI 请求浮点帧了。
+/// 设备特定的失败不在这里记录；遇到这类失败的捕获器
+/// 会自行在不做色调映射的情况下重新复制。
 pub static UNAVAILABLE: AtomicBool = AtomicBool::new(false);
 
-/// Failures no capturer on this machine can recover from, as opposed to
-/// device-specific ones that a recreated capturer may not hit again.
+/// 本机上任何捕获器都无法恢复的失败，与
+/// 重建后的捕获器可能不会再遇到的设备特定失败不同。
 pub fn is_permanent(err: &io::Error) -> bool {
     err.kind() == io::ErrorKind::Unsupported
 }
@@ -99,19 +99,19 @@ pub struct HdrToSdr {
     target: ComPtr<ID3D11Texture2D>,
     rtv: ComPtr<ID3D11RenderTargetView>,
     srv: ComPtr<ID3D11ShaderResourceView>,
-    // Texture `srv` was created for. The view keeps it alive, so the address
-    // cannot be recycled behind our back.
+    // 创建纹理 `srv` 时所用的。视图会保持它的存活，因此该地址
+    // 不会在我们背后被回收再用。
     srv_source: *mut ID3D11Texture2D,
     width: u32,
     height: u32,
     device_name: [WCHAR; 32],
-    // Advanced Color state is read from `output6`, which is re-enumerated from a
-    // fresh factory whenever `factory` stops being current.
+    // Advanced Color 状态是从 `output6` 读取的，而每当旧的 factory 不再是当前 factory 时，就会
+    // 从一个新的 `factory` 重新枚举。
     factory: ComPtr<IDXGIFactory1>,
     output6: ComPtr<IDXGIOutput6>,
     is_hdr: bool,
-    // DISPLAYCONFIG units (1000 == 80 nits == scRGB 1.0). `None` when it could
-    // not be read, in which case 80 nits is assumed until it can.
+    // 以 DISPLAYCONFIG 单位表示（1000 == 80 尼特 == scRGB 1.0）。读取失败时为 `None`，
+    // 此时在能读到之前按 80 尼特处理。
     sdr_white_level: Option<u32>,
     queried_at: Instant,
 }
@@ -158,14 +158,14 @@ impl HdrToSdr {
             )?;
             let ps = ComPtr(ps);
 
-            // Not found leaves the factory null, so the first refresh enumerates
-            // again instead of trusting the capturer's possibly stale output.
+            // 未找到时会让 factory 保持为空，因此首次刷新会重新枚举，
+            // 而不是信任捕获器里可能已经过期的输出。
             let (factory, mut output6) = enumerate_output6(device_name);
             if output6.is_null() {
                 output6 = query_output6(output as *mut IUnknown);
             }
-            // Float frames are only requested where IDXGIOutput6 exists, so an
-            // unreadable description still comes from an HDR-capable stack.
+            // 只有在存在 IDXGIOutput6 的地方才会请求浮点帧，因此一个
+            // 读不出描述信息的输出仍然来自支持 HDR 的技术栈。
             let is_hdr = output_is_hdr(output6.0).unwrap_or(true);
             let sdr_white_level = if is_hdr {
                 query_sdr_white_level(device_name)
@@ -224,9 +224,9 @@ impl HdrToSdr {
         }
     }
 
-    /// Renders `source` (R16G16B16A16_FLOAT) into an owned B8G8R8A8_UNORM
-    /// texture of the same size and returns it. The texture stays valid until
-    /// the next call.
+    /// 把 `source`（R16G16B16A16_FLOAT）渲染到一张自持有的 B8G8R8A8_UNORM
+    /// 纹理中（尺寸相同）并返回它。该纹理在下一次调用之前
+    /// 保持有效。
     pub fn convert(
         &mut self,
         source: *mut ID3D11Texture2D,
@@ -261,9 +261,9 @@ impl HdrToSdr {
             (*ctx).PSSetConstantBuffers(0, 1, &params);
             (*ctx).PSSetShaderResources(0, 1, &srv);
             (*ctx).Draw(3, 0);
-            // Unbind so the next frame's copy and the encoder never see the
-            // target as a live render target or the desktop image as a bound
-            // shader input.
+            // 解除绑定，这样下一帧的拷贝和编码器都不会看到
+            // 目标被当作活动渲染目标，或桌面图像被当作已绑定的
+            // 着色器输入。
             let no_srv: *mut ID3D11ShaderResourceView = ptr::null_mut();
             (*ctx).PSSetShaderResources(0, 1, &no_srv);
             (*ctx).OMSetRenderTargets(0, ptr::null(), ptr::null_mut());
@@ -322,11 +322,11 @@ impl HdrToSdr {
         Ok(())
     }
 
-    // Advanced Color state is dynamic: HDR can be switched on or off, or a WCG
-    // desktop can turn into an HDR one, without the duplication being lost. An
-    // output's description is a snapshot, so once the factory is no longer
-    // current a new factory and output are needed to see the new state, as the
-    // GetDesc1 docs require.
+    // Advanced Color 状态是动态的：HDR 可以被打开或关闭，WCG
+    // 桌面也可能变成 HDR 桌面，而复制不会因此丢失。输出
+    // 的描述信息只是一个快照，所以一旦 factory 不再是当前
+    // factory，就需要新的 factory 和输出才能看到新状态，正如
+    // GetDesc1 文档所要求的那样。
     unsafe fn refresh_output_state(&mut self) {
         if self.queried_at.elapsed() < OUTPUT_STATE_REFRESH {
             return;
@@ -338,7 +338,7 @@ impl HdrToSdr {
                 self.factory = factory;
                 self.output6 = output6;
             } else {
-                // Keep reading the old output, but enumerate again next time.
+                // 继续读取旧的输出，但下次重新枚举。
                 self.factory = ComPtr(ptr::null_mut());
             }
         }
@@ -348,7 +348,7 @@ impl HdrToSdr {
         } else {
             None
         };
-        // A transiently unreadable level keeps the last known one.
+        // 电平暂时读不到时保留上一次已知的值。
         if is_hdr == self.is_hdr && (level.is_none() || level == self.sdr_white_level) {
             return;
         }
@@ -376,8 +376,8 @@ impl HdrToSdr {
     }
 }
 
-// `None` is either a non-HDR (WCG) output, where 1.0 already is the display's
-// reference white, or an HDR output whose level is unknown; both use 1.0.
+// `None` 表示要么是非 HDR（WCG）输出（那里 1.0 本身就是显示器的
+// 参考白），要么是电平未知的 HDR 输出；两者都按 1.0 处理。
 fn params_data(sdr_white_level: Option<u32>) -> [f32; 4] {
     [
         1000.0 / sdr_white_level.unwrap_or(1000) as f32,
@@ -387,10 +387,10 @@ fn params_data(sdr_white_level: Option<u32>) -> [f32; 4] {
     ]
 }
 
-// FP16 desktop composition means either HDR (scene-referred, 1.0 == 80 nits)
-// or, since Windows 11 22H2, Advanced Color SDR (display-referred), and only
-// IDXGIOutput6 (Windows 10 1703) tells them apart. `None` when it cannot be
-// read right now.
+// 以 FP16 合成桌面要么意味着 HDR（场景参考，1.0 == 80 尼特），
+// 要么意味着（自 Windows 11 22H2 起）Advanced Color SDR（显示参考），而且只有
+// IDXGIOutput6（Windows 10 1703）才能把两者区分开。无法读取时为 `None`，
+// 此刻就读不到。
 unsafe fn output_is_hdr(output6: *mut IDXGIOutput6) -> Option<bool> {
     if output6.is_null() {
         return None;
@@ -413,10 +413,10 @@ unsafe fn query_output6(object: *mut IUnknown) -> ComPtr<IDXGIOutput6> {
     ComPtr(output6)
 }
 
-// A fresh factory sees the current display configuration; the output is found
-// by its GDI name because the outputs of a stale factory keep stale descriptions.
-// Returns both or neither: a non-null factory guarantees the output came from
-// its topology, so a caller that sees a null factory knows to enumerate again.
+// 新的 factory 能看到当前的显示配置；输出是通过
+// GDI 名称查找的，因为过期 factory 的输出仍带着过期的描述信息。
+// 两者要么都返回要么都不返回：非空的 factory 保证该输出来自
+// 它的拓扑，因此看到空 factory 的调用方知道需要重新枚举。
 unsafe fn enumerate_output6(
     device_name: &[WCHAR; 32],
 ) -> (ComPtr<IDXGIFactory1>, ComPtr<IDXGIOutput6>) {
@@ -472,20 +472,20 @@ type D3DCompileFn = unsafe extern "system" fn(
     LPCVOID,
     SIZE_T,
     LPCSTR,
-    *const D3D_SHADER_MACRO,
-    *mut ID3DInclude,
+    * const D3D_SHADER_MACRO,
+    * mut ID3DInclude,
     LPCSTR,
     LPCSTR,
     UINT,
     UINT,
-    *mut *mut ID3DBlob,
-    *mut *mut ID3DBlob,
+    * mut *mut ID3DBlob,
+    * mut *mut ID3DBlob,
 ) -> HRESULT;
 
 static D3D_COMPILE: OnceLock<Result<D3DCompileFn, String>> = OnceLock::new();
 
-// Loaded once per process and kept: the compiler DLL is only needed on HDR
-// desktops, and an import-time link would make every install depend on it.
+// 每个进程只加载一次并保留：编译器 DLL 只在 HDR
+// 桌面上才需要，而在导入期链接会让每次安装都依赖它。
 fn load_d3d_compile() -> io::Result<D3DCompileFn> {
     D3D_COMPILE
         .get_or_init(|| unsafe { find_d3d_compile() })
@@ -576,9 +576,9 @@ extern "system" {
     fn DisplayConfigGetDeviceInfo(requestPacket: *mut DISPLAYCONFIG_DEVICE_INFO_HEADER) -> LONG;
 }
 
-/// SDR white level of the output whose GDI name is `device_name`
-/// (e.g. `\\.\DISPLAY1`), in DISPLAYCONFIG units (1000 == 80 nits). `None`
-/// when the query fails (before Windows 10 1709) or reports 0.
+/// GDI 名称为 `device_name` 的那个输出的 SDR 白点电平
+/// （例如 `\\.\DISPLAY1`），以 DISPLAYCONFIG 单位表示（1000 == 80 尼特）。`None`
+/// 表示查询失败（Windows 10 1709 之前）或返回 0。
 fn query_sdr_white_level(device_name: &[WCHAR; 32]) -> Option<u32> {
     unsafe {
         let mut n_paths = 0u32;

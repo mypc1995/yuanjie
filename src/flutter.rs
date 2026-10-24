@@ -29,8 +29,8 @@ use std::{
     },
 };
 
-/// tag "main" for [Desktop Main Page] and [Mobile (Client and Server)] (the mobile don't need multiple windows, only one global event stream is needed)
-/// tag "cm" only for [Desktop CM Page]
+/// 为 [Desktop Main Page] 和 [Mobile (Client and Server)] 标记 "main"（移动端不需要多窗口，只需要一条全局事件流）
+/// 仅为 [Desktop CM Page] 标记 "cm"
 pub(crate) const APP_TYPE_MAIN: &str = "main";
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub(crate) const APP_TYPE_CM: &str = "cm";
@@ -42,8 +42,8 @@ const CORE_MAIN_EXIT_SUCCESS: i32 = 0;
 #[cfg(target_os = "macos")]
 const CORE_MAIN_EXIT_FAILURE: i32 = 1;
 
-// Do not remove the following constants.
-// Uncomment them when they are used.
+// 不要删除以下常量。
+// 在用到它们时取消注释。
 // pub(crate) const APP_TYPE_DESKTOP_REMOTE: &str = "remote";
 // pub(crate) const APP_TYPE_DESKTOP_FILE_TRANSFER: &str = "file transfer";
 // pub(crate) const APP_TYPE_DESKTOP_PORT_FORWARD: &str = "port forward";
@@ -75,8 +75,8 @@ lazy_static::lazy_static! {
     pub static ref TEXTURE_GPU_RENDERER_PLUGIN: Result<Library, LibError> = load_plugin_in_app_path("flutter_gpu_texture_renderer_plugin.dll");
 }
 
-// Move this function into `src/platform/windows.rs` if there're more calls to load plugins.
-// Load dll with full path.
+// 如果加载插件的调用变多，把这个函数移到 `src/platform/windows.rs`。
+// 用完整路径加载 dll。
 #[cfg(target_os = "windows")]
 fn load_plugin_in_app_path(dll_name: &str) -> Result<Library, LibError> {
     match std::env::current_exe() {
@@ -105,10 +105,10 @@ fn load_plugin_in_app_path(dll_name: &str) -> Result<Library, LibError> {
     }
 }
 
-/// FFI for rustdesk core's main entry.
-/// Return true if the app should continue running with UI(possibly Flutter), false if the app should exit.
-/// On macOS, command-only paths exit here because the Swift caller ignores
-/// the return value; update failures must therefore use a non-zero exit status.
+/// rustdesk core 主入口的 FFI。
+/// 如果应用应继续带 UI（可能是 Flutter）运行则返回 true，如果应用应退出则返回 false。
+/// 在 macOS 上，仅命令行的路径会在这里退出，因为 Swift 调用方会忽略
+/// 返回值；因此更新失败必须使用非零的退出状态。
 #[cfg(not(windows))]
 #[no_mangle]
 pub extern "C" fn rustdesk_core_main() -> bool {
@@ -116,7 +116,7 @@ pub extern "C" fn rustdesk_core_main() -> bool {
     {
         use hbb_common::libc;
 
-        // Native runners bypass Rust's startup, which normally ignores SIGPIPE.
+        // 原生运行器绕过了 Rust 的启动流程，而后者通常会忽略 SIGPIPE。
         if unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN) } == libc::SIG_ERR {
             eprintln!("Failed to ignore SIGPIPE: {}", std::io::Error::last_os_error());
             std::process::exit(1);
@@ -178,7 +178,7 @@ pub extern "C" fn rustdesk_is_disable_installation() -> c_int {
 fn rust_args_to_c_args(args: Vec<String>, outlen: *mut c_int) -> *mut *mut c_char {
     let mut v = vec![];
 
-    // Let's fill a vector with null-terminated strings
+    // 用一个以 null 结尾的字符串填充 vector
     for s in args {
         match CString::new(s) {
             Ok(s) => v.push(s),
@@ -186,23 +186,23 @@ fn rust_args_to_c_args(args: Vec<String>, outlen: *mut c_int) -> *mut *mut c_cha
         }
     }
 
-    // Turning each null-terminated string into a pointer.
-    // `into_raw` takes ownershop, gives us the pointer and does NOT drop the data.
+    // 把每个以 null 结尾的字符串转换成指针。
+    // `into_raw` 取得所有权，给我们指针，并且不会释放数据。
     let mut out = v.into_iter().map(|s| s.into_raw()).collect::<Vec<_>>();
 
-    // Make sure we're not wasting space.
+    // 确保不浪费空间。
     out.shrink_to_fit();
     debug_assert!(out.len() == out.capacity());
 
-    // Get the pointer to our vector.
+    // 获取指向我们 vector 的指针。
     let len = out.len();
     let ptr = out.as_mut_ptr();
     std::mem::forget(out);
 
-    // Let's write back the length the caller can expect
+    // 写回调用方可以预期的长度
     unsafe { std::ptr::write(outlen, len as c_int) };
 
-    // Finally return the data
+    // 最后返回数据
     ptr
 }
 
@@ -210,17 +210,17 @@ fn rust_args_to_c_args(args: Vec<String>, outlen: *mut c_int) -> *mut *mut c_cha
 pub unsafe extern "C" fn free_c_args(ptr: *mut *mut c_char, len: c_int) {
     let len = len as usize;
 
-    // Get back our vector.
-    // Previously we shrank to fit, so capacity == length.
+    // 取回我们的 vector。
+    // 之前我们做了 shrink_to_fit，所以 capacity == length。
     let v = Vec::from_raw_parts(ptr, len, len);
 
-    // Now drop one string at a time.
+    // 现在逐个释放字符串。
     for elem in v {
         let s = CString::from_raw(elem);
         std::mem::drop(s);
     }
 
-    // Afterwards the vector will be dropped and thus freed.
+    // 之后 vector 会被 drop，从而被释放。
 }
 
 #[cfg(windows)]
@@ -237,8 +237,8 @@ pub unsafe extern "C" fn get_rustdesk_app_name(buffer: *mut u16, length: i32) ->
 #[derive(Default)]
 struct SessionHandler {
     event_stream: Option<StreamSink<EventToUI>>,
-    // displays of current session.
-    // We need this variable to check if the display is in use before pushing rgba to flutter.
+    // 当前会话的 displays。
+    // 我们需要这个变量，在把 rgba 推送给 flutter 之前检查该 display 是否正在使用。
     displays: Vec<usize>,
     renderer: VideoRenderer,
 }
@@ -252,7 +252,7 @@ enum RenderType {
 
 #[derive(Clone)]
 pub struct FlutterHandler {
-    // ui session id -> display handler data
+    // ui session id -> display handler 数据
     session_handlers: Arc<RwLock<HashMap<SessionID, SessionHandler>>>,
     display_rgbas: Arc<RwLock<HashMap<usize, RgbaData>>>,
     peer_info: Arc<RwLock<PeerInfo>>,
@@ -274,8 +274,8 @@ impl Default for FlutterHandler {
 
 #[derive(Default, Clone)]
 struct RgbaData {
-    // SAFETY: [rgba] is guarded by [rgba_valid], and it's safe to reach [rgba] with `rgba_valid == true`.
-    // We must check the `rgba_valid` before reading [rgba].
+    // 安全性：[rgba] 由 [rgba_valid] 保护，在 `rgba_valid == true` 时访问 [rgba] 是安全的。
+    // 读取 [rgba] 前必须检查 `rgba_valid`。
     data: Vec<u8>,
     valid: bool,
 }
@@ -299,7 +299,7 @@ pub type FlutterGpuTextureRendererPluginCApiGetAdapterLuid = unsafe extern "C" f
 pub(super) type TextureRgbaPtr = usize;
 
 struct DisplaySessionInfo {
-    // TextureRgba pointer in flutter native.
+    // flutter native 中的 TextureRgba 指针。
     texture_rgba_ptr: TextureRgbaPtr,
     size: (usize, usize),
     #[cfg(feature = "vram")]
@@ -307,7 +307,7 @@ struct DisplaySessionInfo {
     notify_render_type: Option<RenderType>,
 }
 
-// Video Texture Renderer in Flutter
+// Flutter 中的视频纹理渲染器
 #[derive(Clone)]
 struct VideoRenderer {
     is_support_multi_ui_session: bool,
@@ -499,8 +499,8 @@ impl VideoRenderer {
                 rgba.w,
                 rgba.h
             );
-            // Peer info's handling is async and may be late than video frame's handling
-            // Allow peer info not set, but not allow wrong width/height for correct local cursor position
+            // 对端信息的处理是异步的，可能比视频帧的处理更晚
+            // 允许对端信息未设置，但不允许宽/高不正确，以免本地光标位置出错
             if info.size != (0, 0) {
                 return false;
             }
@@ -562,18 +562,18 @@ impl VideoRenderer {
 impl SessionHandler {
     pub fn on_waiting_for_image_dialog_show(&self) {
         self.renderer.reset_all_display_render_type();
-        // rgba array render will notify every frame
+        // rgba 数组渲染每帧都会通知
     }
 }
 
 impl FlutterHandler {
-    /// Push an event to all the event queues.
-    /// An event is stored as json in the event queues.
+    /// 向所有事件队列推送一个事件。
+    /// 事件以 json 形式存储在事件队列中。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `name` - The name of the event.
-    /// * `event` - Fields of the event content.
+    /// * `name` - 事件名称。
+    /// * `event` - 事件内容的字段。
     pub fn push_event<V>(&self, name: &str, event: &[(&str, V)], excludes: &[&SessionID])
     where
         V: Sized + Serialize + Clone,
@@ -622,8 +622,8 @@ impl FlutterHandler {
     }
 
     pub(crate) fn close_event_stream(&self, session_id: SessionID) {
-        // to-do: Make sure the following logic is correct.
-        // No need to remove the display handler, because it will be removed when the connection is closed.
+        // 待办：确认下面的逻辑是正确的。
+        // 无需移除 display handler，因为连接关闭时它会被移除。
         if let Some(session) = self.session_handlers.write().unwrap().get_mut(&session_id) {
             try_send_close_event(&session.event_stream);
         }
@@ -642,18 +642,18 @@ impl FlutterHandler {
                 h.insert("original_width", original_resolution.width);
                 h.insert("original_height", original_resolution.height);
             }
-            // Don't convert scale (x 100) to i32 directly.
-            // (d.scale * 100.0f64) as i32 may produces inaccuracies.
+            // 不要直接把 scale（乘 100）转换成 i32。
+            // (d.scale * 100.0f64) as i32 可能产生精度误差。
             //
-            // Example: GNOME Wayland with Fractional Scaling enabled:
-            // - Physical resolution: 2560x1600
-            // - Logical resolution: 1074x1065
-            // - Scale factor: 150%
-            // Passing physical dimensions and scale factor prevents accurate logical resolution calculation
-            // since 2560/1.5 = 1706.666... (rounded to 1706.67) and 1600/1.5 = 1066.666... (rounded to 1066.67)
+            // 示例：启用 Fractional Scaling 的 GNOME Wayland：
+            // - 物理分辨率：2560x1600
+            // - 逻辑分辨率：1074x1065
+            // - 缩放因子：150%
+            // 传入物理尺寸和缩放因子会导致逻辑分辨率计算不准确
+            // 因为 2560/1.5 = 1706.666...（四舍五入为 1706.67），1600/1.5 = 1066.666...（四舍五入为 1066.67）
             // h.insert("scale", (d.scale * 100.0f64) as i32);
 
-            // Send scaled_width for accurate logical scale calculation.
+            // 发送 scaled_width 以准确计算逻辑缩放。
             if d.scale > 0.0 {
                 let scaled_width = (d.width as f64 / d.scale).round() as i32;
                 h.insert("scaled_width", scaled_width);
@@ -671,7 +671,7 @@ impl FlutterHandler {
 }
 
 impl InvokeUiSession for FlutterHandler {
-    // On the event stream, so that it keeps its order with the cursor_id events around it.
+    // 放在事件流上，以保持它与周围的 cursor_id 事件的顺序。
     fn set_cursor_data(&self, cd: CursorData) {
         let colors = cd.colors.to_vec();
         for session in self.session_handlers.read().unwrap().values() {
@@ -700,7 +700,7 @@ impl InvokeUiSession for FlutterHandler {
         );
     }
 
-    /// unused in flutter, use switch_display or set_peer_info
+    /// 在 flutter 中未使用，请使用 switch_display 或 set_peer_info
     fn set_display(&self, _x: i32, _y: i32, _w: i32, _h: i32, _cursor_embedded: bool, _scale: f64) {}
 
     fn update_privacy_mode(&self) {
@@ -711,7 +711,7 @@ impl InvokeUiSession for FlutterHandler {
         self.push_event("permission", &[(name, &value.to_string())], &[]);
     }
 
-    // unused in flutter
+    // 在 flutter 中未使用
     fn close_success(&self) {}
 
     fn update_quality_status(&self, status: QualityStatus) {
@@ -775,7 +775,7 @@ impl InvokeUiSession for FlutterHandler {
         );
     }
 
-    // unused in flutter
+    // 在 flutter 中未使用
     fn clear_all_jobs(&self) {}
 
     fn load_last_job(&self, _cnt: i32, job_json: &str, _auto_start: bool) {
@@ -823,10 +823,10 @@ impl InvokeUiSession for FlutterHandler {
         );
     }
 
-    // unused in flutter
+    // 在 flutter 中未使用
     fn update_transfer_list(&self) {}
 
-    // unused in flutter // TEST flutter
+    // 在 flutter 中未使用 // TEST flutter
     fn confirm_delete_files(&self, _id: i32, _i: i32, _name: String) {}
 
     fn override_file_confirm(
@@ -863,7 +863,7 @@ impl InvokeUiSession for FlutterHandler {
         );
     }
 
-    // unused in flutter
+    // 在 flutter 中未使用
     fn adapt_size(&self) {}
 
     #[inline]
@@ -903,13 +903,13 @@ impl InvokeUiSession for FlutterHandler {
         for ref f in pi.features.iter() {
             features.insert("privacy_mode", f.privacy_mode);
         }
-        // compatible with 1.1.9
+        // 与 1.1.9 兼容
         if get_version_number(&pi.version) < get_version_number("1.2.0") {
             features.insert("privacy_mode", false);
         }
         let features = serde_json::ser::to_string(&features).unwrap_or("".to_owned());
         let resolutions = serialize_resolutions(&pi.resolutions.resolutions);
-        *self.peer_info.write().unwrap() = pi.clone();
+        * self.peer_info.write().unwrap() = pi.clone();
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let is_support_multi_ui_session = crate::common::is_support_multi_ui_session(&pi.version);
         #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -1124,7 +1124,7 @@ impl InvokeUiSession for FlutterHandler {
         match SessionID::from_str(&sid) {
             Ok(sid) => self.push_event_to("screenshot", &[("msg", json!(msg))], &[&sid]),
             Err(e) => {
-                // Unreachable!
+                // 不可达！
                 log::error!("Failed to parse sid \"{}\", {}", sid, e);
             }
         }
@@ -1153,7 +1153,7 @@ impl InvokeUiSession for FlutterHandler {
                 self.push_event_("terminal_response", &event_data, &[], &[]);
             }
             Some(Union::Data(data)) => {
-                // Decompress data if needed
+                // 如有必要则解压数据
                 let output_data = if data.compressed {
                     hbb_common::compress::decompress(&data.data)
                 } else {
@@ -1195,8 +1195,8 @@ impl InvokeUiSession for FlutterHandler {
 impl FlutterHandler {
     #[inline]
     fn on_rgba_soft_render(&self, display: usize, rgba: &mut scrap::ImageRgb) {
-        // If the current rgba is not fetched by flutter, i.e., is valid.
-        // We give up sending a new event to flutter.
+        // 如果当前 rgba 未被 flutter 取走，即它仍然有效。
+        // 我们放弃向 flutter 发送新事件。
         let mut rgba_write_lock = self.display_rgbas.write().unwrap();
         if let Some(rgba_data) = rgba_write_lock.get_mut(&display) {
             if rgba_data.valid {
@@ -1204,7 +1204,7 @@ impl FlutterHandler {
             } else {
                 rgba_data.valid = true;
             }
-            // Return the rgba buffer to the video handler for reusing allocated rgba buffer.
+            // 把 rgba 缓冲区归还给视频处理器，以便复用已分配的 rgba 缓冲区。
             std::mem::swap::<Vec<u8>>(&mut rgba.raw, &mut rgba_data.data);
         } else {
             let mut rgba_data = RgbaData::default();
@@ -1217,11 +1217,11 @@ impl FlutterHandler {
         let mut is_sent = false;
         let is_multi_sessions = self.is_multi_ui_session();
         for h in self.session_handlers.read().unwrap().values() {
-            // The soft renderer does not support multi-displays session for now.
+            // 软渲染器目前还不支持多显示器会话。
             if h.displays.len() > 1 {
                 continue;
             }
-            // If there're multiple ui sessions, we only notify the ui session that has the display.
+            // 如果有多个 ui 会话，我们只通知拥有该 display 的那个 ui 会话。
             if is_multi_sessions {
                 if !h.displays.contains(&display) {
                     continue;
@@ -1232,13 +1232,13 @@ impl FlutterHandler {
                 is_sent = true;
             }
         }
-        // We need `is_sent` here. Because we use texture render for multi-displays session.
+        // 这里需要 `is_sent`，因为多显示器会话使用纹理渲染。
         //
-        // Eg. We have two windows, one is display 1, the other is displays 0&1.
-        // When image of display 0 is received, we will not send the event.
+        // 例如：我们有两个窗口，一个是 display 1，另一个是 displays 0&1。
+        // 收到 display 0 的图像时，我们不会发送该事件。
         //
-        // 1. "display 1" will not send the event.
-        // 2. "displays 0&1" will not send the event. Because it uses texutre render for now.
+        // 1. "display 1" 不会发送该事件。
+        // 2. "displays 0&1" 不会发送该事件，因为它目前使用纹理渲染。
         if !is_sent {
             if let Some(rgba_data) = self.display_rgbas.write().unwrap().get_mut(&display) {
                 rgba_data.valid = false;
@@ -1266,7 +1266,7 @@ impl FlutterHandler {
     }
 }
 
-// This function is only used for the default connection session.
+// 此函数仅用于默认的连接会话。
 pub fn session_add_existed(
     peer_id: String,
     session_id: SessionID,
@@ -1282,14 +1282,14 @@ pub fn session_add_existed(
     Ok(())
 }
 
-/// Create a new remote session with the given id.
+/// 用给定的 id 创建一个新的远端会话。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `id` - The identifier of the remote session with prefix. Regex: [\w]*[\_]*[\d]+
-/// * `is_file_transfer` - If the session is used for file transfer.
-/// * `is_view_camera` - If the session is used for view camera.
-/// * `is_port_forward` - If the session is used for port forward.
+/// * `id` - 带前缀的远端会话标识符。正则：[\w]*[\_]*[\d]+
+/// * `is_file_transfer` - 该会话是否用于文件传输。
+/// * `is_view_camera` - 该会话是否用于查看摄像头。
+/// * `is_port_forward` - 该会话是否用于端口转发。
 pub fn session_add(
     session_id: &SessionID,
     id: &str,
@@ -1320,12 +1320,12 @@ pub fn session_add(
         ConnType::DEFAULT_CONN
     };
 
-    // to-do: check the same id session.
+    // 待办：检查同 id 的会话。
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         if session.lc.read().unwrap().conn_type != conn_type {
             bail!("same session id is found with different conn type?");
         }
-        // The same session is added before?
+        // 之前是否已添加同一个会话？
         bail!("same session id is found");
     }
 
@@ -1333,7 +1333,7 @@ pub fn session_add(
 
     let mut preset_password = password.clone();
     let shared_password = if is_shared_password {
-        // To achieve a flexible password application order, we don't treat shared password as a preset password.
+        // 为了实现灵活的密码应用顺序，我们不把共享密码当作预设密码。
         preset_password = Default::default();
         Some(password)
     } else {
@@ -1371,20 +1371,20 @@ pub fn session_add(
     Ok(session)
 }
 
-/// start a session with the given id.
+/// 用给定的 id 启动一个会话。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `id` - The identifier of the remote session with prefix. Regex: [\w]*[\_]*[\d]+
-/// * `events2ui` - The events channel to ui.
+/// * `id` - 带前缀的远端会话标识符。正则：[\w]*[\_]*[\d]+
+/// * `events2ui` - 通向 ui 的事件通道。
 pub fn session_start_(
     session_id: &SessionID,
     id: &str,
     event_stream: StreamSink<EventToUI>,
 ) -> ResultType<()> {
-    // is_connected is used to indicate whether to start a peer connection. For two cases:
+    // is_connected 用于指示是否启动对端连接。有两种情况：
     // 1. "Move tab to new window"
-    // 2. multi ui session within the same peer connection.
+    // 2. 同一个对端连接内的多个 ui 会话。
     let mut is_connected = false;
     let mut is_found = false;
     for s in sessions::get_sessions() {
@@ -1456,7 +1456,7 @@ pub fn send_clipboard_msg(msg: Message, _is_file: bool) {
     send_clipboard_msg_impl(msg, _is_file, None);
 }
 
-// `except_session_id` is the session the content came from, to avoid sending it back.
+// `except_session_id` 是内容来源的会话，用于避免把内容回发给它。
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn send_clipboard_msg_to_other_sessions(msg: Message, except_session_id: u64) {
     send_clipboard_msg_impl(msg, false, Some(except_session_id));
@@ -1483,7 +1483,7 @@ fn send_clipboard_msg_impl(msg: Message, _is_file: bool, except_session_id: Opti
             continue;
         }
         if s.is_text_clipboard_required() {
-            // Check if the client supports multi clipboards
+            // 检查客户端是否支持多剪贴板
             if let Some(message::Union::MultiClipboards(multi_clipboards)) = &msg.union {
                 let version = s.ui_handler.peer_info.read().unwrap().version.clone();
                 let platform = s.ui_handler.peer_info.read().unwrap().platform.clone();
@@ -1501,7 +1501,7 @@ fn send_clipboard_msg_impl(msg: Message, _is_file: bool, except_session_id: Opti
     }
 }
 
-// Server Side
+// 服务端
 #[cfg(not(any(target_os = "ios")))]
 pub mod connection_manager {
     use std::collections::HashMap;
@@ -1523,14 +1523,14 @@ pub mod connection_manager {
         //TODO port_forward
         fn add_connection(&self, client: &crate::ui_cm_interface::Client) {
             let client_json = serde_json::to_string(&client).unwrap_or("".into());
-            // send to Android service, active notification no matter UI is shown or not.
+            // 发送到 Android 服务，无论是否显示界面都激活通知。
             #[cfg(target_os = "android")]
             if let Err(e) =
                 call_main_service_set_by_name("add_connection", Some(&client_json), None)
             {
                 log::debug!("call_main_service_set_by_name fail,{}", e);
             }
-            // send to UI, refresh widget
+            // 发送到 UI，刷新控件
             self.push_event("add_connection", &[("client", &client_json)]);
         }
 
@@ -1562,7 +1562,7 @@ pub mod connection_manager {
 
         fn update_voice_call_state(&self, client: &crate::ui_cm_interface::Client) {
             let client_json = serde_json::to_string(&client).unwrap_or("".into());
-            // send to Android service, active notification no matter UI is shown or not.
+            // 发送到 Android 服务，无论是否显示界面都激活通知。
             #[cfg(target_os = "android")]
             if let Err(e) =
                 call_main_service_set_by_name("update_voice_call_state", Some(&client_json), None)
@@ -1674,7 +1674,7 @@ pub fn set_cur_session_id(session_id: SessionID) {
     let mut current = CUR_SESSION_ID.write().unwrap();
     if *current != session_id {
         crate::keyboard::shortcuts::transfer_released_modifiers(&current, &session_id);
-        *current = session_id;
+        * current = session_id;
     }
 }
 
@@ -1747,8 +1747,8 @@ pub fn session_set_size(session_id: SessionID, display: usize, width: usize, hei
             .unwrap()
             .get_mut(&session_id)
         {
-            // If the session is the first connection, displays is not set yet.
-            // `displays`` is set while switching displays or adding a new session.
+            // 如果该会话是第一次连接，displays 尚未设置。
+            // `displays` 会在切换显示器或添加新会话时设置。
             if !h.displays.contains(&display) {
                 h.displays.push(display);
             }
@@ -1999,7 +1999,7 @@ pub(super) fn session_update_virtual_display(session: &FlutterSession, index: i3
             let mut vdisplays = displays.split(',').collect::<Vec<_>>();
             let len = vdisplays.len();
             if index == 0 {
-                // 0 means we can't toggle the virtual display by index.
+                // 0 表示我们无法按索引切换虚拟显示器。
                 vdisplays.remove(vdisplays.len() - 1);
             } else {
                 if let Some(i) = vdisplays.iter().position(|&x| x == index.to_string()) {
@@ -2035,13 +2035,13 @@ pub(super) fn session_update_virtual_display(session: &FlutterSession, index: i3
     }
 }
 
-// sessions mod is used to avoid the big lock of sessions' map.
+// sessions mod 用于避免 sessions map 上的大锁。
 pub mod sessions {
 
     use super::*;
 
     lazy_static::lazy_static! {
-        // peer -> peer session, peer session -> ui sessions
+        // peer -> peer session，peer session -> ui sessions
         static ref SESSIONS: RwLock<HashMap<(String, ConnType), FlutterSession>> = Default::default();
     }
 
@@ -2121,22 +2121,22 @@ pub mod sessions {
         s
     }
 
-    /// Close every client session, returning how many peer sessions were closed.
+    /// 关闭所有客户端会话，返回关闭了多少个对端会话。
     ///
-    /// Used when the UI is gone but the process keeps running, e.g. the Android
-    /// task is swiped away from recents while a foreground service keeps the
-    /// process alive. The orphaned `io_loop` would otherwise keep answering
-    /// `TestDelay`, so the peer never hits its inactivity timeout and the
-    /// session stays established with no way to close it.
+    /// 用于界面已消失但进程仍在运行的情况，例如 Android
+    /// 任务被从最近任务中划掉，而前台服务仍然让
+    /// 进程保持存活。否则被孤立的 `io_loop` 会继续响应
+    /// `TestDelay`，这样对端永远不会触发其不活动超时，而会话
+    /// 会一直保持建立状态且无从关闭。
     #[cfg(any(target_os = "android", target_os = "ios"))]
     pub fn close_all_sessions() -> usize {
-        // Release held keys before draining: the release path sends through
-        // `get_cur_session()`, which resolves against SESSIONS, so draining
-        // first would take TO_RELEASE and then silently drop every key-up,
-        // leaving the key stuck on the controlled side. A no-op when nothing
-        // is held.
+        // 在清空前先释放按住的按键：释放路径通过
+        // `get_cur_session()` 发送，而它是针对 SESSIONS 解析的，因此先清空
+        // 会取走 TO_RELEASE，随后静默丢弃每个 key-up，
+        // 导致按键在受控端卡住。若没有按住任何
+        // 按键，则为空操作。
         crate::keyboard::release_remote_keys("map");
-        // Drain so the map lock is released before closing each session.
+        // 先清空，这样在关闭每个会话之前 map 的锁已被释放。
         let sessions: Vec<FlutterSession> = SESSIONS
             .write()
             .unwrap()
@@ -2160,23 +2160,23 @@ pub mod sessions {
         sessions.len()
     }
 
-    /// Check if removing a session by session_id would result in removing the entire peer.
+    /// 检查按 session_id 移除会话是否会导致移除整个对端。
     ///
-    /// Returns:
-    /// - `true`: The session exists and removing it would leave the peer with no other sessions,
-    ///           so the entire peer would be removed (equivalent to `remove_session_by_session_id` returning `Some`)
-    /// - `false`: The session doesn't exist, or it exists but the peer has other sessions,
-    ///            so the peer would not be removed (equivalent to `remove_session_by_session_id` returning `None`)
+    /// 返回：
+    /// - `true`：该会话存在，且移除它之后对端将没有其他会话，
+    ///           因此整个对端会被移除（等同于 `remove_session_by_session_id` 返回 `Some`）
+    /// - `false`：该会话不存在，或它存在但对端还有其他会话，
+    ///            因此对端不会被移除（等同于 `remove_session_by_session_id` 返回 `None`）
     #[inline]
     pub fn would_remove_peer_by_session_id(id: &SessionID) -> bool {
         for (_peer_key, s) in SESSIONS.read().unwrap().iter() {
             let read_lock = s.ui_handler.session_handlers.read().unwrap();
             if read_lock.contains_key(id) {
-                // Found the session, check if it's the only one for this peer
+                // 找到该会话，检查它是否是该对端的唯一一个
                 return read_lock.len() == 1;
             }
         }
-        // Session not found
+        // 未找到会话
         false
     }
 
@@ -2186,7 +2186,7 @@ pub mod sessions {
         session: &FlutterSession,
         handlers: &HashMap<SessionID, SessionHandler>,
     ) {
-        // Set capture displays if some are not used any more.
+        // 如果某些 capture displays 不再被使用，则设置 capture displays。
         let mut remains_displays = HashSet::new();
         if let Some(current) = current {
             remains_displays.insert(current);
@@ -2221,17 +2221,17 @@ pub mod sessions {
                 #[cfg(not(any(target_os = "android", target_os = "ios")))]
                 let displays_refresh = value.clone();
                 if value.len() == 1 {
-                    // Switch display.
-                    // This operation will also cause the peer to send a switch display message.
-                    // The switch display message will contain `SupportedResolutions`, which is useful when changing resolutions.
+                    // 切换显示器。
+                    // 该操作也会使对端发送切换显示器消息。
+                    // 切换显示器消息会包含 `SupportedResolutions`，在更换分辨率时很有用。
                     s.switch_display(value[0]);
-                    // Reset the valid flag of the display.
+                    // 重置该 display 的有效标志。
                     s.next_rgba(value[0] as usize);
 
                     if !is_desktop {
                         s.capture_displays(vec![], vec![], value);
                     } else {
-                        // Check if other displays are needed.
+                        // 检查是否需要其他显示器。
                         if value.len() == 1 {
                             check_remove_unused_displays(
                                 Some(value[0] as _),
@@ -2242,15 +2242,15 @@ pub mod sessions {
                         }
                     }
                 } else {
-                    // Try capture all displays.
+                    // 尝试捕获所有显示器。
                     s.capture_displays(vec![], vec![], value);
                 }
-                // When switching display, we also need to send "Refresh display" message.
-                // On the controlled side:
-                // 1. If this display is not currently captured -> Refresh -> Message "Refresh display" is not required.
-                // One more key frame (first frame) will be sent because the refresh message.
-                // 2. If this display is currently captured -> Not refresh -> Message "Refresh display" is required.
-                // Without the message, the control side cannot see the latest display image.
+                // 切换显示器时，还需要发送 "Refresh display" 消息。
+                // 在受控端：
+                // 1. 如果该 display 当前未被捕获 -> 刷新 -> 不需要 "Refresh display" 消息。
+                // 由于该刷新消息，会额外发送一个关键帧（首帧）。
+                // 2. 如果该 display 当前正在被捕获 -> 不刷新 -> 需要 "Refresh display" 消息。
+                // 没有该消息，控制端就无法看到最新的显示画面。
                 #[cfg(not(any(target_os = "android", target_os = "ios")))]
                 {
                     let is_support_multi_ui_session = crate::common::is_support_multi_ui_session(
@@ -2312,8 +2312,8 @@ pub mod sessions {
                 .write()
                 .unwrap()
                 .insert(session_id, h);
-            // If the session is a single display session, it may be a software rgba rendered display.
-            // If this is the second time the display is opened, the old valid flag may be true.
+            // 如果该会话是单显示器会话，它可能是软件 rgba 渲染的显示器。
+            // 如果这是第二次打开该 display，旧的 valid 标志可能仍为 true。
             if displays.len() == 1 {
                 s.ui_handler.next_rgba(displays[0] as usize);
             }
@@ -2332,7 +2332,7 @@ pub mod sessions {
     #[cfg(not(target_os = "ios"))]
     pub fn has_sessions_running(conn_type: ConnType) -> bool {
         SESSIONS.read().unwrap().iter().any(|((_, r#type), s)| {
-            *r#type == conn_type && s.session_handlers.read().unwrap().len() != 0
+            * r#type == conn_type && s.session_handlers.read().unwrap().len() != 0
         })
     }
 
@@ -2340,7 +2340,7 @@ pub mod sessions {
     #[cfg(not(target_os = "ios"))]
     pub fn has_connected_sessions_running(conn_type: ConnType) -> bool {
         SESSIONS.read().unwrap().iter().any(|((_, r#type), s)| {
-            *r#type == conn_type
+            * r#type == conn_type
                 && s.session_handlers.read().unwrap().len() != 0
                 && s.connection_round_state.lock().unwrap().is_connected()
         })
@@ -2374,7 +2374,7 @@ pub(super) mod async_tasks {
 
     #[tokio::main(flavor = "current_thread")]
     async fn start_flutter_async_runner_() {
-        // Only one task is allowed to run at the same time.
+        // 同一时刻只允许一个任务运行。
         let (tx_onlines, rx_onlines) = sync_channel::<Vec<String>>(1);
         TX_QUERY_ONLINES.lock().unwrap().replace(tx_onlines);
 
@@ -2384,7 +2384,7 @@ pub(super) mod async_tasks {
                     crate::client::peer_online::query_online_states(ids, handle_query_onlines).await
                 }
                 _ => {
-                    // unreachable!
+                    // 不可达！
                     break;
                 }
             }
@@ -2393,7 +2393,7 @@ pub(super) mod async_tasks {
 
     pub fn query_onlines(ids: Vec<String>) -> ResultType<()> {
         if let Some(tx) = TX_QUERY_ONLINES.lock().unwrap().as_ref() {
-            // Ignore if the channel is full.
+            // 如果通道已满则忽略。
             let _ = tx.try_send(ids)?;
         } else {
             bail!("No tx_query_onlines");

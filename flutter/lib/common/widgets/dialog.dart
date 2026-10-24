@@ -172,7 +172,7 @@ void changeIdDialog() {
                     }).toList(),
                   )).marginOnly(bottom: 8)
               : SizedBox.shrink(),
-          // NOT use Offstage to wrap LinearProgressIndicator
+          // 不要用 Offstage 包裹 LinearProgressIndicator
           if (isInProgress) const LinearProgressIndicator(),
         ],
       ),
@@ -227,7 +227,7 @@ void changeWhiteList({Function()? callback}) async {
           const SizedBox(
             height: 4.0,
           ),
-          // NOT use Offstage to wrap LinearProgressIndicator
+          // 不要用 Offstage 包裹 LinearProgressIndicator
           if (isInProgress) const LinearProgressIndicator(),
         ],
       ),
@@ -255,7 +255,7 @@ void changeWhiteList({Function()? callback}) async {
               } else {
                 final ips =
                     newWhiteListField.trim().split(RegExp(r"[\s,;\n]+"));
-                // test ip
+                // 测试 ip
                 final ipMatch = RegExp(
                     r"^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?|0)\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?|0)\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?|0)\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?|0)(\/([1-9]|[1-2][0-9]|3[0-2])){0,1}$");
                 final ipv6Match = RegExp(
@@ -331,7 +331,7 @@ void changeIdWhiteList({Function()? callback}) async {
           const SizedBox(
             height: 4.0,
           ),
-          // NOT use Offstage to wrap LinearProgressIndicator
+          // 不要用 Offstage 包裹 LinearProgressIndicator
           if (isInProgress) const LinearProgressIndicator(),
         ],
       ),
@@ -362,7 +362,7 @@ void changeIdWhiteList({Function()? callback}) async {
                     .split(RegExp(r"[\s,;\n]+"))
                     .where((e) => e.isNotEmpty)
                     .toList();
-                // Separators are handled above; allow all other Unicode characters.
+                // 分隔符已在上面处理；允许其他所有 Unicode 字符。
                 for (final id in ids) {
                   final hasControlCharacters = id.runes.any(
                       (char) => char <= 0x1f || (char >= 0x7f && char <= 0x9f));
@@ -773,8 +773,8 @@ class _DialogVerificationCodeField extends State<DialogVerificationCodeField> {
       }
     }
 
-    // software secure keyboard will take the focus since flutter 3.13
-    // request focus again when android account password obtain focus
+    // 自 flutter 3.13 起，软键盘会抢占焦点
+    // 当 android 账户密码获得焦点时重新请求焦点
     if (isAndroid && widget.reRequestFocus) {
       _focusNode.addListener(() {
         if (_focusNode.hasFocus) {
@@ -846,8 +846,8 @@ class _PasswordWidgetState extends State<PasswordWidget> {
       _timer =
           Timer(Duration(milliseconds: 50), () => _focusNode.requestFocus());
     }
-    // software secure keyboard will take the focus since flutter 3.13
-    // request focus again when android account password obtain focus
+    // 自 flutter 3.13 起，软键盘会抢占焦点
+    // 当 android 账户密码获得焦点时重新请求焦点
     if (isAndroid && widget.reRequestFocus) {
       _focusNode.addListener(() {
         if (_focusNode.hasFocus) {
@@ -877,11 +877,11 @@ class _PasswordWidgetState extends State<PasswordWidget> {
       prefixIcon: DialogTextField.kPasswordIcon,
       suffixIcon: IconButton(
         icon: Icon(
-            // Based on passwordVisible state choose the icon
+            // 根据 passwordVisible 状态选择图标
             _passwordVisible ? Icons.visibility : Icons.visibility_off,
             color: MyTheme.lightTheme.primaryColor),
         onPressed: () {
-          // Update the state i.e. toggle the state of passwordVisible variable
+          // 更新状态，即切换 passwordVisible 变量的状态
           setState(() {
             _passwordVisible = !_passwordVisible;
           });
@@ -1156,7 +1156,7 @@ void showWaitUacDialog(
           ));
 }
 
-// Another username && password dialog?
+// 还要再来一个用户名和密码对话框吗？
 void showRequestElevationDialog(
     SessionID sessionId, OverlayDialogManager dialogManager) {
   RxString groupValue = ''.obs;
@@ -1601,9 +1601,9 @@ bool allowAskForNoteAtEndOfConnection(FFI? ffi, bool closedByControlling) {
           bind.willSessionCloseCloseSession(sessionId: ffi.sessionId));
 }
 
-// return value: close canceled
-//  true: return
-//  false: go on
+// 返回值：关闭被取消
+//  true：返回
+//  false：继续
 Future<bool> desktopTryShowTabAuditDialogCloseCancelled(
     {required String id, required DesktopTabController tabController}) async {
   try {
@@ -1618,9 +1618,9 @@ Future<bool> desktopTryShowTabAuditDialogCloseCancelled(
   }
 }
 
-// return value:
-//  true: return
-//  false: go on
+// 返回值：
+//  true：返回
+//  false：继续
 Future<bool> showConnEndAuditDialogCloseCanceled(
     {required FFI ffi, String? type, String? title, String? text}) async {
   final res = await _showConnEndAuditDialogCloseCanceled(
@@ -1631,9 +1631,9 @@ Future<bool> showConnEndAuditDialogCloseCanceled(
   return false;
 }
 
-// return value:
-//  true: return
-//  false / null: go on
+// 返回值：
+//  true：返回
+//  false / null：继续
 Future<bool?> _showConnEndAuditDialogCloseCanceled({
   required FFI ffi,
   String? type,
@@ -1704,7 +1704,7 @@ Future<bool?> _showConnEndAuditDialogCloseCanceled({
           debugPrint('updateAuditNoteByGuid timeout after 6s');
         });
       }
-      // Save the "ask for note" preference
+      // 保存 "ask for note" 偏好设置
       if (!isOptFixed) {
         await mainSetLocalBoolOption(
             kOptionAllowAskForNoteAtEndOfConnection, askForNote);
@@ -1870,7 +1870,7 @@ customImageQualityDialog(SessionID sessionId, String id, FFI ffi) async {
     ffi.dialogManager.dismissAll();
   });
 
-  // quality
+  // 画质
   final quality = await bind.sessionGetCustomImageQuality(sessionId: sessionId);
   initQuality = quality != null && quality.isNotEmpty
       ? quality[0].toDouble()
@@ -2088,7 +2088,7 @@ void editAbTagDialog(
                   .toList(growable: false),
             ),
           ),
-          // NOT use Offstage to wrap LinearProgressIndicator
+          // 不要用 Offstage 包裹 LinearProgressIndicator
           if (isInProgress) const LinearProgressIndicator(),
         ],
       ),
@@ -2131,7 +2131,7 @@ void editAbPeerNoteDialog(String id) {
               labelText: translate('Note'),
             ),
           ).workaroundFreezeLinuxMint(),
-          // NOT use Offstage to wrap LinearProgressIndicator
+          // 不要用 Offstage 包裹 LinearProgressIndicator
           if (isInProgress) const LinearProgressIndicator(),
         ],
       ),
@@ -2192,7 +2192,7 @@ void renameDialog(
               ).workaroundFreezeLinuxMint(),
             ),
           ),
-          // NOT use Offstage to wrap LinearProgressIndicator
+          // 不要用 Offstage 包裹 LinearProgressIndicator
           Obx(() =>
               isInProgress.value ? const LinearProgressIndicator() : Offstage())
         ],
@@ -2408,7 +2408,7 @@ void enter2FaDialog(
   });
 }
 
-// This dialog should not be dismissed, otherwise it will be black screen, have not reproduced this.
+// 该对话框不应被关闭，否则会出现黑屏，目前尚未复现。
 void showWindowsSessionsDialog(
     String type,
     String title,
@@ -2466,7 +2466,7 @@ void addPeersToAbDialog(
   Future<bool> addTo(String abname) async {
     final mapList = peers.map((e) {
       var json = e.toJson();
-      // remove password when add to another address book to avoid re-share
+      // 添加到另一个通讯录时移除密码，避免重新共享
       json.remove('password');
       json.remove('hash');
       return json;
@@ -2481,7 +2481,7 @@ void addPeersToAbDialog(
     }
   }
 
-  // if only one address book and it is personal, add to it directly
+  // 如果只有一个通讯录且它是个人通讯录，则直接添加到它
   if (gFFI.abModel.addressbooks.length == 1 &&
       gFFI.abModel.current.isPersonal()) {
     await addTo(gFFI.abModel.currentName.value);
@@ -2549,7 +2549,7 @@ void addPeersToAbDialog(
                 enableFilter: true,
                 controller: controller,
               ),
-              // NOT use Offstage to wrap LinearProgressIndicator
+              // 不要用 Offstage 包裹 LinearProgressIndicator
               isInProgress.value ? const LinearProgressIndicator() : Offstage()
             ],
           )),
@@ -2633,7 +2633,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
                   style: TextStyle(fontSize: 12),
                 )
               ]).marginSymmetric(vertical: 10),
-            // NOT use Offstage to wrap LinearProgressIndicator
+            // 不要用 Offstage 包裹 LinearProgressIndicator
             isInProgress.value ? const LinearProgressIndicator() : Offstage()
           ])),
       actions: [

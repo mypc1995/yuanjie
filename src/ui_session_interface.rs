@@ -71,13 +71,13 @@ pub struct Session<T: InvokeUiSession> {
     pub last_change_display: Arc<Mutex<ChangeDisplayRecord>>,
     pub connection_round_state: Arc<Mutex<ConnectionRoundState>>,
     pub printer_names: Arc<RwLock<HashMap<i32, String>>>,
-    // Indicate whether the session is reconnected.
-    // Used to auto start file transfer after reconnection.
+    // 表明会话是否已重连。
+    // 用于在重连后自动开始文件传输。
     pub reconnect_count: Arc<AtomicUsize>,
     pub last_audit_note: Arc<Mutex<String>>,
     pub audit_guid: Arc<Mutex<String>>,
-    // Every cursor shape as the peer sent it, compressed, by the id the UI knows it by. The
-    // peer sends a shape once, and a window asks for it whenever it has to draw it again.
+    // 对端发来的每一种光标形状，按 UI 认识它的 id 存放，并压缩。
+    // 对端只发送一次形状，窗口每次需要重新绘制时就来取一次。
     #[cfg(feature = "flutter")]
     pub cursor_shapes: Arc<RwLock<HashMap<u64, CursorData>>>,
 }
@@ -103,7 +103,7 @@ enum ConnectionState {
     Disconnected,
 }
 
-/// ConnectionRoundState is used to control the reconnecting logic.
+/// ConnectionRoundState 用于控制重连逻辑。
 pub struct ConnectionRoundState {
     round: u32,
     state: ConnectionState,
@@ -184,7 +184,7 @@ impl ChangeDisplayRecord {
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 impl SessionPermissionConfig {
     pub fn is_text_clipboard_required(&self) -> bool {
-        *self.server_clipboard_enabled.read().unwrap()
+        * self.server_clipboard_enabled.read().unwrap()
             && *self.server_keyboard_enabled.read().unwrap()
             && !self.lc.read().unwrap().disable_clipboard.v
             && !self.lc.read().unwrap().view_only.v
@@ -193,7 +193,7 @@ impl SessionPermissionConfig {
     #[cfg(feature = "unix-file-copy-paste")]
     pub fn is_file_clipboard_required(&self) -> bool {
         let lc = self.lc.read().unwrap();
-        *self.server_keyboard_enabled.read().unwrap()
+        * self.server_keyboard_enabled.read().unwrap()
             && *self.server_file_transfer_enabled.read().unwrap()
             && lc.enable_file_copy_paste.v
             && !lc.view_only.v
@@ -294,16 +294,16 @@ impl<T: InvokeUiSession> Session<T> {
         }
     }
 
-    // Caution: This function must be called after peer info is received.
+    // 注意：这个函数必须在收到对端信息之后调用。
     pub fn get_keyboard_mode(&self) -> String {
         let mode = self.lc.read().unwrap().keyboard_mode.clone();
         let keyboard_mode = KeyboardMode::from_str(&mode);
 
-        // Note: peer_version is 0 before peer info is received.
+        // 注意：在收到对端信息之前 peer_version 为 0。
         let peer_version = self.get_peer_version();
         let platform = self.peer_platform();
 
-        // Saved keyboard mode still exists in this version.
+        // 在这个版本中，保存的键盘模式仍然存在。
         if let Ok(mode) = keyboard_mode {
             if is_keyboard_mode_supported(&mode, peer_version, &platform) {
                 return mode.to_string();
@@ -423,7 +423,7 @@ impl<T: InvokeUiSession> Session<T> {
 
     #[cfg(not(target_os = "ios"))]
     pub fn is_text_clipboard_required(&self) -> bool {
-        *self.server_clipboard_enabled.read().unwrap()
+        * self.server_clipboard_enabled.read().unwrap()
             && *self.server_keyboard_enabled.read().unwrap()
             && !self.lc.read().unwrap().disable_clipboard.v
             && !self.lc.read().unwrap().view_only.v
@@ -432,7 +432,7 @@ impl<T: InvokeUiSession> Session<T> {
     #[cfg(any(target_os = "windows", feature = "unix-file-copy-paste"))]
     pub fn is_file_clipboard_required(&self) -> bool {
         let lc = self.lc.read().unwrap();
-        *self.server_keyboard_enabled.read().unwrap()
+        * self.server_keyboard_enabled.read().unwrap()
             && *self.server_file_transfer_enabled.read().unwrap()
             && lc.enable_file_copy_paste.v
             && !lc.view_only.v
@@ -499,7 +499,7 @@ impl<T: InvokeUiSession> Session<T> {
         if value != "custom" {
             let last_auto_fps = self.lc.read().unwrap().last_auto_fps;
             if last_auto_fps.unwrap_or(usize::MAX) >= 30 {
-                // non custom quality use 30 fps
+                // 非自定义画质使用 30 fps
                 let msg = self.lc.write().unwrap().set_custom_fps(30, false);
                 self.send(Data::Message(msg));
             }
@@ -592,7 +592,7 @@ impl<T: InvokeUiSession> Session<T> {
         let url = self.get_audit_server("conn".to_string());
         let id = self.get_id();
         let session_id = self.lc.read().unwrap().session_id;
-        *self.last_audit_note.lock().unwrap() = note.clone();
+        * self.last_audit_note.lock().unwrap() = note.clone();
         std::thread::spawn(move || {
             send_note(url, id, session_id, note);
         });
@@ -771,7 +771,7 @@ impl<T: InvokeUiSession> Session<T> {
     }
 
     pub fn send_key_event(&self, evt: &KeyEvent) {
-        // mode: legacy(0), map(1), translate(2), auto(3)
+        // mode：legacy(0)、map(1)、translate(2)、auto(3)
 
         let mut msg = evt.clone();
         self.swap_modifier_key(&mut msg);
@@ -791,7 +791,7 @@ impl<T: InvokeUiSession> Session<T> {
         self.send(Data::Message(msg_out));
     }
 
-    // Terminal methods
+    // 终端相关方法
     pub fn open_terminal(&self, terminal_id: i32, rows: u32, cols: u32) {
         let mut action = TerminalAction::new();
         action.set_open(OpenTerminal {
@@ -888,7 +888,7 @@ impl<T: InvokeUiSession> Session<T> {
         keyboard::client::change_grab_status(GrabState::Wait, &keyboard_mode, session_id);
     }
 
-    // flutter only TODO new input
+    // 仅 flutter 待办：新输入
     pub fn input_key(
         &self,
         name: &str,
@@ -974,7 +974,7 @@ impl<T: InvokeUiSession> Session<T> {
 
         #[cfg(not(target_os = "windows"))]
         let key = rdev::key_from_code(position_code) as rdev::Key;
-        // Windows requires special handling
+        // Windows 需要特殊处理
         #[cfg(target_os = "windows")]
         let key = rdev::get_win_key(platform_code, position_code);
 
@@ -1079,8 +1079,8 @@ impl<T: InvokeUiSession> Session<T> {
             target_os = "linux"
         )))]
         let platform_code: u32 = position_code as _;
-        // For translate mode.
-        // We need to set the platform code (keysym) if is AltGr.
+        // 用于 translate 模式。
+        // 如果是 AltGr，我们需要设置平台代码（keysym）。
         // https://github.com/rustdesk/rustdesk/blob/07cf1b4db5ef2f925efd3b16b87c33ce03c94809/src/keyboard.rs#L1029
         // https://github.com/flutter/flutter/issues/153811
         #[cfg(target_os = "linux")]
@@ -1099,7 +1099,7 @@ impl<T: InvokeUiSession> Session<T> {
                 Some(rdev::UnicodeInfo {
                     name: Some(character.to_string()),
                     unicode: character.encode_utf16().collect(),
-                    // is_dead: is not correct here, because flutter cannot detect deadcode for now.
+                    // is_dead：在这里并不正确，因为 flutter 目前无法检测死代码。
                     is_dead: false,
                 })
             },
@@ -1122,7 +1122,7 @@ impl<T: InvokeUiSession> Session<T> {
         );
     }
 
-    // flutter only TODO new input
+    // 仅 flutter 待办：新输入
     fn _input_key(
         &self,
         key: Key,
@@ -1254,7 +1254,7 @@ impl<T: InvokeUiSession> Session<T> {
             }
         }
 
-        // Compute event type once using MOUSE_TYPE_MASK for reuse
+        // 用 MOUSE_TYPE_MASK 一次性算出事件类型以便复用
         let event_type = mask & MOUSE_TYPE_MASK;
         let (x, y) = if event_type == MOUSE_TYPE_WHEEL || event_type == MOUSE_TYPE_TRACKPAD {
             self.get_scroll_xy((x, y))
@@ -1285,9 +1285,9 @@ impl<T: InvokeUiSession> Session<T> {
         }
 
         send_mouse(mask, x, y, alt, ctrl, shift, command, self);
-        // on macos, ctrl + left button down = right button down, up won't emit, so we need to
-        // emit up myself if peer is not macos
-        // to-do: how about ctrl + left from win to macos
+        // 在 macos 上，ctrl + 左键按下 = 右键按下，松开时不会发出事件，所以我们需要
+        // 在对端不是 macos 时自己发出松开事件
+        // 待办：从 win 到 macos 时 ctrl + 左键该怎么做
         if cfg!(target_os = "macos") {
             let buttons = mask >> 3;
             if buttons == MOUSE_BUTTON_LEFT
@@ -1309,9 +1309,9 @@ impl<T: InvokeUiSession> Session<T> {
     }
 
     pub fn reconnect(&self, force_relay: bool) {
-        // 1. If current session is connecting, do not reconnect.
-        // 2. If the connection is established, send `Data::Close`.
-        // 3. If the connection is disconnected, do nothing.
+        // 1. 如果当前会话正在连接中，不要重连。
+        // 2. 如果连接已建立，发送 `Data::Close`。
+        // 3. 如果连接已断开，什么都不做。
         let mut connection_round_state_lock = self.connection_round_state.lock().unwrap();
         if self.thread.lock().unwrap().is_some() {
             match connection_round_state_lock.state {
@@ -1325,22 +1325,22 @@ impl<T: InvokeUiSession> Session<T> {
 
         let cloned = self.clone();
 
-        // override only if true
+        // 只在为 true 时才覆盖
         if true == force_relay {
             let mut lc = self.lc.write().unwrap();
             lc.force_relay = true;
-            // An explicit retry-via-relay is a decision about this peer, not transport
-            // necessity: Relay-only ICE for this round like any force-always-relay session,
-            // and it is the one kind of relay that belongs in the peer's saved config.
+            // 显式选择经中继重试是针对这个对端的决定，而不是传输方式
+            // 上的必需性：这一轮使用仅中继的 ICE，就像任何强制始终中继的会话一样，
+            // 而这是唯一一种应该写进对端已保存配置的中继方式。
             lc.policy_relay = true;
             lc.peer_relay = true;
         }
         self.lc.write().unwrap().peer_info = None;
         self.reconnect_count.fetch_add(1, Ordering::SeqCst);
         let mut lock = self.thread.lock().unwrap();
-        // No need to join the previous thread, because it will exit automatically.
-        // And the previous thread will not change important states.
-        *lock = Some(std::thread::spawn(move || {
+        // 不需要 join 前一个线程，因为它会自动退出。
+        // 而且前一个线程不会改变重要的状态。
+        * lock = Some(std::thread::spawn(move || {
             io_loop(cloned, round);
         }));
     }
@@ -1452,7 +1452,7 @@ impl<T: InvokeUiSession> Session<T> {
             if let Some(stripped) = job_str.strip_suffix('}') {
                 format!(r#"{},"auto_start": true}}"#, stripped).into()
             } else {
-                // unreachable in normal cases
+                // 正常情况下不可达
                 log::warn!(
                     "The last character is not '}}': {}, auto start is ignored on flutter",
                     job_str
@@ -1468,7 +1468,7 @@ impl<T: InvokeUiSession> Session<T> {
         self.clear_all_jobs();
         let pc = self.load_config();
         if pc.transfer.write_jobs.is_empty() && pc.transfer.read_jobs.is_empty() {
-            // no last jobs
+            // 没有上次任务
             return;
         }
         let reconnect_count_thr = if cfg!(feature = "flutter") { 0 } else { 1 };
@@ -1569,7 +1569,7 @@ impl<T: InvokeUiSession> Session<T> {
                 ) {
                     Some((display.width, display.height))
                 } else {
-                    // display origin is changed, or some other events.
+                    // 显示源发生变化，或其他一些事件。
                     None
                 };
                 self.lc
@@ -1588,7 +1588,7 @@ impl<T: InvokeUiSession> Session<T> {
 
     #[inline]
     pub fn change_resolution(&self, display: i32, width: i32, height: i32) {
-        *self.last_change_display.lock().unwrap() =
+        * self.last_change_display.lock().unwrap() =
             ChangeDisplayRecord::new(display, width, height);
         self.do_change_resolution(display, width, height);
     }
@@ -1865,10 +1865,10 @@ impl<T: InvokeUiSession> Interface for Session<T> {
             );
         }
         self.update_privacy_mode();
-        // Clear audit_guid when connection is established successfully
-        *self.audit_guid.lock().unwrap() = String::new();
-        *self.last_audit_note.lock().unwrap() = String::new();
-        // Save recent peers, then push event to flutter. So flutter can refresh peer page.
+        // 连接成功建立时清除 audit_guid
+        * self.audit_guid.lock().unwrap() = String::new();
+        * self.last_audit_note.lock().unwrap() = String::new();
+        // 保存最近的对端，然后向 flutter 推送事件。这样 flutter 可以刷新对端页面。
         self.lc.write().unwrap().handle_peer_info(&pi);
         self.set_peer_info(&pi);
         if self.is_file_transfer() {
@@ -1980,7 +1980,7 @@ pub async fn io_loop<T: InvokeUiSession>(handler: Session<T>, round: u32) {
     let (sender, receiver) = mpsc::unbounded_channel::<Data>();
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let (sender, mut receiver) = mpsc::unbounded_channel::<Data>();
-    *handler.sender.write().unwrap() = Some(sender.clone());
+    * handler.sender.write().unwrap() = Some(sender.clone());
     let token = LocalConfig::get_option("access_token");
     let key = crate::get_key(false).await;
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

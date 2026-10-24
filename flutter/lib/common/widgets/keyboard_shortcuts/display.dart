@@ -5,15 +5,15 @@ import '../../../consts.dart';
 import '../../../models/platform_model.dart';
 import 'shortcut_utils.dart';
 
-/// Read the bindings JSON and produce a human-readable shortcut string for
-/// `actionId`, formatted for the current OS. Returns null if unbound, or —
-/// when [requireEnabled] is true (the default) — when the master toggle is
-/// off. The configuration page passes `requireEnabled: false` so users still
-/// see what they have bound while the feature is disabled.
+/// 读取绑定 JSON，为指定的动作生成易于阅读的快捷键字符串，
+/// `actionId` 按当前操作系统格式化。若未绑定则返回 null，或者——
+/// 当 [requireEnabled] 为 true（默认值）时——当主开关
+/// 处于关闭状态时。配置页面传入 `requireEnabled: false`，这样用户在功能禁用时
+/// 仍能看到自己绑定的按键。
 class ShortcutDisplay {
-  // Cache parsed JSON keyed by the raw string — called per visible action on
-  // every menu rebuild, so the jsonDecode is the real cost. Invalidation is
-  // automatic: a write changes the raw and we re-parse.
+  // 以原始字符串为键缓存解析后的 JSON —— 每次菜单重建时
+  // 都会针对每个可见动作调用，因此 jsonDecode 才是真正的开销。失效处理是
+  // 自动的：写入会改变原始字符串，我们就重新解析。
   static String? _cachedRaw;
   static Map<String, dynamic>? _cachedParsed;
 
@@ -40,10 +40,10 @@ class ShortcutDisplay {
     }
     if (parsed == null) return null;
     if (requireEnabled && parsed['enabled'] != true) return null;
-    // When pass-through is on, the matcher returns early on every keystroke.
-    // Showing the bound combo next to a menu item would lie to the user — they
-    // would press it expecting the local action and instead the keys would go
-    // to the remote. Treat as unbound for display purposes.
+    // 当透传开启时，匹配器会在每次按键时提前返回。
+    // 在菜单项旁显示已绑定的组合键会误导用户——他们
+    // 按下后会以为会触发本地动作，结果按键却会被发送到
+    // 远程端。显示时按未绑定处理。
     if (requireEnabled && parsed['pass_through'] == true) return null;
     final list = shortcutBindingMapsFrom(parsed['bindings']);
     final found = list.firstWhere(
@@ -52,27 +52,27 @@ class ShortcutDisplay {
     );
     if (found.isEmpty) return null;
 
-    // Guard against a hand-edited / corrupt config where `key` is missing or
-    // not a string — silently treat the binding as unbound rather than
-    // crashing the toolbar render.
+    // 防止手工编辑或损坏的配置中 `key` 缺失
+    // 或不是字符串 —— 静默地把该绑定视为未绑定，而不是
+    // 导致工具栏渲染崩溃。
     final keyValue = found['key'];
     if (keyValue is! String) return null;
 
     final isMac = defaultTargetPlatform == TargetPlatform.macOS ||
                   defaultTargetPlatform == TargetPlatform.iOS;
-    // `mods` similarly may be malformed; treat a non-list as no modifiers.
+    // `mods` 同样可能格式错误；把非列表视为没有修饰键。
     final modsRaw = found['mods'];
     final mods = modsRaw is List
         ? modsRaw.whereType<String>().toList()
         : const <String>[];
-    // Plain-text labels (Cmd / Ctrl / Alt / Shift) instead of Unicode glyphs
-    // (⌘ ⌃ ⌥ ⇧). Flutter Web's CanvasKit bundled fonts don't always carry the
-    // macOS modifier symbols, which renders as garbled boxes on Mac browsers;
-    // text is portable and readable on every platform.
+    // 使用纯文本标签（Cmd / Ctrl / Alt / Shift）而不是 Unicode 符号
+    // （⌘ ⌃ ⌥ ⇧）。Flutter Web 的 CanvasKit 内置字体并不总是包含
+    // macOS 的修饰键符号，在 Mac 浏览器上会显示成乱码方块；
+    // 文本在所有平台上都通用且易读。
     //
-    // Order matches the canonical macOS order (Cmd, Control, Option, Shift)
-    // so the rendered hint reads naturally. `ctrl` only ever appears in
-    // saved bindings on macOS — Win/Linux collapses Ctrl into `primary`.
+    // 顺序与 macOS 的标准顺序一致（Cmd, Control, Option, Shift），
+    // 这样渲染出的提示读起来才自然。`ctrl` 只出现在
+    // macOS 保存的绑定中 —— Win/Linux 会把 Ctrl 合并为 `primary`。
     final parts = <String>[];
     for (final m in ['primary', 'ctrl', 'alt', 'shift']) {
       if (!mods.contains(m)) continue;
@@ -105,7 +105,7 @@ class ShortcutDisplay {
       case 'insert':     return 'Ins';
     }
     if (key.startsWith('digit')) return key.substring(5);
-    // F-keys ("f1".."f12") and single letters fall through to uppercase.
+    // F 键（"f1".."f12"）和单个字母直接转为大写。
     return key.toUpperCase();
   }
 }

@@ -64,7 +64,7 @@ class GroupModel {
   Future<void> _pull() async {
     List<DeviceGroupPayload> tmpDeviceGroups = List.empty(growable: true);
     if (!await _getDeviceGroups(tmpDeviceGroups)) {
-      // old hbbs doesn't support this api
+      // 旧版 hbbs 不支持此 api
       // return;
     }
     tmpDeviceGroups.sort((a, b) => a.name.compareTo(b.name));
@@ -77,7 +77,7 @@ class GroupModel {
       return;
     }
     deviceGroups.value = tmpDeviceGroups;
-    // me first
+    // 自己优先
     var index = tmpUsers
         .indexWhere((user) => user.name == gFFI.userModel.userName.value);
     if (index != -1) {
@@ -89,7 +89,7 @@ class GroupModel {
         !deviceGroups.any((d) => d.name == selectedAccessibleItemName.value)) {
       selectedAccessibleItemName.value = '';
     }
-    // recover online
+    // 恢复在线状态
     final oldOnlineIDs = peers.where((e) => e.online).map((e) => e.id).toList();
     peers.value = tmpPeers;
     peers
@@ -150,7 +150,7 @@ class GroupModel {
       return true;
     } catch (err) {
       debugPrint('get accessible device groups: $err');
-      // old hbbs doesn't support this api
+      // 旧版 hbbs 不支持此 api
       // groupLoadError.value =
       //     '${translate('pull_group_failed_tip')}: ${translate(err.toString())}';
     }
@@ -368,7 +368,7 @@ class GroupModel {
 
   void _tryHandlePullError() {
     String errorMessage = groupLoadError.value;
-    // The error message is "Retrieving accessible devices is disabled."
+    // 错误信息为 "Retrieving accessible devices is disabled."
     if (errorMessage.toLowerCase().contains('disabled')) {
       users.clear();
       peers.clear();

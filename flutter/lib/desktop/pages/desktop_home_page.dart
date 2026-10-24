@@ -480,8 +480,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         return buildInstallCard("Permissions", "config_screen", "Configure",
             () async {
           bind.mainIsCanScreenRecording(prompt: true);
-          // macOS shows the request prompt only once per app, so later
-          // presses would do nothing without opening the settings pane.
+          // macOS 每个应用只显示一次授权请求提示，因此之后的
+          // 点击如果不打开设置面板将不会有任何反应。
           launchUrl(Uri.parse(
               'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'));
           watchIsCanScreenRecording = true;
@@ -506,7 +506,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           bind.mainIsInstalledDaemon(prompt: true);
         });
       }
-      //// Disable microphone configuration for macOS. We will request the permission when needed.
+      /// / 在 macOS 上禁用麦克风配置。我们会在需要时申请权限。
       // else if ((await osxCanRecordAudio() !=
       //     PermissionAuthorizeType.authorized)) {
       //   return buildInstallCard("Permissions", "config_microphone", "Configure",
@@ -521,7 +521,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       }
       final LinuxCards = <Widget>[];
       if (bind.isSelinuxEnforcing()) {
-        // Check is SELinux enforcing, but show user a tip of is SELinux enabled for simple.
+        // 检查 SELinux 是否处于 enforcing 状态，但为简单起见，只向用户提示 SELinux 是否已启用。
         final keyShowSelinuxHelpTip = "show-selinux-help-tip";
         if (bind.mainGetLocalOption(key: keyShowSelinuxHelpTip) != 'N') {
           LinuxCards.add(buildInstallCard(
@@ -726,8 +726,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       if (watchIsInputMonitoring) {
         if (bind.mainIsCanInputMonitoring(prompt: false)) {
           watchIsInputMonitoring = false;
-          // Do not notify for now.
-          // Monitoring may not take effect until the process is restarted.
+          // 暂时不做通知。
+          // 监控在进程重启前可能不会生效。
           // rustDeskWinManager.call(
           //     WindowType.RemoteDesktop, kWindowDisableGrabKeyboard, '');
           setState(() {});

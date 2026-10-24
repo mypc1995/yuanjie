@@ -169,7 +169,7 @@ void main() {
         expect(binding.keys, [
           (alt.$3, true, true),
           if (peer == kPeerPlatformWindows) ('VK_CONTROL', true, true),
-          // GTK reports Alt without a side on the letter event.
+          // GTK 在字母事件上报 Alt 时不带方向信息。
           ('VK_MENU', false, false),
           ('RAlt', false, false),
           if (peer == kPeerPlatformWindows) ('VK_CONTROL', false, false),

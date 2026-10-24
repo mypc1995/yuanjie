@@ -44,8 +44,8 @@ pub struct FileContentsResponse {
 
 #[derive(Debug)]
 struct PasteTaskProgress {
-    // Use list index to identify the file
-    // `list_index` is also used as the stream id
+    // 用列表索引来标识文件
+    // `list_index` 同时用作流 id
     list_index: i32,
     offset: u64,
     total_size: u64,
@@ -75,7 +75,7 @@ pub struct PasteTask {
 
 impl Drop for PasteTask {
     fn drop(&mut self) {
-        *self.exit.lock().unwrap() = true;
+        * self.exit.lock().unwrap() = true;
         if let Some(handle_worker) = self.handle_worker.take() {
             handle_worker.join().ok();
         }
@@ -127,8 +127,8 @@ impl PasteTask {
             target_dir,
             files,
         };
-        // Path validation and creation are not atomic. Local filesystem changes can
-        // invalidate checked paths, and entries created before an error are not rolled back.
+        // 路径校验与创建不是原子操作。本地文件系统的变更可能会
+        // 使已校验的路径失效，而且在出错之前创建的条目不会被回滚。
         if let Err(error) = task_handle
             .validate_paths()
             .and_then(|_| task_handle.update_next(0))
@@ -144,7 +144,7 @@ impl PasteTask {
                 task_handle.on_error(e);
             }
         }
-        *task_lock = Some(task_handle);
+        * task_lock = Some(task_handle);
     }
 
     pub fn cancel(&self) {
@@ -178,7 +178,7 @@ impl PasteTask {
                         }
 
                         if file_contents.stream_id != task_handle.progress.list_index {
-                            // ignore invalid stream id
+                            // 忽略无效的流 id
                             continue;
                         } else if file_contents.msg_flags != 0x01 {
                             retry_count += 1;
@@ -195,8 +195,8 @@ impl PasteTask {
                             let resp_list_index = file_contents.stream_id;
                             let Some(file) = &task_handle.files.get(resp_list_index as usize)
                             else {
-                                // unreachable
-                                // Because `task_handle.progress.list_index >= task_handle.files.len()` should always be false
+                                // 不可达
+                                // 因为 `task_handle.progress.list_index >= task_handle.files.len()` 应当始终为 false
                                 log::warn!(
                                     "Invalid response list index: {}, file length: {}",
                                     resp_list_index,
@@ -205,8 +205,8 @@ impl PasteTask {
                                 continue;
                             };
                             if file.conn_id != file_contents.conn_id {
-                                // unreachable
-                                // We still add log here to make sure we can see the error message when it happens.
+                                // 不可达
+                                // 我们仍在此处加一条日志，以确保出问题时能看到错误信息。
                                 log::error!(
                                     "Invalid response conn id: {}, expected: {}",
                                     file_contents.conn_id,
@@ -316,7 +316,7 @@ impl PasteTaskHandle {
                         })?;
                     }
                     FileType::Symlink => {
-                        // to-do: handle symlink
+                        // 待办：处理符号链接
                     }
                 }
             }
@@ -341,7 +341,7 @@ impl PasteTaskHandle {
         };
 
         let total_bytes = finder_progress_byte_count(self.progress.download_file_size)?;
-        // Finder can retain the legacy timestamp/xattr indicator after a single-chunk transfer.
+        // 在单块传输之后，Finder 可能仍保留旧式的时间戳/xattr 标记。
         autoreleasepool(|_| unsafe {
             let progress = NSProgress::discreteProgressWithTotalUnitCount(total_bytes);
             let url =
@@ -463,7 +463,7 @@ impl PasteTaskHandle {
                     }
                     FileType::Directory => format!("{} ({})", path, i),
                     FileType::Symlink => {
-                        // to-do: handle symlink
+                        // 待办：处理符号链接
                         return None;
                     }
                 };
@@ -472,7 +472,7 @@ impl PasteTaskHandle {
                 }
             }
         }
-        // unreachable
+        // 不可达
         None
     }
 
@@ -553,14 +553,14 @@ impl PasteTaskHandle {
             log::error!("Failed to flush file: {:?}", e);
         }
         self.progress.file_handle = None;
-        // Updating or unpublishing after rename can leave stale Finder/Dock progress.
+        // 重命名之后再更新或取消发布，可能留下过期的 Finder/Dock 进度信息。
         // https://crbug.com/40217637
         // https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/browser/download/download_status_updater_mac.mm
         self.update_progress_completed(Some(self.progress.download_file_size))?;
         self.remove_progress_completed();
 
         let Some(file_desc) = self.files.get(self.progress.download_file_index as usize) else {
-            // unreachable
+            // 不可达
             log::error!(
                 "Failed to get file description: {}",
                 self.progress.download_file_index
@@ -626,7 +626,7 @@ impl PasteTaskHandle {
         let stream_id = self.progress.list_index;
         let list_index = self.progress.list_index;
         let Some(file) = &self.files.get(list_index as usize) else {
-            // unreachable
+            // 不可达
             return Err(CliprdrError::InvalidRequest {
                 description: format!("Invalid file index: {}", list_index),
             });

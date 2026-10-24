@@ -149,7 +149,7 @@ impl Encoder {
                 Err(e) => {
                     log::error!("new hw encoder failed: {e:?}, clear config");
                     HwCodecConfig::clear(false, true);
-                    *ENCODE_CODEC_FORMAT.lock().unwrap() = CodecFormat::VP9;
+                    * ENCODE_CODEC_FORMAT.lock().unwrap() = CodecFormat::VP9;
                     Err(e)
                 }
             },
@@ -161,7 +161,7 @@ impl Encoder {
                 Err(e) => {
                     log::error!("new vram encoder failed: {e:?}, clear config");
                     HwCodecConfig::clear(true, true);
-                    *ENCODE_CODEC_FORMAT.lock().unwrap() = CodecFormat::VP9;
+                    * ENCODE_CODEC_FORMAT.lock().unwrap() = CodecFormat::VP9;
                     Err(e)
                 }
             },
@@ -246,14 +246,14 @@ impl Encoder {
             })
             .map(|(_, s)| s.prefer)
             .collect();
-        *USABLE_ENCODING.lock().unwrap() = Some(SupportedEncoding {
+        * USABLE_ENCODING.lock().unwrap() = Some(SupportedEncoding {
             vp8: vp8_useable,
             av1: av1_useable,
             h264: h264_useable,
             h265: h265_useable,
             ..Default::default()
         });
-        // find the most frequent preference
+        // 找出出现最频繁的偏好
         let mut counts = Vec::new();
         for pref in &preferences {
             match counts.iter_mut().find(|(p, _)| p == pref) {
@@ -290,7 +290,7 @@ impl Encoder {
             }
         }
 
-        *format = match preference {
+        * format = match preference {
             PreferCodec::VP8 => CodecFormat::VP8,
             PreferCodec::VP9 => CodecFormat::VP9,
             PreferCodec::AV1 => CodecFormat::AV1,
@@ -318,7 +318,7 @@ impl Encoder {
                 "connection count: {}, used preference: {:?}, encoder: {:?}",
                 decodings.len(),
                 preference,
-                *format
+                * format
             )
         }
     }
@@ -396,7 +396,7 @@ impl Encoder {
         let current = ENCODE_CODEC_FORMAT.lock().unwrap().clone();
         if current != format {
             log::info!("codec fallback: {:?} -> {:?}", current, format);
-            *ENCODE_CODEC_FORMAT.lock().unwrap() = format;
+            * ENCODE_CODEC_FORMAT.lock().unwrap() = format;
         }
     }
 
@@ -627,7 +627,7 @@ impl Decoder {
         self.valid
     }
 
-    // rgb [in/out] fmt and stride must be set in ImageRgb
+    // rgb 的 [in/out] fmt 和 stride 必须在 ImageRgb 中设置
     pub fn handle_video_frame(
         &mut self,
         frame: &video_frame::Union,
@@ -660,10 +660,10 @@ impl Decoder {
             }
             #[cfg(any(feature = "hwcodec", feature = "vram"))]
             video_frame::Union::H264s(h264s) => {
-                *chroma = Some(Chroma::I420);
+                * chroma = Some(Chroma::I420);
                 #[cfg(feature = "vram")]
                 if let Some(decoder) = &mut self.h264_vram {
-                    *_pixelbuffer = false;
+                    * _pixelbuffer = false;
                     return Decoder::handle_vram_video_frame(decoder, h264s, _texture);
                 }
                 #[cfg(feature = "hwcodec")]
@@ -674,10 +674,10 @@ impl Decoder {
             }
             #[cfg(any(feature = "hwcodec", feature = "vram"))]
             video_frame::Union::H265s(h265s) => {
-                *chroma = Some(Chroma::I420);
+                * chroma = Some(Chroma::I420);
                 #[cfg(feature = "vram")]
                 if let Some(decoder) = &mut self.h265_vram {
-                    *_pixelbuffer = false;
+                    * _pixelbuffer = false;
                     return Decoder::handle_vram_video_frame(decoder, h265s, _texture);
                 }
                 #[cfg(feature = "hwcodec")]
@@ -688,7 +688,7 @@ impl Decoder {
             }
             #[cfg(feature = "mediacodec")]
             video_frame::Union::H264s(h264s) => {
-                *chroma = Some(Chroma::I420);
+                * chroma = Some(Chroma::I420);
                 if let Some(decoder) = &mut self.h264_media_codec {
                     Decoder::handle_mediacodec_video_frame(decoder, h264s, rgb)
                 } else {
@@ -697,7 +697,7 @@ impl Decoder {
             }
             #[cfg(feature = "mediacodec")]
             video_frame::Union::H265s(h265s) => {
-                *chroma = Some(Chroma::I420);
+                * chroma = Some(Chroma::I420);
                 if let Some(decoder) = &mut self.h265_media_codec {
                     Decoder::handle_mediacodec_video_frame(decoder, h265s, rgb)
                 } else {
@@ -708,7 +708,7 @@ impl Decoder {
         }
     }
 
-    // rgb [in/out] fmt and stride must be set in ImageRgb
+    // rgb 的 [in/out] fmt 和 stride 必须在 ImageRgb 中设置
     fn handle_vpxs_video_frame(
         decoder: &mut VpxDecoder,
         vpxs: &EncodedVideoFrames,
@@ -729,13 +729,13 @@ impl Decoder {
         if last_frame.is_null() {
             Ok(false)
         } else {
-            *chroma = Some(last_frame.chroma());
+            * chroma = Some(last_frame.chroma());
             last_frame.to(rgb);
             Ok(true)
         }
     }
 
-    // rgb [in/out] fmt and stride must be set in ImageRgb
+    // rgb 的 [in/out] fmt 和 stride 必须在 ImageRgb 中设置
     fn handle_av1s_video_frame(
         decoder: &mut AomDecoder,
         av1s: &EncodedVideoFrames,
@@ -756,13 +756,13 @@ impl Decoder {
         if last_frame.is_null() {
             Ok(false)
         } else {
-            *chroma = Some(last_frame.chroma());
+            * chroma = Some(last_frame.chroma());
             last_frame.to(rgb);
             Ok(true)
         }
     }
 
-    // rgb [in/out] fmt and stride must be set in ImageRgb
+    // rgb 的 [in/out] fmt 和 stride 必须在 ImageRgb 中设置
     #[cfg(feature = "hwcodec")]
     fn handle_hwram_video_frame(
         decoder: &mut HwRamDecoder,
@@ -791,7 +791,7 @@ impl Decoder {
         let mut ret = false;
         for h26x in frames.frames.iter() {
             for image in decoder.decode(&h26x.data)? {
-                *texture = ImageTexture {
+                * texture = ImageTexture {
                     texture: image.frame.texture,
                     w: image.frame.width as _,
                     h: image.frame.height as _,
@@ -802,7 +802,7 @@ impl Decoder {
         return Ok(ret);
     }
 
-    // rgb [in/out] fmt and stride must be set in ImageRgb
+    // rgb 的 [in/out] fmt 和 stride 必须在 ImageRgb 中设置
     #[cfg(feature = "mediacodec")]
     fn handle_mediacodec_video_frame(
         decoder: &mut MediaCodecDecoder,
@@ -998,7 +998,7 @@ pub fn codec_thread_num(limit: usize) -> usize {
     }
     res = std::cmp::min(res, max / 2);
     res = std::cmp::min(res, memory as usize / 2);
-    //  Use common thread count
+    //  使用通用的线程数
     res = match res {
         _ if res >= 64 => 64,
         _ if res >= 32 => 32,
@@ -1018,21 +1018,21 @@ pub fn codec_thread_num(limit: usize) -> usize {
     // libvpx: MAX_NUM_THREADS = 64
     // ffmpeg: MAX_AUTO_THREADS = 16
     res = std::cmp::min(res, limit);
-    // avoid frequent log
+    // 避免频繁打日志
     let log = match THREAD_LOG_TIME.lock().unwrap().clone() {
         Some(instant) => instant.elapsed().as_secs() > 1,
         None => true,
     };
     if log {
         log::info!("cpu num: {max}, {info}, available memory: {memory}G, codec thread: {res}");
-        *THREAD_LOG_TIME.lock().unwrap() = Some(Instant::now());
+        * THREAD_LOG_TIME.lock().unwrap() = Some(Instant::now());
     }
     res
 }
 
 fn disable_av1() -> bool {
-    // aom is very slow for x86 sciter version on windows x64
-    // disable it for all 32 bit platforms
+    // 在 windows x64 上，aom 对 x86 sciter 版本来说非常慢
+    // 对所有 32 位平台禁用它
     std::mem::size_of::<usize>() == 4
 }
 
@@ -1059,10 +1059,10 @@ pub fn test_av1() {
                     let mut rng = hbb_common::rand::thread_rng();
                     let mut bgra = vec![0u8; (width * height * 4) as usize];
                     let gradient = frame_index as f32 / frame_count as f32;
-                    // floating block
+                    // 浮点块
                     let x0 = (frame_index * move_step) % (width - block_size);
                     let y0 = (frame_index * move_step) % (height - block_size);
-                    // Fill the block with random colors
+                    // 用随机颜色填充该块
                     for y in 0..block_size {
                         for x in 0..block_size {
                             let index = (((y0 + y) * width + x0 + x) * 4) as usize;

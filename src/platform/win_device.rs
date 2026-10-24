@@ -146,7 +146,7 @@ pub unsafe fn install_driver(
         Reserved: 0,
     };
     if SetupDiCreateDeviceInfoW(
-        *dev_info,
+        * dev_info,
         class_name.as_ptr(),
         &class_guid,
         null_mut(),
@@ -159,7 +159,7 @@ pub unsafe fn install_driver(
     }
 
     if SetupDiSetDeviceRegistryPropertyW(
-        *dev_info,
+        * dev_info,
         &mut dev_info_data,
         SPDRP_HARDWAREID,
         hardware_id.as_ptr() as _,
@@ -188,7 +188,7 @@ pub unsafe fn install_driver(
             "UpdateDriverForPlugAndPlayDevicesW",
         ));
     }
-    *reboot_required = reboot_required_ == TRUE;
+    * reboot_required = reboot_required_ == TRUE;
 
     Ok(())
 }
@@ -200,7 +200,7 @@ unsafe fn is_same_hardware_id(
 ) -> Result<bool, DeviceError> {
     let mut cur_hardware_id = [0u16; MAX_DEVICE_ID_LEN];
     if SetupDiGetDeviceRegistryPropertyW(
-        **dev_info,
+        * *dev_info,
         devinfo_data,
         SPDRP_HARDWAREID,
         null_mut(),
@@ -282,7 +282,7 @@ pub unsafe fn uninstall_driver(
         };
 
         if SetupDiSetClassInstallParamsW(
-            *dev_info,
+            * dev_info,
             &mut devinfo_data,
             &mut remove_device_params.ClassInstallHeader,
             std::mem::size_of::<SP_REMOVEDEVICE_PARAMS>() as _,
@@ -318,7 +318,7 @@ pub unsafe fn uninstall_driver(
             );
         } else {
             if device_params.Flags & (DI_NEEDRESTART | DI_NEEDREBOOT) != 0 {
-                *reboot_required = true;
+                * reboot_required = true;
             }
         }
 
@@ -377,7 +377,7 @@ unsafe fn get_device_path(interface_guid: &GUID) -> Result<Vec<u16>, DeviceError
         Reserved: 0,
     };
     if SetupDiEnumDeviceInterfaces(
-        *dev_info,
+        * dev_info,
         null_mut(),
         interface_guid,
         0,
@@ -389,7 +389,7 @@ unsafe fn get_device_path(interface_guid: &GUID) -> Result<Vec<u16>, DeviceError
 
     let mut required_length = 0;
     if SetupDiGetDeviceInterfaceDetailW(
-        *dev_info,
+        * dev_info,
         &mut device_interface_data,
         null_mut(),
         0,
@@ -414,7 +414,7 @@ unsafe fn get_device_path(interface_guid: &GUID) -> Result<Vec<u16>, DeviceError
     (*device_interface_detail_data).cbSize =
         std::mem::size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as _;
     if SetupDiGetDeviceInterfaceDetailW(
-        *dev_info,
+        * dev_info,
         &mut device_interface_data,
         device_interface_detail_data,
         predicted_length,

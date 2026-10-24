@@ -9,15 +9,15 @@ use std::{
 };
 
 const LAYOUT_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
-// GNOME 46/Plasma 6.6 probes (200-400 initial samples): preparation p99 7-16 ms;
-// repeated refresh medians were 2-6 ms. KDE query outliers exceeded 100 ms,
-// so this limits input waiting while the background query continues.
+// GNOME 46/Plasma 6.6 探测（200-400 个初始采样）：准备阶段 p99 为 7-16 毫秒；
+// 重复刷新的中位数为 2-6 毫秒。KDE 查询的离群值超过 100 毫秒，
+// 因此这里限制输入的等待时间，同时让后台查询继续进行。
 const LAYOUT_INPUT_WAIT: Duration = Duration::from_millis(25);
 const LAYOUT_WARNING_INTERVAL: Duration = Duration::from_secs(5);
 
 lazy_static::lazy_static! {
     static ref REFRESH: Mutex<Refresh> = Mutex::new(Refresh::default());
-    // Only the first relevant input takes the startup query's completion receiver.
+    // 只有第一个相关输入会拿到启动查询的完成接收端。
     static ref PREWARM_RECEIVER: Mutex<Option<mpsc::Receiver<()>>> = Mutex::new(None);
     static ref CURRENT: RwLock<Result<Keymap, String>> =
         RwLock::new(Err("Uinput keyboard layout has not been detected".to_owned()));
@@ -27,7 +27,7 @@ lazy_static::lazy_static! {
 struct Refresh {
     checked: Option<Instant>,
     source: Option<Source>,
-    // Cover scheduling until the worker acquires REFRESH.
+    // 覆盖直到 worker 取得 REFRESH 之前的调度过程。
     running: bool,
 }
 
@@ -38,7 +38,7 @@ pub(in crate::server::uinput) fn prepare_layout(event: &KeyEvent) {
     let deadline = Instant::now() + LAYOUT_INPUT_WAIT;
     let receiver = {
         let mut prewarm = PREWARM_RECEIVER.lock().unwrap();
-        // Prefer a due refresh over an old, already-completed startup query.
+        // 优先使用已到期的刷新，而不是旧的、已经完成的启动查询。
         start_refresh().or(prewarm.take())
     };
     if let Some(receiver) = receiver {
@@ -47,16 +47,16 @@ pub(in crate::server::uinput) fn prepare_layout(event: &KeyEvent) {
 }
 
 pub(in crate::server::uinput) fn prewarm_layout() {
-    // Use server startup time for discovery before the first remote character.
-    // This reduces cold-start fallback; a still-pending query cannot guarantee readiness.
+    // 在第一个远端字符之前，用服务启动时间作为发现时刻。
+    // 这减少了冷启动时的回退；仍在等待中的查询无法保证就绪。
     let mut prewarm = PREWARM_RECEIVER.lock().unwrap();
     if let Some(receiver) = start_refresh() {
-        *prewarm = Some(receiver);
+        * prewarm = Some(receiver);
     }
 }
 
 fn start_refresh() -> Option<mpsc::Receiver<()>> {
-    // A stalled desktop query must not block later input or spawn more workers.
+    // 卡住的桌面查询不得阻塞后续输入，也不得产生更多 worker。
     let mut refresh = match REFRESH.try_lock() {
         Ok(refresh) => refresh,
         Err(TryLockError::WouldBlock) => return None,
@@ -103,7 +103,7 @@ fn refresh_layout(completed: mpsc::Sender<()>) {
         let retained = {
             let mut current = CURRENT.write().unwrap();
             if current.is_err() {
-                *current = Err(error.to_string());
+                * current = Err(error.to_string());
             }
             current.is_ok()
         };
@@ -118,7 +118,7 @@ fn refresh_layout(completed: mpsc::Sender<()>) {
     refresh.checked = Some(Instant::now());
     refresh.running = false;
     drop(refresh);
-    // An input timeout drops its receiver but leaves this worker running.
+    // 输入超时只会丢弃它的接收端，但会让这个 worker 继续运行。
     if completed.send(()).is_err() {
         hbb_common::log::trace!("Uinput layout refresh finished without an input waiter");
     }
@@ -145,9 +145,9 @@ impl Refresh {
     fn update(&mut self) -> ResultType<()> {
         let source = Source::read().map_err(|error| {
             if error.is::<super::source::UnreliableSource>() {
-                // Unlike a transient query failure, this invalidates the old map.
+                // 与瞬时的查询失败不同，这会使旧映射失效。
                 self.source = None;
-                *CURRENT.write().unwrap() = Err(error.to_string());
+                * CURRENT.write().unwrap() = Err(error.to_string());
             }
             error
         })?;
@@ -157,13 +157,13 @@ impl Refresh {
         let keymap = match Keymap::load(&source) {
             Ok(keymap) => keymap,
             Err(error) => {
-                // A newly observed layout cannot use the previous layout's map.
+                // 新观察到的布局不能使用上一个布局的映射。
                 self.source = None;
-                *CURRENT.write().unwrap() = Err(error.to_string());
+                * CURRENT.write().unwrap() = Err(error.to_string());
                 return Err(error);
             }
         };
-        *CURRENT.write().unwrap() = Ok(keymap);
+        * CURRENT.write().unwrap() = Ok(keymap);
         self.source = Some(source);
         Ok(())
     }
@@ -176,7 +176,7 @@ fn needs_layout(event: &KeyEvent) -> bool {
     }
     match &event.union {
         Some(key_event::Union::Seq(sequence)) => {
-            // Translate shortcuts use Key::Layout even for non-ASCII text.
+            // 即使是非 ASCII 文本，Translate 快捷键也使用 Key::Layout。
             !sequence.is_empty()
                 && (mode == KeyboardMode::Translate || sequence.chars().all(is_ascii_printable))
         }
@@ -224,8 +224,8 @@ pub(in crate::server::uinput) fn resolve(
         }
     };
     let index = usize::from(locks.0) * CAPS_LOCK_BIT + usize::from(locks.1) * NUM_LOCK_BIT;
-    // Letter shortcuts keep their physical key even when Shift changes case.
-    // Other shortcuts prefer a symbol compatible with the caller's held Shift.
+    // 即使 Shift 改变了大小写，字母快捷键仍保留其物理按键。
+    // 其他快捷键则优先选择与调用方按住的 Shift 相兼容的符号。
     let shifted = (shortcut_shift == Some(true) && !character.is_alphabetic())
         .then(|| keymap.maps[index | SHIFT_BIT].get(&character))
         .flatten();
@@ -239,8 +239,8 @@ pub(in crate::server::uinput) fn resolve(
 }
 
 fn legacy_shortcut(character: char) -> ResultType<LayoutKey> {
-    // Uppercase letters must not synthesize Shift for a shortcut, but shifted
-    // punctuation still needs the legacy table's modifier.
+    // 大写字母不得为快捷键合成 Shift，但带 Shift 的
+    // 标点仍然需要旧版表中的修饰键。
     let (key, shift) =
         super::super::service::map_key(&enigo::Key::Layout(character.to_ascii_lowercase()))?;
     hbb_common::throttled_log!(

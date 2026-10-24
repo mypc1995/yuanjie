@@ -308,7 +308,7 @@ pub mod unix_file_clip {
                     log::error!("no file descriptor format found");
                     return vec![];
                 };
-                // sync file system from peer
+                // 从对端同步文件系统
                 let data = ClipboardFile::FormatDataRequest {
                     requested_format_id: file_descriptor_id,
                 };
@@ -328,7 +328,7 @@ pub mod unix_file_clip {
                         format_data,
                     })];
                 }
-                // empty file list, send failure message
+                // 文件列表为空，发送失败消息
                 return vec![msg_resp_format_data_failure()];
             }
             #[cfg(target_os = "linux")]
@@ -429,7 +429,7 @@ pub mod unix_file_clip {
                 title,
                 text,
             } => {
-                // unreachable, but still log it
+                // 不可达，但仍记录日志
                 log::debug!(
                     "notify callback: type: {}, title: {}, text: {}",
                     r#type,
@@ -475,7 +475,7 @@ mod tests {
             clip_data_id: 0,
         }));
 
-        // Messages that carry the peer's own clipboard files must stay allowed.
+        // 携带对端自身剪贴板文件的消息必须保持允许。
         assert!(!is_request(ClipboardFile::MonitorReady));
         assert!(!is_request(ClipboardFile::FormatList {
             format_list: vec![],

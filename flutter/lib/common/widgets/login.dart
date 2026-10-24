@@ -167,7 +167,7 @@ class _OidcAuthController {
     }
     final authAttempt = ++_authAttempt;
     curOP.value = op;
-    // Web auth must start during the original user gesture so popups are allowed.
+    // Web 认证必须在原始用户手势期间启动，这样才能允许弹出窗口。
     if (isWeb) {
       return _startWeb(authAttempt, op);
     }
@@ -669,7 +669,7 @@ class LoginWidgetUserPass extends StatelessWidget {
               reRequestFocus: true,
               errorText: passMsg,
             ),
-            // NOT use Offstage to wrap LinearProgressIndicator
+            // 不要用 Offstage 包裹 LinearProgressIndicator
             if (isInProgress) const LinearProgressIndicator(),
             const SizedBox(height: 12.0),
             FittedBox(
@@ -700,7 +700,7 @@ const kAuthReqTypeOidc = 'oidc/';
 
 Future<bool?>? _activeLoginDialog;
 
-// call this directly
+// 直接调用它
 Future<bool?> loginDialog() {
   final activeDialog = _activeLoginDialog;
   if (activeDialog != null) {
@@ -731,7 +731,7 @@ Future<bool?> _openLoginDialog() async {
   var isInProgress = false;
   final oidcAuth = _OidcAuthController();
   final curOP = oidcAuth.curOP;
-  // Track hover state for the close icon
+  // 跟踪关闭图标的悬停状态
   bool isCloseHovered = false;
 
   final loginOptions = [].obs;
@@ -804,9 +804,9 @@ Future<bool?> _openLoginDialog() async {
                   resp.user, resp.secret, isEmailVerification);
             } else {
               setState(() => isInProgress = false);
-              // Workaround for web, close the dialog first, then show the verification code dialog.
-              // Otherwise, the text field will keep selecting the text and we can't input the code.
-              // Not sure why this happens.
+              // 针对 web 的变通做法：先关闭对话框，再显示验证码对话框。
+              // 否则输入框会一直保持文本选中状态，我们无法输入验证码。
+              // 不确定为什么会这样。
               if (isWeb && close != null) close(null);
               final res = await verificationCodeDialog(
                   resp.user, resp.secret, isEmailVerification);
@@ -827,7 +827,7 @@ Future<bool?> _openLoginDialog() async {
       if (curOP.value.isNotEmpty || isInProgress) {
         return;
       }
-      // validate
+      // 校验
       if (username.text.isEmpty) {
         setState(() => usernameMsg = translate('Username missed'));
         return;
@@ -863,7 +863,7 @@ Future<bool?> _openLoginDialog() async {
             return Column(
               children: [
                 const SizedBox(height: 8.0),
-                // NOT use Offstage to wrap LinearProgressIndicator
+                // 不要用 Offstage 包裹 LinearProgressIndicator
                 if (inProgress) const LinearProgressIndicator(),
                 if (!inProgress && error is! RequestException)
                   Text(
@@ -913,7 +913,7 @@ Future<bool?> _openLoginDialog() async {
                   cbLogin: (Map<String, dynamic> authBody) async {
                     LoginResponse? resp;
                     try {
-                      // access_token is already stored in the rust side.
+                      // access_token 已经存储在 rust 侧。
                       resp =
                           gFFI.userModel.getLoginResponseFromAuthBody(authBody);
                     } catch (e) {
@@ -946,8 +946,8 @@ Future<bool?> _openLoginDialog() async {
             child: Icon(
               Icons.close,
               size: 25,
-              // No need to handle the branch of null.
-              // Because we can ensure the color is not null when debug.
+              // 无需处理 null 分支。
+              // 因为我们可以确保在 debug 模式下颜色不为 null。
               color: isCloseHovered
                   ? Colors.white
                   : Theme.of(context)
@@ -1091,7 +1091,7 @@ Future<bool?> verificationCodeDialog(
               },
             ),
             */
-            // NOT use Offstage to wrap LinearProgressIndicator
+            // 不要用 Offstage 包裹 LinearProgressIndicator
             if (isInProgress) const LinearProgressIndicator(),
           ],
         ),
@@ -1102,8 +1102,8 @@ Future<bool?> verificationCodeDialog(
           dialogButton("Verify", onPressed: getOnSubmit()),
         ]);
   });
-  // For verification code, desktop update other models in login dialog, mobile need to close login dialog first,
-  // otherwise the soft keyboard will jump out on each key press, so mobile update in verification code dialog.
+  // 对于验证码，桌面端在登录对话框中更新其他模型，移动端需要先关闭登录对话框，
+  // 否则每次按键都会弹出软键盘，所以移动端在验证码对话框中更新。
   if (isMobile && res == true) {
     await UserModel.updateOtherModels();
   }

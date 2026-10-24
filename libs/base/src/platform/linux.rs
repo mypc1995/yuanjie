@@ -1,6 +1,6 @@
 use hbb_common::ResultType;
-// Kept in hbb_common because `config::patch()` needs the shell lookup; re-exported
-// here so the long-standing `platform::linux::CMD_SH` paths are unchanged.
+// 保留在 hbb_common 中，因为 `config::patch()` 需要查找 shell；此处重新导出，
+// 以便长期沿用的 `platform::linux::CMD_SH` 路径保持不变。
 pub use hbb_common::sh::{run_cmds_trim_newline, CMD_LOGINCTL, CMD_PS, CMD_SH};
 use std::{
     collections::HashMap,
@@ -49,8 +49,8 @@ impl Distro {
     }
 }
 
-// Deprecated. Use `base::platform::linux::is_kde_session()` instead for now.
-// Or we need to set the correct environment variable in the server process.
+// 已废弃。暂时请改用 `base::platform::linux::is_kde_session()`。
+// 或者我们需要在服务端进程中设置正确的环境变量。
 #[inline]
 pub fn is_kde() -> bool {
     if let Ok(env) = std::env::var(XDG_CURRENT_DESKTOP) {
@@ -60,8 +60,8 @@ pub fn is_kde() -> bool {
     }
 }
 
-// Don't use `base::platform::linux::is_kde()` here.
-// It's not correct in the server process.
+// 此处不要使用 `base::platform::linux::is_kde()`。
+// 在服务端进程中它并不正确。
 pub fn is_kde_session() -> bool {
     std::process::Command::new(CMD_SH.as_str())
         .arg("-c")
@@ -92,21 +92,21 @@ pub fn is_x11_or_headless() -> bool {
 const INVALID_SESSION: &str = "4294967295";
 
 pub fn get_display_server() -> String {
-    // Check for forced display server environment variable first
+    // 先检查强制指定的显示服务器环境变量
     if let Ok(forced_display) = std::env::var("RUSTDESK_FORCED_DISPLAY_SERVER") {
         return forced_display;
     }
 
-    // Check if `loginctl` can be called successfully
+    // 检查 `loginctl` 是否能被成功调用
     if run_loginctl(None).is_err() {
         return DISPLAY_SERVER_X11.to_owned();
     }
 
     let mut session = get_values_of_seat0(&[0])[0].clone();
     if session.is_empty() {
-        // loginctl has not given the expected output.  try something else.
+        // loginctl 没有给出预期的输出。试试别的办法。
         if let Ok(sid) = std::env::var("XDG_SESSION_ID") {
-            // could also execute "cat /proc/self/sessionid"
+            // 也可以执行 "cat /proc/self/sessionid"
             session = sid;
         }
         if session.is_empty() {
@@ -126,7 +126,7 @@ pub fn get_display_server() -> String {
 pub fn get_display_server_of_session(session: &str) -> String {
     let mut display_server = if let Ok(output) =
         run_loginctl(Some(vec!["show-session", "-p", "Type", session]))
-    // Check session type of the session
+    // 检查该会话的会话类型
     {
         String::from_utf8_lossy(&output.stdout)
             .replace("Type=", "")
@@ -164,7 +164,7 @@ pub fn get_values_of_seat0_with_gdm_wayland(indices: &[usize]) -> Vec<String> {
     _get_values_of_seat0(indices, false)
 }
 
-// Ignore "3 sessions listed."
+// 忽略 "3 sessions listed."
 fn ignore_loginctl_line(line: &str) -> bool {
     line.contains("sessions") || line.split(" ").count() < 4
 }
@@ -191,7 +191,7 @@ fn _get_values_of_seat0(indices: &[usize], ignore_gdm_wayland: bool) -> Vec<Stri
             }
         }
 
-        // some case, there is no seat0 https://github.com/rustdesk/rustdesk/issues/73
+        // 某些情况下不存在 seat0 https://github.com/rustdesk/rustdesk/issues/73
         for line in String::from_utf8_lossy(&output.stdout).lines() {
             if ignore_loginctl_line(line) {
                 continue;
@@ -235,7 +235,7 @@ pub fn is_active_and_seat0(sid: &str) -> bool {
     }
 }
 
-// Check both "Lock" and "Switch user"
+// 同时检查 "Lock" 和 "Switch user"
 pub fn is_session_locked(sid: &str) -> bool {
     if let Ok(output) = run_loginctl(Some(vec!["show-session", sid, "--property=LockedHint"])) {
         String::from_utf8_lossy(&output.stdout).contains("LockedHint=yes")
@@ -244,8 +244,8 @@ pub fn is_session_locked(sid: &str) -> bool {
     }
 }
 
-// **Note** that the return value here, the last character is '\n'.
-// Use `run_cmds_trim_newline()` if you want to remove '\n' at the end.
+// **注意** 此处的返回值最后一个字符是 '\n'。
+// 如果想去掉末尾的 '\n'，请使用 `run_cmds_trim_newline()`。
 pub fn run_cmds(cmds: &str) -> ResultType<String> {
     let output = std::process::Command::new(CMD_SH.as_str())
         .args(vec!["-c", cmds])
@@ -273,7 +273,7 @@ fn run_loginctl(args: Option<Vec<&str>>) -> std::io::Result<std::process::Output
     cmd.output()
 }
 
-/// forever: may not work
+/// 永久：可能无效
 #[cfg(target_os = "linux")]
 pub fn system_message(title: &str, msg: &str, forever: bool) -> ResultType<()> {
     let cmds: HashMap<&str, Vec<&str>> = HashMap::from([
@@ -321,30 +321,30 @@ pub struct WaylandDisplayInfo {
     pub height: i32,
     pub logical_size: Option<(i32, i32)>,
     pub refresh_rate: i32,
-    /// Output rotation in degrees (0/90/180/270), from `wl_output.geometry`. The mode keeps its
-    /// unrotated dimensions and `logical_size` arrives already swapped, so without this field a
-    /// rotated output is indistinguishable from a scaled one. Flipped variants map to their
-    /// rotation. Defaulted so a serialized snapshot from an older probe child still deserializes.
+    /// 输出旋转角度（0/90/180/270），来自 `wl_output.geometry`。该 mode 保留其
+    /// 未旋转的尺寸，而 `logical_size` 到达时已经是交换过的，因此没有这个字段时
+    /// 旋转过的输出与缩放过的输出就无法区分。翻转变体会映射到它们的
+    /// 旋转角度。设有默认值，以便来自较旧探测子进程的序列化快照仍能反序列化。
     #[serde(default)]
     pub transform: i32,
 }
 
-/// The isolated socket-probe fallback, in its own file and behind the `wayland_probe` feature so
-/// the base Wayland path never compiles it. The DRM login-screen build turns it on.
+/// 隔离的 socket 探测回退方案，独立成文件并置于 `wayland_probe` 特性之后，因此
+/// 基础的 Wayland 路径绝不会编译到它。DRM 登录屏构建会开启它。
 #[cfg(feature = "wayland_probe")]
 pub mod wayland_probe;
 #[cfg(feature = "wayland_probe")]
 pub use wayland_probe::{wayland_display_probe_child_main, WAYLAND_DISPLAY_PROBE_ARG};
 
-// Retrieves information about all connected displays via the Wayland protocol.
+// 通过 Wayland 协议获取所有已连接显示器的信息。
 pub fn get_wayland_displays() -> ResultType<Vec<WaylandDisplayInfo>> {
-    // Read before connecting: `connect_to_env` consumes `WAYLAND_SOCKET`. Only the probe fallback
-    // needs this, so it is computed only when that feature is compiled in.
+    // 必须在连接之前读取：`connect_to_env` 会消耗掉 `WAYLAND_SOCKET`。只有探测回退方案
+    // 需要它，因此仅在编译了该特性时才计算。
     #[cfg(feature = "wayland_probe")]
     let named_endpoint = wayland_probe::env_names_wayland_endpoint();
     match Connection::connect_to_env() {
         Ok(conn) => collect_wayland_displays(&conn),
-        // Without the feature, the connect error is final, exactly as before this fallback existed.
+        // 没有该特性时，连接错误就是最终结果，与这个回退方案出现之前完全一致。
         #[cfg(not(feature = "wayland_probe"))]
         Err(err) => Err(err.into()),
         #[cfg(feature = "wayland_probe")]
@@ -353,11 +353,11 @@ pub fn get_wayland_displays() -> ResultType<Vec<WaylandDisplayInfo>> {
     }
 }
 
-/// `wl_output::Transform` as degrees. Flipped variants report their rotation ONLY: wayland
-/// defines them as a vertical-axis mirror followed by the rotation, and the mirror half is
-/// dropped here - a consumer correcting frames by this value serves a flipped output mirrored.
-/// Said once in the log rather than silently, because no compositor of ours produces a flipped
-/// output to measure the mirror half against; carrying it must wait for a measured producer.
+/// 以角度表示 `wl_output::Transform`。翻转变体只上报其旋转角度：wayland
+/// 把它们定义为绕垂直轴镜像后再旋转，而镜像这一半在这里
+/// 被丢弃 —— 用该值校正帧的消费方会把翻转输出再镜像一次。
+/// 在日志中说明一次而不是默默忽略，因为我们没有任何合成器会产生翻转的
+/// 输出来测量镜像那一半；要携带该信息，必须等出现能实测的生产者。
 fn transform_degrees(t: sctk::reexports::client::protocol::wl_output::Transform) -> i32 {
     use sctk::reexports::client::protocol::wl_output::Transform;
     match t {
@@ -433,10 +433,10 @@ fn collect_wayland_displays(conn: &Connection) -> ResultType<Vec<WaylandDisplayI
         if let Some(output_data) = output.data::<OutputData>() {
             output_data.with_output_info(|info| {
                 if let Some(mode) = info.modes.iter().find(|m| m.current) {
-                    // wlroots compositors leave wl_output.geometry at (0, 0) for every output and
-                    // publish the real layout only through xdg-output, so taking `location` there
-                    // stacks the whole desktop on the origin. Mutter fills both, so this stays a
-                    // no-op on GNOME.
+                    // wlroots 合成器会把每个输出的 wl_output.geometry 都留在 (0, 0)，
+                    // 只通过 xdg-output 发布真实布局，因此从那里取 `location`
+                    // 会让整个桌面堆叠在原点上。Mutter 会同时填写两者，因此这在 GNOME 上仍是
+                    // 无操作。
                     let (x, y) = info.logical_position.unwrap_or(info.location);
                     let (width, height) = mode.dimensions;
                     let refresh_rate = mode.refresh_rate;
@@ -461,33 +461,33 @@ fn collect_wayland_displays(conn: &Connection) -> ResultType<Vec<WaylandDisplayI
     Ok(display_infos)
 }
 
-/// Escape a string for safe use in shell commands by wrapping in single quotes.
+/// 把字符串用单引号包裹，进行转义以便安全地用于 shell 命令。
 ///
-/// This function handles the edge case of single quotes within the string by:
-/// 1. Ending the current single-quoted section
-/// 2. Adding an escaped single quote
-/// 3. Starting a new single-quoted section
+/// 此函数通过以下方式处理字符串中含单引号的边界情况：
+/// 1. 结束当前的单引号片段
+/// 2. 添加一个转义的单引号
+/// 3. 开始新的单引号片段
 ///
-/// Example: "it's here" -> "'it'\''s here'"
+/// 示例："it's here" -> "'it'\''s here'"
 #[inline]
 pub fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace("'", "'\\''"))
 }
 
-/// Get the current user's home directory via getpwuid (trusted source).
+/// 通过 getpwuid 获取当前用户的主目录（可信来源）。
 ///
-/// This function uses the system's password database (via `getpwuid`) to retrieve
-/// the home directory, avoiding the security risk of relying on the `HOME`
-/// environment variable which can be manipulated by untrusted input.
+/// 此函数使用系统的口令数据库（通过 `getpwuid`）来获取
+/// 主目录，从而避免了依赖 `HOME` 所带来的安全风险 ——
+/// 该环境变量可能被不可信输入操纵。
 ///
-/// # Returns
-/// - `Some(PathBuf)` if the home directory was found and exists
-/// - `None` if the user lookup failed or the directory doesn't exist
+/// # 返回值
+/// - 若找到主目录且其存在，则为 `Some(PathBuf)`
+/// - 若用户查询失败或目录不存在，则为 `None`
 ///
-/// # Security
-/// This function is designed to be safe against confused-deputy attacks where
-/// an attacker might manipulate environment variables to influence privileged
-/// operations.
+/// # 安全性
+/// 此函数的设计旨在抵御混淆代理（confused-deputy）攻击，即攻击者
+/// 可能操纵环境变量来影响特权
+/// 操作。
 pub fn get_home_dir_trusted() -> Option<PathBuf> {
     let uid = get_current_uid();
     match get_user_by_uid(uid) {
@@ -515,22 +515,22 @@ pub fn get_home_dir_trusted() -> Option<PathBuf> {
 mod tests {
     use super::*;
 
-    /// Test get_home_dir_trusted: returns valid path and ignores HOME env var
+    /// 测试 get_home_dir_trusted：返回有效路径并忽略 HOME 环境变量
     #[test]
     fn test_get_home_dir_trusted() {
         let original_home = std::env::var("HOME").ok();
 
-        // Set HOME to a fake/malicious path
+        // 把 HOME 设置为一个伪造/恶意路径
         std::env::set_var("HOME", "/tmp/fake_malicious_home");
         let result = get_home_dir_trusted();
 
-        // Restore original HOME
+        // 恢复原来的 HOME
         match original_home {
             Some(home) => std::env::set_var("HOME", home),
             None => std::env::remove_var("HOME"),
         }
 
-        // Verify: returns valid path that is NOT the fake HOME
+        // 验证：返回的路径有效，且不是伪造的 HOME
         if let Some(path) = result {
             assert!(path.is_absolute(), "Path should be absolute: {:?}", path);
             assert!(path.is_dir(), "Path should be a directory: {:?}", path);
@@ -542,17 +542,17 @@ mod tests {
         }
     }
 
-    /// Test shell_quote with single quotes (the tricky case)
+    /// 用单引号测试 shell_quote（棘手的情况）
     #[test]
     fn test_shell_quote_single_quotes() {
         assert_eq!(shell_quote("it's"), "'it'\\''s'");
         assert_eq!(shell_quote("don't stop"), "'don'\\''t stop'");
     }
 
-    /// Test shell_quote with shell metacharacters
+    /// 用 shell 元字符测试 shell_quote
     #[test]
     fn test_shell_quote_metacharacters() {
-        // These should all be safely quoted
+        // 这些都应当被安全地加引号
         assert_eq!(shell_quote("test;rm -rf /"), "'test;rm -rf /'");
         assert_eq!(shell_quote("$(whoami)"), "'$(whoami)'");
         assert_eq!(shell_quote("`id`"), "'`id`'");

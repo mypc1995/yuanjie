@@ -59,7 +59,7 @@ async fn exchange<S: AsyncRead + AsyncWrite + Unpin>(
 #[tokio::test]
 async fn native_tls_wss_bidirectional_transfer_through_proxy_buffers() {
     for outer_tls in [TlsType::Plain, TlsType::Rustls, TlsType::NativeTls] {
-        // A 4 KiB pipe forces backpressure while both sides send 4 MiB.
+        // 4 KiB 的管道在双方各发送 4 MiB 时会强制产生背压。
         let (client, server) = duplex(4096);
         let server = async {
             let mut stream = DynTcpStream(Box::new(server));

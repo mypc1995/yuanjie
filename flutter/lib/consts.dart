@@ -42,10 +42,10 @@ const String kPeerPlatformWebDesktop = "WebDesktop";
 
 const double kScrollbarThickness = 12.0;
 
-/// [kAppTypeMain] used by 'Desktop Main Page' , 'Mobile (Client and Server)', "Install Page"
+/// [kAppTypeMain] 被 'Desktop Main Page'、'Mobile (Client and Server)'、"Install Page" 使用
 const String kAppTypeMain = "main";
 
-/// [kAppTypeConnectionManager] only for 'Desktop CM Page'
+/// [kAppTypeConnectionManager] 仅用于 'Desktop CM Page'
 const String kAppTypeConnectionManager = "cm";
 
 const String kAppTypeDesktopRemote = "remote";
@@ -57,7 +57,7 @@ const String kAppTypeDesktopTerminal = "terminal";
 const String kWindowMainWindowOnTop = "main_window_on_top";
 const String kWindowRefreshCurrentUser = "refresh_current_user";
 const String kWindowGetScreenList = "get_screen_list";
-// This method is not used, maybe it can be removed.
+// 此方法未被使用，也许可以删除。
 const String kWindowDisableGrabKeyboard = "disable_grab_keyboard";
 const String kWindowActionRebuild = "rebuild";
 const String kWindowEventHide = "hide";
@@ -193,13 +193,13 @@ const String kOptionAllowMonitorSwitchMinToolbar = "allow-monitor-switch-min-too
 const String kOptionEnableShowTerminalExtraKeys = "enable-show-terminal-extra-keys";
 const String kOptionShowTerminalCtrlKeys = "show-terminal-extra-ctrl-keys";
 
-// network options
+// 网络选项
 const String kOptionAllowWebSocket = "allow-websocket";
 const String kOptionAllowInsecureTLSFallback = "allow-insecure-tls-fallback";
 const String kOptionDisableUdp = "disable-udp";
 const String kOptionEnableFlutterHttpOnRust = "enable-flutter-http-on-rust";
 
-// builtin options
+// 内置选项
 const String kOptionHideServerSetting = "hide-server-settings";
 const String kOptionHideProxySetting = "hide-proxy-settings";
 const String kOptionHideWebSocketSetting = "hide-websocket-settings";
@@ -261,7 +261,7 @@ const String kKeyReverseMouseWheel = "reverse_mouse_wheel";
 
 const String kMsgboxTextWaitingForImage = 'Connected, waiting for image...';
 
-// the executable name of the portable version
+// 便携版可执行文件的名称
 const String kEnvPortableExecutable = "RUSTDESK_APPNAME";
 
 const Color kColorWarn = Color.fromARGB(255, 245, 133, 59);
@@ -288,40 +288,40 @@ const double kDefaultQuality = 50;
 const double kMaxQuality = 100;
 const double kMaxMoreQuality = 2000;
 
-// trackpad speed
+// 触控板速度
 const String kKeyTrackpadSpeed = 'trackpad-speed';
 const int kMinTrackpadSpeed = 10;
 const int kDefaultTrackpadSpeed = 100;
 const int kMaxTrackpadSpeed = 1000;
 
-// relative mouse mode
-/// Throttle duration (in milliseconds) for updating pointer lock center during
-/// window move/resize events. Lower values provide more responsive updates but
-/// may cause performance issues during rapid window operations.
+// 相对鼠标模式
+/// 窗口移动/缩放事件中更新指针锁定中心的节流时长（毫秒）
+/// 窗口移动/缩放事件。较小的值更新更及时，但
+/// 在频繁操作窗口时可能带来性能问题。
 const int kDefaultPointerLockCenterThrottleMs = 100;
 
-/// Minimum server version required for relative mouse mode (MOUSE_TYPE_MOVE_RELATIVE).
-/// Servers older than this version will ignore relative mouse events.
+/// 相对鼠标模式（MOUSE_TYPE_MOVE_RELATIVE）所需的最低服务器版本。
+/// 低于该版本的服务器会忽略相对鼠标事件。
 ///
-/// IMPORTANT: This value must be kept in sync with the Rust constant
-/// `MIN_VERSION_RELATIVE_MOUSE_MODE` in `src/common.rs`.
+/// 重要：该值必须与 Rust 常量保持同步，
+/// 即 `src/common.rs` 中的 `MIN_VERSION_RELATIVE_MOUSE_MODE`。
 const String kMinVersionForRelativeMouseMode = '1.4.5';
 
-/// Maximum delta value for relative mouse movement.
-/// Large values could cause issues with i32 overflow on server side,
-/// and no reasonable mouse movement should exceed this bound.
+/// 相对鼠标移动的最大增量值。
+/// 过大的值可能在服务端引发 i32 溢出问题，
+/// 且正常的鼠标移动不应超过该上限。
 ///
-/// IMPORTANT: This value must be kept in sync with the Rust constant
-/// `MAX_RELATIVE_MOUSE_DELTA` in `src/server/input_service.rs`.
+/// 重要：该值必须与 Rust 常量保持同步，
+/// 即 `src/server/input_service.rs` 中的 `MAX_RELATIVE_MOUSE_DELTA`。
 const int kMaxRelativeMouseDelta = 10000;
 
-/// Debounce duration (in milliseconds) for relative mouse mode toggle.
-/// This prevents double-toggle from race condition between Rust rdev grab loop
-/// and Flutter keyboard handling. Value should be small enough to allow
-/// intentional quick toggles but large enough to prevent accidental double-triggers.
+/// 相对鼠标模式切换的去抖时长（毫秒）。
+/// 这可以避免 Rust rdev 抓取循环
+/// 与 Flutter 键盘处理之间的竞态导致重复切换。该值应足够小，以允许
+/// 有意为之的快速切换，同时又足够大，以防意外重复触发。
 const int kRelativeMouseModeToggleDebounceMs = 150;
 
-// incomming (should be incoming) is kept, because change it will break the previous setting.
+// 保留 incomming（正确拼写应为 incoming），因为改名会破坏之前的设置。
 const String kKeyPrinterIncomingJobAction = 'printer-incomming-job-action';
 const String kValuePrinterIncomingJobDismiss = 'dismiss';
 const String kValuePrinterIncomingJobDefault = '';
@@ -353,17 +353,17 @@ extension StringExtension on String {
 
 const Size kConnectionManagerWindowSizeClosedChat = Size(300, 490);
 const Size kConnectionManagerWindowSizeOpenChat = Size(700, 490);
-// Tabbar transition duration, now we remove the duration
+// 标签栏过渡时长，现在已去掉该时长
 const Duration kTabTransitionDuration = Duration.zero;
 const double kEmptyMarginTop = 50;
 const double kDesktopIconButtonSplashRadius = 20;
 
-/// [kMinCursorSize] indicates min cursor (w, h)
+/// [kMinCursorSize] 表示最小光标尺寸（宽、高）
 const int kMinCursorSize = 12;
 
 const kFullScreenEdgeSize = 0.0;
 const kMaximizeEdgeSize = 0.0;
-// Do not use kWindowResizeEdgeSize directly. Use `windowResizeEdgeSize` in `common.dart` instead.
+// 不要直接使用 kWindowResizeEdgeSize，请改用 `common.dart` 中的 `windowResizeEdgeSize`。
 const kWindowResizeEdgeSize = 5.0;
 final kWindowBorderWidth = isWindows ? 0.0 : 1.0;
 const kDesktopMenuPadding = EdgeInsets.only(left: 12.0, right: 3.0);
@@ -375,52 +375,52 @@ const kFrameBoxShadowOffsetUnfocused = 2.0;
 
 const kInvalidValueStr = 'InvalidValueStr';
 
-// Config key shared by flutter and other ui.
+// flutter 与其他界面共享的配置项名。
 const kCommConfKeyTheme = 'theme';
 const kCommConfKeyLang = 'lang';
 
 const kMobilePageConstraints = BoxConstraints(maxWidth: 600);
 
-/// [kMouseControlDistance] indicates the distance that self-side move to get control of mouse.
+/// [kMouseControlDistance] 表示本端移动多远可获取鼠标控制权。
 const kMouseControlDistance = 12;
 
-/// [kMouseControlTimeoutMSec] indicates the timeout (in milliseconds) that self-side can get control of mouse.
+/// [kMouseControlTimeoutMSec] 表示本端获取鼠标控制权的超时时间（毫秒）。
 const kMouseControlTimeoutMSec = 1000;
 
-/// [kRemoteViewStyleOriginal] Show remote image without scaling.
+/// [kRemoteViewStyleOriginal] 不缩放显示远端画面。
 const kRemoteViewStyleOriginal = 'original';
 
-/// [kRemoteViewStyleAdaptive] Show remote image scaling by ratio factor.
+/// [kRemoteViewStyleAdaptive] 按比例系数缩放显示远端画面。
 const kRemoteViewStyleAdaptive = 'adaptive';
 
-/// [kRemoteViewStyleCustom] Show remote image at a user-defined scale percent.
+/// [kRemoteViewStyleCustom] 按用户自定义的缩放百分比显示远端画面。
 const kRemoteViewStyleCustom = 'custom';
 
-/// [kRemoteScrollStyleAuto] Scroll image auto by position.
+/// [kRemoteScrollStyleAuto] 按位置自动滚动画面。
 const kRemoteScrollStyleAuto = 'scrollauto';
 
-/// [kRemoteScrollStyleBar] Scroll image with scroll bar.
+/// [kRemoteScrollStyleBar] 使用滚动条滚动画面。
 const kRemoteScrollStyleBar = 'scrollbar';
 
-/// [kRemoteScrollStyleEdge] Scroll image auto at edges.
+/// [kRemoteScrollStyleEdge] 到达边缘时自动滚动画面。
 const kRemoteScrollStyleEdge = 'scrolledge';
 
-/// [kScrollModeDefault] Mouse or touchpad, the default scroll mode.
+/// [kScrollModeDefault] 鼠标或触控板，默认滚动模式。
 const kScrollModeDefault = 'default';
 
-/// [kScrollModeReverse] Mouse or touchpad, the reverse scroll mode.
+/// [kScrollModeReverse] 鼠标或触控板，反向滚动模式。
 const kScrollModeReverse = 'reverse';
 
-/// [kRemoteImageQualityBest] Best image quality.
+/// [kRemoteImageQualityBest] 最佳画质。
 const kRemoteImageQualityBest = 'best';
 
-/// [kRemoteImageQualityBalanced] Balanced image quality, mid performance.
+/// [kRemoteImageQualityBalanced] 画质与性能均衡。
 const kRemoteImageQualityBalanced = 'balanced';
 
-/// [kRemoteImageQualityLow] Low image quality, better performance.
+/// [kRemoteImageQualityLow] 画质较低，性能更好。
 const kRemoteImageQualityLow = 'low';
 
-/// [kRemoteImageQualityCustom] Custom image quality.
+/// [kRemoteImageQualityCustom] 自定义画质。
 const kRemoteImageQualityCustom = 'custom';
 
 const kIgnoreDpi = true;
@@ -431,7 +431,7 @@ const Set<PointerDeviceKind> kTouchBasedDeviceKinds = {
   PointerDeviceKind.invertedStylus,
 };
 
-// Scale custom related constants
+// 自定义缩放相关的常量
 const String kCustomScalePercentKey =
     'custom_scale_percent'; // Flutter option key for storing custom scale percent (integer 5-1000)
 const int kScaleCustomMinPercent = 5;
@@ -442,13 +442,13 @@ const double kScaleCustomDetentEpsilon =
     0.006; // snap range around pivot (~0.6%)
 const Duration kDebounceCustomScaleDuration = Duration(milliseconds: 300);
 
-// ================================ mobile ================================
+// ================================ 移动端 ================================
 
-// Magic numbers, maybe need to avoid it or use a better way to get them.
+// 魔法数字，或许应该避免它，或用更好的方式获取。
 const kMobileDelaySoftKeyboard = Duration(milliseconds: 30);
 const kMobileDelaySoftKeyboardFocus = Duration(milliseconds: 30);
 
-/// Android constants
+/// Android 常量
 const kActionApplicationDetailsSettings =
     "android.settings.APPLICATION_DETAILS_SETTINGS";
 const kActionAccessibilitySettings = "android.settings.ACCESSIBILITY_SETTINGS";
@@ -459,7 +459,7 @@ const kRequestIgnoreBatteryOptimizations =
 const kSystemAlertWindow = "android.permission.SYSTEM_ALERT_WINDOW";
 const kAndroid13Notification = "android.permission.POST_NOTIFICATIONS";
 
-/// Android channel invoke type key
+/// Android 通道调用类型键
 class AndroidChannel {
   static final kStartAction = "start_action";
   static final kGetStartOnBootOpt = "get_start_on_boot_opt";
@@ -474,7 +474,7 @@ class AndroidChannel {
 }
 
 /// flutter/packages/flutter/lib/src/services/keyboard_key.dart -> _keyLabels
-/// see [LogicalKeyboardKey.keyLabel]
+/// 参见 [LogicalKeyboardKey.keyLabel]
 const Map<int, String> logicalKeyMap = <int, String>{
   0x00000000020: 'VK_SPACE',
   0x00000000022: 'VK_QUOTE',
@@ -593,7 +593,7 @@ const Map<int, String> logicalKeyMap = <int, String>{
 };
 
 /// flutter/packages/flutter/lib/src/services/keyboard_key.dart -> _debugName
-/// see [PhysicalKeyboardKey.debugName] -> _debugName
+/// 参见 [PhysicalKeyboardKey.debugName] -> _debugName
 const Map<int, String> physicalKeyMap = <int, String>{
   0x00010082: 'VK_SLEEP',
   0x00070004: 'VK_A',
@@ -703,7 +703,7 @@ const Map<int, String> physicalKeyMap = <int, String>{
   0x000c0208: 'VK_PRINT',
 };
 
-/// The windows targets in the publish time order.
+/// 按发布时间顺序排列的 windows 目标平台。
 enum WindowsTarget {
   naw, // not a windows target
   xp,
@@ -715,7 +715,7 @@ enum WindowsTarget {
   w11
 }
 
-/// A convenient method to transform a build number to the corresponding windows version.
+/// 把 build number 转换为对应 windows 版本号的便捷方法。
 extension WindowsTargetExt on int {
   WindowsTarget get windowsVersion => getWindowsTarget(this);
 }

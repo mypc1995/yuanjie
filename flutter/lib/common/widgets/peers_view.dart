@@ -51,17 +51,17 @@ class PeersModelName {
   static const String group = 'group peer';
 }
 
-/// for peer search text, global obs value
+/// peer 搜索文本的全局 obs 值
 final peerSearchText = "".obs;
 
-/// for peer sort, global obs value
+/// peer 排序的全局 obs 值
 RxString? _peerSort;
 RxString get peerSort {
   _peerSort ??= bind.getLocalFlutterOption(k: kOptionPeerSorting).obs;
   return _peerSort!;
 }
 
-// list for listener
+// 用于监听的列表
 RxList<RxString> get obslist => [peerSearchText, peerSort].obs;
 
 final peerSearchTextController =
@@ -85,7 +85,7 @@ class _PeersView extends StatefulWidget {
   _PeersViewState createState() => _PeersViewState();
 }
 
-/// State for the peer widget.
+/// peer 控件的状态。
 class _PeersViewState extends State<_PeersView>
     with WindowListener, WidgetsBindingObserver {
   static const int _maxQueryCount = 3;
@@ -134,11 +134,11 @@ class _PeersViewState extends State<_PeersView>
 
   @override
   void onWindowBlur() {
-    // We need this comparison because window restore (on Windows) also triggers `onWindowBlur()`.
-    // Maybe it's a bug of the window manager, but the source code seems to be correct.
+    // 需要这个比较，因为窗口还原（在 Windows 上）也会触发 `onWindowBlur()`。
+    // 可能是窗口管理器的 bug，但源码看起来是正确的。
     //
-    // Although `onWindowRestore()` is called after `onWindowBlur()` in my test,
-    // we need the following comparison to ensure that `_isActive` is true in the end.
+    // 尽管在我的测试中 `onWindowRestore()` 是在 `onWindowBlur()` 之后被调用的，
+    // 我们仍需要下面的比较，以确保最终 `_isActive` 为 true。
     if (isWindows &&
         DateTime.now().difference(_lastWindowRestoreTime) <
             const Duration(milliseconds: 300)) {
@@ -150,8 +150,8 @@ class _PeersViewState extends State<_PeersView>
 
   @override
   void onWindowRestore() {
-    // Window restore (on MacOS and Linux) also triggers `onWindowFocus()`.
-    // But on Windows, it triggers `onWindowBlur()`, mybe it's a bug of the window manager.
+    // 窗口还原（在 MacOS 和 Linux 上）也会触发 `onWindowFocus()`。
+    // 但在 Windows 上它触发的是 `onWindowBlur()`，可能是窗口管理器的 bug。
     if (!isWindows) return;
     _queryCount = 0;
     _isActive = true;
@@ -160,11 +160,11 @@ class _PeersViewState extends State<_PeersView>
 
   @override
   void onWindowMinimize() {
-    // Window minimize also triggers `onWindowBlur()`.
+    // 窗口最小化也会触发 `onWindowBlur()`。
   }
 
-  // This function is required for mobile.
-  // `onWindowFocus` works fine for desktop.
+  // 该函数是移动端必需的。
+  // `onWindowFocus` 在桌面端工作正常。
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -179,9 +179,9 @@ class _PeersViewState extends State<_PeersView>
 
   @override
   Widget build(BuildContext context) {
-    // We should avoid too many rebuilds. MacOS(m1, 14.6.1) on Flutter 3.19.6.
-    // Continious rebuilds of `ChangeNotifierProvider` will cause memory leak.
-    // Simple demo can reproduce this issue.
+    // 我们应避免过多重建。MacOS(m1, 14.6.1)，Flutter 3.19.6。
+    // `ChangeNotifierProvider` 的持续重建会导致内存泄漏。
+    // 简单的 demo 可以复现该问题。
     return ChangeNotifierProvider<Peers>.value(
       value: widget.peers,
       child: Consumer<Peers>(builder: (context, peers, child) {
@@ -243,12 +243,12 @@ class _PeersViewState extends State<_PeersView>
                 onVisibilityChanged: onVisibilityChanged,
                 child: widget.peerCardBuilder(peer),
               );
-              // `Provider.of<PeerTabModel>(context)` will causes infinete loop.
-              // Because `gFFI.peerTabModel.setCurrentTabCachedPeers(peers)` will trigger `notifyListeners()`.
+              // `Provider.of<PeerTabModel>(context)` 会导致无限循环。
+              // 因为 `gFFI.peerTabModel.setCurrentTabCachedPeers(peers)` 会触发 `notifyListeners()`。
               //
-              // No need to listen the currentTab change event.
-              // Because the currentTab change event will trigger the peers change event,
-              // and the peers change event will trigger _buildPeersView().
+              // 无需监听 currentTab 变化事件。
+              // 因为 currentTab 变化事件会触发 peers 变化事件，
+              // 而 peers 变化事件又会触发 _buildPeersView()。
               return !isPortrait
                   ? Obx(() => peerCardUiType.value == PeerUiType.list
                       ? Container(height: 45, child: visibilityChild)
@@ -260,9 +260,9 @@ class _PeersViewState extends State<_PeersView>
                   : Container(child: visibilityChild);
             }
 
-            // We should avoid too many rebuilds. Win10(Some machines) on Flutter 3.19.6.
-            // Continious rebuilds of `ListView.builder` will cause memory leak.
-            // Simple demo can reproduce this issue.
+            // 我们应避免过多重建。Win10（部分机器），Flutter 3.19.6。
+            // `ListView.builder` 的持续重建会导致内存泄漏。
+            // 简单的 demo 可以复现该问题。
             final Widget child = Obx(() => stateGlobal.isPortrait.isTrue
                 ? ListView.builder(
                     itemCount: peers.length,
@@ -364,7 +364,7 @@ class _PeersViewState extends State<_PeersView>
       peers = peers.where((peer) => widget.peerFilter!(peer)).toList();
     }
 
-    // fallback to id sorting
+    // 回退为按 id 排序
     if (!PeerSortType.values.contains(sortedBy)) {
       sortedBy = PeerSortType.remoteId;
       bind.setLocalFlutterOption(
@@ -529,7 +529,7 @@ class AddressBookPeersView extends BasePeersView {
     if (selectedTags.isEmpty) {
       return true;
     }
-    // The result of a no-tag union with normal tags, still allows normal tags to perform union or intersection operations.
+    // 无标签与普通标签求并集的结果，仍然允许普通标签进行并集或交集运算。
     final selectedNormalTags =
         selectedTags.where((tag) => tag != kUntagged).toList();
     if (selectedTags.contains(kUntagged)) {

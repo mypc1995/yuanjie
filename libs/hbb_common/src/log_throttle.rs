@@ -1,19 +1,19 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// Collapses a log site whose call rate is set by someone else — a peer's message rate, or a
-/// retry loop — into at most one line per interval.
+/// 把调用频率由他人决定的日志点——比如对端的消息速率，或
+/// 某个重试循环——压缩为每个间隔最多一行。
 ///
-/// Debug output is written to the log file, so a site that fires per received packet lets a
-/// peer decide how much a machine writes to disk. Dropping the line entirely instead would
-/// hide real faults, so keep one line per interval and carry the count of everything
-/// suppressed since the last one.
+/// 调试输出会写入日志文件，因此一个每收到一个包就触发一次的日志点会让
+/// 对端决定一台机器向磁盘写入多少数据。若完全丢弃该行，则会
+/// 掩盖真实故障，因此每个间隔保留一行，并带上自上次以来被抑制的全部
+/// 次数。
 ///
-/// Prefer the [`throttled_log!`](crate::throttled_log) macro, which declares the static for
-/// you. Reach for this type directly only when the count belongs somewhere other than the end
-/// of the line, or when the decision drives more than a log call.
+/// 优先使用 [`throttled_log!`](crate::throttled_log) 宏，它会替你声明静态变量。
+/// 只有当计数要放在行的末尾之外的地方时，才直接使用这个类型，
+/// 或者当该计数还要驱动日志调用之外的行为时。
 ///
-/// Declare one per site (they do not share counts):
+/// 每个日志点声明一个（它们之间不共享计数）：
 ///
 /// ```ignore
 /// static DROPPED_ICE: LogThrottle = LogThrottle::new(Duration::from_secs(60));
@@ -43,22 +43,22 @@ impl LogThrottle {
         }
     }
 
-    /// Record one occurrence. Returns the number of occurrences to report (including this one)
-    /// when a line is due, or `None` while still inside the interval.
+    /// 记录一次发生。返回需要报告的发生次数（含本次）
+    /// （当该行到期时），若仍在间隔内则返回 `None`。
     ///
-    /// The first occurrence after a quiet period always reports, so an isolated fault is not
-    /// delayed by the interval.
+    /// 静默期后的第一次发生总是会上报，因此偶发故障不会
+    /// 被间隔延迟。
     pub fn due(&self) -> Option<u64> {
-        // A poisoned lock only means some other thread panicked while holding it; the guarded
-        // data is two plain counters that are still usable, and going silent for the rest of
-        // the process would be worse than a stale count.
+        // 锁中毒只意味着其他某个线程在持有它时 panic 了；被保护的
+        // 数据只是两个普通计数器，依然可用；而在此后整个进程生命周期内保持沉默
+        // 比一个过期的计数更糟糕。
         let mut state = self
             .state
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         state.suppressed += 1;
-        // `map_or(true, ..)` rather than clippy's preferred `is_none_or`: that was stabilized in
-        // Rust 1.82 and this crate builds on the 1.75 pinned by CI.
+        // 用 `map_or(true, ..)` 而不是 clippy 更偏好的 `is_none_or`：后者在
+        // Rust 1.82 才稳定，而本 crate 依赖 CI 固定的 1.75 版本构建。
         #[allow(clippy::unnecessary_map_or)]
         let due = state
             .last
@@ -71,18 +71,18 @@ impl LogThrottle {
     }
 }
 
-/// Log at most one line per interval from this call site, suffixed with the number of
-/// occurrences it stands for.
+/// 从该调用点每个间隔最多记录一行，并以后缀形式带上它所代表的
+/// 发生次数。
 ///
-/// Each expansion declares its own hidden static, so two sites never share a count and
-/// adding one is a single line:
+/// 每次展开都会声明自己的隐藏静态变量，因此两个日志点不会共享计数，
+/// 新增一个只需一行：
 ///
 /// ```ignore
 /// throttled_log!(Duration::from_secs(5), warn, "rejected ipc peer {peer_pid:?}");
 /// ```
 ///
-/// An isolated event logs unchanged; a burst collapses to `... (x47)`. The count includes
-/// the occurrence being reported, so it reads as a total rather than as "and N more".
+/// 偶发事件记录保持不变；一阵爆发会压缩为 `... (x47)`。该计数包含
+/// 正在上报的那一次发生，因此读起来是总数，而不是「还有 N 次」。
 #[macro_export]
 macro_rules! throttled_log {
     ($interval:expr, $level:ident, $($arg:tt)+) => {{
@@ -102,16 +102,16 @@ macro_rules! throttled_log {
 mod tests {
     use super::*;
 
-    // Two directions of one socket need two throttles: an ICMP error on a connected socket is
-    // reported once and cleared, so the steady state alternates (send succeeds, the next recv
-    // reports it) and anything shared between them is reset by the succeeding side every cycle.
+    // 同一个 socket 的两个方向需要两个节流器：已连接 socket 上的 ICMP 错误
+    // 只上报一次就会被清除，因此稳态是交替的（发送成功，下一次 recv
+    // 上报它），而它们之间共享的任何东西都会被成功的一方在每个周期重置。
     #[test]
     fn separate_throttles_do_not_reset_each_other() {
         let send = LogThrottle::new(Duration::from_secs(60));
         let recv = LogThrottle::new(Duration::from_secs(60));
         assert_eq!(recv.due(), Some(1));
         for _ in 0..1_000 {
-            // The send side succeeding must not hand the recv side a fresh emit slot.
+            // 发送侧成功不应给 recv 侧一个新的输出时机。
             assert_eq!(recv.due(), None);
         }
         assert_eq!(
@@ -140,7 +140,7 @@ mod tests {
     fn the_next_due_line_carries_everything_suppressed() {
         let t = LogThrottle::new(Duration::ZERO);
         assert_eq!(t.due(), Some(1));
-        // A zero interval is always due, so each call reports exactly itself.
+        // 间隔为 0 时总是到期，因此每次调用恰好上报自己。
         assert_eq!(t.due(), Some(1));
 
         let t = LogThrottle::new(Duration::from_millis(30));
@@ -148,7 +148,7 @@ mod tests {
         assert_eq!(t.due(), None);
         assert_eq!(t.due(), None);
         std::thread::sleep(Duration::from_millis(40));
-        // The two suppressed calls plus this one.
+        // 两次被抑制的调用加上这一次。
         assert_eq!(t.due(), Some(3));
     }
 }

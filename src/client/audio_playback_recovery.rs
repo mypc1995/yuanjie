@@ -9,7 +9,7 @@ use std::{
 
 const RECOVERY_INTERVAL: Duration = Duration::from_secs(1);
 pub(super) const STARTUP_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(5);
-// The pinned WASAPI backend reports this warning but keeps its worker running.
+// 固定版本的 WASAPI 后端会报告这个警告，但仍让其 worker 继续运行。
 const PRIORITY_WARNING_PREFIX: &str = "SetThreadPriority failed: ";
 
 #[path = "audio_playback_startup.rs"]
@@ -51,7 +51,7 @@ impl PlaybackRecovery {
 
 impl AudioHandler {
     fn clear_playback_stream(&mut self) {
-        // Dropping CPAL may join its worker; run this on the owner, not its callback.
+        // Drop CPAL 可能会 join 它的 worker；请在 owner 上运行这行，而不是在它的回调里。
         self.audio_stream = None;
         self.playback_recovery.report_pending();
         self.playback_status.report_errors();

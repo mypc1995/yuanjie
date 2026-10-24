@@ -75,11 +75,11 @@ pub trait PrivacyMode: Sync + Send {
         Ok(false)
     }
 
-    /// `INVALID_PRIVACY_MODE_CONN_ID` deliberately bypasses the ownership check, meaning
-    /// "turn it off whoever owns it": shutdown (`ipc::Data::Close`), `reset_all`, and
-    /// `TurnOnGuard`, which undoes a half-finished turn-on however far it got. A caller
-    /// acting for one connection must pass that connection's own id, or it can turn off
-    /// privacy mode belonging to another.
+    /// `INVALID_PRIVACY_MODE_CONN_ID` 有意绕过归属检查，意思是
+    /// “谁拥有它就关掉它”：关闭（`ipc::Data::Close`）、`reset_all`，以及
+    /// `TurnOnGuard`，它会撤销进行到一半的开启动作，无论进行到哪一步。代表某个
+    /// 连接行动的调用方必须传入该连接自己的 id，否则它可能关掉
+    /// 属于他人的隐私模式。
     #[inline]
     fn check_off_conn_id(&self, conn_id: i32) -> ResultType<()> {
         let pre_conn_id = self.pre_conn_id();
@@ -191,7 +191,7 @@ pub fn switch(impl_key: &str) {
     }
 
     if let Some(creator) = PRIVACY_MODE_CREATOR.lock().unwrap().get(impl_key) {
-        *privacy_mode_lock = Some(creator(impl_key));
+        * privacy_mode_lock = Some(creator(impl_key));
     }
 }
 
@@ -201,13 +201,13 @@ fn get_supported_impl(impl_key: &str) -> String {
         return impl_key.to_owned();
     };
     // TODO: Is it a good idea to use fallback here? Because user do not know the fallback.
-    // fallback
+    // 回退
     let mut cur_impl = get_option("privacy-mode-impl-key".to_owned());
     if !get_supported_privacy_mode_impl()
         .iter()
         .any(|(k, _)| k == &cur_impl)
     {
-        // fallback
+        // 回退
         cur_impl = DEFAULT_PRIVACY_MODE_IMPL.to_owned();
     }
     cur_impl
@@ -237,9 +237,9 @@ async fn turn_on_privacy_async(impl_key: String, conn_id: i32) -> Option<ResultT
         let res = turn_on_privacy_sync(&impl_key, conn_id);
         let _ = tx.send(res);
     });
-    // Wait at most 7.5 seconds for the result.
-    // Because it may take a long time to turn on the privacy mode with amyuni idd.
-    // Some laptops may take time to plug in a virtual display.
+    // 最多等待 7.5 秒获取结果。
+    // 因为使用 amyuni idd 开启隐私模式可能耗时较长。
+    // 有些笔记本接入虚拟显示器可能需要时间。
     match hbb_common::timeout(7500, rx).await {
         Ok(res) => match res {
             Ok(res) => res,
@@ -250,10 +250,10 @@ async fn turn_on_privacy_async(impl_key: String, conn_id: i32) -> Option<ResultT
 }
 
 fn turn_on_privacy_sync(impl_key: &str, conn_id: i32) -> Option<ResultType<bool>> {
-    // Check if privacy mode is already on or occupied by another one
+    // 检查隐私模式是否已开启或已被另一个占用
     let mut privacy_mode_lock = PRIVACY_MODE.lock().unwrap();
 
-    // Check or switch privacy mode implementation
+    // 检查或切换隐私模式实现
     let impl_key = get_supported_impl(impl_key);
 
     let mut cur_impl_key = "".to_string();
@@ -263,10 +263,10 @@ fn turn_on_privacy_sync(impl_key: &str, conn_id: i32) -> Option<ResultType<bool>
         match check_on_conn_id.as_ref() {
             Ok(true) => {
                 if cur_impl_key == impl_key {
-                    // Same peer, same implementation.
+                    // 同一个对端，同一个实现。
                     return Some(Ok(true));
                 } else {
-                    // Same peer, switch to new implementation.
+                    // 同一个对端，切换到新实现。
                 }
             }
             Err(_) => return Some(check_on_conn_id),
@@ -284,13 +284,13 @@ fn turn_on_privacy_sync(impl_key: &str, conn_id: i32) -> Option<ResultType<bool>
                 privacy_mode.clear();
             }
 
-            *privacy_mode_lock = Some(creator(&impl_key));
+            * privacy_mode_lock = Some(creator(&impl_key));
         } else {
             return Some(Err(anyhow!("Unsupported privacy mode: {}", impl_key)));
         }
     }
 
-    // turn on privacy mode
+    // 开启隐私模式
     Some(privacy_mode_lock.as_mut()?.turn_on_privacy(conn_id))
 }
 
@@ -299,7 +299,7 @@ pub(crate) fn close_other_remote_connections_for_privacy(owner_id: i32) {
     use crate::server::{AuthConnType, AUTHED_CONNS};
 
     let privacy_mode_lock = PRIVACY_MODE.lock().unwrap();
-    // Ownership can change while the caller validates the capturer.
+    // 在调用方校验采集器期间，归属可能发生变化。
     if privacy_mode_lock.as_ref().map(|mode| mode.pre_conn_id()) != Some(owner_id) {
         return;
     }
@@ -379,9 +379,9 @@ pub fn get_supported_privacy_mode_impl() -> Vec<(&'static str, &'static str)> {
     }
     #[cfg(target_os = "macos")]
     {
-        // No translation is intended for privacy_mode_impl_macos_tip as it is a 
-        // placeholder for macOS specific privacy mode implementation which currently
-        // doesn't provide multiple modes like Windows does.
+        // privacy_mode_impl_macos_tip 不需要翻译，因为它是
+        // macOS 专属隐私模式实现的占位符，而该实现目前
+        // 不像 Windows 那样提供多种模式。
         vec![(macos::PRIVACY_MODE_IMPL, "privacy_mode_impl_macos_tip")]
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
@@ -426,7 +426,7 @@ pub fn check_privacy_mode_err(
     display_idx: usize,
     timeout_millis: u64,
 ) -> String {
-    // win magnifier implementation requires a test of creating a capturer.
+    // Windows 放大镜的实现需要测试创建采集器。
     if is_current_privacy_mode_impl(PRIVACY_MODE_IMPL_WIN_MAG) {
         crate::video_service::test_create_capturer(privacy_mode_id, display_idx, timeout_millis)
     } else {

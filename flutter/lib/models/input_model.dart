@@ -24,7 +24,7 @@ import 'relative_mouse_model.dart';
 import '../common.dart';
 import '../consts.dart';
 
-/// Mouse button enum.
+/// 鼠标按键枚举。
 enum MouseButtons { left, right, wheel, back, forward }
 
 const _kMouseEventDown = 'mousedown';
@@ -334,20 +334,20 @@ class ToReleaseKeys {
 }
 
 class InputModel {
-  // Side mouse button support for Linux.
-  // Flutter's Linux embedder drops X11 button 8/9 events, so we capture them
-  // natively via GDK and forward through the platform channel.
+  // Linux 上的侧键支持。
+  // Flutter 的 Linux 嵌入器会丢弃 X11 的 8/9 号按键事件，所以我们通过 GDK
+  // 在原生层面捕获它们，并通过平台通道转发。
   static InputModel? _activeSideButtonModel;
-  // Tracks per-button which model received a side button down event, so the
-  // matching up event is routed there even if the pointer has left the view
-  // or a different button was pressed in between.
+  // 按按键分别跟踪哪个模型收到了侧键按下事件，这样
+  // 对应的抬起事件也会被路由到那里，即使指针已经离开视图
+  // 或期间按下了其他按键。
   static final Map<MouseButtons, InputModel> _sideButtonDownModels = {};
   static bool _sideButtonChannelInitialized = false;
 
-  /// Each Flutter engine (main window + sub-windows from desktop_multi_window)
-  /// runs its own Dart isolate with its own statics. Called from initEnv()
-  /// which runs per-engine, so each isolate registers its own handler tied
-  /// to its own set of InputModels.
+  /// 每个 Flutter 引擎（主窗口 + desktop_multi_window 的子窗口）
+  /// 都运行自己的 Dart isolate，拥有各自的静态变量。该函数从 initEnv() 调用，
+  /// 而 initEnv() 是按引擎运行的，因此每个 isolate 都注册自己的处理函数，
+  /// 并绑定到它自己的那组 InputModel。
   static void initSideButtonChannel() {
     if (!isLinux) return;
     if (_sideButtonChannelInitialized) return;
@@ -368,16 +368,16 @@ class InputModel {
               model.keyboardPerm &&
               !model.isViewCamera) {
             _sideButtonDownModels[mb] = model;
-            // Fire-and-forget to avoid blocking the platform channel handler.
+            // 发出即忘，以免阻塞平台通道处理函数。
             unawaited(model._sendMouseUnchecked(type, mb).catchError((Object e) {
               debugPrint('[InputModel] failed to send side button $type for $mb: $e');
             }));
           }
         } else {
-          // Only route 'up' when we recorded the matching 'down';
-          // dropping avoids sending unpaired 'up' to an unrelated session.
-          // Use _sendMouseUnchecked to bypass permission checks so the
-          // release always goes through even if permissions changed.
+          // 只有记录了对应的 'down' 时才路由 'up'；
+          // 丢弃可以避免把无配对的 'up' 发给无关的会话。
+          // 使用 _sendMouseUnchecked 绕过权限检查，这样
+          // 即使权限发生变化，抬起事件也总能发送出去。
           final model = _sideButtonDownModels.remove(mb);
           if (model != null) {
             unawaited(model._sendMouseUnchecked(type, mb).catchError((Object e) {
@@ -390,9 +390,9 @@ class InputModel {
     });
   }
 
-  /// Clear any static references to this model (prevents stale routing).
-  /// Releases any held side buttons on the peer so closing a session
-  /// mid-press does not leave a stuck button.
+  /// 清除指向该模型的所有静态引用（防止路由到过期对象）。
+  /// 在远端释放任何仍按住的侧键，这样关闭会话时
+  /// 不会在按下过程中留下卡住的按键。
   void disposeSideButtonTracking() {
     if (_activeSideButtonModel == this) _activeSideButtonModel = null;
     final held = _sideButtonDownModels.entries
@@ -401,7 +401,7 @@ class InputModel {
         .toList();
     for (final mb in held) {
       _sideButtonDownModels.remove(mb);
-      // Best-effort release; session may already be tearing down.
+      // 尽力释放；会话可能已经在销毁过程中。
       unawaited(_sendMouseUnchecked('up', mb).catchError((Object e) {
         debugPrint('[InputModel] failed to release side button $mb: $e');
       }));
@@ -411,7 +411,7 @@ class InputModel {
   final WeakReference<FFI> parent;
   String keyboardMode = '';
 
-  // keyboard
+  // 键盘
   var shift = false;
   var ctrl = false;
   var alt = false;
@@ -428,26 +428,26 @@ class InputModel {
     },
   );
 
-  // trackpad
+  // 触控板
   var _trackpadLastDelta = Offset.zero;
   var _stopFling = true;
   var _fling = false;
   Timer? _flingTimer;
   final _flingBaseDelay = 30;
   final _trackpadAdjustPeerLinux = 0.06;
-  // This is an experience value.
+  // 这是一个经验值。
   final _trackpadAdjustMacToWin = 2.50;
-  // Ignore directional locking for very small deltas on both axes (including
-  // tiny single-axis movement) to avoid over-filtering near zero.
+  // 当两个轴上的增量都非常小时，忽略方向锁定（包括
+  // 极小的单轴移动），避免过滤掉接近零的移动。
   static const double _trackpadAxisNoiseThreshold = 0.2;
-  // Lock to dominant axis only when one axis is clearly stronger.
-  // 1.6 means the dominant axis must be >= 60% larger than the other.
+  // 只有一个轴明显更强时，才锁定到主轴。
+  // 1.6 表示主轴必须比另一个轴大 60% 以上。
   static const double _trackpadAxisLockRatio = 1.6;
   int _trackpadSpeed = kDefaultTrackpadSpeed;
   double _trackpadSpeedInner = kDefaultTrackpadSpeed / 100.0;
   var _trackpadScrollUnsent = Offset.zero;
 
-  // Mobile relative mouse delta accumulators (for slow/fine movements).
+  // 移动端相对鼠标的增量累加器（用于缓慢/精细的移动）。
   double _mobileDeltaRemainderX = 0.0;
   double _mobileDeltaRemainderY = 0.0;
 
@@ -456,28 +456,28 @@ class InputModel {
   bool _pointerMovedAfterEnter = false;
   bool _pointerInsideImage = false;
 
-  // mouse
+  // 鼠标
   final isPhysicalMouse = false.obs;
   int _lastButtons = 0;
   int _pressedMouseButtons = 0;
   Offset lastMousePos = Offset.zero;
   int _lastWheelTsUs = 0;
 
-  // Wheel acceleration thresholds.
+  // 滚轮加速阈值。
   static const int _wheelAccelFastThresholdUs = 40000; // 40ms
   static const int _wheelAccelMediumThresholdUs = 80000; // 80ms
   static const double _wheelBurstVelocityThreshold =
       0.002; // delta units per microsecond
-  // Wheel burst acceleration (empirical tuning).
-  // Applies only to fast, non-smooth bursts to preserve single-step scrolling.
-  // Flutter uses microseconds for dt, so velocity is in delta/us.
+  // 滚轮连击加速（经验调优）。
+  // 仅对快速且不平滑的连击生效，以保留单步滚动。
+  // Flutter 的 dt 使用微秒，因此速度单位是 delta/微秒。
 
-  // Relative mouse mode (for games/3D apps).
+  // 相对鼠标模式（用于游戏/3D 应用）。
   final relativeMouseMode = false.obs;
   late final RelativeMouseModel _relativeMouse;
-  // Callback to cancel external throttle timer when relative mouse mode is disabled.
+  // 在禁用相对鼠标模式时用于取消外部节流定时器的回调。
   VoidCallback? onRelativeMouseModeDisabled;
-  // Disposer for the relativeMouseMode observer (to prevent memory leaks).
+  // relativeMouseMode 观察者的 Disposer（防止内存泄漏）。
   Worker? _relativeMouseModeDisposer;
 
   bool _queryOtherWindowCoords = false;
@@ -486,8 +486,8 @@ class InputModel {
 
   late final SessionID sessionId;
 
-  // Local gate for clipboard-assisted input flows on mobile Wayland dialogs.
-  // It should not block physical keyboard events.
+  // 移动端 Wayland 对话框中剪贴板辅助输入流程的本地开关。
+  // 它不应阻塞物理键盘事件。
   bool keyboardInputAllowed = true;
 
   bool get keyboardPerm => parent.target!.ffiModel.keyboard;
@@ -502,7 +502,7 @@ class InputModel {
   bool get useEdgeScroll =>
       parent.target!.canvasModel.scrollStyle == ScrollStyle.scrolledge;
 
-  /// Check if the connected server supports relative mouse mode.
+  /// 检查已连接的服务器是否支持相对鼠标模式。
   bool get isRelativeMouseModeSupported => _relativeMouse.isSupported;
 
   InputModel(this.parent) {
@@ -521,7 +521,7 @@ class InputModel {
     );
     _relativeMouse.onDisabled = () => onRelativeMouseModeDisabled?.call();
 
-    // Sync relative mouse mode state to global state for UI components (e.g., tab bar hint).
+    // 把相对鼠标模式状态同步到全局状态，供 UI 组件使用（例如标签栏提示）。
     _relativeMouseModeDisposer = ever(relativeMouseMode, (bool value) {
       final peerId = id;
       if (peerId.isNotEmpty) {
@@ -531,9 +531,9 @@ class InputModel {
   }
 
   // https://github.com/flutter/flutter/issues/157241
-  // Infer CapsLock state from the character output.
-  // This is needed because Flutter's HardwareKeyboard.lockModesEnabled may report
-  // incorrect CapsLock state on iOS.
+  // 从字符输出推断 CapsLock 状态。
+  // 之所以需要这样做，是因为 Flutter 的 HardwareKeyboard.lockModesEnabled 可能报告
+  // 错误的 CapsLock 状态。
   bool _getIosCapsFromCharacter(KeyEvent e) {
     if (!isIOS) return false;
     final ch = e.character;
@@ -541,32 +541,32 @@ class InputModel {
         ch, HardwareKeyboard.instance.isShiftPressed);
   }
 
-  // RawKeyEvent version of _getIosCapsFromCharacter.
+  // _getIosCapsFromCharacter 的 RawKeyEvent 版本。
   bool _getIosCapsFromRawCharacter(RawKeyEvent e) {
     if (!isIOS) return false;
     final ch = e.character;
     return _getIosCapsFromCharacterImpl(ch, e.isShiftPressed);
   }
 
-  // Shared implementation for inferring CapsLock state from character.
-  // Uses Unicode-aware case detection to support non-ASCII letters (e.g., ü/Ü, é/É).
+  // 从字符推断 CapsLock 状态的共享实现。
+  // 使用感知 Unicode 的大小写检测，以支持非 ASCII 字母（例如 ü/Ü、é/É）。
   //
-  // Limitations:
-  // 1. This inference assumes the client and server use the same keyboard layout.
-  //    If layouts differ (e.g., client uses EN, server uses DE), the character output
-  //    may not match expectations. For example, ';' on EN layout maps to 'ö' on DE
-  //    layout, making it impossible to correctly infer CapsLock state from the
-  //    character alone.
-  // 2. On iOS, CapsLock+Shift produces uppercase letters (unlike desktop where it
-  //    produces lowercase). This method cannot handle that case correctly.
+  // 限制：
+  // 1. 该推断假设客户端和服务端使用相同的键盘布局。
+  //    如果布局不同（例如客户端用 EN、服务端用 DE），字符输出
+  //    可能与预期不符。例如，EN 布局上的 ';' 在 DE 布局上会映射为 'ö'
+  //    布局，这使得无法仅凭字符
+  //    正确推断 CapsLock 状态。
+  // 2. 在 iOS 上，CapsLock+Shift 会产生大写字母（不同于桌面端，那里会
+  //    产生小写字母）。该方法无法正确处理这种情况。
   bool _getIosCapsFromCharacterImpl(String? ch, bool shiftPressed) {
     if (ch == null || ch.length != 1) return false;
-    // Use Dart's built-in Unicode-aware case detection
+    // 使用 Dart 内置的、感知 Unicode 的大小写检测
     final upper = ch.toUpperCase();
     final lower = ch.toLowerCase();
     final isUpper = upper == ch && lower != ch;
     final isLower = lower == ch && upper != ch;
-    // Skip non-letter characters (e.g., numbers, symbols, CJK characters without case)
+    // 跳过非字母字符（例如数字、符号、没有大小写之分的 CJK 字符）
     if (!isUpper && !isLower) return false;
     return isUpper != shiftPressed;
   }
@@ -580,7 +580,7 @@ class InputModel {
       if (iosCapsLock) {
         lockModes |= (1 << capslock);
       }
-      // Ignore "NumLock/ScrollLock" on iOS for now.
+      // 暂时忽略 iOS 上的 "NumLock/ScrollLock"。
     } else {
       if (HardwareKeyboard.instance.lockModesEnabled
           .contains(KeyboardLockMode.capsLock)) {
@@ -598,27 +598,27 @@ class InputModel {
     return lockModes;
   }
 
-  // This function must be called after the peer info is received.
-  // Because `sessionGetKeyboardMode` relies on the peer version.
+  // 该函数必须在收到设备信息之后调用。
+  // 因为 `sessionGetKeyboardMode` 依赖于设备版本。
   updateKeyboardMode() async {
-    // * Currently mobile does not enable map mode
+    // * 目前移动端未启用 map 模式
     if (isDesktop || isWebDesktop) {
       keyboardMode = await bind.sessionGetKeyboardMode(sessionId: sessionId) ??
           kKeyLegacyMode;
     }
   }
 
-  /// Updates the trackpad speed based on the session value.
+  /// 根据会话中的值更新触控板速度。
   ///
-  /// The expected format of the retrieved value is a string that can be parsed into a double.
-  /// If parsing fails or the value is out of bounds (less than `kMinTrackpadSpeed` or greater
-  /// than `kMaxTrackpadSpeed`), the trackpad speed is reset to the default
-  /// value (`kDefaultTrackpadSpeed`).
+  /// 取到的值应为可解析为 double 的字符串。
+  /// 如果解析失败或该值超出范围（小于 `kMinTrackpadSpeed` 或大于
+  /// `kMaxTrackpadSpeed`），则把触控板速度重置为默认值
+  /// （`kDefaultTrackpadSpeed`）。
   ///
-  /// Bounds:
-  /// - Minimum: `kMinTrackpadSpeed`
-  /// - Maximum: `kMaxTrackpadSpeed`
-  /// - Default: `kDefaultTrackpadSpeed`
+  /// 范围：
+  /// - 最小值：`kMinTrackpadSpeed`
+  /// - 最大值：`kMaxTrackpadSpeed`
+  /// - 默认值：`kDefaultTrackpadSpeed`
   Future<void> updateTrackpadSpeed() async {
     _trackpadSpeed =
         (await bind.sessionGetTrackpadSpeed(sessionId: sessionId) ??
@@ -715,8 +715,8 @@ class InputModel {
     }
   }
 
-  // Safe: this only re-dispatches synthesized Shift key-up events.
-  // The key-up path clears the tracked Shift state so this does not loop.
+  // 安全：这只会重新派发合成的 Shift 抬起事件。
+  // 抬起路径会清除已跟踪的 Shift 状态，因此不会形成循环。
   void _releaseTrackedShiftKeyEventIfNeeded() {
     final leftShift = toReleaseKeys.lastLShiftKeyEvent;
     final rightShift = toReleaseKeys.lastRShiftKeyEvent;
@@ -728,8 +728,8 @@ class InputModel {
     }
   }
 
-  // Safe: this only re-dispatches synthesized Shift key-up events.
-  // The raw key-up path clears the tracked Shift state so this does not loop.
+  // 安全：这只会重新派发合成的 Shift 抬起事件。
+  // 原始抬起路径会清除已跟踪的 Shift 状态，因此不会形成循环。
   void _releaseTrackedRawShiftKeyEventIfNeeded() {
     final leftShift = toReleaseRawKeys.lastLShiftKeyEvent;
     final rightShift = toReleaseRawKeys.lastRShiftKeyEvent;
@@ -807,8 +807,8 @@ class InputModel {
       toReleaseRawKeys.updateKeyUp(key, e);
     }
 
-    // On some mobile soft-keyboard paths, Flutter may leave cached Shift state
-    // set even though the current raw key event is not shifted anymore.
+    // 在某些移动端软键盘路径上，Flutter 可能会保留缓存的 Shift 状态
+    // ，即使当前的原始按键事件已经不再处于 Shift 状态。
     if (e is RawKeyDownEvent &&
         shouldReleaseStaleMobileShift(
           isMobile: isMobile,
@@ -828,7 +828,7 @@ class InputModel {
       _releaseTrackedRawShiftKeyEventIfNeeded();
     }
 
-    // * Currently mobile does not enable map mode
+    // * 目前移动端未启用 map 模式
     if ((isDesktop || isWebDesktop) && keyboardMode == kKeyMapMode) {
       _restoreRawFlutterShortcutModifiers(e);
       mapKeyboardModeRaw(e, iosCapsLock);
@@ -863,7 +863,7 @@ class InputModel {
       return KeyEventResult.handled;
     }
     if (isWindows || isLinux) {
-      // Ignore meta keys. Because flutter window will loose focus if meta key is pressed.
+      // 忽略 meta 按键。因为按下 meta 键会让 flutter 窗口失去焦点。
       if (e.physicalKey == PhysicalKeyboardKey.metaLeft ||
           e.physicalKey == PhysicalKeyboardKey.metaRight) {
         return KeyEventResult.handled;
@@ -885,8 +885,8 @@ class InputModel {
       iosCapsLock = _getIosCapsFromCharacter(e);
     }
 
-    // Update cached modifier state before sending the event. The stale mobile
-    // Shift release check below relies on this cached state.
+    // 在发送事件前更新缓存的修饰键状态。移动端残留的
+    // Shift 抬起检查依赖这个缓存状态。
     if (e is KeyUpEvent) {
       handleKeyUpEventModifiers(e);
     } else if (e is KeyDownEvent) {
@@ -895,38 +895,38 @@ class InputModel {
 
     bool isMobileAndMapMode = false;
     if (isMobile) {
-      // Do not use map mode if mobile -> Android. Android does not support map mode for now.
-      // Because simulating the physical key events(uhid) which requires root permission is not supported.
+      // 如果是从移动端连接到 Android，不要使用 map 模式。Android 目前不支持 map 模式。
+      // 因为不支持模拟物理按键事件(uhid)，那需要 root 权限。
       if (peerPlatform != kPeerPlatformAndroid) {
         if (isIOS) {
           isMobileAndMapMode = true;
         } else {
-          // The physicalKey.usbHidUsage may be not correct for soft keyboard on Android.
-          // iOS does not have this issue.
-          // 1. Open the soft keyboard on Android
-          // 2. Switch to input method like zh/ko/ja
-          // 3. Click Backspace and Enter on the soft keyboard or physical keyboard
-          // 4. The physicalKey.usbHidUsage is not correct.
+          // 在 Android 上，软键盘的 physicalKey.usbHidUsage 可能不正确。
+          // iOS 没有这个问题。
+          // 1. 在 Android 上打开软键盘
+          // 2. 切换到 zh/ko/ja 之类的输入法
+          // 3. 在软键盘或物理键盘上点击 Backspace 和 Enter
+          // 4. physicalKey.usbHidUsage 不正确。
           // PhysicalKeyboardKey#8ac83(usbHidUsage: "0x1100000042", debugName: "Key with ID 0x1100000042")
           // LogicalKeyboardKey#2604c(keyId: "0x10000000d", keyLabel: "Enter", debugName: "Enter")
           //
-          // The correct PhysicalKeyboardKey should be
+          // 正确的 PhysicalKeyboardKey 应该是
           // PhysicalKeyboardKey#e14a9(usbHidUsage: "0x00070028", debugName: "Enter")
           // https://github.com/flutter/flutter/issues/157771
-          // We cannot use the debugName to determine the key is correct or not, because it's null in release mode.
-          // The normal `usbHidUsage` for keyboard shoud be between [0x00000010, 0x000c029f]
+          // 不能靠 debugName 来判断按键是否正确，因为 release 模式下它为 null。
+          // 键盘正常的 `usbHidUsage` 应在 [0x00000010, 0x000c029f] 之间
           // https://github.com/flutter/flutter/blob/c051b69e2a2224300e20d93dbd15f4b91e8844d1/packages/flutter/lib/src/services/keyboard_key.g.dart#L5332 - 5600
           final isNormalHsbHidUsage = (e.physicalKey.usbHidUsage >> 20) == 0;
           isMobileAndMapMode = isNormalHsbHidUsage &&
               // No need to check `!['Backspace', 'Enter'].contains(e.logicalKey.keyLabel)`
-              // But we still add it for more reliability.
+              // 但我们仍然加上它以提高可靠性。
               !['Backspace', 'Enter'].contains(e.logicalKey.keyLabel);
         }
       }
     }
 
-    // On some mobile soft-keyboard paths, Flutter may leave cached Shift state
-    // set even though the current key event is not shifted anymore.
+    // 在某些移动端软键盘路径上，Flutter 可能会保留缓存的 Shift 状态
+    // ，即使当前的按键事件已经不再处于 Shift 状态。
     if (e is KeyDownEvent &&
         shouldReleaseStaleMobileShift(
           isMobile: isMobile,
@@ -943,7 +943,7 @@ class InputModel {
         isDesktop || (isWebDesktop && keyboardMode == kKeyMapMode);
     if (isMobileAndMapMode || isDesktopAndMapMode) {
       _restoreFlutterShortcutModifiers(e);
-      // Native map input is matched and tracked by Rust before forwarding.
+      // 原生 map 输入在转发之前由 Rust 匹配并跟踪。
       if (isWeb) {
         _trackFlutterShortcutKey(e.physicalKey, e.logicalKey,
             down: e is KeyDownEvent || e is KeyRepeatEvent,
@@ -954,7 +954,7 @@ class InputModel {
       newKeyboardMode(
           e.character ?? '',
           e.physicalKey.usbHidUsage & 0xFFFF,
-          // Show repeat event be converted to "release+press" events?
+          // 把显示重复的事件转换成 "release+press" 事件？
           e is KeyDownEvent || e is KeyRepeatEvent,
           iosCapsLock);
     } else {
@@ -1002,7 +1002,7 @@ class InputModel {
       e,
       viewOnly: isViewOnly,
       match: () {
-        // AltGraph is text input on Windows/Linux; Apple Option stays bindable.
+        // AltGraph 在 Windows/Linux 上属于文本输入；Apple Option 仍可绑定。
         if (!(isMacOS || isIOS || isWebOnMacOs) &&
             keyboard.logicalKeysPressed.contains(LogicalKeyboardKey.altGraph)) {
           return null;
@@ -1026,7 +1026,7 @@ class InputModel {
       match: () {
         final data = e.data;
         const gtkMod5Mask = 1 << 7;
-        // GTK's Mod5 (used by AltGr) is missing from the ordinary modifier flags.
+        // GTK 的 Mod5（AltGr 使用它）不在普通修饰键标志中。
         if (data is RawKeyEventDataLinux &&
             data.keyHelper is GtkKeyHelper &&
             (data.modifiers & gtkMod5Mask) != 0) {
@@ -1046,7 +1046,7 @@ class InputModel {
 
   Future<void> _releaseFlutterShortcutModifiers({bool raw = false}) async {
     final releases = <Future<void>>[];
-    // Release only on the remote: the modifiers are still physically held.
+    // 只在远端释放：本地仍然物理按住了这些修饰键。
     final pressed = raw
         ? RawKeyboard.instance.keysPressed
         : HardwareKeyboard.instance.logicalKeysPressed;
@@ -1068,7 +1068,7 @@ class InputModel {
     }.entries) {
       if (!pressed.contains(entry.key)) continue;
       if (isWebDesktop) {
-        // The action can switch from Legacy to Map while modifiers stay held.
+        // 该动作可以在修饰键保持按住的情况下从 Legacy 切换到 Map。
         _localFlutterShortcuts.recordReleasedModifiers([entry.value]);
       }
       if (isWebDesktop && keyboardMode == kKeyMapMode) {
@@ -1101,7 +1101,7 @@ class InputModel {
   bool _needsShortcutMenuGuard(
       Set<LogicalKeyboardKey> pressed, bool swapCtrlCmd) {
     if (peerPlatform != kPeerPlatformWindows) return false;
-    // Web's legacy key-name API does not swap the key itself.
+    // Web 的旧版按键名 API 不会交换按键本身。
     final swapped =
         swapCtrlCmd && (!isWebDesktop || keyboardMode == kKeyMapMode);
     return pressed.any({
@@ -1128,7 +1128,7 @@ class InputModel {
 
   Future<void> _sendShortcutMenuControl(
       bool down, Set<LogicalKeyboardKey> pressed, bool swapCtrlCmd) {
-    // Choose the pre-swap key that reaches Windows as Ctrl.
+    // 选择交换前那个会作为 Ctrl 到达 Windows 的按键。
     if (isWebDesktop) {
       return bind.sessionHandleFlutterKeyEvent(
         sessionId: sessionId,
@@ -1147,8 +1147,8 @@ class InputModel {
       name: swapCtrlCmd ? 'Meta' : 'VK_CONTROL',
       down: down,
       press: false,
-      // Legacy reconciles modifiers before key-down. Keep Alt/Meta held until
-      // Ctrl is down, otherwise reconciliation can activate menus or Start.
+      // Legacy 会在按键按下前协调修饰键。保持 Alt/Meta 按住，直到
+      // Ctrl 被按下，否则协调过程可能激活菜单或开始菜单。
       alt: down &&
           pressed.any({LogicalKeyboardKey.altLeft, LogicalKeyboardKey.altRight}
               .contains),
@@ -1237,7 +1237,7 @@ class InputModel {
     return null;
   }
 
-  /// Send Key Event
+  /// 发送按键事件
   void newKeyboardMode(
       String character, int usbHid, bool down, bool iosCapsLock) {
     final lockModes = _buildLockModes(iosCapsLock);
@@ -1264,9 +1264,9 @@ class InputModel {
       platformCode = newData.keyCode;
     } else if (e.data is RawKeyEventDataLinux) {
       RawKeyEventDataLinux newData = e.data as RawKeyEventDataLinux;
-      // scanCode and keyCode of RawKeyEventDataLinux are incorrect.
-      // 1. scanCode means keycode
-      // 2. keyCode means keysym
+      // RawKeyEventDataLinux 的 scanCode 和 keyCode 不正确。
+      // 1. scanCode 表示 keycode
+      // 2. keyCode 表示 keysym
       positionCode = newData.scanCode;
       platformCode = newData.keyCode;
     } else if (e.data is RawKeyEventDataAndroid) {
@@ -1284,7 +1284,7 @@ class InputModel {
         e.character ?? '', platformCode, positionCode, down, iosCapsLock);
   }
 
-  /// Send raw Key Event
+  /// 发送原始按键事件
   void inputRawKey(String name, int platformCode, int positionCode, bool down,
       bool iosCapsLock) {
     final lockModes = _buildLockModes(iosCapsLock);
@@ -1311,7 +1311,7 @@ class InputModel {
   }
 
   void sendRawKey(RawKeyEvent e, {bool? down, bool? press}) {
-    // for maximum compatibility
+    // 为了最大限度的兼容性
     final label = physicalKeyMap[e.physicalKey.usbHidUsage] ??
         logicalKeyMap[e.logicalKey.keyId] ??
         e.logicalKey.keyLabel;
@@ -1329,16 +1329,16 @@ class InputModel {
   }
 
   void sendKey(KeyEvent e, {bool? down, bool? press}) {
-    // for maximum compatibility
+    // 为了最大限度的兼容性
     final label = physicalKeyMap[e.physicalKey.usbHidUsage] ??
         logicalKeyMap[e.logicalKey.keyId] ??
         e.logicalKey.keyLabel;
     inputKey(label, down: down, press: press ?? false);
   }
 
-  /// Send key stroke event.
-  /// [down] indicates the key's state(down or up).
-  /// [press] indicates a click event(down and up).
+  /// 发送按键笔画事件。
+  /// [down] 表示按键的状态（按下或抬起）。
+  /// [press] 表示一次点击事件（按下并抬起）。
   void inputKey(String name, {bool? down, bool? press}) {
     if (!keyboardPerm) return;
     if (isViewCamera) return;
@@ -1364,17 +1364,17 @@ class InputModel {
     bool hasStaleButtonsOnMouseUp =
         type == _kMouseEventUp && evt.buttons == _lastButtons;
 
-    // Check update event type and set buttons to be sent.
+    // 检查更新事件类型并设置要发送的按键。
     int buttons = _lastButtons;
     if (type == _kMouseEventMove) {
-      // flutter may emit move event if one button is pressed and another button
-      // is pressing or releasing.
+      // 如果一个按键处于按下状态而另一个按键
+      // 正在按下或抬起，flutter 可能会发出 move 事件。
       if (evt.buttons != _lastButtons) {
-        // For simplicity
-        // Just consider 3 - 1 ((Left + Right buttons) - Left button)
-        // Do not consider 2 - 1 (Right button - Left button)
-        // or 6 - 5 ((Right + Mid buttons) - (Left + Mid buttons))
-        // and so on
+        // 为简单起见
+        // 只考虑 3 - 1（(左键 + 右键) - 左键）
+        // 不考虑 2 - 1（右键 - 左键）
+        // 或 6 - 5（(右键 + 中键) - (左键 + 中键)）
+        // 等等
         buttons = evt.buttons - _lastButtons;
         if (buttons > 0) {
           type = _kMouseEventDown;
@@ -1390,7 +1390,7 @@ class InputModel {
     }
     _lastButtons = hasStaleButtonsOnMouseUp ? 0 : evt.buttons;
     if (isDesktop && _relativeMouse.enabled.value && type == _kMouseEventUp) {
-      // A relative up can finish a press sent before the mode switch.
+      // 相对的 up 可以结束在模式切换之前发出的 press。
       _pressedMouseButtons &= ~buttons;
     }
 
@@ -1399,7 +1399,7 @@ class InputModel {
     return out;
   }
 
-  /// Send a mouse tap event(down and up).
+  /// 发送鼠标点击事件（按下并抬起）。
   Future<void> tap(MouseButtons button) async {
     await sendMouse('down', button);
     await sendMouse('up', button);
@@ -1413,7 +1413,7 @@ class InputModel {
     await sendMouse('up', button);
   }
 
-  /// Send scroll event with scroll distance [y].
+  /// 发送滚动事件，滚动距离为 [y]。
   Future<void> scroll(int y) async {
     if (isViewCamera) return;
     await bind.sessionSendMouse(
@@ -1422,13 +1422,13 @@ class InputModel {
             .encode(modify({'id': id, 'type': 'wheel', 'y': y.toString()})));
   }
 
-  /// Reset key modifiers to false, including [shift], [ctrl], [alt] and [command].
+  /// 把按键修饰状态重置为 false，包括 [shift]、[ctrl]、[alt] 和 [command]。
   void resetModifiers() {
     shift = ctrl = alt = command = false;
     if (parent.target?.closed == true) _localFlutterShortcuts.clear();
   }
 
-  /// Modify the given modifier map [evt] based on current modifier key status.
+  /// 根据当前的修饰键状态修改给定的修饰键映射 [evt]。
   Map<String, dynamic> modify(Map<String, dynamic> evt) {
     if (ctrl) evt['ctrl'] = 'true';
     if (shift) evt['shift'] = 'true';
@@ -1437,16 +1437,16 @@ class InputModel {
     return evt;
   }
 
-  /// Send mouse event unconditionally (no permission checks).
-  /// Used for side button releases that must go through even if permissions
-  /// changed after the matching down was sent.
+  /// 无条件发送鼠标事件（不做权限检查）。
+  /// 用于侧键的抬起事件，即使权限
+  /// 在对应的按下事件发出后发生了变化，也必须发送出去。
   Future<void> _sendMouseUnchecked(String type, MouseButtons button) async {
     await bind.sessionSendMouse(
         sessionId: sessionId,
         msg: json.encode(modify({'type': type, 'buttons': button.value})));
   }
 
-  /// Send mouse press event.
+  /// 发送鼠标按下事件。
   Future<void> sendMouse(String type, MouseButtons button) async {
     if (!keyboardPerm) return;
     if (isViewCamera) return;
@@ -1460,14 +1460,14 @@ class InputModel {
     _pointerInsideImage = enter;
     _lastWheelTsUs = 0;
 
-    // Track active model for side button events (Linux).
+    // 为侧键事件跟踪活动模型（Linux）。
     if (enter) {
       _activeSideButtonModel = this;
     } else if (_activeSideButtonModel == this) {
       _activeSideButtonModel = null;
     }
 
-    // Fix status
+    // 修复状态
     if (!enter) {
       resetModifiers();
     }
@@ -1481,7 +1481,7 @@ class InputModel {
     }
   }
 
-  /// Send mouse movement event with distance in [x] and [y].
+  /// 发送鼠标移动事件，距离为 [x] 和 [y]。
   Future<void> moveMouse(double x, double y) async {
     if (!keyboardPerm) return;
     if (isViewCamera) return;
@@ -1492,16 +1492,16 @@ class InputModel {
         msg: json.encode(modify({'x': '$x2', 'y': '$y2'})));
   }
 
-  /// Send relative mouse movement for mobile clients (virtual joystick).
-  /// This method is for touch-based controls that want to send delta values.
-  /// Uses the 'move_relative' type which bypasses absolute position tracking.
+  /// 为移动端客户端发送相对鼠标移动（虚拟摇杆）。
+  /// 该方法供需要发送增量值的触摸控制使用。
+  /// 使用 'move_relative' 类型，它会绕过绝对位置跟踪。
   ///
-  /// Accumulates fractional deltas to avoid losing slow/fine movements.
-  /// Only sends events when relative mouse mode is enabled and supported.
+  /// 累加小数增量，以免丢失缓慢/精细的移动。
+  /// 仅在相对鼠标模式已启用且受支持时才发送事件。
   Future<void> sendMobileRelativeMouseMove(double dx, double dy) async {
     if (!keyboardPerm) return;
     if (isViewCamera) return;
-    // Only send relative mouse events when relative mode is enabled and supported.
+    // 仅在相对模式已启用且受支持时才发送相对鼠标事件。
     if (!isRelativeMouseModeSupported || !relativeMouseMode.value) return;
     _mobileDeltaRemainderX += dx;
     _mobileDeltaRemainderY += dy;
@@ -1519,15 +1519,15 @@ class InputModel {
         })));
   }
 
-  /// Update the pointer lock center position based on current window frame.
+  /// 根据当前窗口边框更新指针锁定中心位置。
   Future<void> updatePointerLockCenter({Offset? localCenter}) {
     return _relativeMouse.updatePointerLockCenter(localCenter: localCenter);
   }
 
-  /// Get the current image widget size (for comparison to avoid unnecessary updates).
+  /// 获取当前图像组件的尺寸（用于比较，避免不必要的更新）。
   Size? get imageWidgetSize => _relativeMouse.imageWidgetSize;
 
-  /// Update the image widget size for center calculation.
+  /// 更新图像组件尺寸以计算中心。
   void updateImageWidgetSize(Size size) {
     _relativeMouse.updateImageWidgetSize(size);
   }
@@ -1540,16 +1540,16 @@ class InputModel {
     return _relativeMouse.setRelativeMouseMode(enabled);
   }
 
-  /// Exit relative mouse mode and release all modifier keys to the remote.
-  /// This is called when the user presses the exit shortcut (Ctrl+Alt on Win/Linux, Cmd+G on macOS).
-  /// We need to send key-up events for all modifiers because the shortcut itself may have
-  /// blocked some key events, leaving the remote in a state where modifiers are stuck.
+  /// 退出相对鼠标模式，并向远端释放所有修饰键。
+  /// 当用户按下退出快捷键时调用（Win/Linux 上是 Ctrl+Alt，macOS 上是 Cmd+G）。
+  /// 需要为所有修饰键发送抬起事件，因为该快捷键本身可能已经
+  /// 屏蔽了某些按键事件，使远端处于修饰键卡住的状态。
   void exitRelativeMouseModeWithKeyRelease() {
     if (!_relativeMouse.enabled.value) return;
 
-    // First, send release events for all modifier keys to the remote.
-    // This ensures the remote doesn't have stuck modifier keys after exiting.
-    // Use press: false, down: false to send key-up events without modifiers attached.
+    // 首先，向远端发送所有修饰键的抬起事件。
+    // 这可以确保退出后远端不会出现卡住的修饰键。
+    // 使用 press: false, down: false 发送不带修饰键的抬起事件。
     final modifiersToRelease = [
       'Control_L',
       'Control_R',
@@ -1574,17 +1574,17 @@ class InputModel {
       );
     }
 
-    // Reset local modifier state
+    // 重置本地修饰键状态
     resetModifiers();
 
-    // Now exit relative mouse mode
+    // 现在退出相对鼠标模式
     _relativeMouse.setRelativeMouseMode(false);
   }
 
   void disposeRelativeMouseMode() {
     _relativeMouse.dispose();
     onRelativeMouseModeDisabled = null;
-    // Cancel the relative mouse mode observer and clean up global state.
+    // 取消相对鼠标模式的观察者并清理全局状态。
     _relativeMouseModeDisposer?.dispose();
     _relativeMouseModeDisposer = null;
     final peerId = id;
@@ -1606,16 +1606,16 @@ class InputModel {
     if (isViewOnly && !showMyCursor) return;
     if (e.kind != ui.PointerDeviceKind.mouse) return;
 
-    // May fix https://github.com/rustdesk/rustdesk/issues/13009
+    // 可能修复 https://github.com/rustdesk/rustdesk/issues/13009
     if (isIOS && e.synthesized && e.position == Offset.zero && e.buttons == 0) {
-      // iOS may emit a synthesized hover event at (0,0) when the mouse is disconnected.
-      // Ignore this event to prevent cursor jumping.
+      // 鼠标断开时，iOS 可能在 (0,0) 发出一个合成的悬停事件。
+      // 忽略该事件以防光标跳动。
       debugPrint('Ignored synthesized hover at (0,0) on iOS');
       return;
     }
 
-    // Only update pointer region when relative mouse mode is enabled.
-    // This avoids unnecessary tracking when not in relative mode.
+    // 仅在启用相对鼠标模式时更新指针区域。
+    // 这样在非相对模式下就无需不必要的跟踪。
     if (_relativeMouse.enabled.value) {
       _relativeMouse.updatePointerRegionTopLeftGlobal(e);
     }
@@ -1700,12 +1700,12 @@ class InputModel {
   Offset _filterTrackpadDeltaAxis(Offset delta) {
     final absDx = delta.dx.abs();
     final absDy = delta.dy.abs();
-    // Keep diagonal intent when movement is tiny on both axes.
+    // 当两个轴上的移动都很小时，保留对角方向的意图。
     if (absDx < _trackpadAxisNoiseThreshold &&
         absDy < _trackpadAxisNoiseThreshold) {
       return delta;
     }
-    // Dominant-axis lock to reduce accidental cross-axis scrolling noise.
+    // 主轴锁定，以减少意外的跨轴滚动噪声。
     if (absDy >= absDx * _trackpadAxisLockRatio) {
       return Offset(0, delta.dy);
     }
@@ -1732,7 +1732,7 @@ class InputModel {
       x *= d;
       y *= d;
 
-      // Try set delta (x,y) and delay.
+      // 尝试设置增量 (x,y) 和延迟。
       var dx = x.toInt();
       var dy = y.toInt();
       if (parent.target?.ffiModel.pi.platform == kPeerPlatformLinux) {
@@ -1782,7 +1782,7 @@ class InputModel {
     waitLastFlingDone();
     _stopFling = false;
 
-    // 2.0 is an experience value
+    // 2.0 是一个经验值
     double minFlingValue = 2.0 * _trackpadSpeedInner;
     if (isMacOS && peerPlatform == kPeerPlatformWindows) {
       minFlingValue *= _trackpadAdjustMacToWin;
@@ -1796,21 +1796,21 @@ class InputModel {
     _trackpadLastDelta = Offset.zero;
   }
 
-  // iOS Magic Mouse duplicate event detection.
-  // When using Magic Mouse on iPad, iOS may emit both mouse and touch events
-  // for the same click in certain areas (like top-left corner).
+  // iOS Magic Mouse 重复事件检测。
+  // 在 iPad 上使用 Magic Mouse 时，iOS 可能对同一次点击同时发出鼠标和触摸事件
+  // （在某些区域，比如左上角）。
   int _lastMouseDownTimeMs = 0;
   ui.Offset _lastMouseDownPos = ui.Offset.zero;
 
-  /// Check if a touch tap event should be ignored because it's a duplicate
-  /// of a recent mouse event (iOS Magic Mouse issue).
+  /// 检查某个触摸点击事件是否应被忽略，因为它与最近一次鼠标事件
+  /// 重复（iOS Magic Mouse 问题）。
   bool shouldIgnoreTouchTap(ui.Offset pos) {
     if (!isIOS) return false;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final dt = nowMs - _lastMouseDownTimeMs;
     final distance = (_lastMouseDownPos - pos).distance;
-    // If touch tap is within 2000ms and 80px of the last mouse down,
-    // it's likely a duplicate event from the same Magic Mouse click.
+    // 如果触摸点击与上一次鼠标按下相距不到 2000ms 且 80px，
+    // 它很可能是同一次 Magic Mouse 点击产生的重复事件。
     if (dt >= 0 && dt < 2000 && distance < 80.0) {
       debugPrint("shouldIgnoreTouchTap: IGNORED (dt=$dt, dist=$distance)");
       return true;
@@ -1818,9 +1818,9 @@ class InputModel {
     return false;
   }
 
-  /// iOS may emit a synthesized touch event after a real mouse click.
-  /// This helper ignores touch-down events that arrive shortly after a mouse down,
-  /// even when the position is far (e.g., near the top edge).
+  /// iOS 可能在真实的鼠标点击之后发出合成的触摸事件。
+  /// 该辅助方法会忽略在鼠标按下后很快到达的触摸按下事件，
+  /// 即使位置相距很远（比如靠近顶部边缘）也一样。
   bool _shouldIgnoreTouchAfterMouse(int nowMs) {
     if (!isIOS) return false;
     const int kTouchAfterMouseWindowMs = 700;
@@ -1837,7 +1837,7 @@ class InputModel {
     if (isViewOnly && !showMyCursor) return;
     if (isViewCamera) return;
 
-    // Track mouse down events for duplicate detection on iOS.
+    // 跟踪鼠标按下事件，用于在 iOS 上检测重复。
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (e.kind == ui.PointerDeviceKind.mouse) {
       if (!isPhysicalMouse.value) {
@@ -1852,7 +1852,7 @@ class InputModel {
     }
 
     if (e.kind != ui.PointerDeviceKind.mouse) {
-      // Ignore duplicate touch events that follow a recent mouse click (iOS Magic Mouse issue).
+      // 忽略最近一次鼠标点击之后出现的重复触摸事件（iOS Magic Mouse 问题）。
       if (isPhysicalMouse.value && _shouldIgnoreTouchAfterMouse(nowMs)) {
         return;
       }
@@ -1861,8 +1861,8 @@ class InputModel {
       }
     }
     if (isPhysicalMouse.value) {
-      // In relative mouse mode, send button events without position.
-      // Use _relativeMouse.enabled.value consistently with the guard above.
+      // 在相对鼠标模式下，发送不带位置的按键事件。
+      // 与上面的判断保持一致，使用 _relativeMouse.enabled.value。
       if (_relativeMouse.enabled.value) {
         _relativeMouse
             .sendRelativeMouseButton(_getMouseEvent(e, _kMouseEventDown));
@@ -1884,8 +1884,8 @@ class InputModel {
 
     if (e.kind != ui.PointerDeviceKind.mouse) return;
     if (isPhysicalMouse.value) {
-      // In relative mouse mode, send button events without position.
-      // Use _relativeMouse.enabled.value consistently with the guard above.
+      // 在相对鼠标模式下，发送不带位置的按键事件。
+      // 与上面的判断保持一致，使用 _relativeMouse.enabled.value。
       if (_relativeMouse.enabled.value) {
         _relativeMouse
             .sendRelativeMouseButton(_getMouseEvent(e, _kMouseEventUp));
@@ -1920,20 +1920,20 @@ class InputModel {
     }
   }
 
-  /// Convert pointer coordinates into the visible remote canvas space.
+  /// 把指针坐标转换为可见的远端画布空间。
   ///
-  /// On mobile, the remote page body is wrapped in `SafeArea`, but the pointer
-  /// listener that feeds these events sits outside that subtree. As a result,
-  /// `event.localPosition` still includes the top/left safe-area inset.
+  /// 在移动端，远端页面主体被包裹在 `SafeArea` 中，但指针
+  /// 事件监听器位于该子树之外。因此，
+  /// `event.localPosition` 仍然包含顶部/左侧的安全区内边距。
   ///
-  /// When the keyboard-visible path shows `KeyHelpTools`, the remote canvas is
-  /// also shifted downward by `CanvasModel.getAdjustY()`. The downstream mouse
-  /// mapping logic expects coordinates relative to the visible canvas area, so
-  /// we subtract both the mobile safe-area padding and the current canvas
-  /// adjustment before passing the position into mouse mapping.
+  /// 当键盘可见的路径显示 `KeyHelpTools` 时，远端画布
+  /// 还会被 `CanvasModel.getAdjustY()` 向下偏移。下游的鼠标
+  /// 映射逻辑期望的是相对于可见画布区域的坐标，所以
+  /// 我们在传入鼠标映射之前，减去移动端的安全区内边距以及当前的画布
+  /// 偏移量。
   ///
-  /// Desktop and web desktop continue to use the global position directly
-  /// because their pointer mapping is window-based.
+  /// 桌面端和 web 桌面端继续直接使用全局位置
+  /// 因为它们的指针映射是基于窗口的。
   Offset _pointerPositionForRemoteCanvas(PointerEvent event) {
     if (isDesktop || isWebDesktop) {
       return event.position;
@@ -1961,17 +1961,17 @@ class InputModel {
       }
       return frame;
     } catch (e) {
-      // Unreachable code
+      // 不可达代码
       debugPrint("Failed to get frame of window $kWindowId, it may be hidden");
     }
     return null;
   }
 
-  /// Handle scroll/wheel events.
-  /// Note: Scroll events intentionally use absolute positioning even in relative mouse mode.
-  /// This is because scroll events don't need relative positioning - they represent
-  /// scroll deltas that are independent of cursor position. Games and 3D applications
-  /// handle scroll events the same way regardless of mouse mode.
+  /// 处理滚动/滚轮事件。
+  /// 注意：即使在相对鼠标模式下，滚动事件也刻意使用绝对定位。
+  /// 这是因为滚动事件不需要相对定位——它们表示的是
+  /// 与光标位置无关的滚动增量。游戏和 3D 应用
+  /// 无论处于哪种鼠标模式，处理滚动事件的方式都相同。
   void onPointerSignalImage(PointerSignalEvent e) {
     if (isViewOnly) return;
     if (isViewCamera) return;
@@ -2071,8 +2071,8 @@ class InputModel {
     if (_checkPeerControlProtected(x, y)) {
       return;
     }
-    // Only touch events are handled for now. So we can just ignore buttons.
-    // to-do: handle mouse events
+    // 目前只处理触摸事件，因此可以直接忽略按键。
+    // 待办：处理鼠标事件
 
     late final dynamic evtValue;
     if (type == kMouseEventTypePanUpdate) {
@@ -2147,7 +2147,7 @@ class InputModel {
         _pressedMouseButtons & buttons != 0;
     double x = offset.dx;
     double y = max(0.0, offset.dy);
-    // Cursor ownership may change between a forwarded down and its up.
+    // 在转发的按下事件与其抬起事件之间，光标归属可能发生变化。
     if (_checkPeerControlProtected(x, y) && !isMatchingMouseUp) {
       return null;
     }
@@ -2171,7 +2171,7 @@ class InputModel {
     evt['type'] = type;
 
     if (type == kMouseEventTypeDown && !_pointerMovedAfterEnter) {
-      // Move mouse to the position of the down event first.
+      // 先把鼠标移动到按下事件的位置。
       lastMousePos = ui.Offset(x, y);
       refreshMousePos();
     }
@@ -2209,8 +2209,8 @@ class InputModel {
         _pressedMouseButtons |= buttons;
       }
     } else {
-      // Log warning if buttons exists but is not an int (unexpected caller).
-      // Keep empty string fallback for missing buttons to preserve move/hover behavior.
+      // 如果 buttons 存在但不是 int，则记录警告（调用方异常）。
+      // 对缺失的 buttons 保留空字符串回退，以保持移动/悬停行为。
       if (buttons != null) {
         debugPrint(
             '[InputModel] processEventToPeer: unexpected buttons type: ${buttons.runtimeType}, value: $buttons');
@@ -2350,7 +2350,7 @@ class InputModel {
       x += imageWidth * canvas.scrollX;
       y += imageHeight * canvas.scrollY;
 
-      // boxed size is a center widget
+      // boxed size 是一个居中组件
       if (canvas.size.width > imageWidth) {
         x -= ((canvas.size.width - imageWidth) / 2);
       }
@@ -2398,7 +2398,7 @@ class InputModel {
       {int buttons = kPrimaryMouseButton}) {
     double minX = rect.left;
     // https://github.com/rustdesk/rustdesk/issues/6678
-    // For Windows, [0,maxX], [0,maxY] should be set to enable window snapping.
+    // 在 Windows 上，需要设置 [0,maxX]、[0,maxY] 才能启用窗口贴靠。
     double maxX = (rect.left + rect.width) -
         (peerPlatform == kPeerPlatformWindows ? 0 : 1);
     double minY = rect.top;
@@ -2409,7 +2409,7 @@ class InputModel {
     if (isLocalDesktop) {
       if (kind == kPointerEventKindMouse) {
         if (evtX < minX || evtY < minY || evtX > maxX || evtY > maxY) {
-          // If left mouse up, no early return.
+          // 如果是鼠标左键抬起，不提前返回。
           if (!(buttons == kPrimaryMouseButton &&
               evtType == kMouseEventTypeUp)) {
             return null;
@@ -2437,7 +2437,7 @@ class InputModel {
     return Point(evtX, evtY);
   }
 
-  /// Web only
+  /// 仅 web
   void listenToMouse(bool yesOrNo) {
     if (yesOrNo) {
       platformFFI.startDesktopWebListener();
@@ -2451,7 +2451,7 @@ class InputModel {
     final peerVersion =
         parent.target?.ffiModel.pi.version ?? minBackButtonVersion;
     var btn = MouseButtons.back;
-    // For compatibility with old versions
+    // 为了兼容旧版本
     if (versionCmp(peerVersion, minBackButtonVersion) < 0) {
       btn = MouseButtons.right;
     }
@@ -2465,8 +2465,8 @@ class InputModel {
     sendMouse('up', MouseButtons.wheel);
   }
 
-  // Simulate a key press event.
-  // `usbHidUsage` is the USB HID usage code of the key.
+  // 模拟一次按键按下事件。
+  // `usbHidUsage` 是该按键的 USB HID 使用码。
   Future<void> tapHidKey(int usbHidUsage) async {
     newKeyboardMode(kKeyFlutterKey, usbHidUsage, true, false);
     await Future.delayed(Duration(milliseconds: 100));

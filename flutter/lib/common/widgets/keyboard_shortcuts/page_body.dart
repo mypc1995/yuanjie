@@ -1,25 +1,25 @@
 // flutter/lib/common/widgets/keyboard_shortcuts/page_body.dart
 //
-// Shared body widget for the Keyboard Shortcuts configuration page. Both the
-// desktop (`desktop/pages/desktop_keyboard_shortcuts_page.dart`) and mobile
-// (`mobile/pages/mobile_keyboard_shortcuts_page.dart`) pages render this
-// widget inside their own platform-styled Scaffold + AppBar shell.
+// 键盘快捷键配置页面的共享主体组件。桌面端（
+// desktop (`desktop/pages/desktop_keyboard_shortcuts_page.dart`) 和移动端
+// (`mobile/pages/mobile_keyboard_shortcuts_page.dart`) 页面都将该组件
+// 渲染在各自平台风格的 Scaffold + AppBar 外壳中。
 //
-// The body owns:
-//   * the top-level enable/disable toggle (mirrors the General-tab toggle —
-//     same JSON key, same semantics);
-//   * a grouped list of actions, each with its current binding plus
-//     edit / clear icons;
-//   * the JSON read/write helpers under [kShortcutLocalConfigKey] in the
-//     canonical {enabled, bindings:[{action,mods,key}]} shape;
-//   * the recording-dialog round-trip and conflict-replace bookkeeping;
-//   * "Reset to defaults" (called from the platform AppBar).
+// 该主体负责：
+//   * 顶层的启用/禁用开关（与 General 选项卡中的开关一致——
+//     同一个 JSON key，语义相同）；
+//   * 分组排列的操作列表，每项包含当前绑定以及
+//     编辑 / 清除图标；
+//   * 在 [kShortcutLocalConfigKey] 下的 JSON 读写辅助方法，采用
+//     规范的 {enabled, bindings:[{action,mods,key}]} 结构；
+//   * 录制对话框的来回流程以及冲突替换的处理；
+//   * "恢复默认"（由平台 AppBar 调用）。
 //
-// Platform shells supply only:
-//   * the AppBar (with a "Reset to defaults" action that calls
-//     [KeyboardShortcutsPageBodyState.resetToDefaultsWithConfirm]);
-//   * surrounding padding / list-tile vs. dense-row visuals via the
-//     [compact] flag.
+// 平台外壳只提供：
+//   * AppBar（其中的"恢复默认"操作会调用
+//     [KeyboardShortcutsPageBodyState.resetToDefaultsWithConfirm]）；
+//   * 外围内边距 / list-tile 与紧凑行两种视觉效果由
+//     [compact] 标志控制。
 
 import 'dart:convert';
 
@@ -35,27 +35,27 @@ import 'recording_dialog.dart';
 import 'shortcut_actions.dart';
 import 'shortcut_utils.dart';
 
-/// The shared body widget. Render this inside a platform-styled Scaffold.
+/// 共享的主体组件。请将它渲染在平台风格的 Scaffold 内部。
 ///
-/// [compact] toggles the desktop dense-row layout (`true`) versus the mobile
-/// touch-friendly ListTile layout (`false`).
+/// [compact] 在桌面端的紧凑行布局（`true`）与移动端的
+/// 适合触控的 ListTile 布局（`false`）之间切换。
 ///
-/// [editButtonHint] is shown as the tooltip on the Edit icon. Mobile shells
-/// use this to clarify that recording requires a physical keyboard.
+/// [editButtonHint] 作为 Edit 图标的提示文字显示。移动端外壳
+/// 可以用它说明录制快捷键需要物理键盘。
 ///
-/// [headerBanner] is an optional widget rendered above the toggle. Mobile
-/// uses this to show the "Recording requires a physical keyboard" hint.
+/// [headerBanner] 是渲染在开关上方的可选组件。移动端
+/// 用它显示"录制快捷键需要物理键盘"的提示。
 class KeyboardShortcutsPageBody extends StatefulWidget {
   final bool compact;
   final String? editButtonHint;
   final Widget? headerBanner;
 
-  /// Whether to render the master Enable + Pass-through toggles inside the
-  /// body. Desktop shells set this to false because the General settings tab
-  /// already exposes both checkboxes (and is the only entry point to this
-  /// page on desktop). Mobile defaults to true: its entry point is a plain
-  /// nav tile in Settings, so this page is the only place the user can
-  /// flip the master switches.
+  /// 是否在主体内部渲染总开关 Enable + Pass-through。
+  /// 桌面端外壳将其设为 false，因为 General 设置选项卡
+  /// 已经提供了这两个复选框（而且是桌面端进入本
+  /// 页面的唯一入口）。移动端默认为 true：其入口是设置中的一个普通
+  /// 导航磁贴，因此本页是用户唯一可以
+  /// 切换这些总开关的地方。
   final bool showMasterToggles;
 
   const KeyboardShortcutsPageBody({
@@ -71,10 +71,10 @@ class KeyboardShortcutsPageBody extends StatefulWidget {
       KeyboardShortcutsPageBodyState();
 }
 
-/// Public state so platform shells can call [resetToDefaultsWithConfirm] from
-/// their AppBar action.
+/// 公开状态，便于平台外壳调用 [resetToDefaultsWithConfirm]，
+/// 调用入口是它们的 AppBar 操作。
 class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
-  // ----- Persistence helpers -----
+  // ----- 持久化辅助方法 -----
 
   Map<String, dynamic> _readJson() {
     final raw = bind.mainGetLocalOption(key: kShortcutLocalConfigKey);
@@ -92,17 +92,17 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
   Future<void> _writeJson(Map<String, dynamic> json) async {
     await bind.mainSetLocalOption(
         key: kShortcutLocalConfigKey, value: jsonEncode(json));
-    // Refresh the matcher cache so writes take effect immediately. On native
-    // this hits the Rust matcher; on Web the bridge forwards to the JS-side
-    // matcher in flutter/web/js/.
+    // 刷新 matcher 缓存，使写入立即生效。在原生平台上
+    // 这会调用 Rust matcher；在 Web 上 bridge 会转发给 JS 端的
+    // matcher（位于 flutter/web/js/）。
     bind.mainReloadKeyboardShortcuts();
     if (mounted) setState(() {});
   }
 
-  /// Replace the bindings entry for [actionId] with [binding]. If [binding]
-  /// is null, removes the existing entry. If the user is replacing a
-  /// conflicting binding, [clearActionId] points at the action whose
-  /// (now-stale) binding should be removed in the same write.
+  /// 用 [binding] 替换 [actionId] 的绑定条目。如果 [binding]
+  /// 为 null，则移除已有条目。如果用户正在替换一个
+  /// 冲突的绑定，[clearActionId] 指向那个操作，其
+  /// （现已失效的）绑定应在同一次写入中被移除。
   Future<void> _setBinding(
     String actionId, {
     Map<String, dynamic>? binding,
@@ -133,10 +133,10 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
 
   Future<void> _resetToDefaults() async {
     final json = _readJson();
-    // Single source of truth lives in `ShortcutModel.currentPlatformCapabilities`
-    // — the same helper feeds the first-enable seed pass, this Reset action,
-    // and the action-list filter below, so the three can never disagree on
-    // which actions belong on this platform.
+    // 唯一的事实来源位于 `ShortcutModel.currentPlatformCapabilities`
+    // —— 同一个辅助方法同时供首次启用时的种子填充、本重置操作、
+    // 以及下方的操作列表过滤使用，因此这三者永远不会在
+    // 哪些操作属于当前平台这一点上产生分歧。
     json['bindings'] = filterDefaultBindingsForPlatform(
       jsonDecode(bind.mainGetDefaultKeyboardShortcuts()) as List,
       ShortcutModel.currentPlatformCapabilities(),
@@ -145,28 +145,28 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
   }
 
   String _labelFor(String actionId) {
-    // Intentionally walks the unfiltered list (via the recursive helper, so
-    // both direct entries and subgroup entries are covered) — a stale
-    // cross-platform binding (e.g. Toggle Toolbar carried over from
-    // desktop) should still resolve to its human-readable label in conflict
-    // warnings.
+    // 有意遍历未过滤的列表（借助递归辅助方法，因此
+    // 直接条目和子分组条目都能覆盖）—— 一个过期的
+    // 跨平台绑定（例如从
+    // 桌面端延续过来的 Toggle Toolbar）仍应在冲突
+    // 警告中解析出它可读的名称。
     for (final entry in allActionEntries(kKeyboardShortcutActionGroups)) {
       if (entry.id == actionId) return translate(entry.labelKey);
     }
     return actionId;
   }
 
-  /// Action groups visible on the current platform. Reads the same
-  /// capability set as the seed-defaults / reset-to-defaults paths from
-  /// `ShortcutModel.currentPlatformCapabilities`, so the UI lists exactly
-  /// the actions whose handlers the matcher can dispatch here.
+  /// 当前平台上可见的操作分组。读取的能力集与种子默认值 /
+  /// 恢复默认值路径所用的完全相同，来自
+  /// `ShortcutModel.currentPlatformCapabilities`，因此 UI 恰好列出
+  /// 匹配器在此平台上能派发的那些操作。
   List<KeyboardShortcutActionGroup> _groupsForCurrentPlatform() {
     return filterKeyboardShortcutActionGroupsForPlatform(
       ShortcutModel.currentPlatformCapabilities(),
     );
   }
 
-  // ----- UI handlers -----
+  // ----- UI 处理器 -----
 
   Future<void> _onEdit(KeyboardShortcutActionEntry entry) async {
     final json = _readJson();
@@ -190,7 +190,7 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
     await _setBinding(entry.id, binding: null);
   }
 
-  /// Public — invoked from the platform AppBar action.
+  /// 公开 —— 由平台 AppBar 操作调用。
   Future<void> resetToDefaultsWithConfirm() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -209,7 +209,7 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
     }
   }
 
-  // ----- Build -----
+  // ----- 构建 -----
 
   @override
   Widget build(BuildContext context) {
@@ -245,8 +245,8 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
           ),
         ),
         const SizedBox(height: 16),
-        // Bindings list and configuration entry only show when shortcuts are
-        // enabled — there is nothing to configure while the matcher is off.
+        // 只有当快捷键处于
+        // 启用状态时，绑定列表和配置入口才显示——匹配器关闭时没有可配置的内容。
         if (enabled)
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -284,18 +284,18 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
     );
   }
 
-  // One indent unit per nesting level. Both "top item under top heading"
-  // and "subgroup heading under top group" are *one* level deeper than the
-  // top heading, so they share this indent — meaning a top-level direct
-  // item and a sibling subgroup heading line up at exactly the same x.
-  // Subgroup items are *two* levels deeper.
+  // 每一层嵌套对应一个缩进单位。"顶级标题下的顶级条目"和
+  // "顶级分组下的子分组标题"都比顶级标题
+  // 深*一*级，因此它们共用这个缩进——也就是说，顶层的直接
+  // 条目与同级的子分组标题正好对齐在同一个 x 位置。
+  // 子分组的条目要深*两*级。
   static const double _kIndentStep = 16.0;
 
-  /// Top-level group: heading at zero indent, then walk `children` in
-  /// declaration order. Direct entries get [_kIndentStep] of indent so
-  /// they read as "items under this heading"; subgroup headings sit at
-  /// the same indent (a subgroup is a sibling of the direct items, just
-  /// with its own nested entries below).
+  /// 顶级分组：标题零缩进，然后按声明顺序遍历 `children`，
+  /// 直接条目获得 [_kIndentStep] 的缩进，这样
+  /// 它们读起来就像"这个标题下的条目"；子分组标题则位于
+  /// 相同的缩进处（子分组与直接条目是同级关系，只是
+  /// 在下方带有自己的嵌套条目）。
   Widget _buildGroup(BuildContext context, KeyboardShortcutActionGroup group) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,9 +326,9 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
         const SizedBox(height: 4),
         for (final entry in subgroup.entries)
           Padding(
-            // Two indent steps: one for "subgroup heading is nested under
-            // top heading" (matches the heading's own indent) and one for
-            // "this entry is under the subgroup heading".
+            // 两个缩进步进：一个用于"子分组标题嵌套在
+            // 顶级标题之下"（与该标题自身的缩进相同），另一个用于
+            // "该条目位于子分组标题之下"。
             padding: const EdgeInsets.only(left: _kIndentStep * 2),
             child: _buildEntryRow(context, entry),
           ),
@@ -338,8 +338,8 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
 
   Widget _buildHeading(BuildContext context, String titleKey,
       {required bool isSub}) {
-    // Subgroup heading nests one step under the top heading — same indent
-    // as a top-level direct item, so the two line up at the same x.
+    // 子分组标题比顶级标题多嵌套一级——缩进与
+    // 顶层的直接条目相同，因此两者对齐在同一 x 位置。
     final indent = isSub ? _kIndentStep : 0.0;
     return Padding(
       padding: EdgeInsets.only(left: 8 + indent, right: 8),
@@ -368,7 +368,7 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
         : _buildTouchRow(context, entry);
   }
 
-  /// Desktop dense row: label | shortcut | edit | clear, all in one Row.
+  /// 桌面端紧凑行：名称 | 快捷键 | 编辑 | 清除，全部放在同一个 Row 中。
   Widget _buildCompactRow(
       BuildContext context, KeyboardShortcutActionEntry entry) {
     final shortcut = ShortcutDisplay.formatFor(entry.id, requireEnabled: false);
@@ -413,7 +413,7 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
     );
   }
 
-  /// Mobile touch row: ListTile with title + subtitle + trailing icons.
+  /// 移动端触控行：带 title + subtitle + 尾部图标的 ListTile。
   Widget _buildTouchRow(
       BuildContext context, KeyboardShortcutActionEntry entry) {
     final shortcut = ShortcutDisplay.formatFor(entry.id, requireEnabled: false);
@@ -453,9 +453,9 @@ class KeyboardShortcutsPageBodyState extends State<KeyboardShortcutsPageBody> {
   }
 }
 
-/// Small help-icon tooltip used for inline explanations next to a checkbox /
-/// row. Triggers on hover (desktop) and tap (mobile). Public so the desktop
-/// General settings tab can reuse it.
+/// 用于在复选框 /
+/// 行旁提供内联说明的小型帮助图标提示。桌面端悬停、移动端点击时触发。公开以便桌面端
+/// General 设置选项卡可以复用它。
 class InfoTooltipIcon extends StatelessWidget {
   final String tipKey;
   const InfoTooltipIcon({Key? key, required this.tipKey}) : super(key: key);

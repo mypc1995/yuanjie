@@ -2,26 +2,26 @@ use crate::{Key, KeyboardControllable};
 use std::error::Error;
 use std::fmt;
 
-/// An error that can occur when parsing DSL
+/// 解析 DSL 时可能出现的错误
 #[derive(Debug, PartialEq, Eq)]
 pub enum ParseError {
-    /// When a tag doesn't exist.
-    /// Example: {+TEST}{-TEST}
+    /// 当某个标签不存在时。
+    /// 示例：{+TEST}{-TEST}
     ///            ^^^^   ^^^^
     UnknownTag(String),
 
-    /// When a { is encountered inside a {TAG}.
-    /// Example: {+HELLO{WORLD}
+    /// 当在 {TAG} 内部遇到 { 时。
+    /// 示例：{+HELLO{WORLD}
     ///                 ^
     UnexpectedOpen,
 
-    /// When a { is never matched with a }.
-    /// Example: {+SHIFT}Hello{-SHIFT
+    /// 当 { 始终没有与 } 匹配时。
+    /// 示例：{+SHIFT}Hello{-SHIFT
     ///                              ^
     UnmatchedOpen,
 
-    /// Opposite of UnmatchedOpen.
-    /// Example: +SHIFT}Hello{-SHIFT}
+    /// 与 UnmatchedOpen 相对的情况。
+    /// 示例：+SHIFT}Hello{-SHIFT}
     ///         ^
     UnmatchedClose,
 }
@@ -41,7 +41,7 @@ impl fmt::Display for ParseError {
     }
 }
 
-/// Evaluate the DSL. This tokenizes the input and presses the keys.
+/// 求值 DSL。它会把输入分词并按下相应的按键。
 pub fn eval<K>(enigo: &mut K, input: &str) -> Result<(), ParseError>
 where
     K: KeyboardControllable,

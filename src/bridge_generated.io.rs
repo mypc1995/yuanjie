@@ -1,5 +1,5 @@
 use super::*;
-// Section: wire functions
+// 分段：wire functions
 
 #[no_mangle]
 pub extern "C" fn wire_start_global_event_stream(port_: i64, app_type: *mut wire_uint_8_list) {
@@ -2212,7 +2212,7 @@ pub extern "C" fn wire_session_get_common(
     wire_session_get_common_impl(port_, session_id, key, param)
 }
 
-// Section: allocate functions
+// 分段：allocate functions
 
 #[no_mangle]
 pub extern "C" fn new_StringList_0(len: i32) -> *mut wire_StringList {
@@ -2241,9 +2241,9 @@ pub extern "C" fn new_uint_8_list_0(len: i32) -> *mut wire_uint_8_list {
     support::new_leak_box_ptr(ans)
 }
 
-// Section: related functions
+// 分段：related functions
 
-// Section: impl Wire2Api
+// 分段：impl Wire2Api
 
 impl Wire2Api<String> for *mut wire_uint_8_list {
     fn wire2api(self) -> String {
@@ -2285,7 +2285,7 @@ impl Wire2Api<Vec<u8>> for *mut wire_uint_8_list {
     }
 }
 
-// Section: wire structs
+// 分段：wire structs
 
 #[repr(C)]
 #[derive(Clone)]
@@ -2308,7 +2308,7 @@ pub struct wire_uint_8_list {
     len: i32,
 }
 
-// Section: impl NewWithNullPtr
+// 分段：impl NewWithNullPtr
 
 pub trait NewWithNullPtr {
     fn new_with_null_ptr() -> Self;
@@ -2320,7 +2320,7 @@ impl<T> NewWithNullPtr for *mut T {
     }
 }
 
-// Section: sync execution mode utility
+// 分段：sync execution mode utility
 
 #[no_mangle]
 pub extern "C" fn free_WireSyncReturn(ptr: support::WireSyncReturn) {

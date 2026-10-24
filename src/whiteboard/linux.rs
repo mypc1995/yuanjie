@@ -81,8 +81,8 @@ fn preset_env() -> bool {
     }
     if let Some(display) = get_display_from_xwayland() {
         // https://github.com/rust-windowing/winit/blob/f6893a4390dfe6118ce4b33458d458fd3efd3025/src/event_loop.rs#L99
-        // It is acceptable to modify global environment variables here because this process is an isolated,
-        // dedicated "whiteboard" process.
+        // 这里可以修改全局环境变量，因为该进程是一个隔离的、
+        // 专用的 "whiteboard" 进程。
         std::env::set_var("DISPLAY", display);
         std::env::remove_var("WAYLAND_DISPLAY");
         return true;
@@ -141,9 +141,9 @@ struct WindowState {
 
 struct WhiteboardApplication {
     windows: Vec<WindowState>,
-    // Drawing context.
+    // 绘图上下文。
     //
-    // With OpenGL it could be EGLDisplay.
+    // 在 OpenGL 下它可能是 EGLDisplay。
     context: Option<Context<DisplayHandle<'static>>>,
     face: Option<Face<'static>>,
     close_requested: bool,
@@ -152,7 +152,7 @@ struct WhiteboardApplication {
 impl WhiteboardApplication {
     fn new<T>(event_loop: &EventLoop<T>) -> ResultType<Self> {
         // https://github.com/rust-windowing/winit/blob/f6893a4390dfe6118ce4b33458d458fd3efd3025/examples/window.rs#L91
-        // SAFETY: we drop the context right before the event loop is stopped, thus making it safe.
+        // 安全性：我们在事件循环停止之前刚好 drop 该上下文，因此这样做是安全的。
         let context = match Context::new(unsafe {
             std::mem::transmute::<DisplayHandle<'_>, DisplayHandle<'static>>(
                 event_loop.display_handle()?,
@@ -248,19 +248,19 @@ impl ApplicationHandler<(String, CustomEvent)> for WhiteboardApplication {
             }
         };
 
-        // Both the following block and `window.set_cursor_hittest(false)` in `draw()` are necessary to ensure cursor events are properly passed through the window.
-        // These issues may be related to winit X11 handling.
+        // 下面的代码块和 `draw()` 中的 `window.set_cursor_hittest(false)` 两者都需要，才能确保光标事件正确地穿透窗口。
+        // 这些问题可能与 winit 的 X11 处理有关。
         // https://github.com/rust-windowing/winit/issues/3509
         // https://github.com/rust-windowing/winit/issues/4120
-        // If either block is removed, cursor events may not be passed through as expected.
-        // If you update winit, please revisit this workaround.
+        // 如果移除其中任何一个代码块，光标事件可能无法按预期穿透。
+        // 如果你升级了 winit，请重新审视这个变通方案。
         match (rwh.as_raw(), display.as_raw()) {
             (RawWindowHandle::Xlib(xlib_window), RawDisplayHandle::Xlib(xlib_display)) => {
                 unsafe {
                     let xwindow = xlib_window.window;
                     if let Some(display_ptr) = xlib_display.display {
                         let xdisplay = display_ptr.as_ptr() as *mut Display;
-                        // Mouse event passthrough
+                        // 鼠标事件穿透
                         let empty_region = XFixesCreateRegion(xdisplay, std::ptr::null_mut(), 0);
                         if empty_region == 0 {
                             log::error!("XFixesCreateRegion failed: returned null region");
@@ -286,7 +286,7 @@ impl ApplicationHandler<(String, CustomEvent)> for WhiteboardApplication {
         }
 
         let Some(ctx) = self.context.as_ref() else {
-            // unreachable
+            // 不可达
             self.close_requested = true;
             return;
         };
@@ -345,7 +345,7 @@ impl ApplicationHandler<(String, CustomEvent)> for WhiteboardApplication {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        // We must drop the context here.
+        // 我们必须在这里 drop 该上下文。
         self.context = None;
     }
 }
@@ -385,7 +385,7 @@ impl WindowState {
             let (radius, alpha) = ripple.get_radius_alpha();
 
             let mut ripple_paint = Paint::default();
-            // Note: The real color is bgra here.
+            // 注意：这里真正的颜色格式是 bgra。
             ripple_paint.set_color_rgba8(64, 64, 255, (alpha * 128.0) as u8);
             ripple_paint.anti_alias = true;
 

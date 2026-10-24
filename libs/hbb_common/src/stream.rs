@@ -5,7 +5,7 @@ use sodiumoxide::crypto::secretbox::Key;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
 
-// support Websocket and tcp.
+// 支持 Websocket 和 tcp。
 pub enum Stream {
     #[cfg(feature = "webrtc")]
     WebRTC(webrtc::WebRTCStream),
@@ -34,12 +34,12 @@ impl Stream {
         }
     }
 
-    /// The largest message the peer may send. Lowered before authorization, where nothing a peer
-    /// legitimately sends is large, so an unauthenticated connection cannot make us hold more than
-    /// that. Each transport clamps `n` to its own ceiling, so `usize::MAX` restores the default.
+    /// 对端可能发送的最大消息长度。在鉴权之前会被调低，此时对端
+    /// 合法发送的内容都很小，因此未鉴权的连接无法让我们持有超过
+    /// 该值的消息。每种传输都会把 `n` 钳制到各自的上限，因此 `usize::MAX` 表示恢复默认值。
     ///
-    /// Set it before the first read of untrusted data. Lowering it later is not a way to constrain
-    /// a message already in progress: what that does to one is up to the transport.
+    /// 应在首次读取不可信数据之前设置。之后再调低并不能限制
+    /// 已在进行中的消息：这对其产生什么影响取决于具体传输。
     #[inline]
     pub fn set_max_packet_length(&mut self, n: usize) {
         match self {
@@ -80,9 +80,9 @@ impl Stream {
         }
     }
 
-    /// The stream key for the key exchange version in `t.picked`: version 0 is `set_key`, and
-    /// version 1 derives one key per direction from the transcript. Any other version is refused
-    /// rather than run as one of these. `is_initiator` is the side that sent the sealed key.
+    /// `t.picked` 中密钥交换版本对应的流密钥：版本 0 是 `set_key`，而
+    /// 版本 1 从 transcript 中为每个方向派生一把密钥。其他任何版本都会被拒绝，
+    /// 而不是按其中之一运行。`is_initiator` 是发送 sealed key 的一方。
     #[inline]
     pub fn set_negotiated_key(
         &mut self,
@@ -105,16 +105,16 @@ impl Stream {
         }
     }
 
-    /// An opaque token that changes whenever bytes have arrived from the peer, a fragment of a
-    /// message that is still incomplete included. Compare successive samples; the value itself
-    /// means nothing. `None` where the transport reports no such thing.
+    /// 一个不透明的令牌，每当有来自对端的字节到达时就会变化，尚未收全的消息片段
+    /// 也包括在内。比较相邻的采样值即可；该值本身
+    /// 没有意义。传输不报告此类信息时为 `None`。
     ///
-    /// A message reaches the caller only once it is whole, so `next()` alone cannot distinguish a
-    /// peer sending a large one — a clipboard image is the case that occurs — from one that died
-    /// mid-message. Sampling this alongside the last received message tells them apart.
+    /// 消息只有完整后才会到达调用方，因此单靠 `next()` 无法区分
+    /// 正在发送大消息的对端（剪贴板图片就是常见情形）与
+    /// 在消息中途掉线的对端。把它与最后一条收到的消息一起采样即可区分二者。
     ///
-    /// TCP and WebSocket answer `None` on purpose: this change leaves their existing close, error
-    /// and 30s-timeout behaviour exactly as it was, and giving them a value would alter it.
+    /// TCP 和 WebSocket 故意返回 `None`：本次改动保留了它们原有的关闭、错误
+    /// 和 30 秒超时行为完全不变，给它们赋值反而会改变它。
     #[inline]
     pub fn rx_progress(&self) -> Option<u64> {
         match self {
@@ -125,12 +125,12 @@ impl Stream {
         }
     }
 
-    /// Whether ICE has stopped hearing from the peer on a WebRTC transport. Transient and
-    /// recoverable — it says the peer is worth suspecting, never that the session is over — and
-    /// always false for transports this change leaves alone.
+    /// 在 WebRTC 传输上，ICE 是否已停止收到对端的数据。是暂时的、
+    /// 可恢复的——它只说明值得怀疑对端，绝不表示会话已结束——并且
+    /// 对于本次改动未涉及的传输，它始终为 false。
     ///
-    /// Maintained by ICE's own task, so unlike anything derived from the session's read loop it
-    /// stays accurate while that loop is busy sending.
+    /// 由 ICE 自己的任务维护，因此与任何从会话读取循环派生出来的量不同，它
+    /// 在该循环忙于发送时仍然保持准确。
     #[inline]
     pub fn webrtc_disconnected(&self) -> bool {
         match self {
@@ -151,8 +151,8 @@ impl Stream {
         }
     }
 
-    /// Whether this is a WebRTC transport. Used to enforce the WebRTC-only DTLS fingerprint
-    /// binding (fail closed) in the secure handshake.
+    /// 这是否是 WebRTC 传输。用于在安全握手中强制执行仅限 WebRTC 的 DTLS 指纹
+    /// 绑定（fail closed）。
     #[inline]
     pub fn is_webrtc(&self) -> bool {
         match self {
@@ -163,18 +163,18 @@ impl Stream {
         }
     }
 
-    /// Close the underlying WebRTC peer connection if this is a WebRTC stream; no-op otherwise.
-    /// A WebRTC pc is kept alive by the global session cache and its cleanup handler only fires on
-    /// a terminal ICE state, so it must be closed explicitly at session end. TCP/WebSocket streams
-    /// release their resources on drop and need nothing here.
+    /// 如果这是 WebRTC 流，则关闭底层的 WebRTC peer connection；否则不做任何事。
+    /// WebRTC pc 由全局 session 缓存保持存活，其清理处理器只在
+    /// 出现终止性 ICE 状态时才触发，因此必须在会话结束时显式关闭。TCP/WebSocket 流
+    /// 在 drop 时释放资源，这里无需做任何处理。
     ///
-    /// Deliberately not `async`: most callers sit in a `select!` arm or a future the UI can
-    /// abandon, and an awaited close that loses that race is unretryable — `close()` latches
-    /// `is_closed` before its first await, so every later attempt early-returns while the state
-    /// handler that would evict the session never runs. With no await point here there is
-    /// nothing to cancel; the teardown runs to completion on the WebRTC I/O runtime
-    /// (see `webrtc::WEBRTC_RT`) that owns the pc's sockets and pump tasks, so it reaches the
-    /// wire even after a caller's own runtime dies on return.
+    /// 刻意不做成 `async`：大多数调用方位于 `select!` 的某个分支，或位于 UI 可以
+    /// 放弃的 future 中；而一个在竞态中落败的 await 关闭是无法重试的——`close()` 会
+    /// 在首次 await 之前就锁定 `is_closed`，因此之后每次尝试都会提前返回，而那个本该
+    /// 驱逐 session 的状态处理器永远不会执行。这里没有 await 点，因此
+    /// 没有任何东西需要取消；拆除过程会在 WebRTC I/O 运行时上
+    /// （见 `webrtc::WEBRTC_RT`）上跑完，该运行时拥有 pc 的 socket 和泵任务，因此即使调用方自己的运行时在返回时
+    /// 已经销毁，它仍能把数据送到链路上。
     #[inline]
     pub fn close_webrtc(&self) {
         match self {
@@ -185,10 +185,10 @@ impl Stream {
         }
     }
 
-    /// Whether an established WebRTC transport runs through a TURN relay (used for the UI's
-    /// direct/relayed flag). `None` for non-WebRTC transports, and for a non-relay-policy pc
-    /// before ICE selects a pair; a Relay-policy pc answers `Some(true)` straight away — see
-    /// `WebRTCStream::is_relayed`.
+    /// 已建立的 WebRTC 传输是否经由 TURN 中继（用于 UI 的
+    /// 直连/中继标志）。非 WebRTC 传输为 `None`；对于非 relay 策略的 pc，
+    /// 在 ICE 选出候选对之前也是 `None`；Relay 策略的 pc 会直接返回 `Some(true)`——见
+    /// `WebRTCStream::is_relayed`。
     #[inline]
     pub async fn webrtc_relayed(&self) -> Option<bool> {
         match self {
@@ -199,9 +199,9 @@ impl Stream {
         }
     }
 
-    /// Whether an established WebRTC transport reaches the peer over IPv6 (used to name the
-    /// transport in the UI). `None` for non-WebRTC transports and before ICE selects a pair —
-    /// every other transport already carries the family in the label it was raced under.
+    /// 已建立的 WebRTC 传输是否通过 IPv6 到达对端（用于在 UI 中
+    /// 标注传输方式）。非 WebRTC 传输以及 ICE 选出候选对之前都是 `None`——
+    /// 其他每种传输都已经在竞速时的标签里携带了该地址族。
     #[inline]
     pub async fn webrtc_remote_ipv6(&self) -> Option<bool> {
         match self {
@@ -212,9 +212,9 @@ impl Stream {
         }
     }
 
-    /// DTLS certificate fingerprint for a WebRTC stream (`local`=true for this endpoint's own
-    /// cert, false for the peer's), used to bind the channel to the signed peer identity.
-    /// Returns None for non-WebRTC transports, which authenticate via the secretbox key exchange.
+    /// WebRTC 流的 DTLS 证书指纹（`local`=true 表示本端自己的
+    /// 证书，为 false 表示对端的），用于把通道绑定到已签名的对端身份。
+    /// 非 WebRTC 传输返回 None，它们通过 secretbox 密钥交换完成鉴权。
     #[inline]
     #[cfg_attr(not(feature = "webrtc"), allow(unused_variables))]
     pub async fn dtls_fingerprint(&self, local: bool) -> Option<String> {
@@ -245,7 +245,7 @@ impl Stream {
         }
     }
 
-    /// send message
+    /// 发送消息
     #[inline]
     pub async fn send(&mut self, msg: &impl protobuf::Message) -> ResultType<()> {
         match self {
@@ -256,7 +256,7 @@ impl Stream {
         }
     }
 
-    /// receive message
+    /// 接收消息
     #[inline]
     pub async fn next(&mut self) -> Option<Result<bytes::BytesMut, std::io::Error>> {
         match self {
@@ -283,17 +283,17 @@ impl Stream {
     }
 }
 
-/// Owning the stream owns the transport, WebRTC included.
+/// 拥有该流就等于拥有该传输，WebRTC 也不例外。
 ///
-/// A peer connection outlives its handle — the session cache holds a clone, and the handler that
-/// evicts it only fires on a terminal ICE state — so it has to be closed explicitly. Doing that
-/// at each exit path made it an obligation every `return`, `break` and `?` had to remember, and
-/// the long-lived side never did: `server::connection` ends its ~15 exits by dropping the stream.
-/// Nothing warned, because a missed close leaks silently and only under WebRTC.
+/// peer connection 的存活期长于它的句柄——session 缓存持有一个克隆，而
+/// 驱逐它的处理器只在终止性 ICE 状态时才触发——因此必须显式关闭它。如此一来
+/// 在每个退出路径上关闭，就成了每个 `return`、`break` 和 `?` 都得记住的义务，而
+/// 长生命周期的那一侧却从不这样做：`server::connection` 结束它约 15 处退出靠的是 drop 掉该流。
+/// 没有任何提示，因为漏掉的关闭会静默泄漏，而且只在 WebRTC 下发生。
 ///
-/// `Stream` is not `Clone`, so dropping it really is the end of the transport and there is no
-/// second owner to surprise. Explicit `close_webrtc()` calls remain valid — they close sooner
-/// than scope end — but they are now an optimization rather than the thing correctness rests on.
+/// `Stream` 不是 `Clone`，因此 drop 掉它确实就是该传输的终点，不存在
+/// 第二个所有者来搞突然袭击。显式调用 `close_webrtc()` 依然有效——它们关闭得更早，
+/// 比作用域结束更早——但现在它们只是一种优化，而不再是正确性所依赖的手段。
 impl Drop for Stream {
     fn drop(&mut self) {
         self.close_webrtc();

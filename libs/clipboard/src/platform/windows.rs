@@ -1,4 +1,4 @@
-//! windows implementation
+//! Windows 实现
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 #![allow(unused_variables)]
@@ -17,16 +17,16 @@ use std::{
     result::Result,
 };
 
-// only used error code will be recorded here
-/// success
+// 这里只记录用到的错误码
+/// 成功
 const CHANNEL_RC_OK: u32 = 0;
-/// error code from WinError.h
-/// success
+/// 来自 WinError.h 的错误码
+/// 成功
 const ERROR_SUCCESS: u32 = 0;
-/// allocation failure
+/// 分配失败
 const CHANNEL_RC_NO_MEMORY: u32 = 12;
-/// error code from WinError.h
-/// used by FreeRDP to represent errors.
+/// 来自 WinError.h 的错误码
+/// FreeRDP 用它来表示错误。
 const ERROR_INTERNAL_ERROR: u32 = 0x54F;
 
 pub type size_t = ::std::os::raw::c_ulonglong;
@@ -622,7 +622,7 @@ impl CliprdrServiceContext for CliprdrClientContext {
 fn ret_to_result(ret: u32) -> Result<(), CliprdrError> {
     match ret {
         #[allow(unreachable_patterns)]
-        // CHANNEL_RC_OK is unreachable, but ignore it
+        // CHANNEL_RC_OK 是不可达的，但忽略它
         ERROR_SUCCESS | CHANNEL_RC_OK => Ok(()),
         CHANNEL_RC_NO_MEMORY => Err(CliprdrError::CliprdrOutOfMemory),
         ERROR_INTERNAL_ERROR => Err(CliprdrError::ClipboardInternalError),
@@ -642,7 +642,7 @@ pub fn server_clip_file(
     let mut ret = 0;
     match msg {
         ClipboardFile::NotifyCallback { .. } => {
-            // unreachable
+            // 不可达
         }
         ClipboardFile::MonitorReady => {
             log::debug!("server_monitor_ready called");
@@ -767,7 +767,7 @@ pub fn server_clip_file(
             );
         }
         ClipboardFile::Files { .. } => {
-            // unreachable
+            // 不可达
         }
     }
     ret
@@ -835,7 +835,7 @@ pub fn server_format_list(
 
         for f in formats {
             if !f.formatName.is_null() {
-                // retake pointer to free memory
+                // 重新获取指针以释放内存
                 let _ = CString::from_raw(f.formatName);
             }
         }
@@ -1027,7 +1027,7 @@ extern "C" fn notify_callback(conn_id: UINT32, msg: *const NOTIFICATION_MESSAGE)
             }
         }
     };
-    // no need to handle result here
+    // 这里无需处理结果
     allow_err!(send_data(conn_id as _, data));
 
     0
@@ -1082,7 +1082,7 @@ extern "C" fn handle_clipboard_files(
 
         ClipboardFile::Files { files }
     };
-    // no need to handle result here
+    // 这里无需处理结果
     allow_err!(send_data(conn_id as _, data));
 
     0
@@ -1122,9 +1122,9 @@ extern "C" fn client_format_list(
         &format_list
     );
     let data = ClipboardFile::FormatList { format_list };
-    // no need to handle result here
+    // 这里无需处理结果
     if conn_id == 0 {
-        // msg_channel is used for debug, VEC_MSG_CHANNEL cannot be inspected by the debugger.
+        // msg_channel 用于调试，VEC_MSG_CHANNEL 无法被调试器检视。
         let msg_channel = VEC_MSG_CHANNEL.read().unwrap();
         msg_channel
             .iter()
@@ -1239,8 +1239,8 @@ extern "C" fn client_file_contents_request(
     // TODO: support huge file?
     // if (!cliprdr->hasHugeFileSupport)
     // {
-    // 	if (((UINT64)fileContentsRequest->cbRequested + fileContentsRequest->nPositionLow) >
-    // 	    UINT32_MAX)
+    // if (((UINT64)fileContentsRequest->cbRequested + fileContentsRequest->nPositionLow) >
+    //     UINT32_MAX)
     // 		return ERROR_INVALID_PARAMETER;
     // 	if (fileContentsRequest->nPositionHigh != 0)
     // 		return ERROR_INVALID_PARAMETER;

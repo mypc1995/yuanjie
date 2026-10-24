@@ -42,20 +42,20 @@ class RelativeMouseModel {
 
   final RelativeMouseAccumulator _accumulator = RelativeMouseAccumulator();
 
-  // Native relative mouse mode support (macOS only)
-  // Uses CGAssociateMouseAndMouseCursorPosition to lock cursor and NSEvent monitor for raw delta.
+  // 原生相对鼠标模式支持（仅 macOS）
+  // 使用 CGAssociateMouseAndMouseCursorPosition 锁定光标，并通过 NSEvent 监听获取原始增量。
   static MethodChannel? _hostChannel;
-  // The currently active model receiving native mouse delta events.
-  // Note: Race condition between multiple sessions is not a concern here because
-  // when relative mouse mode is active, the cursor is locked and the user cannot
-  // switch to another session window. The user must first exit relative mouse mode
-  // (via Cmd+G on macOS or Ctrl+Alt on Windows/Linux) before they can interact
-  // with a different session.
+  // 当前活动的、接收原生鼠标增量事件的 model。
+  // 注意：这里不存在多会话之间的竞态问题，因为
+  // 相对鼠标模式激活时光标被锁定，用户无法
+  // 切换到另一个会话窗口。用户必须先退出相对鼠标模式
+  // （在 macOS 上按 Cmd+G，或在 Windows/Linux 上按 Ctrl+Alt）才能与
+  // 其他会话交互。
   static RelativeMouseModel? _activeNativeModel;
   static bool _hostChannelInitialized = false;
 
-  /// Initialize the host channel for native relative mouse mode.
-  /// This should be called once when the app starts on macOS.
+  /// 初始化原生相对鼠标模式所需的宿主通道。
+  /// 在 macOS 上应用启动时应调用一次。
   static void initHostChannel() {
     if (!isMacOS) return;
     if (_hostChannelInitialized) return;
@@ -74,10 +74,10 @@ class RelativeMouseModel {
   }
 
   // TODO(perf): Consider routing native delta through RelativeMouseAccumulator/throttle
-  // if high-polling mice (e.g. 1000Hz+) cause message flooding on the network.
+  // 以免高回报率鼠标（例如 1000Hz+）在网络上造成消息洪水。
   void _onNativeMouseDelta(int dx, int dy) {
     if (!enabled.value) return;
-    // Send directly to remote without accumulator (native already provides integer deltas)
+    // 不经累加器直接发送到远端（原生已提供整数增量）
     _sendMouseMessageToSession({
       'type': 'move_relative',
       'x': '$dx',
@@ -92,11 +92,11 @@ class RelativeMouseModel {
       if (_hostChannel == null) return false;
     }
 
-    // Defensive guard: prevent overwriting an already-active native session.
-    // In practice, this should not happen because when relative mouse mode is active,
-    // the cursor is locked and the user cannot switch to another session window.
-    // The user must first exit relative mouse mode (via Cmd+G on macOS or Ctrl+Alt on
-    // Windows/Linux) before interacting with a different session.
+    // 防御性保护：防止覆盖已经处于活动状态的原生会话。
+    // 实际上这不应该发生，因为相对鼠标模式激活时，
+    // 光标被锁定，用户无法切换到另一个会话窗口。
+    // 用户必须先退出相对鼠标模式（在 macOS 上按 Cmd+G，或在 Windows/Linux 上按
+    // Ctrl+Alt）才能与不同的会话交互。
     if (_activeNativeModel != null && _activeNativeModel != this) {
       debugPrint(
           '[RelMouse] Another model already has native relative mouse mode active');
@@ -120,8 +120,8 @@ class RelativeMouseModel {
     if (!isMacOS) return;
     if (_hostChannel == null) return;
 
-    // Only the owning model should disable native mode to avoid
-    // one session inadvertently disrupting another's native relative mouse state.
+    // 只有拥有者 model 才应禁用原生模式，以避免
+    // 一个会话无意中破坏另一个会话的原生相对鼠标状态。
     if (_activeNativeModel != this) {
       return;
     }
@@ -137,64 +137,64 @@ class RelativeMouseModel {
     }
   }
 
-  // Whether native relative mouse mode is currently active for this model
+  // 该 model 当前是否处于原生相对鼠标模式
   bool get _isNativeRelativeMouseModeActive =>
       isMacOS && _activeNativeModel == this;
 
-  // Pointer lock center in LOCAL widget coordinates (for delta calculation)
+  // 指针锁定中心（LOCAL 控件坐标系，用于计算增量）
   Offset? _pointerLockCenterLocal;
-  // Pointer lock center in SCREEN coordinates (for OS cursor re-centering)
+  // 指针锁定中心（SCREEN 坐标系，用于重新居中 OS 光标）
   Offset? _pointerLockCenterScreen;
-  // Pointer region top-left in Flutter view coordinates.
-  // Computed from PointerEvent.position - PointerEvent.localPosition.
+  // 指针区域左上角（Flutter 视图坐标系）。
+  // 由 PointerEvent.position - PointerEvent.localPosition 计算得出。
   Offset? _pointerRegionTopLeftGlobal;
-  // Last pointer position in LOCAL widget coordinates (fallback when center is not ready).
+  // 上一次指针位置（LOCAL 控件坐标系，中心点未就绪时的回退方案）。
   Offset? _lastPointerLocalPos;
 
-  // Track whether we currently have an OS-level cursor clip active (Windows only).
+  // 跟踪当前是否启用了 OS 级光标裁剪（仅 Windows）。
   // TODO(accuracy): Revisit window/client/border clipping math if users report misaligned
-  // clipping on custom or maximized window decorations. Consider using platform APIs
-  // (e.g. GetClientRect on Windows) instead of Flutter's window coordinates.
+  // 在自定义或最大化窗口装饰上的裁剪问题。建议改用平台 API
+  // （例如 Windows 上的 GetClientRect），而不是 Flutter 的窗口坐标。
   bool _cursorClipApplied = false;
 
-  // Track whether a recenter operation is in progress to prevent overlapping calls.
+  // 跟踪是否有重新居中操作正在进行，以防止调用重叠。
   bool _recenterInProgress = false;
 
-  // Request token for async enable operation to prevent stale callbacks.
-  // Incremented on each enable attempt, callbacks check if token still matches.
+  // 异步启用操作的请求令牌，用于防止过时的回调。
+  // 每次尝试启用时递增，回调检查令牌是否仍然匹配。
   int _enableRequestId = 0;
 
-  // Throttle buffer for batching mouse move messages (reduces network flooding).
+  // 用于批量发送鼠标移动消息的节流缓冲区（减少网络消息洪水）。
   int _pendingDeltaX = 0;
   int _pendingDeltaY = 0;
   Timer? _throttleTimer;
   static const Duration _throttleInterval = Duration(milliseconds: 16);
 
-  // Size of the remote image widget (for center calculation)
+  // 远端图像控件的尺寸（用于计算中心点）
   Size? _imageWidgetSize;
 
-  // Debounce timestamp for relative mouse mode toggle to prevent race conditions
-  // between Rust rdev grab loop and Flutter keyboard handling.
+  // 相对鼠标模式切换的去抖时间戳，用于防止竞态
+  // 发生在 Rust rdev 抓取循环与 Flutter 键盘处理之间。
   DateTime? _lastToggle;
 
-  // Track key down state for exit shortcut.
-  // macOS: Cmd+G - track G key
-  // Windows/Linux: Ctrl+Alt - track whichever modifier was pressed last
-  // When key down is blocked (shortcut triggered), we also need to block
-  // the corresponding key up to avoid orphan key up events being sent to remote.
+  // 跟踪按键按下状态，用于退出快捷键。
+  // macOS：Cmd+G —— 跟踪 G 键
+  // Windows/Linux：Ctrl+Alt —— 跟踪最后按下的那个修饰键
+  // 当按下事件被拦截（快捷键已触发）时，还需要拦截
+  // 对应的松开事件，避免孤立的松开事件被发送到远端。
   bool _exitShortcutKeyDown = false;
 
-  // Callback to cancel external throttle timer when relative mouse mode is disabled.
+  // 在相对鼠标模式被禁用时取消外部节流定时器的回调。
   VoidCallback? onDisabled;
 
   bool get isSupported {
-    // On Linux/Wayland, cursor warping is not supported, hide the option entirely.
+    // 在 Linux/Wayland 上不支持光标位置改写，直接隐藏该选项。
     if (isDesktop && isLinux && bind.mainCurrentIsWayland()) {
       return false;
     }
-    // Relative mouse mode is unsupported on remote Linux:
-    // 1. Long-press key events are unsupported.
-    // 2. The Wayland display server lacks cursor warping support.
+    // 远端 Linux 上不支持相对鼠标模式：
+    // 1. 不支持长按按键事件。
+    // 2. Wayland 显示服务器缺少光标位置改写支持。
     final platform = peerPlatform();
     if (platform == kPeerPlatformLinux) {
       return false;
@@ -217,17 +217,17 @@ class RelativeMouseModel {
     _pointerRegionTopLeftGlobal = e.position - e.localPosition;
   }
 
-  /// Shared helper for handling exit shortcut for relative mouse mode.
-  /// Returns true if the event was handled and should not be forwarded.
+  /// 处理相对鼠标模式退出快捷键的共享辅助方法。
+  /// 若事件已被处理且不应继续转发，则返回 true。
   ///
-  /// Exit shortcuts (only work when relative mouse mode is active):
-  /// - macOS: Cmd+G
-  /// - Windows/Linux: Ctrl+Alt (any order - triggered when both are pressed)
+  /// 退出快捷键（仅在相对鼠标模式激活时生效）：
+  /// - macOS：Cmd+G
+  /// - Windows/Linux：Ctrl+Alt（顺序任意 —— 两个键都按下时触发）
   ///
-  /// [logicalKey] - the logical key of the event
-  /// [isKeyUp] - whether the event is a key up event
-  /// [isKeyDown] - whether the event is a key down event
-  /// [ctrlPressed], [altPressed], [commandPressed] - modifier states
+  /// [logicalKey] —— 事件的逻辑按键
+  /// [isKeyUp] —— 事件是否为按键松开事件
+  /// [isKeyDown] —— 事件是否为按键按下事件
+  /// [ctrlPressed]、[altPressed]、[commandPressed] —— 修饰键状态
   bool _handleExitShortcut({
     required LogicalKeyboardKey logicalKey,
     required bool isKeyUp,
@@ -238,10 +238,10 @@ class RelativeMouseModel {
   }) {
     if (!isDesktop || !keyboardPerm() || isViewCamera()) return false;
 
-    // Only handle exit shortcuts when relative mouse mode is active
+    // 仅在相对鼠标模式激活时处理退出快捷键
     if (!enabled.value) return false;
 
-    // Block key up if key down was blocked (to avoid orphan key up event on remote).
+    // 如果按下事件被拦截，则拦截对应的松开事件（避免远端出现孤立的松开事件）。
     if (isKeyUp && _exitShortcutKeyDown) {
       _exitShortcutKeyDown = false;
       return true;
@@ -249,7 +249,7 @@ class RelativeMouseModel {
 
     if (!isKeyDown) return false;
 
-    // macOS: Cmd+G to exit
+    // macOS：按 Cmd+G 退出
     if (isMacOS) {
       final isGKey = logicalKey == LogicalKeyboardKey.keyG;
       if (isGKey && commandPressed) {
@@ -260,14 +260,14 @@ class RelativeMouseModel {
       return false;
     }
 
-    // Windows/Linux: Ctrl+Alt to exit
-    // Triggered when both modifiers are pressed (check on either Ctrl or Alt key down)
+    // Windows/Linux：按 Ctrl+Alt 退出
+    // 两个修饰键都按下时触发（在 Ctrl 或 Alt 的按下事件上检查）
     final isCtrlKey = logicalKey == LogicalKeyboardKey.controlLeft ||
         logicalKey == LogicalKeyboardKey.controlRight;
     final isAltKey = logicalKey == LogicalKeyboardKey.altLeft ||
         logicalKey == LogicalKeyboardKey.altRight;
 
-    // When Ctrl is pressed and Alt is already down, or vice versa
+    // 当 Ctrl 被按下而 Alt 已处于按下状态时，或反之亦然
     if ((isCtrlKey && altPressed) || (isAltKey && ctrlPressed)) {
       _exitShortcutKeyDown = true;
       setRelativeMouseMode(false);
@@ -294,8 +294,8 @@ class RelativeMouseModel {
     );
   }
 
-  /// Handle raw key events for relative mouse mode.
-  /// Returns true if the event was handled and should not be forwarded.
+  /// 处理相对鼠标模式的原始按键事件。
+  /// 若事件已被处理且不应继续转发，则返回 true。
   bool handleRawKeyEvent(RawKeyEvent e) {
     final modifiers = e.data;
     return _handleExitShortcut(
@@ -311,11 +311,11 @@ class RelativeMouseModel {
   void onEnterOrLeaveImage(bool enter) {
     if (!enabled.value) return;
 
-    // Keep the shared pointer-in-image flag in sync.
+    // 保持共享的"指针位于图像内"标志同步。
     setPointerInsideImage(enter);
 
-    // macOS native mode: cursor is locked by CGAssociateMouseAndMouseCursorPosition,
-    // no need for recenter logic.
+    // macOS 原生模式：光标由 CGAssociateMouseAndMouseCursorPosition 锁定，
+    // 无需重新居中逻辑。
     if (_isNativeRelativeMouseModeActive) {
       return;
     }
@@ -325,8 +325,8 @@ class RelativeMouseModel {
       return;
     }
 
-    // Windows: clip cursor to window rect
-    // Linux: use recenter method
+    // Windows：将光标裁剪到窗口矩形内
+    // Linux：使用重新居中方法
     updatePointerLockCenter().then((_) {
       _recenterMouse();
     });
@@ -335,10 +335,10 @@ class RelativeMouseModel {
   void onWindowBlur() {
     if (!enabled.value) return;
 
-    // Focus can change while the pointer is outside the window (e.g. taskbar activation).
-    // Do not rely on the previous "pointer inside" state across focus boundaries.
+    // 指针位于窗口外时焦点也可能发生变化（例如激活任务栏）。
+    // 不要跨焦点边界依赖之前的"指针在窗口内"状态。
     setPointerInsideImage(false);
-    // macOS native mode: don't call _releaseCursorClip as it would break CGAssociateMouseAndMouseCursorPosition
+    // macOS 原生模式：不要调用 _releaseCursorClip，否则会破坏 CGAssociateMouseAndMouseCursorPosition
     if (!_isNativeRelativeMouseModeActive) {
       _releaseCursorClip();
     }
@@ -347,24 +347,24 @@ class RelativeMouseModel {
   void onWindowFocus() {
     if (!enabled.value) return;
 
-    // macOS native mode: cursor is already locked
+    // macOS 原生模式：光标已被锁定
     if (_isNativeRelativeMouseModeActive) {
       setPointerInsideImage(false);
       return;
     }
 
-    // Guard: image widget size must be available for proper center calculation.
+    // 保护：必须能获取图像控件尺寸，才能正确计算中心点。
     if (_imageWidgetSize == null) {
       _disableWithCleanup();
       return;
     }
 
-    // Fail-safe: keep cursor usable on focus gain. Pointer lock will be re-engaged
-    // on the next pointer enter/move/hover inside the remote image.
+    // 容错处理：获得焦点时保持光标可用。指针锁定会在
+    // 下一次进入/移动/悬停于远端图像内时重新启用。
     setPointerInsideImage(false);
     _releaseCursorClip();
 
-    // Best-effort: refresh center so the next engage is immediate.
+    // 尽力而为：刷新中心点，使下一次启用立即生效。
     updatePointerLockCenter();
   }
 
@@ -380,7 +380,7 @@ class RelativeMouseModel {
   }
 
   bool setRelativeMouseMode(bool value) {
-    // Web is not supported due to Pointer Lock API integration complexity with Flutter's input system
+    // 由于 Pointer Lock API 与 Flutter 输入系统的集成复杂度较高，Web 端暂不支持
     if (isWeb) {
       return false;
     }
@@ -391,13 +391,13 @@ class RelativeMouseModel {
       }
 
       if (isDesktop && _imageWidgetSize == null) {
-        // Desktop only: Ensure image widget size is available for proper center calculation.
+        // 仅桌面端：确保能获取图像控件尺寸，以正确计算中心点。
         showToast(translate('rel-mouse-not-ready-tip'));
         return false;
       }
 
       if (!isSupported) {
-        // Check server version support before enabling.
+        // 启用前检查服务端版本是否支持。
         showToast(translate('rel-mouse-not-supported-peer-tip'));
         return false;
       }
@@ -408,21 +408,21 @@ class RelativeMouseModel {
         if (isDesktop) {
           final requestId = ++_enableRequestId;
           if (isMacOS) {
-            // macOS: Use native relative mouse mode with CGAssociateMouseAndMouseCursorPosition
-            // This locks the cursor in place and provides raw delta via NSEvent monitor.
+            // macOS：使用 CGAssociateMouseAndMouseCursorPosition 的原生相对鼠标模式
+            // 这会将光标锁定在原地，并通过 NSEvent 监听提供原始增量。
             _enableNativeRelativeMouseMode().then((success) {
-              // Guard against stale callback: user may have toggled off relative mode
-              // while the async enable was in progress.
+              // 防止过时回调：用户可能已在此期间关闭相对模式
+              // （异步启用正在进行中）。
               if (_enableRequestId != requestId) {
                 return;
               }
               if (success) {
                 _completeEnableRelativeMouseMode();
               }
-              // Note: _enableNativeRelativeMouseMode already handles its own cleanup on failure
+              // 注意：_enableNativeRelativeMouseMode 失败时已自行处理清理
             });
           } else {
-            // Windows/Linux: Use Flutter-based cursor recenter approach
+            // Windows/Linux：使用基于 Flutter 的光标重新居中方案
             if (!getPointerInsideImage()) {
               _releaseCursorClip();
             }
@@ -441,7 +441,7 @@ class RelativeMouseModel {
             });
           }
         } else {
-          // Mobile: enable immediately (no platform-specific setup needed)
+          // 移动端：立即启用（无需平台特定设置）
           _completeEnableRelativeMouseMode();
         }
       } catch (e) {
@@ -449,9 +449,9 @@ class RelativeMouseModel {
         return false;
       }
     } else {
-      // Best-effort marker for Rust rdev grab loop (ESC behavior).
-      // Bypass keyboardPerm check to ensure Rust state is always synced,
-      // even if permission was revoked while relative mode was active.
+      // 给 Rust rdev 抓取循环的尽力而为标记（ESC 行为）。
+      // 绕过 keyboardPerm 检查以确保 Rust 状态始终同步，
+      // 即使在相对模式激活期间权限被撤销也一样。
       _sendMouseMessageToSession(
         {
           'relative_mouse_mode': '0',
@@ -460,11 +460,11 @@ class RelativeMouseModel {
         bypassKeyboardPerm: true,
       );
 
-      // Desktop only: cursor manipulation
+      // 仅桌面端：光标操作
       if (isDesktop) {
         if (isMacOS) {
-          // macOS: Disable native relative mouse mode
-          // This already calls CGAssociateMouseAndMouseCursorPosition(1) to re-associate mouse
+          // macOS：禁用原生相对鼠标模式
+          // 它已经调用 CGAssociateMouseAndMouseCursorPosition(1) 来重新关联鼠标
           _disableNativeRelativeMouseMode();
         } else {
           _releaseCursorClip();
@@ -478,21 +478,21 @@ class RelativeMouseModel {
     return true;
   }
 
-  /// Called when platform setup completes successfully to finalize enabling relative mouse mode.
+  /// 在平台设置成功完成后调用，以最终完成相对鼠标模式的启用。
   void _completeEnableRelativeMouseMode() {
     enabled.value = true;
 
-    // Show toast notification so user knows how to exit relative mouse mode (desktop only).
+    // 显示 toast 通知，让用户知道如何退出相对鼠标模式（仅桌面端）。
     if (isDesktop) {
       showToast(
           translate('rel-mouse-exit-{${isMacOS ? "Cmd+G" : "Ctrl+Alt"}}-tip'),
           alignment: Alignment.center);
     }
 
-    // Best-effort marker for Rust rdev grab loop (ESC behavior) and peer/server state.
-    // This uses a no-op delta so it does not move the remote cursor.
-    // Intentionally fire-and-forget: we don't block enabling on this marker message.
-    // Failures are logged but do not disable relative mouse mode.
+    // 给 Rust rdev 抓取循环（ESC 行为）以及 peer/服务端状态的尽力而为标记。
+    // 这里使用空增量，因此不会移动远端光标。
+    // 有意采用"发出即不管"的方式：不因这条标记消息而阻塞启用流程。
+    // 失败只记录日志，不会禁用相对鼠标模式。
     _sendMouseMessageToSession(
       {
         'relative_mouse_mode': '1',
@@ -507,23 +507,23 @@ class RelativeMouseModel {
     });
   }
 
-  // Flag to skip the first mouse move event after recenter (it's the recenter itself).
+  // 用于在重新居中后跳过第一个鼠标移动事件的标志（它本身就是重新居中产生的）。
   bool _skipNextMouseMove = false;
 
-  /// Handle relative mouse movement based on current local pointer position.
-  /// Returns true if the event was handled in relative mode, false otherwise.
+  /// 基于当前本地指针位置处理相对鼠标移动。
+  /// 若事件在相对模式下已被处理则返回 true，否则返回 false。
   bool handleRelativeMouseMove(Offset localPosition) {
     if (!enabled.value) return false;
 
-    // macOS: Native mode handles delta via callback, skip Flutter-based handling.
+    // macOS：原生模式通过回调处理增量，跳过基于 Flutter 的处理。
     if (_isNativeRelativeMouseModeActive) {
       return true;
     }
 
-    // Pointer move/hover implies we're inside the remote image.
+    // 指针移动/悬停意味着我们位于远端图像内部。
     _ensurePointerLockEngaged();
 
-    // Skip the mouse move event triggered by recenter operation itself.
+    // 跳过由重新居中操作本身触发的鼠标移动事件。
     if (_skipNextMouseMove) {
       _skipNextMouseMove = false;
       _lastPointerLocalPos = localPosition;
@@ -533,16 +533,16 @@ class RelativeMouseModel {
     final lastLocal = _lastPointerLocalPos;
     _lastPointerLocalPos = localPosition;
 
-    // Linux-specific: Proactive recenter check before processing delta.
-    // On Linux, we don't have clip_cursor, so if the cursor moves too fast
-    // it may escape the window before _recenterIfNearEdge can catch it.
-    // Check now and recenter immediately if needed.
+    // Linux 专属：处理增量之前主动检查是否需要重新居中。
+    // 在 Linux 上我们没有 clip_cursor，因此如果光标移动过快
+    // 可能在 _recenterIfNearEdge 反应过来之前就移出窗口。
+    // 现在就检查，必要时立即重新居中。
     if (isLinux) {
       _recenterIfNearEdgeLinux(localPosition);
     }
 
-    // Calculate delta from last position (not from center).
-    // This avoids issues with CGWarpMouseCursorPosition integer rounding.
+    // 从上一次位置（而非中心点）计算增量。
+    // 这样可避免 CGWarpMouseCursorPosition 整数取整带来的问题。
     if (lastLocal != null) {
       final delta = localPosition - lastLocal;
       if (delta.dx != 0 || delta.dy != 0) {
@@ -553,8 +553,8 @@ class RelativeMouseModel {
     return true;
   }
 
-  /// Linux-specific: More aggressive recenter check to prevent cursor escape.
-  /// Called synchronously before processing mouse delta to ensure cursor stays within bounds.
+  /// Linux 专属：更激进的重新居中检查，防止光标移出窗口。
+  /// 在处理鼠标增量之前同步调用，确保光标始终在边界内。
   void _recenterIfNearEdgeLinux(Offset localPosition) {
     final size = _imageWidgetSize;
     if (size == null) return;
@@ -577,11 +577,11 @@ class RelativeMouseModel {
     final delta = _accumulator.add(dx, dy, maxDelta: kMaxRelativeMouseDelta);
     if (delta == null) return;
 
-    // Buffer the delta for throttled sending.
+    // 将增量放入缓冲区，以便按节流节奏发送。
     _pendingDeltaX += delta.x;
     _pendingDeltaY += delta.y;
 
-    // Start or refresh the throttle timer.
+    // 启动或刷新节流定时器。
     if (_throttleTimer == null || !_throttleTimer!.isActive) {
       _throttleTimer = Timer(_throttleInterval, () => _flushPendingDelta());
     }
@@ -603,22 +603,22 @@ class RelativeMouseModel {
     });
     if (!ok) return;
 
-    // Only recenter when mouse is near the edge of the image widget.
-    // This allows smooth mouse movement without constant recentering.
+    // 仅当鼠标接近图像控件边缘时才重新居中。
+    // 这样可以实现平滑的鼠标移动，而不必频繁重新居中。
     _recenterIfNearEdge();
   }
 
-  // Edge threshold parameters for recenter detection.
-  // Threshold is calculated as: min(maxThreshold, min(width, height) * fraction)
+  // 用于重新居中检测的边缘阈值参数。
+  // 阈值计算方式：min(maxThreshold, min(width, height) * fraction)
   static const double _edgeThresholdFraction = 0.1; // 10% of smaller dimension
   static const double _edgeThresholdMax =
       100.0; // Maximum threshold in logical pixels
   static const double _edgeThresholdMin =
       20.0; // Minimum threshold for very small widgets
 
-  // Linux-specific edge threshold parameters (more aggressive to prevent cursor escape).
-  // On Linux, we don't have clip_cursor capability, so we need to recenter earlier
-  // to prevent the cursor from escaping the window when moving fast.
+  // Linux 专属的边缘阈值参数（更激进，防止光标移出窗口）。
+  // 在 Linux 上我们没有 clip_cursor 能力，因此需要更早地重新居中
+  // 以防止快速移动时光标移出窗口。
   static const double _edgeThresholdFractionLinux =
       0.25; // 25% of smaller dimension
   static const double _edgeThresholdMaxLinux =
@@ -626,27 +626,27 @@ class RelativeMouseModel {
   static const double _edgeThresholdMinLinux =
       50.0; // Larger minimum threshold for Linux
 
-  /// Calculate dynamic edge threshold based on widget size.
+  /// 根据控件尺寸计算动态边缘阈值。
   double _calculateEdgeThreshold(Size size) {
     final smallerDimension = math.min(size.width, size.height);
     if (isLinux) {
-      // Use more aggressive thresholds on Linux to prevent cursor escape.
+      // 在 Linux 上使用更激进的阈值，防止光标移出窗口。
       final dynamicThreshold = smallerDimension * _edgeThresholdFractionLinux;
       return dynamicThreshold.clamp(
           _edgeThresholdMinLinux, _edgeThresholdMaxLinux);
     }
     final dynamicThreshold = smallerDimension * _edgeThresholdFraction;
-    // Clamp between min and max thresholds
+    // 在最小值与最大值阈值之间做钳制
     return dynamicThreshold.clamp(_edgeThresholdMin, _edgeThresholdMax);
   }
 
-  /// Recenter the cursor only if it's near the edge of the image widget.
+  /// 仅当光标接近图像控件边缘时才重新居中。
   void _recenterIfNearEdge() {
     final lastPos = _lastPointerLocalPos;
     final size = _imageWidgetSize;
     if (lastPos == null || size == null) return;
 
-    // Dynamic threshold based on widget size
+    // 基于控件尺寸的动态阈值
     final edgeThreshold = _calculateEdgeThreshold(size);
 
     final nearLeft = lastPos.dx < edgeThreshold;
@@ -659,7 +659,7 @@ class RelativeMouseModel {
     }
   }
 
-  /// Send mouse button event without position (for relative mouse mode).
+  /// 发送不带位置信息的鼠标按键事件（用于相对鼠标模式）。
   Future<void> sendRelativeMouseButton(Map<String, dynamic> evt) async {
     if (!enabled.value) return;
     _ensurePointerLockEngaged();
@@ -714,14 +714,14 @@ class RelativeMouseModel {
     }
   }
 
-  /// Retry parameters for cursor re-centering.
+  /// 光标重新居中的重试参数。
   static const int _recenterMaxRetries = 3;
   static const Duration _recenterRetryDelay = Duration(milliseconds: 100);
 
-  /// Recenter the cursor to the pointer lock center.
-  /// Fire-and-forget safe: prevents overlapping calls and catches errors internally.
+  /// 将光标重新居中到指针锁定中心。
+  /// "发出即不管"安全：防止调用重叠，并在内部捕获错误。
   Future<void> _recenterMouse() async {
-    // Prevent overlapping recenter operations under high-frequency mouse moves.
+    // 在高频鼠标移动下防止重新居中操作重叠。
     if (_recenterInProgress) return;
     _recenterInProgress = true;
 
@@ -735,7 +735,7 @@ class RelativeMouseModel {
       }
 
       for (int attempt = 0; attempt < _recenterMaxRetries; attempt++) {
-        // Check preconditions before each attempt.
+        // 每次尝试前检查前置条件。
         if (!enabled.value || !getPointerInsideImage()) return;
 
         final ok = bind.mainSetCursorPosition(
@@ -743,18 +743,18 @@ class RelativeMouseModel {
           y: center.dy.toInt(),
         );
         if (ok) {
-          // Skip the next mouse move event - it's triggered by the recenter itself.
+          // 跳过下一个鼠标移动事件 —— 它由重新居中本身触发。
           _skipNextMouseMove = true;
           return;
         }
 
-        // Wait before retrying (except on the last attempt).
+        // 重试前先等待（最后一次尝试除外）。
         if (attempt < _recenterMaxRetries - 1) {
           await Future.delayed(_recenterRetryDelay);
         }
       }
 
-      // All attempts failed.
+      // 所有尝试均失败。
       _disableWithCleanup();
       showToast(translate('rel-mouse-lock-failed-tip'));
     } catch (e, st) {
@@ -767,7 +767,7 @@ class RelativeMouseModel {
   Future<void> updatePointerLockCenter({Offset? localCenter}) async {
     if (!isDesktop) return;
 
-    // Null safety check for kWindowId.
+    // 对 kWindowId 进行空值安全检查。
     if (kWindowId == null) {
       if (enabled.value) {
         _disableWithCleanup();
@@ -800,8 +800,8 @@ class RelativeMouseModel {
         return;
       }
 
-      // Calculate screen coordinates for OS cursor positioning.
-      // Use PlatformDispatcher instead of deprecated ui.window.
+      // 计算用于 OS 光标定位的屏幕坐标。
+      // 使用 PlatformDispatcher 而非已废弃的 ui.window。
       final view = ui.PlatformDispatcher.instance.views.firstOrNull;
       if (view == null) {
         debugPrint('[RelMouse] No view available for coordinate calculation');
@@ -813,18 +813,18 @@ class RelativeMouseModel {
       final scale = view.devicePixelRatio;
 
       if (_pointerRegionTopLeftGlobal != null && scale > 0) {
-        // On macOS, window frame and CGWarpMouseCursorPosition use points (not pixels).
-        // On Windows, they use pixels.
-        // Flutter's logical coordinates are in points on macOS.
+        // 在 macOS 上，窗口边框和 CGWarpMouseCursorPosition 使用点（而非像素）。
+        // 在 Windows 上则使用像素。
+        // 在 macOS 上，Flutter 的逻辑坐标以点为单位。
         final centerInView =
             _pointerRegionTopLeftGlobal! + _pointerLockCenterLocal!;
 
-        // Calculate client area offset (excluding title bar and borders)
+        // 计算客户区偏移（不含标题栏和边框）
         final clientPhysical = view.physicalSize;
 
-        // macOS: Window frame and CGWarpMouseCursorPosition both use points (not pixels).
-        // We convert clientPhysical (pixels) to points via `/ scale` to compute titleBarHeight,
-        // which is the difference between the total window height and the Flutter view height.
+        // macOS：窗口边框和 CGWarpMouseCursorPosition 都使用点（而非像素）。
+        // 我们通过 `/ scale` 把 clientPhysical（像素）转换为点，以计算 titleBarHeight，
+        // 即窗口总高度与 Flutter 视图高度之差。
         if (isMacOS) {
           final clientHeightPoints = clientPhysical.height / scale;
           final titleBarHeight = frame.height - clientHeightPoints;
@@ -834,14 +834,14 @@ class RelativeMouseModel {
             frame.top + titleBarHeight + centerInView.dy,
           );
         } else {
-          // Windows/Linux: Use pixel coordinates. We estimate the client-area offset using
-          // a heuristic based on the difference between frame size and client physical size.
-          // This assumes symmetric horizontal borders (extraW / 2) and that the remaining
-          // vertical space (extraH - borderBottom) is the title bar height.
-          // Limitation: This heuristic may be inaccurate for maximized windows, custom window
-          // decorations, or when the OS uses different border styles.
+          // Windows/Linux：使用像素坐标。我们用启发式方法估算客户区偏移，
+          // 依据是边框尺寸与客户区物理尺寸之差。
+          // 这假设水平边框对称（extraW / 2），并且剩余的
+          // 垂直空间（extraH - borderBottom）即标题栏高度。
+          // 局限：对于最大化窗口、自定义窗口
+          // 装饰，或操作系统使用不同边框样式时，该启发式可能不准确。
           // TODO: Replace this heuristic with platform API calls (e.g., GetClientRect on Windows)
-          //       if precise client-area offsets are required.
+          //       如果需要精确的客户区偏移。
           final extraW = frame.width - clientPhysical.width;
           final extraH = frame.height - clientPhysical.height;
           final borderX = extraW > 0 ? extraW / 2 : 0.0;
@@ -850,8 +850,8 @@ class RelativeMouseModel {
           final clientTopLeftScreen =
               Offset(frame.left + borderX, frame.top + borderTop);
 
-          // Calculate tentative center, then validate it's within frame bounds.
-          // This guards against heuristic inaccuracies (e.g., maximized windows).
+          // 先计算候选中心点，再校验其是否位于边框范围内。
+          // 这样可以防范启发式不准确带来的问题（例如最大化窗口）。
           final tentativeCenter = Offset(
             clientTopLeftScreen.dx + centerInView.dx * scale,
             clientTopLeftScreen.dy + centerInView.dy * scale,
@@ -875,11 +875,11 @@ class RelativeMouseModel {
       if (enabled.value && isWindows && getPointerInsideImage()) {
         _applyCursorClipForFrame(frame);
       } else if (enabled.value && isWindows && _cursorClipApplied) {
-        // Only release if we actually have a clip applied to avoid redundant FFI calls.
+        // 仅在确实施加了裁剪时才释放，避免多余的 FFI 调用。
         _releaseCursorClip();
       }
-      // macOS: no clip_cursor (CGAssociateMouseAndMouseCursorPosition stops mouse events)
-      // Instead, we use recenter method like other platforms.
+      // macOS：没有 clip_cursor（CGAssociateMouseAndMouseCursorPosition 会停止鼠标事件）
+      // 因此像其他平台一样使用重新居中方法。
     } catch (e) {
       if (enabled.value) {
         _disableWithCleanup();
@@ -898,7 +898,7 @@ class RelativeMouseModel {
 
     final needsCenter =
         _pointerLockCenterLocal == null || _pointerLockCenterScreen == null;
-    // Windows only: cursor clip
+    // 仅 Windows：光标裁剪
     final needsClip = isWindows && !_cursorClipApplied;
     if (needsCenter || needsClip) {
       updatePointerLockCenter()
@@ -913,38 +913,38 @@ class RelativeMouseModel {
   void _applyCursorClipForFrame(Rect frame) {
     if (!isWindows) return;
 
-    // Use PlatformDispatcher to get the device pixel ratio for proper scaling.
+    // 使用 PlatformDispatcher 获取设备像素比，以正确缩放。
     final view = ui.PlatformDispatcher.instance.views.firstOrNull;
     final scale = view?.devicePixelRatio ?? 1.0;
 
-    // Get the Flutter view's physical size (client area in pixels).
+    // 获取 Flutter 视图的物理尺寸（以像素计的客户区）。
     final clientPhysical = view?.physicalSize ?? ui.Size.zero;
 
-    // Calculate the non-client area (OS window title bar, borders).
-    // frame includes the entire window (title bar + borders + client area).
+    // 计算非客户区（操作系统窗口标题栏、边框）。
+    // frame 包含整个窗口（标题栏 + 边框 + 客户区）。
     final extraW = frame.width - clientPhysical.width;
     final extraH = frame.height - clientPhysical.height;
 
-    // Assume symmetric horizontal borders.
+    // 假设水平边框对称。
     final borderX = extraW > 0 ? extraW / 2 : 0.0;
-    // Bottom border is typically the same as side borders.
+    // 底部边框通常与侧边边框相同。
     final borderBottom = borderX;
-    // OS window title bar height is the remaining vertical non-client space.
+    // 操作系统窗口标题栏高度就是剩余的垂直非客户区空间。
     final borderTop = extraH > borderBottom ? extraH - borderBottom : 0.0;
 
-    // Calculate client area top-left in screen coordinates.
+    // 计算客户区左上角的屏幕坐标。
     final clientTopLeftScreen =
         Offset(frame.left + borderX, frame.top + borderTop);
 
     int left, top, right, bottom;
 
-    // If we have precise image widget info, clip to the remote image area.
-    // This excludes the Flutter app's internal title bar and toolbar.
+    // 如果掌握了精确的图像控件信息，则裁剪到远端图像区域。
+    // 这样可排除 Flutter 应用内部的标题栏和工具栏。
     if (_pointerRegionTopLeftGlobal != null &&
         _imageWidgetSize != null &&
         scale > 0) {
-      // _pointerRegionTopLeftGlobal is in Flutter logical coordinates (relative to client area).
-      // Convert to screen physical coordinates.
+      // _pointerRegionTopLeftGlobal 采用 Flutter 逻辑坐标（相对于客户区）。
+      // 转换为屏幕物理坐标。
       left = (clientTopLeftScreen.dx + _pointerRegionTopLeftGlobal!.dx * scale)
           .toInt();
       top = (clientTopLeftScreen.dy + _pointerRegionTopLeftGlobal!.dy * scale)
@@ -952,7 +952,7 @@ class RelativeMouseModel {
       right = (left + _imageWidgetSize!.width * scale).toInt();
       bottom = (top + _imageWidgetSize!.height * scale).toInt();
     } else {
-      // Fallback: clip to client area (excluding OS window decorations).
+      // 回退方案：裁剪到客户区（不含操作系统窗口装饰）。
       left = clientTopLeftScreen.dx.toInt();
       top = clientTopLeftScreen.dy.toInt();
       right = (frame.left + frame.width - borderX).toInt();
@@ -983,9 +983,9 @@ class RelativeMouseModel {
   }
 
   void _resetState() {
-    // Flush any pending delta before clearing state.
-    // This ensures the last buffered movement is sent before values are zeroed.
-    // Fire-and-forget: we don't wait for the async send to complete.
+    // 在清除状态前先把待处理的增量发送出去。
+    // 确保在数值被清零前，最后一批缓冲的移动已发送。
+    // "发出即不管"：不等待异步发送完成。
     if (_throttleTimer != null || _pendingDeltaX != 0 || _pendingDeltaY != 0) {
       _throttleTimer?.cancel();
       _throttleTimer = null;
@@ -994,7 +994,7 @@ class RelativeMouseModel {
         final y = _pendingDeltaY;
         _pendingDeltaX = 0;
         _pendingDeltaY = 0;
-        // Send without awaiting; skip recenter since we're disabling.
+        // 发送但不等待；由于正在禁用，跳过重新居中。
         _sendMouseMessageToSession({
           'type': 'move_relative',
           'x': '$x',
@@ -1013,11 +1013,11 @@ class RelativeMouseModel {
     _exitShortcutKeyDown = false;
   }
 
-  /// Core cleanup logic shared by [_disableWithCleanup] and [dispose].
-  /// Sends disable message to Rust, releases platform resources, and resets state.
+  /// [_disableWithCleanup] 与 [dispose] 共用的核心清理逻辑。
+  /// 向 Rust 发送禁用消息，释放平台资源并重置状态。
   void _performCleanupCore() {
-    // Best-effort marker for Rust rdev grab loop (ESC behavior).
-    // Bypass keyboardPerm check to ensure Rust state is always synced.
+    // 给 Rust rdev 抓取循环的尽力而为标记（ESC 行为）。
+    // 绕过 keyboardPerm 检查以确保 Rust 状态始终同步。
     _sendMouseMessageToSession(
       {
         'relative_mouse_mode': '0',
@@ -1026,8 +1026,8 @@ class RelativeMouseModel {
       bypassKeyboardPerm: true,
     );
 
-    // macOS: Disable native relative mouse mode
-    // This already calls CGAssociateMouseAndMouseCursorPosition(1) to re-associate mouse
+    // macOS：禁用原生相对鼠标模式
+    // 它已经调用 CGAssociateMouseAndMouseCursorPosition(1) 来重新关联鼠标
     if (isMacOS) {
       _disableNativeRelativeMouseMode();
     } else {
@@ -1052,9 +1052,9 @@ class RelativeMouseModel {
     _performCleanupCore();
     _imageWidgetSize = null;
     _lastToggle = null;
-    // Set enabled to false BEFORE calling onDisabled, consistent with _disableWithCleanup().
+    // 在调用 onDisabled 之前将 enabled 设为 false，与 _disableWithCleanup() 保持一致。
     enabled.value = false;
-    // Trigger callback before clearing it, so external cleanup can run.
+    // 先触发回调再清空，以便外部清理得以执行。
     onDisabled?.call();
     onDisabled = null;
   }

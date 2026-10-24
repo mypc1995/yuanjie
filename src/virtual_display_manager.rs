@@ -1,7 +1,7 @@
 use base::platform::windows::is_windows_version_or_greater;
 use hbb_common::{bail, ResultType};
 
-// This string is defined here.
+// 这个字符串定义在这里。
 //  https://github.com/rustdesk-org/RustDeskIddDriver/blob/b370aad3f50028b039aad211df60c8051c4a64d6/RustDeskIddDriver/RustDeskIddDriver.inf#LL73C1-L73C40
 pub const RUSTDESK_IDD_DEVICE_STRING: &'static str = "RustDeskIddDriver Device\0";
 pub const AMYUNI_IDD_DEVICE_STRING: &'static str = "USB Mobile Monitor Virtual Display\0";
@@ -137,7 +137,7 @@ pub mod rustdesk_idd {
         sync::{Arc, Mutex},
     };
 
-    // virtual display index range: 0 - 2 are reserved for headless and other special uses.
+    // 虚拟显示器索引范围：0 - 2 保留给无头和其他特殊用途。
     const VIRTUAL_DISPLAY_INDEX_FOR_HEADLESS: u32 = 0;
     const VIRTUAL_DISPLAY_START_FOR_PEER: u32 = 1;
     const VIRTUAL_DISPLAY_MAX_COUNT: u32 = 5;
@@ -168,7 +168,7 @@ pub mod rustdesk_idd {
                     bail!("Create device failed {}", e);
                 }
             }
-            // Reboot is not required for this case.
+            // 这种情况不需要重启。
             let mut _reboot_required = false;
             virtual_display::install_update_driver(&mut _reboot_required)?;
             self.is_driver_installed = true;
@@ -238,7 +238,7 @@ pub mod rustdesk_idd {
                 );
                 return "".to_string();
             }
-            // Sleep is needed here to wait for the virtual display to be ready.
+            // 这里需要 sleep 以等待虚拟显示器就绪。
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
         log::error!("Failed to get diff device names after plugin virtual display",);
@@ -412,12 +412,12 @@ pub mod amyuni_idd {
         static ref LAST_PLUG_IN_HEADLESS_TIME: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     }
     const VIRTUAL_DISPLAY_MAX_COUNT: usize = 4;
-    // The count of virtual displays plugged in.
-    // This count is not accurate, because:
-    // 1. The virtual display driver may also be controlled by other processes.
-    // 2. RustDesk may crash and restart, but the virtual displays are kept.
+    // 已插入的虚拟显示器数量。
+    // 这个计数并不准确，因为：
+    // 1. 虚拟显示驱动也可能被其他进程控制。
+    // 2. RustDesk 可能崩溃重启，但虚拟显示器会被保留。
     //
-    // to-do: Maybe a better way is to add an option asking the user if plug out all virtual displays on disconnect.
+    // 待办：也许更好的办法是加一个选项，在断开连接时询问用户是否拔出所有虚拟显示器。
     static VIRTUAL_DISPLAY_COUNT: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
     fn get_deviceinstaller64_work_dir() -> ResultType<Option<Vec<u8>>> {
@@ -447,7 +447,7 @@ pub mod amyuni_idd {
             if crate::platform::windows::is_x64() {
                 log::info!("Uninstalling driver by deviceinstaller64.exe");
                 install_if_x86_on_x64(&work_dir, "remove usbmmidd")?;
-                // Sleep some time to wait for the driver to be uninstalled.
+                // sleep 一段时间以等待驱动被卸载。
                 std::thread::sleep(Duration::from_secs(2));
                 return Ok(());
             }
@@ -459,8 +459,8 @@ pub mod amyuni_idd {
         Ok(())
     }
 
-    // SetupDiCallClassInstaller() will always fail if current_exe() is built as x86 and running on x64.
-    // So we need to call another x64 version exe to install and uninstall the driver.
+    // 如果 current_exe() 是以 x86 构建却在 x64 上运行，SetupDiCallClassInstaller() 总会失败。
+    // 所以我们需要调用另一个 x64 版本的 exe 来安装和卸载驱动。
     fn install_if_x86_on_x64(work_dir: &[u8], args: &str) -> ResultType<()> {
         const SW_HIDE: i32 = 0;
         let mut args = args.bytes().collect::<Vec<_>>();
@@ -484,8 +484,8 @@ pub mod amyuni_idd {
         Ok(())
     }
 
-    // If the driver is installed by "deviceinstaller64.exe", the driver will be installed asynchronously.
-    // The caller must wait some time before using the driver.
+    // 如果驱动由 "deviceinstaller64.exe" 安装，驱动会以异步方式安装。
+    // 调用方必须等待一段时间才能使用该驱动。
     fn check_install_driver(is_async: &mut bool) -> ResultType<()> {
         let _l = LOCK.lock().unwrap();
         let drivers = windows::get_display_drivers();
@@ -493,7 +493,7 @@ pub mod amyuni_idd {
             .iter()
             .any(|(s, c)| s == super::AMYUNI_IDD_DEVICE_STRING && *c == 0)
         {
-            *is_async = false;
+            * is_async = false;
             return Ok(());
         }
 
@@ -501,7 +501,7 @@ pub mod amyuni_idd {
             if crate::platform::windows::is_x64() {
                 log::info!("Installing driver by deviceinstaller64.exe");
                 install_if_x86_on_x64(&work_dir, "install usbmmidd.inf usbmmidd")?;
-                *is_async = true;
+                * is_async = true;
                 return Ok(());
             }
         }
@@ -520,14 +520,14 @@ pub mod amyuni_idd {
         let mut reboot_required = false;
         let _ =
             unsafe { win_device::install_driver(&inf_path, HARDWARE_ID, &mut reboot_required)? };
-        *is_async = false;
+        * is_async = false;
         Ok(())
     }
 
     pub fn reset_all() -> ResultType<()> {
         let _ = crate::privacy_mode::turn_off_privacy(0, None);
         let _ = plug_out_monitor(super::IDD_PLUG_OUT_ALL_INDEX, true, false);
-        *LAST_PLUG_IN_HEADLESS_TIME.lock().unwrap() = None;
+        * LAST_PLUG_IN_HEADLESS_TIME.lock().unwrap() = None;
         Ok(())
     }
 
@@ -551,10 +551,10 @@ pub mod amyuni_idd {
                 std::thread::sleep(Duration::from_millis(30));
             }
         }
-        // No need to consider concurrency here.
+        // 这里不需要考虑并发。
         if add {
-            // If the monitor is plugged in, increase the count.
-            // Though there's already a check of `VIRTUAL_DISPLAY_MAX_COUNT`, it's still better to check here for double ensure.
+            // 如果显示器已插入，就增加计数。
+            // 虽然已经有 `VIRTUAL_DISPLAY_MAX_COUNT` 的检查，这里再检查一次更稳妥。
             if VIRTUAL_DISPLAY_COUNT.load(atomic::Ordering::SeqCst) < VIRTUAL_DISPLAY_MAX_COUNT {
                 VIRTUAL_DISPLAY_COUNT.fetch_add(1, atomic::Ordering::SeqCst);
             }
@@ -566,8 +566,8 @@ pub mod amyuni_idd {
         Ok(())
     }
 
-    // `std::thread::sleep()` with a timeout is acceptable here.
-    // Because user can wait for a while to plug in a monitor.
+    // 这里使用带超时的 `std::thread::sleep()` 是可以接受的。
+    // 因为用户可能要等一会儿才插入显示器。
     fn plug_in_monitor_(
         add: bool,
         is_driver_async_installed: bool,
@@ -596,7 +596,7 @@ pub mod amyuni_idd {
                 }
             }
         }
-        // Workaround for the issue that we can't set the default the resolution.
+        // 针对无法设置默认分辨率问题的变通办法。
         if let Ok(old_connectivity_old) = reg_connectivity_old {
             std::thread::spawn(move || {
                 try_reset_resolution_on_first_plug_in(old_connectivity_old.len(), 1920, 1080);
@@ -633,7 +633,7 @@ pub mod amyuni_idd {
                 bail!("Plugging in too frequently.");
             }
         }
-        *tm = Some(Instant::now());
+        * tm = Some(Instant::now());
         drop(tm);
 
         let mut is_async = false;
@@ -659,22 +659,22 @@ pub mod amyuni_idd {
         plug_in_monitor_(true, is_async, None)
     }
 
-    // `index` the display index to plug out. -1 means plug out all.
-    // `force_all` is used to forcibly plug out all virtual displays.
-    // `force_one` is used to forcibly plug out one virtual display managed by other processes
-    //             if there're no virtual displays managed by RustDesk.
+    // `index` 是要拔出的显示器索引。-1 表示全部拔出。
+    // `force_all` 用于强制拔出所有虚拟显示器。
+    // `force_one` 用于强制拔出一个由其他进程管理的虚拟显示器，
+    //             如果没有由 RustDesk 管理的虚拟显示器。
     pub fn plug_out_monitor(index: i32, force_all: bool, force_one: bool) -> ResultType<()> {
         let plug_out_all = index == super::IDD_PLUG_OUT_ALL_INDEX;
-        // If `plug_out_all and force_all` is true, forcibly plug out all virtual displays.
-        // Though the driver may be controlled by other processes,
-        // we still forcibly plug out all virtual displays.
+        // 如果 `plug_out_all and force_all` 为真，就强制拔出所有虚拟显示器。
+        // 虽然驱动可能被其他进程控制，
+        // 我们仍然强制拔出所有虚拟显示器。
         //
-        // 1. RustDesk plug in 2 virtual displays. (RustDesk)
-        // 2. Other process plug out all virtual displays. (User manually)
-        // 3. Other process plug in 1 virtual display. (User manually)
-        // 4. RustDesk plug out all virtual displays in this call. (RustDesk disconnect)
+        // 1. RustDesk 插入 2 个虚拟显示器。（RustDesk）
+        // 2. 其他进程拔出所有虚拟显示器。（用户手动）
+        // 3. 其他进程插入 1 个虚拟显示器。（用户手动）
+        // 4. RustDesk 在这次调用中拔出所有虚拟显示器。（RustDesk 断开）
         //
-        // This is not a normal scenario, RustDesk will plug out virtual display unexpectedly.
+        // 这不是正常场景，RustDesk 会意外地拔出虚拟显示器。
         let mut plug_in_count = VIRTUAL_DISPLAY_COUNT.load(atomic::Ordering::Relaxed);
         let amyuni_count = get_monitor_count();
         if !plug_out_all {
@@ -686,7 +686,7 @@ pub mod amyuni_idd {
                 }
             }
         } else {
-            // Ignore the message if trying to plug out all virtual displays.
+            // 如果试图拔出所有虚拟显示器，就忽略该消息。
         }
 
         let all_count = windows::get_device_names(None).len();
@@ -867,7 +867,7 @@ mod windows {
             let mut data_type: DWORD = 0;
             let mut required_size: DWORD = 0;
 
-            // Get the required buffer size for the driver description
+            // 获取驱动描述所需的缓冲区大小
             let mut buffer;
             unsafe {
                 SetupDiGetDeviceRegistryPropertyW(
@@ -900,7 +900,7 @@ mod windows {
 
             let mut status: ULONG = 0;
             let mut problem_number: ULONG = 0;
-            // Get the device status and problem number
+            // 获取设备状态和问题编号
             let config_ret = unsafe {
                 CM_Get_DevNode_Status(
                     &mut status,

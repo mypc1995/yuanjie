@@ -425,7 +425,7 @@ fn repeat_timing_uses_the_capture_loop_start() {
         .into_iter()
         .enumerate()
         {
-            // Capture processing finishes partway through the current loop.
+            // 采集处理在当前循环进行到一半时结束。
             let capture_end = loop_start + Duration::from_millis(5);
             refresh.elapsed_since_encode = capture_end.duration_since(refresh.last_encode);
             refresh

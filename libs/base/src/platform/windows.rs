@@ -32,7 +32,7 @@ pub struct RAIIHandle(pub HANDLE);
 
 impl Drop for RAIIHandle {
     fn drop(&mut self) {
-        // This never gives problem except when running under a debugger.
+        // 除了在调试器下运行时，这从来不会出问题。
         unsafe { CloseHandle(self.0) };
     }
 }
@@ -47,16 +47,16 @@ impl Drop for RAIIPDHQuery {
 }
 
 pub fn start_cpu_performance_monitor() {
-    // Code from:
+    // 代码来自：
     // https://learn.microsoft.com/en-us/windows/win32/perfctrs/collecting-performance-data
     // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhcollectquerydataex
-    // Why value lower than taskManager:
+    // 为什么数值低于 taskManager：
     // https://aaron-margosis.medium.com/task-managers-cpu-numbers-are-all-but-meaningless-2d165b421e43
-    // Therefore we should compare with Precess Explorer rather than taskManager
+    // 因此我们应当与 Precess Explorer 而不是 taskManager 比较
 
     let f = || unsafe {
-        // load avg or cpu usage, test with prime95.
-        // Prefer cpu usage because we can get accurate value from Precess Explorer.
+        // 负载均值或 CPU 使用率，用 prime95 测试。
+        // 更倾向使用 CPU 使用率，因为我们可以从 Precess Explorer 拿到准确值。
         // const COUNTER_PATH: &'static str = "\\System\\Processor Queue Length\0";
         const COUNTER_PATH: &'static str = "\\Processor(_total)\\% Processor Time\0";
         const SAMPLE_INTERVAL: DWORD = 2; // 2 second
@@ -97,20 +97,20 @@ pub fn start_cpu_performance_monitor() {
         let mut queue: VecDeque<f64> = VecDeque::new();
         let mut recent_valid: VecDeque<bool> = VecDeque::new();
         loop {
-            // latest one minute
+            // 最近一分钟
             if queue.len() == 31 {
                 queue.pop_front();
             }
             if recent_valid.len() == 31 {
                 recent_valid.pop_front();
             }
-            // allow get value within one minute
+            // 允许获取一分钟内的值
             if queue.len() > 0 && recent_valid.iter().filter(|v| **v).count() > queue.len() / 2 {
                 let sum: f64 = queue.iter().map(|f| f.to_owned()).sum();
                 let avg = sum / (queue.len() as f64);
-                *CPU_USAGE_ONE_MINUTE.lock().unwrap() = Some((avg, Instant::now()));
+                * CPU_USAGE_ONE_MINUTE.lock().unwrap() = Some((avg, Instant::now()));
             } else {
-                *CPU_USAGE_ONE_MINUTE.lock().unwrap() = None;
+                * CPU_USAGE_ONE_MINUTE.lock().unwrap() = None;
             }
             if WAIT_OBJECT_0 != WaitForSingleObject(event, INFINITE) {
                 recent_valid.push_back(false);
@@ -153,7 +153,7 @@ pub fn sync_cpu_usage(cpu_usage: Option<f64>) {
         Some(cpu_usage) => Some((cpu_usage, Instant::now())),
         None => None,
     };
-    *CPU_USAGE_ONE_MINUTE.lock().unwrap() = v;
+    * CPU_USAGE_ONE_MINUTE.lock().unwrap() = v;
     log::info!("cpu usage synced: {:?}", cpu_usage);
 }
 

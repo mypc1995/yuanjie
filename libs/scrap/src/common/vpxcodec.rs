@@ -71,21 +71,21 @@ impl EncoderApi for VpxEncoder {
                 call_vpx!(vpx_codec_enc_config_default(i, &mut c, 0));
 
                 // https://www.webmproject.org/docs/encoder-parameters/
-                // default: c.rc_min_quantizer = 0, c.rc_max_quantizer = 63
-                // try rc_resize_allowed later
+                // 默认：c.rc_min_quantizer = 0，c.rc_max_quantizer = 63
+                // 之后再尝试 rc_resize_allowed
 
                 c.g_w = config.width;
                 c.g_h = config.height;
                 c.g_timebase.num = 1;
                 c.g_timebase.den = 1000; // Output timestamp precision
                 c.rc_undershoot_pct = 95;
-                // When the data buffer falls below this percentage of fullness, a dropped frame is indicated. Set the threshold to zero (0) to disable this feature.
-                // In dynamic scenes, low bitrate gets low fps while high bitrate gets high fps.
+                // 当数据缓冲区的填充率低于该百分比时，表示发生了丢帧。将阈值设为 0 可禁用此功能。
+                // 在动态画面中，低码率得到低帧率，高码率得到高帧率。
                 c.rc_dropframe_thresh = 25;
                 c.g_threads = codec_thread_num(64) as _;
                 c.g_error_resilient = VPX_ERROR_RESILIENT_DEFAULT;
                 // https://developers.google.com/media/vp9/bitrate-modes/
-                // Constant Bitrate mode (CBR) is recommended for live streaming with VP9.
+                // VP9 直播推荐使用恒定码率模式（CBR）。
                 c.rc_end_usage = vpx_rc_mode::VPX_CBR;
                 if let Some(keyframe_interval) = config.keyframe_interval {
                     c.kf_min_dist = 0;
@@ -125,8 +125,8 @@ impl EncoderApi for VpxEncoder {
                 ));
 
                 if config.codec == VpxVideoCodecId::VP9 {
-                    // set encoder internal speed settings
-                    // in ffmpeg, it is --speed option
+                    // 设置编码器内部的速度参数
+                    // 在 ffmpeg 中，对应的是 --speed 选项
                     /*
                     set to 0 or a positive value 1-16, the codec will try to adapt its
                     complexity depending on the time it spends encoding. Increasing this
@@ -141,7 +141,7 @@ impl EncoderApi for VpxEncoder {
                     use cases and also for lower CPU power devices such as mobile.
                     */
                     call_vpx!(vpx_codec_control_(&mut ctx, VP8E_SET_CPUUSED as _, 7,));
-                    // set row level multi-threading
+                    // 设置行级多线程
                     /*
                     as some people in comments and below have already commented,
                     more recent versions of libvpx support -row-mt 1 to enable tile row
@@ -194,7 +194,7 @@ impl EncoderApi for VpxEncoder {
             frames.push(VpxEncoder::create_frame(frame));
         }
 
-        // to-do: flush periodically, e.g. 1 second
+        // 待办：定期 flush，例如每秒一次
         if frames.len() > 0 {
             Ok(VpxEncoder::create_video_frame(self.id, frames))
         } else {
@@ -278,7 +278,7 @@ impl VpxEncoder {
         })
     }
 
-    /// Notify the encoder to return any pending packets
+    /// 通知编码器返回所有待处理的包
     pub fn flush<'a>(&'a mut self) -> Result<EncodeFrames<'a>> {
         call_vpx!(vpx_codec_encode(
             &mut self.ctx,
@@ -389,25 +389,25 @@ impl Drop for VpxEncoder {
 
 #[derive(Clone, Copy, Debug)]
 pub struct EncodeFrame<'a> {
-    /// Compressed data.
+    /// 压缩后的数据。
     pub data: &'a [u8],
-    /// Whether the frame is a keyframe.
+    /// 该帧是否为关键帧。
     pub key: bool,
-    /// Presentation timestamp (in timebase units).
+    /// 显示时间戳（以 timebase 为单位）。
     pub pts: i64,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct VpxEncoderConfig {
-    /// The width (in pixels).
+    /// 宽度（以像素计）。
     pub width: c_uint,
-    /// The height (in pixels).
+    /// 高度（以像素计）。
     pub height: c_uint,
-    /// The bitrate ratio
+    /// 码率比例
     pub quality: f32,
-    /// The codec
+    /// 编解码器
     pub codec: VpxVideoCodecId,
-    /// keyframe interval
+    /// 关键帧间隔
     pub keyframe_interval: Option<usize>,
 }
 
@@ -437,7 +437,7 @@ impl<'a> Iterator for EncodeFrames<'a> {
                         pts: f.pts,
                     });
                 } else {
-                    // Ignore the packet.
+                    // 忽略该数据包。
                 }
             }
         }
@@ -445,15 +445,15 @@ impl<'a> Iterator for EncodeFrames<'a> {
 }
 
 impl VpxDecoder {
-    /// Create a new decoder
+    /// 创建一个新的解码器
     ///
-    /// # Errors
+    /// # 错误
     ///
-    /// The function may fail if the underlying libvpx does not provide
-    /// the VP9 decoder.
+    /// 如果底层的 libvpx 不提供
+    /// VP9 解码器，该函数可能会失败。
     pub fn new(config: VpxDecoderConfig) -> Result<Self> {
-        // This is sound because `vpx_codec_ctx` is a repr(C) struct without any field that can
-        // cause UB if uninitialized.
+        // 这是安全的，因为 `vpx_codec_ctx` 是 repr(C) 结构体，不含任何可能
+        // 在未初始化时导致 UB 的字段。
         let i = match config.codec {
             VpxVideoCodecId::VP8 => call_vpx_ptr!(vpx_codec_vp8_dx()),
             VpxVideoCodecId::VP9 => call_vpx_ptr!(vpx_codec_vp9_dx()),
@@ -479,11 +479,11 @@ impl VpxDecoder {
         Ok(Self { ctx })
     }
 
-    /// Feed some compressed data to the encoder
+    /// 向编码器输入一些压缩数据
     ///
-    /// The `data` slice is sent to the decoder
+    /// `data` 切片被送入解码器
     ///
-    /// It matches a call to `vpx_codec_decode`.
+    /// 它对应于一次 `vpx_codec_decode` 调用。
     pub fn decode<'a>(&'a mut self, data: &[u8]) -> Result<DecodeFrames<'a>> {
         call_vpx!(vpx_codec_decode(
             &mut self.ctx,
@@ -499,7 +499,7 @@ impl VpxDecoder {
         })
     }
 
-    /// Notify the decoder to return any pending frame
+    /// 通知解码器返回所有待处理的帧
     pub fn flush<'a>(&'a mut self) -> Result<DecodeFrames<'a>> {
         call_vpx!(vpx_codec_decode(
             &mut self.ctx,

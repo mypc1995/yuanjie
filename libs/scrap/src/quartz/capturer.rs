@@ -35,7 +35,7 @@ impl Capturer {
             use self::CGDisplayStreamFrameStatus::*;
             if status == Stopped {
                 let mut lock = cloned_stopped.lock().unwrap();
-                *lock = true;
+                * lock = true;
                 return;
             }
             if status == FrameComplete {

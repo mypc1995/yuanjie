@@ -44,9 +44,9 @@ Set<String> shortcutModSetFrom(dynamic rawMods) {
   return rawMods.whereType<String>().toSet();
 }
 
-/// Whether enabling shortcuts should seed the default bindings. Only a config
-/// that has never held a bindings list is seeded; an empty list means the
-/// user cleared every binding and must stay empty.
+/// 启用快捷键时是否需要填充默认绑定。只有从未
+/// 持有过绑定列表的配置才会被填充；空列表意味着
+/// 用户清除了所有绑定，必须保持为空。
 bool shouldSeedDefaultShortcutBindings(Map<String, dynamic> config) =>
     !config.containsKey('bindings');
 
@@ -55,8 +55,8 @@ bool isSwitchTabShortcutAction(String? actionId) {
       actionId == kShortcutActionSwitchTabPrev;
 }
 
-/// USB HID usage (keyboard page 0x07) of every key accepted as a shortcut,
-/// mapped to the canonical key name used in saved bindings.
+/// 所有可作为快捷键的按键的 USB HID usage（键盘页 0x07），
+/// 映射到保存绑定时使用的规范键名。
 const Map<int, String> _kUsbHidKeyNames = {
   0x04: 'a', 0x05: 'b', 0x06: 'c', 0x07: 'd', 0x08: 'e', 0x09: 'f',
   0x0A: 'g', 0x0B: 'h', 0x0C: 'i', 0x0D: 'j', 0x0E: 'k', 0x0F: 'l',
@@ -72,41 +72,41 @@ const Map<int, String> _kUsbHidKeyNames = {
   0x49: 'insert', 0x4A: 'home', 0x4B: 'page_up', 0x4C: 'delete',
   0x4D: 'end', 0x4E: 'page_down', 0x4F: 'arrow_right', 0x50: 'arrow_left',
   0x51: 'arrow_down', 0x52: 'arrow_up',
-  // Numpad Enter shares the "enter" name with the main Return key, as in the
-  // Rust matcher (`Return | KpReturn`) and the Web matcher (`NumpadEnter`).
+  // 数字键盘 Enter 与主 Return 键共用 "enter" 这个名称，就像
+  // Rust matcher（`Return | KpReturn`）和 Web matcher（`NumpadEnter`）那样。
   0x58: 'enter',
 };
 
-/// Map a [PhysicalKeyboardKey] to the canonical key name used in saved
-/// bindings, or `null` for keys we don't accept as shortcuts.
+/// 把 [PhysicalKeyboardKey] 映射到保存绑定时使用的规范键名，
+/// 对于不作为快捷键接受的按键则返回 `null`。
 ///
-/// Bindings name physical key positions (US layout names), whatever the
-/// active keyboard layout: the native matcher sees the key through its USB
-/// HID usage (`rdev::usb_hid_key_from_code` -> `event_to_key_name` in
-/// `src/keyboard/shortcuts.rs`) and the Web matcher through
-/// `KeyboardEvent.code` (`flutter/web/js/src/shortcut_matcher.ts`). Parity
-/// is enforced against `flutter/test/fixtures/shortcut_key_usb_hid.json` by
-/// a Dart test and the Rust `usb_hid_keys_match_fixture` test.
+/// 绑定使用的是物理键位名称（美式布局名称），无论当前
+/// 启用的是哪种键盘布局：原生 matcher 通过 USB
+/// HID usage 看到按键（`rdev::usb_hid_key_from_code` -> `event_to_key_name`，位于
+/// `src/keyboard/shortcuts.rs`），而 Web matcher 则通过
+/// `KeyboardEvent.code`（`flutter/web/js/src/shortcut_matcher.ts`）。一致性
+/// 通过针对 `flutter/test/fixtures/shortcut_key_usb_hid.json` 的校验来保证，方式是
+/// 一个 Dart 测试和 Rust 的 `usb_hid_keys_match_fixture` 测试。
 String? physicalKeyName(PhysicalKeyboardKey k) {
   final usage = k.usbHidUsage;
   if (usage >> 16 != 0x07) return null;
   return _kUsbHidKeyNames[usage & 0xFFFF];
 }
 
-/// The key name a [KeyEvent] records or matches as.
+/// [KeyEvent] 记录或匹配的键名。
 String? shortcutKeyNameForEvent(KeyEvent e) => physicalKeyName(e.physicalKey);
 
-/// Bundle of "is this shortcut available on the current platform" flags.
+/// 一组"该快捷键在当前平台上是否可用"的标志。
 ///
-/// Production code reaches a single source of truth via
-/// [ShortcutModel.currentPlatformCapabilities] (which encodes the per-runtime
-/// rules in one place); tests construct one directly with whichever flags
-/// they want to exercise. Two filter functions consume this:
-/// [filterDefaultBindingsForPlatform] (for trimming default-binding JSON
-/// before it hits LocalConfig) and [filterKeyboardShortcutActionGroupsForPlatform]
-/// (for trimming the configuration UI's action list). Both must agree on the
-/// same capability set, otherwise a default binding could be seeded for an
-/// action the user has no UI to manage.
+/// 生产代码通过以下方式获得唯一的事实来源：
+/// [ShortcutModel.currentPlatformCapabilities]（它把各运行时的
+/// 规则集中编码在一处）；测试则直接构造一份，带上想要验证的
+/// 各个标志。有两个过滤函数会使用它：
+/// [filterDefaultBindingsForPlatform]（用于在写入 LocalConfig 之前裁剪默认绑定的 JSON）
+/// 和 [filterKeyboardShortcutActionGroupsForPlatform]
+/// （用于裁剪配置 UI 的操作列表）。两者必须在以下方面保持一致：
+/// 使用相同的能力集，否则可能会为某个用户没有任何界面可管理的
+/// 操作填充默认绑定。
 class ShortcutPlatformCapabilities {
   final bool includeFullscreenShortcut;
   final bool includeScreenshotShortcut;
@@ -147,10 +147,10 @@ List<Map<String, dynamic>> filterDefaultBindingsForPlatform(
   for (final binding in shortcutBindingMapsFrom(bindings)) {
     final action = binding['action'] as String?;
     if (cap.excludedActions.contains(action)) continue;
-    // Compact Apple keyboards can label Backspace as Delete, making this
-    // default ambiguous. Using Backspace also conflicts with Finder's
-    // "Empty Trash without confirmation" shortcut on macOS.
-    // Leave it unbound; users can still record their own shortcut.
+    // 紧凑的 Apple 键盘可能把 Backspace 标注为 Delete，这让
+    // 默认值产生歧义。使用 Backspace 还会与 Finder 的
+    // "Empty Trash without confirmation" 快捷键在 macOS 上发生冲突。
+    // 保持不绑定；用户仍然可以录制自己的快捷键。
     if ((defaultTargetPlatform == TargetPlatform.macOS ||
             defaultTargetPlatform == TargetPlatform.iOS) &&
         action == kShortcutActionSendCtrlAltDel) {

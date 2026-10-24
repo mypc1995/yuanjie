@@ -1,4 +1,4 @@
-// This floating mouse widget simulates a physical mouse when connecting from mobile to desktop in touch mode.
+// 这个浮动鼠标组件在触摸模式下从移动端连接到桌面端时模拟物理鼠标。
 
 import 'dart:async';
 import 'dart:math';
@@ -332,8 +332,8 @@ class _FloatingMouseState extends State<FloatingMouse> {
     return Offset(x, y);
   }
 
-  // Returns true if [value] is within 2.01 pixels of [edge].
-  // We need this near check because it can make the auto scroll easier to trigger and control.
+  // 如果 [value] 与 [edge] 相差在 2.01 像素以内则返回 true。
+  // 需要这个接近判断，因为它能让自动滚动更容易触发和控制。
   bool _isValueNearEdge(double edge, double value) {
     return (value - edge).abs() < 2.01;
   }
@@ -343,12 +343,12 @@ class _FloatingMouseState extends State<FloatingMouse> {
   }
 
   bool _isValueAtOrOutsideEdge(double edge, double? value) {
-    // If value is null, then consider it outside the edge.
+    // 如果 value 为 null，则视为在边缘之外。
     return value == null || isDoubleEqual(value, edge);
   }
 
-  // If the mouse is very close to the edge of the display,
-  // we can only start auto scroll when the mouse is at the edge of the screen.
+  // 如果鼠标非常靠近显示区域的边缘，
+  // 只有当鼠标位于屏幕边缘时才能开始自动滚动。
   bool _shouldAutoScrollIfCursorNearRemoteEdge(double remoteEdge,
       double remoteValue, double localEdge, double localValue) {
     if ((remoteEdge - remoteValue).abs() < 100.0) {
@@ -393,14 +393,14 @@ class _FloatingMouseState extends State<FloatingMouse> {
         });
       }
 
-      // Get the display rect
+      // 获取显示区域矩形
       final displayRect = widget.ffi.ffiModel.displaysRect();
       if (displayRect == null) {
         _canvasScrollState.tryCancel();
         return;
       }
 
-      // Get the mouse global position and position in remote display
+      // 获取鼠标的全局位置以及在远端显示中的位置
       mouseGlobalPosition ??= _getMouseGlobalPosition();
       if (positionInRemoteDisplay == null) {
         final evt = _inputModel.processEventToPeer(
@@ -409,13 +409,13 @@ class _FloatingMouseState extends State<FloatingMouse> {
         positionInRemoteDisplay = _getPositionFromMouseRetEvt(evt);
       }
 
-      // Check if need to start auto canvas scroll
+      // 检查是否需要开始自动画布滚动
       // If:
-      // 1. The mouse is near the edge of the screen.
-      // 2. The position in remote display is in the rect of the display.
-      // 3. If the remote cursor is near the edge of the remote display,
-      //    then the local mouse must be at the edge of the screen.
-      // Then start auto canvas scroll.
+      // 1. 鼠标靠近屏幕边缘。
+      // 2. 在远端显示中的位置位于显示区域矩形内。
+      // 3. 如果远端光标靠近远端显示的边缘，
+      //    那么本地鼠标必须位于屏幕边缘。
+      // 然后开始自动画布滚动。
       if (_isValueNearEdge(minX, _position.dx)) {
         bool shouldStartScroll = true;
         if (_isValueAtOrOutsideEdge(
@@ -518,7 +518,7 @@ class _FloatingMouseState extends State<FloatingMouse> {
       final RenderBox? mouseBox = contextMouse.findRenderObject() as RenderBox?;
       if (mouseBox == null || !mouseBox.attached) return;
 
-      // Only enter scroll mode when all RenderObjects are available.
+      // 只有在所有 RenderObject 都可用时才进入滚动模式。
       final Offset mouseTopLeft = mouseBox.localToGlobal(Offset.zero);
       final Size mouseSize = mouseBox.size;
       final Offset center =
@@ -879,7 +879,7 @@ class _MouseBodyState extends State<MouseBody> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        // Left button
+                        // 左键
                         Transform.translate(
                           offset: Offset(
                               -(80 - 24) * 0.5 * leftScale.translateScale,
@@ -977,7 +977,7 @@ class _MouseBodyState extends State<MouseBody> {
                         ),
                       ],
                     ),
-                    // Middle function area overflows Row bottom
+                    // 中间功能区溢出该行底部
                     Positioned(
                       left: (80 * s - 22 * s) / 2,
                       top: 0,
@@ -1010,9 +1010,9 @@ class _MouseBodyState extends State<MouseBody> {
                   ],
                 ),
               ),
-              // Thin gap separates upper and lower parts
+              // 用细缝分隔上下两部分
               SizedBox(height: 1 * s),
-              // Bottom part: drag area (top middle indentation)
+              // 下半部分：拖拽区域（顶部中间凹陷）
               Expanded(
                 child: Listener(
                   onPointerMove: widget.onPointerMoveUpdate,
@@ -1111,14 +1111,14 @@ class DottedCirclePainter extends CustomPainter {
   }
 }
 
-// Painter for the bottom center indentation of the drag area
+// 拖拽区域底部中央凹陷的绘制器
 class BottomIndentPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = Colors.grey.withOpacity(0.7)
       ..style = PaintingStyle.fill;
-    // Draw bottom semicircle
+    // 绘制底部半圆
     final center = Offset(size.width / 2, size.height);
     canvas.drawArc(
       Rect.fromCenter(center: center, width: size.width, height: size.height),
@@ -1127,7 +1127,7 @@ class BottomIndentPainter extends CustomPainter {
       false,
       paint,
     );
-    // Use background color to carve a circular notch in the middle
+    // 用背景色在中间挖出一个圆形缺口
     final clearPaint = Paint()..blendMode = BlendMode.clear;
     canvas.drawCircle(Offset(size.width / 2, size.height - 10), 10, clearPaint);
   }
@@ -1136,7 +1136,7 @@ class BottomIndentPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// Painter for the top center indentation of the drag area
+// 拖拽区域顶部中央凹陷的绘制器
 class DragAreaTopIndentPainter extends CustomPainter {
   final double scale;
   final Color color;
@@ -1144,12 +1144,12 @@ class DragAreaTopIndentPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Use saveLayer to make the hollow part transparent
+    // 用 saveLayer 让中空部分透明
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
     canvas.saveLayer(Offset.zero & size, Paint());
-    // Draw drag area main body (rectangle + bottom rounded corners)
+    // 绘制拖拽区域主体（矩形 + 底部圆角）
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
     final rrect = RRect.fromRectAndCorners(
       rect,
@@ -1157,7 +1157,7 @@ class DragAreaTopIndentPainter extends CustomPainter {
       bottomRight: Radius.circular(40 * scale),
     );
     canvas.drawRRect(rrect, paint);
-    // Use BlendMode.dstOut to carve a smaller semicircular notch at the top center
+    // 用 BlendMode.dstOut 在顶部中央挖出一个更小的半圆形缺口
     final clearPaint = Paint()..blendMode = BlendMode.dstOut;
     canvas.drawArc(
       Rect.fromCenter(

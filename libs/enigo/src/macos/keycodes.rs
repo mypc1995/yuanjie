@@ -1,6 +1,6 @@
 // https://stackoverflow.com/questions/3202629/where-can-i-find-a-list-of-mac-virtual-key-codes
 
-/* keycodes for keys that are independent of keyboard layout */
+/* 与键盘布局无关的按键的键码 */
 
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]

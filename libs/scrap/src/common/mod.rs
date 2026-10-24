@@ -120,7 +120,7 @@ impl Default for ImageTexture {
 
 #[inline]
 pub fn would_block_if_equal(old: &mut Vec<u8>, b: &[u8]) -> std::io::Result<()> {
-    // does this really help?
+    // 这真的有帮助吗？
     if b == &old[..] {
         return Err(std::io::ErrorKind::WouldBlock.into());
     }
@@ -130,7 +130,7 @@ pub fn would_block_if_equal(old: &mut Vec<u8>, b: &[u8]) -> std::io::Result<()> 
 }
 
 pub trait TraitCapturer {
-    // We doesn't support
+    // 我们不支持
     #[cfg(not(any(target_os = "ios")))]
     fn frame<'a>(&'a mut self, timeout: std::time::Duration) -> std::io::Result<Frame<'a>>;
 
@@ -441,7 +441,7 @@ pub trait GoogleImage {
         // https://github.com/lemenkov/libyuv/blob/6900494d90ae095d44405cd4cc3f346971fa69c9/source/convert_argb.cc#L129
         (w * bytes_per_pixel + align - 1) & !(align - 1)
     }
-    // rgb [in/out] fmt and stride must be set in ImageRgb
+    // rgb [in/out] 的 fmt 和 stride 必须在 ImageRgb 中设置
     fn to(&self, rgb: &mut ImageRgb) {
         rgb.w = self.width();
         rgb.h = self.height();
@@ -521,7 +521,7 @@ pub trait GoogleImage {
                         self.height() as _,
                     );
                 }
-                // (Chroma::I444, ImageFormat::Raw), new version libyuv have I444ToRAW
+                // (Chroma::I444, ImageFormat::Raw)，新版 libyuv 有 I444ToRAW
                 _ => log::error!("unsupported pixfmt: {:?}", self.chroma()),
             }
         }

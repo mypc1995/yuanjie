@@ -117,8 +117,8 @@ class ImagePainter extends CustomPainter {
         paint.filterQuality = FilterQuality.high;
       }
     }
-    // It's strange that if (scale < 0.5 && paint.filterQuality == FilterQuality.medium)
-    // The canvas.drawImage will not work on web
+    // 很奇怪，当 (scale < 0.5 && paint.filterQuality == FilterQuality.medium) 时
+    // canvas.drawImage 在 Web 上无法正常工作
     if (isWeb) {
       paint.filterQuality = FilterQuality.high;
     }

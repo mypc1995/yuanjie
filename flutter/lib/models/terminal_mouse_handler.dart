@@ -70,7 +70,7 @@ class _TerminalMouseInteractionState extends State<TerminalMouseInteraction> {
   PointerDownEvent? _pendingTouchMouseDown;
   var _selectionHasScrolled = false;
   var _scrollDirection = _noScroll;
-  // xterm can finish its tap callbacks after the raw drag was reported.
+  // 在原始拖拽被上报之后，xterm 仍可能执行完它的点击回调。
   var _suppressXtermLeftButton = false;
   var _terminalClipboardGesturePrepared = false;
   TerminalViewState? get _terminalView => _terminalViewKey.currentState;

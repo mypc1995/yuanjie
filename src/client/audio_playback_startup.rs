@@ -3,7 +3,7 @@ use hbb_common::log;
 
 impl AudioHandler {
     pub(in crate::client) fn cancel_pending_playback(&mut self) -> bool {
-        // Format messages bypass recovery; retain a usable candidate before superseding it.
+        // 格式消息绕过恢复机制；在被替换之前先保留一个可用的候选。
         let failed = self
             .resolve_pending_playback(Instant::now())
             .unwrap_or(false);
@@ -53,11 +53,11 @@ impl AudioHandler {
             self.audio_stream = None;
             self.playback_recovery.report_pending();
             self.playback_status.report_errors();
-            *self = *candidate;
+            * self = *candidate;
             return Some(false);
         }
         self.playback_recovery.pending_output = Some(candidate);
-        // A second active-queue read could discard a healthy pending candidate.
+        // 第二次从活动队列读取可能会丢掉一个健康的待定候选。
         Some(false)
     }
 }

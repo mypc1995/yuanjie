@@ -3,15 +3,15 @@ mod ipc_auth;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[path = "ipc/fs.rs"]
 mod ipc_fs;
-// The DRM/KMS capture producer, the `_drm` channel and its SCM_RIGHTS framing live in their own
-// module, declared the same way as the other pieces of this file, so the opt-in feature adds a
-// bounded, self-contained surface here instead of ~1800 lines in the middle of the shared IPC.
+// DRM/KMS 采集生产者、`_drm` 通道及其 SCM_RIGHTS 组帧都放在它们自己的
+// 模块中，以与本文件其他部分相同的方式声明，这样这个可选特性在这里只增加
+// 一个边界清晰、自成体系的接口，而不是在共享 IPC 中间塞进约 1800 行。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 #[path = "ipc/drm.rs"]
 mod ipc_drm;
-// Re-exported so the paths callers already use (`crate::ipc::start_drm`, `crate::ipc::connect_drm`,
-// `crate::ipc::DrmDisplayInfo`) keep working, and so the `Data` variants can name the two
-// payload types.
+// 重新导出，使得调用方已经在使用的路径（`crate::ipc::start_drm`、`crate::ipc::connect_drm`、
+// `crate::ipc::DrmDisplayInfo`）继续可用，同时也让 `Data` 变体能指明这两种
+// 载荷类型。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 pub use ipc_drm::{start_drm, DmabufDesc, DrmDisplayInfo};
 #[cfg(all(target_os = "linux", feature = "drm"))]
@@ -73,7 +73,7 @@ use ipc_fs::{
     check_pid, ensure_secure_ipc_parent_dir, scrub_secure_ipc_parent_dir,
     should_scrub_parent_entries_after_check_pid, write_pid,
 };
-// Gated with the module that uses it, so a `drm`-less build does not carry an unused import.
+// 与使用它的模块一同做条件门控，这样不含 `drm` 的构建就不会带上未使用的 import。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 use ipc_fs::remove_ipc_entry_via_secure_parent_fd;
 use parity_tokio_ipc::{
@@ -89,7 +89,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-// IPC actions here.
+// 这里的 IPC 动作。
 pub const IPC_ACTION_CLOSE: &str = "close";
 #[cfg(target_os = "windows")]
 const PORTABLE_SERVICE_IPC_HANDSHAKE_TIMEOUT_MS: u64 = 3_000;
@@ -107,7 +107,7 @@ thread_local! {
 }
 
 #[must_use = "bind this guard to a local variable to keep the IPC scope active"]
-/// Thread-local guard for routing root main IPC to the active user on Linux/macOS.
+/// 线程局部守卫，用于在 Linux/macOS 上把 root 的主 IPC 路由到当前活动用户。
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) struct UserMainIpcScope {
     previous: bool,
@@ -208,8 +208,8 @@ pub enum FS {
         path: String,
         new_name: String,
     },
-    // CM-side file reading operations (Windows only)
-    // These enable Connection Manager to read files and stream them back to Connection
+    // CM 侧的文件读取操作（仅 Windows）
+    // 这些让连接管理器可以读取文件并流式传回 Connection
     ReadFile {
         path: String,
         id: i32,
@@ -247,7 +247,7 @@ pub struct ClipboardNonFile {
     pub next_raw: bool,
     pub width: i32,
     pub height: i32,
-    // message.proto: ClipboardFormat
+    // message.proto：ClipboardFormat
     pub format: i32,
     pub special_name: String,
 }
@@ -410,56 +410,56 @@ pub enum Data {
     #[cfg(windows)]
     ControlledSessionCount(usize),
     CmErr(String),
-    // CM-side file reading responses (Windows only)
-    // These are sent from CM back to Connection when CM handles file reading
-    /// Response to ReadFile: contains initial file list or error
+    // CM 侧的文件读取响应（仅 Windows）
+    // 当 CM 处理文件读取时，这些消息从 CM 发回 Connection
+    /// 对 ReadFile 的响应：包含初始文件列表或错误
     ReadJobInitResult {
         id: i32,
         file_num: i32,
         include_hidden: bool,
         conn_id: i32,
-        /// Serialized protobuf bytes of FileDirectory, or error string
+        /// FileDirectory 的序列化 protobuf 字节，或错误字符串
         result: Result<Vec<u8>, String>,
     },
-    /// File data block read by CM.
+    /// CM 读取的文件数据块。
     ///
-    /// The actual data is sent separately via `send_raw()` after this message to avoid
-    /// JSON encoding overhead for large binary data. This mirrors the `WriteBlock` pattern.
+    /// 实际数据在这条消息之后通过 `send_raw()` 单独发送，以避免
+    /// 大块二进制数据的 JSON 编码开销。这与 `WriteBlock` 的模式一致。
     ///
-    /// **Protocol:**
-    /// - Sender: `send(FileBlockFromCM{...})` then `send_raw(data)`
-    /// - Receiver: `next()` returns `FileBlockFromCM`, then `next_raw()` returns data bytes
+    /// **协议：**
+    /// - 发送方：先 `send(FileBlockFromCM{...})`，再 `send_raw(data)`
+    /// - 接收方：`next()` 返回 `FileBlockFromCM`，然后 `next_raw()` 返回数据字节
     ///
-    /// **Note on empty data (e.g., empty files):**
-    /// Empty data is supported. The IPC connection uses `BytesCodec` with `raw=false` (default),
-    /// which prefixes each frame with a length header. So `send_raw(Bytes::new())` sends a
-    /// 1-byte frame (length=0), and `next_raw()` correctly returns an empty `BytesMut`.
-    /// See `libs/hbb_common/src/bytes_codec.rs` test `test_codec2` for verification.
+    /// **关于空数据（例如空文件）的说明：**
+    /// 支持空数据。IPC 连接使用 `raw=false`（默认）的 `BytesCodec`，
+    /// 它会给每个帧加上长度头。因此 `send_raw(Bytes::new())` 发送的是
+    /// 一个 1 字节的帧（length=0），而 `next_raw()` 会正确返回空的 `BytesMut`。
+    /// 验证请参见 `libs/hbb_common/src/bytes_codec.rs` 中的测试 `test_codec2`。
     FileBlockFromCM {
         id: i32,
         file_num: i32,
-        /// Data is sent separately via `send_raw()` to avoid JSON encoding overhead.
-        /// This field is skipped during serialization; sender must call `send_raw()` after sending.
-        /// Receiver must call `next_raw()` and populate this field manually.
+        /// 数据通过 `send_raw()` 单独发送，以避免 JSON 编码开销。
+        /// 序列化时会跳过该字段；发送方必须在发送后调用 `send_raw()`。
+        /// 接收方必须调用 `next_raw()` 并手动填充该字段。
         #[serde(skip)]
         data: bytes::Bytes,
         compressed: bool,
         conn_id: i32,
     },
-    /// File read completed successfully
+    /// 文件读取成功完成
     FileReadDone {
         id: i32,
         file_num: i32,
         conn_id: i32,
     },
-    /// File read failed with error
+    /// 文件读取失败
     FileReadError {
         id: i32,
         file_num: i32,
         err: String,
         conn_id: i32,
     },
-    /// Digest info from CM for overwrite detection
+    /// 来自 CM 的摘要信息，用于检测覆盖
     FileDigestFromCM {
         id: i32,
         file_num: i32,
@@ -468,18 +468,18 @@ pub enum Data {
         is_resume: bool,
         conn_id: i32,
     },
-    /// Response to ReadAllFiles: recursive directory listing
+    /// 对 ReadAllFiles 的响应：递归目录列表
     AllFilesResult {
         id: i32,
         conn_id: i32,
         path: String,
-        /// Serialized protobuf bytes of FileDirectory, or error string
+        /// FileDirectory 的序列化 protobuf 字节，或错误字符串
         result: Result<Vec<u8>, String>,
     },
     CheckHwcodec,
     #[cfg(feature = "flutter")]
     VideoConnCount(Option<usize>),
-    // Although the key is not necessary, it is used to avoid hardcoding the key.
+    // 虽然这个 key 并非必需，但用它可以避免把 key 写死。
     WaylandScreencastRestoreToken((String, String)),
     HwCodecConfig(Option<String>),
     RemoveTrustedDevices(Vec<Bytes>),
@@ -504,66 +504,66 @@ pub enum Data {
     ControlPermissionsRemoteModify(Option<bool>),
     #[cfg(target_os = "windows")]
     FileTransferEnabledState(Option<bool>),
-    /// CM -> server: the connection manager's WINDOW went away, which is not the same event
-    /// as the operator disconnecting a peer. Linux only, and deliberately: there a session
-    /// logout closes every window, and the close arrives at the CM indistinguishable from a
-    /// person clicking it - measured on KDE, the CM gets no signal and logind still reports the
-    /// session active. So the ambiguous case ends the session WITHOUT the no-retry reason and
-    /// the peer is allowed to reconnect (landing on the greeter after a logout), while the
-    /// explicit Disconnect button keeps sending `Close` and kicking for good.
+    /// CM -> 服务端：连接管理器的窗口消失了，这与
+    /// 操作员断开某个对端不是同一事件。仅限 Linux，而且是有意为之：在那里注销会话
+    /// 会关闭所有窗口，而这个关闭事件到达 CM 时与
+    /// 用户手动点击关闭无法区分 —— 实测在 KDE 上，CM 收不到任何信号，而 logind 仍报告
+    /// 会话处于活动状态。所以这种有歧义的情况会结束会话，但不带不重试的原因，且
+    /// 允许对端重新连接（注销后会回到登录界面），而
+    /// 显式点击断开按钮则仍然发送 `Close` 并彻底踢掉对端。
     #[cfg(target_os = "linux")]
     CmWindowClosed,
-    // --- DRM/KMS capture (opt-in `drm` feature) over the `_drm` service-scoped channel ---
-    // All of the following are `cfg(all(linux, drm))`, so the drm-off IPC wire is byte-identical
-    // to upstream. `_drm` protocol: the client sends `DrmHello`, the service `DrmDisplayList`, the
-    // client replies `DrmStart{display}`, then the service streams `DrmFrame` + send_raw(BGRA) and
-    // `DrmCursor` + send_raw(RGBA). A frame/cursor header is ALWAYS immediately followed by exactly
-    // one `send_raw()` payload (the same header-then-raw pairing as `FileBlockFromCM`). This keeps
-    // the header extensible. The zero-copy `DrmFrameDmabuf(DmabufDesc)` sibling below carries only a
-    // small JSON metadata descriptor; the scanout dma-buf fd rides an SCM_RIGHTS ancillary message on
-    // the same `DrmConn` send (see `DrmConn::send_msg`), so it has NO trailing `send_raw()` body.
-    /// Client -> service, first on `_drm`: whether the service may wake sleeping displays before
-    /// it answers. The cache warm at every `--server` start says no: no peer is waiting for it.
+    // --- 通过 `_drm` 服务作用域通道进行 DRM/KMS 采集（可选的 `drm` 特性）---
+    // 以下所有内容都是 `cfg(all(linux, drm))`，因此关闭 drm 时的 IPC 线路与上游
+    // 逐字节一致。`_drm` 协议：客户端发送 `DrmHello`，服务端发送 `DrmDisplayList`，然后
+    // 客户端回复 `DrmStart{display}`，接着服务端流式发送 `DrmFrame` + send_raw(BGRA) 以及
+    // `DrmCursor` + send_raw(RGBA)。帧/光标首部后面总是紧跟着恰好
+    // 一个 `send_raw()` 载荷（与 `FileBlockFromCM` 相同的先首部后原始数据的配对方式）。这保持了
+    // 首部的可扩展性。下方零拷贝的 `DrmFrameDmabuf(DmabufDesc)` 同级消息只携带一小段
+    // JSON 元数据描述符；scanout 的 dma-buf fd 通过 SCM_RIGHTS 辅助消息传递，
+    // 在同一个 `DrmConn` 发送上（见 `DrmConn::send_msg`），因此它没有尾随的 `send_raw()` 数据体。
+    /// 客户端 -> 服务端，在 `_drm` 上最先发送：服务端是否可以在响应之前唤醒处于休眠状态的显示器
+    /// 。每次 `--server` 启动时的缓存预热说明答案是不能：没有对端在等它。
     #[cfg(all(target_os = "linux", feature = "drm"))]
     DrmHello { wake: bool },
-    /// Client -> service: begin streaming the chosen display.
+    /// 客户端 -> 服务端：开始流式发送所选显示器。
     #[cfg(all(target_os = "linux", feature = "drm"))]
-    // `need_cpu` is set by an unprivileged consumer that could not open a render-node convert context
-    // (drmtap_open_render failed, e.g. no /dev/dri/renderD* access). The service then streams the
-    // CPU-converted `DrmFrame` path for this connection instead of a dma-buf fd the consumer cannot
-    // detile, so a render-node-less seat still captures instead of losing the stream.
+    // `need_cpu` 由无法打开 render-node 转换上下文的非特权消费者设置
+    // （例如 drmtap_open_render 失败，如没有 /dev/dri/renderD* 访问权限）。此时服务端会为该连接流式发送
+    // CPU 转换的 `DrmFrame` 路径，而不是消费者无法
+    // 解 tiled 的 dma-buf fd，这样没有 render node 的座位仍能采集，而不会丢失流。
     DrmStart { display: i32, need_cpu: bool },
-    /// Service -> client: the enumerated DRM displays (sent once, before frames).
+    /// 服务端 -> 客户端：枚举出的 DRM 显示器（只发送一次，在帧之前）。
     #[cfg(all(target_os = "linux", feature = "drm"))]
     DrmDisplayList(Vec<DrmDisplayInfo>),
-    /// Service -> client: the connector topology changed mid-stream (a monitor hotplug/unplug/modeset,
-    /// observed by the service's udev DRM-uevent listener). Carries the freshly-enumerated list so the
-    /// consumer can swap its sticky positive availability cache off the hot path, WITHOUT re-probing
-    /// `_drm` (which would trip the enumeration restart loop). Interleaved with frames on the same
-    /// stream; carries no `send_raw()` body and no fd.
+    /// 服务端 -> 客户端：流传输过程中连接器拓扑发生变化（显示器热插拔/拔出/模式设置，
+    /// 由服务端的 udev DRM-uevent 监听器观测到）。它携带重新枚举出的列表，使
+    /// 消费者可以在热路径之外切换其粘性的“可用”缓存，而无需重新探测
+    /// `_drm`（重新探测会触发枚举重启循环）。它与帧在同一
+    /// 流上交错发送；不携带 `send_raw()` 数据体，也不携带 fd。
     #[cfg(all(target_os = "linux", feature = "drm"))]
     DrmDisplaysChanged(Vec<DrmDisplayInfo>),
-    /// Service -> client: a frame header; the packed BGRA pixels follow via `send_raw()`.
-    /// CPU-fallback path (no render node, or no transferable dma-buf): pixels cross the wire.
+    /// 服务端 -> 客户端：一个帧首部；打包的 BGRA 像素随后通过 `send_raw()` 发送。
+    /// CPU 回退路径（没有 render node，或 dma-buf 不可传输）：像素通过线路传输。
     #[cfg(all(target_os = "linux", feature = "drm"))]
     DrmFrame {
         width: u32,
         height: u32,
-        /// See `DmabufDesc::plane_rotation`; absent from a producer older than this field.
+        /// 参见 `DmabufDesc::plane_rotation`；比该字段更旧的生产者不会带上它。
         #[serde(default)]
         plane_rotation: Option<u32>,
-        /// See `DmabufDesc::cursor_pos`: the cursor plane position read right after this frame,
-        /// or `None` when the cursor is hidden, the read failed or the producer predates the field.
+        /// 参见 `DmabufDesc::cursor_pos`：紧接在该帧之后读取的光标平面位置，
+        /// 或在光标被隐藏、读取失败或生产者早于该字段时为 `None`。
         #[serde(default)]
         cursor_pos: Option<(i32, i32)>,
     },
-    /// Service -> client: a zero-copy dma-buf frame descriptor. The scanout fd is NOT a field; when
-    /// `desc.has_fd` it rides an SCM_RIGHTS ancillary message on the same `DrmConn::send_msg`, and
-    /// there is NO trailing `send_raw()` body. The unprivileged `--server` imports the fd and does
-    /// the EGL detile/convert itself (see `DmabufDesc`).
+    /// 服务端 -> 客户端：一个零拷贝的 dma-buf 帧描述符。scanout fd 不是字段；当
+    /// `desc.has_fd` 为真时，它通过同一个 `DrmConn::send_msg` 上的 SCM_RIGHTS 辅助消息传递，并且
+    /// 没有尾随的 `send_raw()` 数据体。非特权的 `--server` 导入该 fd 并自行
+    /// 完成 EGL detile/转换（见 `DmabufDesc`）。
     #[cfg(all(target_os = "linux", feature = "drm"))]
     DrmFrameDmabuf(DmabufDesc),
-    /// Service -> client: a hardware-cursor header; the RGBA pixels follow via `send_raw()`.
+    /// 服务端 -> 客户端：一个硬件光标首部；RGBA 像素随后通过 `send_raw()` 发送。
     #[cfg(all(target_os = "linux", feature = "drm"))]
     DrmCursor {
         id: u64,
@@ -571,24 +571,24 @@ pub enum Data {
         height: u32,
         hotx: i32,
         hoty: i32,
-        /// Whether the hotspot came from the driver, or was inferred from the bitmap.
+        /// 热点是来自驱动，还是根据位图推断出来的。
         ///
-        /// Absent means the producer predates the field, and the default must then be TRUE, not
-        /// `bool::default()`. These messages are JSON over a unix socket between two processes
-        /// that are upgraded separately: an old root service can be streaming to a freshly
-        /// started `--server`, and its `{"hotx": 12, "hoty": 11}` carries no provenance. Read as
-        /// `false`, the new consumer would throw that hotspot away and re-infer one from the
-        /// upright bitmap, moving the cursor on a rotated display for the length of the upgrade.
-        /// Defaulting to true means "no provenance available, so behave as the old protocol did"
-        /// -- use the point the producer sent. It is not a claim that the value was measured; a
-        /// new producer that wants re-inference says `hot_measured: false` explicitly, which
-        /// serializes, so new-to-new is unaffected.
+        /// 缺失意味着生产者早于该字段，此时默认值必须为 TRUE，而不是
+        /// `bool::default()`。这些消息是两个进程之间通过 unix socket 传输的 JSON，
+        /// 而这两个进程是分别升级的：旧的 root 服务可能正在向刚
+        /// 启动的 `--server` 流式发送，而它的 `{"hotx": 12, "hoty": 11}` 不带来源信息。若读作
+        /// `false`，新的消费者就会丢弃该热点，并从
+        /// 未旋转的位图重新推断一个，从而在升级期间让旋转显示器上的光标发生偏移。
+        /// 默认为 true 意味着“没有可用的来源信息，因此按旧协议的方式处理”
+        /// —— 使用生产者发送的那个点。这并不是声称该值是实测得到的；
+        /// 想要重新推断的新生产者会显式写上 `hot_measured: false`，而这
+        /// 会被序列化出来，所以新对新之间不受影响。
         #[serde(default = "legacy_hot_measured")]
         hot_measured: bool,
     },
 }
 
-/// The default for a `hot_measured` that is not on the wire at all; see the field's docs.
+/// 当 `hot_measured` 根本不在线路上的默认值；参见该字段的文档。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 fn legacy_hot_measured() -> bool {
     true
@@ -611,10 +611,10 @@ pub async fn start(postfix: &str) -> ResultType<()> {
                     }
                     #[cfg(windows)]
                     if postfix.is_empty() {
-                        // Windows main IPC (`postfix == ""`) is authorized here.
-                        // Other security-sensitive channels use dedicated authorization paths:
-                        // - `_portable_service`: portable-service listener + handshake policy
-                        // - service-scoped postfixes: service-specific listener/authorization
+                        // Windows 主 IPC（`postfix == ""`）在此处授权。
+                        // 其他安全敏感通道使用专门的授权路径：
+                        // - `_portable_service`：便携服务监听器 + 握手策略
+                        // - 服务作用域的 postfix：服务专属的监听器/授权
                         if !authorize_windows_main_ipc_connection(&stream, &postfix) {
                             continue;
                         }
@@ -627,17 +627,17 @@ pub async fn start(postfix: &str) -> ResultType<()> {
                                     break;
                                 }
                                 Ok(Some(data)) => {
-                                    // On Linux/macOS, the protected `_service` channel is used only for
-                                    // syncing config between root service and the active user process.
+                                    // 在 Linux/macOS 上，受保护的 `_service` 通道只用于
+                                    // 在 root 服务与活动用户进程之间同步配置。
                                     //
                                     // NOTE: `is_service_ipc_postfix()` also includes `_uinput_*`, but those
-                                    // channels are handled by the dedicated uinput listener/protocol in
-                                    // `src/server/uinput.rs` and therefore do not share this Data enum
-                                    // allowlist. The SyncConfig allowlist here is intentionally scoped to the
-                                    // `_service` channel only.
+                                    // 通道由专门的 uinput 监听器/协议处理，位于
+                                    // `src/server/uinput.rs`，因此它们不共享这个 Data 枚举
+                                    // 的白名单。这里的 SyncConfig 白名单有意只限于
+                                    // `_service` 通道。
                                     //
-                                    // Keep this explicit branch to avoid policy drift between `_service` and
-                                    // uinput IPC paths while still minimizing exposed message surface here.
+                                    // 保留这个显式分支，以避免 `_service` 与
+                                    // uinput IPC 路径之间的策略漂移，同时仍尽量减少这里暴露的消息面。
                                     #[cfg(any(target_os = "linux", target_os = "macos"))]
                                     if postfix == crate::POSTFIX_SERVICE {
                                         if matches!(&data, Data::SyncConfig(_)) {
@@ -649,8 +649,8 @@ pub async fn start(postfix: &str) -> ResultType<()> {
                                                 std::mem::discriminant(&data),
                                                 stream.peer_uid()
                                             );
-                                            // Close the connection to avoid keeping a protected channel
-                                            // alive while repeatedly receiving invalid traffic.
+                                            // 关闭该连接，避免在反复收到无效流量时
+                                            // 仍保持受保护通道存活。
                                             break;
                                         }
                                         continue;
@@ -658,10 +658,10 @@ pub async fn start(postfix: &str) -> ResultType<()> {
                                     handle(data, &mut stream).await;
                                 }
                                 Ok(None) => {
-                                    // `Ok(None)` means a complete frame arrived but did not
-                                    // deserialize into `Data`. Peer close/reset is returned as
-                                    // `Err` by `ConnectionTmpl::next()`. Keep the historical
-                                    // ignore behavior except on the protected `_service` channel.
+                                    // `Ok(None)` 表示收到了一帧完整数据，但未能
+                                    // 反序列化为 `Data`。对端关闭/重置则由
+                                    // `ConnectionTmpl::next()` 以 `Err` 返回。保持历史上的
+                                    // 忽略行为，但受保护的 `_service` 通道除外。
                                     #[cfg(any(target_os = "linux", target_os = "macos"))]
                                     {
                                         if postfix == crate::POSTFIX_SERVICE {
@@ -717,8 +717,8 @@ pub async fn new_listener(postfix: &str) -> ResultType<Incoming> {
             log::error!("Failed to set ipc{} security: {}", postfix, err);
             #[cfg(windows)]
             if postfix == "_portable_service" {
-                // Fail closed for `_portable_service` when SDDL construction fails.
-                // This endpoint is security-critical and must not start with default ACLs.
+                // 当 SDDL 构造失败时，`_portable_service` 按失败关闭处理。
+                // 该端点对安全至关重要，不能以默认 ACL 启动。
                 return Err(err.into());
             }
         }
@@ -733,10 +733,10 @@ pub async fn new_listener(postfix: &str) -> ResultType<Incoming> {
             #[cfg(any(target_os = "linux", target_os = "macos"))]
             {
                 // NOTE: On Linux/macOS, some IPC sockets are intentionally world-connectable
-                // (0666) so the active (non-root) user process can connect. Authorization is
-                // enforced at accept-time for these channels, and the protected `_service`
-                // channel is further restricted by an explicit message allowlist (SyncConfig
-                // only).
+                // (0666)，这样活动（非 root）用户进程可以连接。授权是
+                // 在这些通道上于 accept 时强制执行的，而受保护的 `_service`
+                // 通道还进一步受显式消息白名单限制（仅 SyncConfig
+                // ）。
                 let socket_mode = if config::is_service_ipc_postfix(postfix) {
                     0o0666
                 } else {
@@ -799,9 +799,9 @@ impl CheckIfRestart {
 }
 impl Drop for CheckIfRestart {
     fn drop(&mut self) {
-        // If https proxy is used, we need to restart rendezvous mediator.
-        // No need to check if https proxy is used, because this option does not change frequently
-        // and restarting mediator is safe even https proxy is not used.
+        // 如果使用了 https 代理，就需要重启 rendezvous mediator。
+        // 无需检查是否使用了 https 代理，因为该选项不会经常变化
+        // 而且即使没有使用 https 代理，重启 mediator 也是安全的。
         let allow_insecure_tls_fallback_changed = self.allow_insecure_tls_fallback
             != Config::get_option(keys::OPTION_ALLOW_INSECURE_TLS_FALLBACK);
         if allow_insecure_tls_fallback_changed
@@ -858,8 +858,8 @@ async fn handle(data: Data, stream: &mut Connection) {
                 }
                 #[cfg(any(target_os = "macos", target_os = "linux"))]
                 if crate::is_main() {
-                    // below part is for main windows can be reopen during rustdesk installation and installing service from UI
-                    // this make new ipc server (domain socket) can be created.
+                    // 下面这部分是为了支持在安装 rustdesk 以及从界面安装服务期间主窗口能被重新打开
+                    // 这样才能创建新的 ipc 服务器（域套接字）。
                     std::fs::remove_file(&Config::ipc_path("")).ok();
                     #[cfg(target_os = "linux")]
                     {
@@ -870,7 +870,7 @@ async fn handle(data: Data, stream: &mut Connection) {
                     }
                     #[cfg(target_os = "macos")]
                     {
-                        // our launchagent interval is 1 second
+                        // 我们的 launchagent 间隔是 1 秒
                         hbb_common::sleep(1.5).await;
                         std::process::Command::new("open")
                             .arg("-n")
@@ -878,9 +878,9 @@ async fn handle(data: Data, stream: &mut Connection) {
                             .spawn()
                             .ok();
                     }
-                    // leave above open a little time
+                    // 让上面的保持打开一小段时间
                     hbb_common::sleep(0.3).await;
-                    // in case below exit failed
+                    // 以防下面的退出失败
                     crate::platform::quit_gui();
                 }
                 std::process::exit(-1); // to make sure --server luauchagent process can restart because SuccessfulExit used
@@ -996,7 +996,7 @@ async fn handle(data: Data, stream: &mut Connection) {
             Some(value) => {
                 let mut updated = true;
                 if name == "id" {
-                    // An empty id would wipe the local id and unconfirm the key (cf. #15626).
+                    // 空的 id 会清除本地 id 并取消密钥确认（参见 #15626）。
                     if value.is_empty() {
                         log::warn!("Ignoring empty id write over IPC");
                         updated = false;
@@ -1013,9 +1013,9 @@ async fn handle(data: Data, stream: &mut Connection) {
                     } else {
                         updated = Config::set_permanent_password(&value);
                     }
-                    // Explicitly ACK/NACK permanent-password writes. This allows UIs/FFI to
-                    // distinguish "accepted by daemon" vs "IPC send succeeded" without
-                    // reading back any secret.
+                    // 对永久密码写入显式返回 ACK/NACK。这让界面/FFI 能够
+                    // 区分“守护进程已接受”和“IPC 发送成功”，而无需
+                    // 回读任何密钥。
                     let ack = if updated { "Y" } else { "N" }.to_owned();
                     allow_err!(stream.send(&Data::Config((name.clone(), Some(ack)))).await);
                 } else if name == "salt" {
@@ -1165,7 +1165,7 @@ async fn handle(data: Data, stream: &mut Connection) {
                     allow_err!(stream.send(&Data::HwCodecConfig(v)).await);
                 }
                 Some(v) => {
-                    // --server and portable
+                    // --server 和 portable
                     scrap::hwcodec::HwCodecConfig::set(v);
                 }
             }
@@ -1192,9 +1192,9 @@ async fn handle(data: Data, stream: &mut Connection) {
                 }
             } else if value == "clear" {
                 set_local_option(key.clone(), "".to_owned());
-                // The session slot is held while a portal request waits for the user, and this ipc
-                // listener runs on one thread: wait for the slot off it, then close what the
-                // request brings back.
+                // 在 portal 请求等待用户期间会一直占用该会话槽位，而这个 ipc
+                // 监听器运行在单个线程上：要在该线程之外等待槽位，然后关闭该
+                // 请求带回来的内容。
                 #[cfg(target_os = "linux")]
                 allow_err!(
                     hbb_common::tokio::task::spawn_blocking(
@@ -1233,8 +1233,8 @@ async fn handle(data: Data, stream: &mut Connection) {
                 }
             }
             None => {
-                // `None` is usually used to get values.
-                // This branch is left blank for unification and further use.
+                // `None` 通常用于获取值。
+                // 这个分支留空，以便统一和后续使用。
             }
         },
         #[cfg(target_os = "windows")]
@@ -1253,7 +1253,7 @@ async fn handle(data: Data, stream: &mut Connection) {
                 );
             }
             _ => {
-                // Port forward session count is only a get value.
+                // 端口转发会话数只是用于获取的值。
             }
         },
         Data::ControlPermissionsRemoteModify(_) => {
@@ -1351,8 +1351,8 @@ pub(crate) async fn portable_service_ipc_handshake_as_server<T, F>(
 ) -> ResultType<()>
 where
     T: AsyncRead + AsyncWrite + std::marker::Unpin,
-    // Token validators must use `constant_time_ipc_token_eq` or an equivalent
-    // fixed-length comparison; this handshake is part of the privilege boundary.
+    // 令牌校验器必须使用 `constant_time_ipc_token_eq` 或等效的
+    // 定长比较；该握手属于权限边界的一部分。
     F: FnMut(&str) -> bool,
 {
     let authorized = match stream
@@ -1395,8 +1395,8 @@ fn select_server_uid_for_user_main_ipc(
     match server_uids.as_slice() {
         [] => {
             if let Some(uid) = active_uid {
-                // If no `--server` processes are found but the active user is identifiable,
-                // try the active user anyway because the main process may also listen on "" IPC.
+                // 如果没找到 `--server` 进程，但能识别出活动用户，
+                // 仍然尝试活动用户，因为主进程也可能监听 "" IPC。
                 return Ok(uid);
             } else {
                 bail!("No --server process found for user main IPC")
@@ -1437,9 +1437,9 @@ fn running_server_uids_for_current_exe() -> ResultType<Vec<u32>> {
             continue;
         }
         let Some(uid) = process.user_id().map(|uid| **uid as u32) else {
-            // Root CLI management commands need a stable matching `--server` target.
-            // If this key process races during enumeration, failing the command is clearer
-            // than silently skipping it; `--server` is not expected to exit frequently.
+            // root 的 CLI 管理命令需要一个稳定匹配的 `--server` 目标。
+            // 如果该 key 进程在枚举期间发生竞态，让命令失败比
+            // 静默跳过它更清晰；`--server` 不应频繁退出。
             bail!("Failed to read --server process uid");
         };
         server_uids.push(uid);
@@ -1541,8 +1541,8 @@ pub async fn start_pa() {
                                 None, // Use default buffering attributes
                             ) {
                                 Ok(s) => loop {
-                                    // A dead pulse handle fails every read at once, so ignoring the
-                                    // error left nothing pacing this loop and it burned a core.
+                                    // 失效的 pulse 句柄会让每次读取都立刻失败，所以忽略
+                                    // 该错误会让这个循环没有任何节流，从而烧掉一个核心。
                                     if let Err(err) = s.read(&mut buf) {
                                         log::error!("Failed to read audio data:{}", err);
                                         break;
@@ -1721,10 +1721,10 @@ pub fn is_permanent_password_set() -> bool {
             return v == "Y";
         }
         Ok(None) => {
-            // No response/value (timeout).
+            // 无响应/无值（超时）。
         }
         Err(_) => {
-            // Connection error.
+            // 连接错误。
         }
     }
     log::warn!("Failed to query permanent password state from daemon");
@@ -1762,7 +1762,7 @@ pub async fn set_permanent_password_with_ack(v: String) -> ResultType<bool> {
 }
 
 async fn set_permanent_password_with_ack_async(v: String) -> ResultType<bool> {
-    // The daemon ACK/NACK is expected quickly since it applies the config in-process.
+    // 守护进程会在进程内应用配置，因此预期很快返回 ACK/NACK。
     let ms_timeout = 1_000;
     let mut c = connect(ms_timeout, "").await?;
     c.send_config("permanent-password", v).await?;
@@ -1771,8 +1771,8 @@ async fn set_permanent_password_with_ack_async(v: String) -> ResultType<bool> {
             let v = v.trim();
             let ok = v == "Y";
             if ok {
-                // Ensure the hashed permanent password storage is written to the user config file.
-                // This sync must not affect the daemon ACK outcome.
+                // 确保把哈希后的永久密码存储写入用户配置文件。
+                // 该同步不得影响守护进程 ACK 的结果。
                 if let Err(err) = sync_permanent_password_storage_from_daemon_async().await {
                     log::warn!("Failed to sync permanent password storage from daemon: {err}");
                 }
@@ -1797,7 +1797,7 @@ pub fn set_unlock_pin(v: String, translate: bool) -> ResultType<()> {
                     "Requires at least {".to_string() + &format!("{min_len}") + "} characters",
                 )
             } else {
-                // Sometimes, translated can't show normally in command line
+                // 有时翻译后的内容无法在命令行正常显示
                 format!("Requires at least {} characters", min_len)
             };
             bail!(err);
@@ -1846,13 +1846,13 @@ pub fn clear_trusted_devices() {
 }
 
 pub fn get_id() -> String {
-    // An empty id may come from a process that took over the main IPC with a
-    // config scope that has no id yet (e.g. a user GUI that became the server
-    // while the installed service was restarting). Treat it as no answer,
-    // otherwise the empty id is adopted below and wipes the local one.
+    // 空的 id 可能来自一个接管了主 IPC 的进程，其
+    // 配置作用域尚无 id（例如某个用户界面进程变成了服务端，
+    // 而已安装的服务正在重启）。要把它当作没有回答，
+    // 否则下面就会采纳这个空 id 并清除本地的 id。
     if let Ok(Some(v)) = get_config("id") {
         if !v.is_empty() {
-            // update salt also, so that next time reinstallation not causing first-time auto-login failure
+            // 同时更新 salt，这样下次重新安装不会导致首次自动登录失败
             if let Ok(Some(v2)) = get_config("salt") {
                 Config::set_salt(&v2);
             }
@@ -1923,7 +1923,7 @@ pub async fn set_options(value: HashMap<String, String>) -> ResultType<()> {
     let _nat = CheckTestNatType::new();
     if let Ok(mut c) = connect(1000, "").await {
         c.send(&Data::Options(Some(value.clone()))).await?;
-        // do not put below before connect, because we need to check should_exit
+        // 不要把下面的内容放到 connect 之前，因为我们需要检查 should_exit
         c.next_timeout(1000).await.ok();
     }
     Config::set_options(value);
@@ -2040,7 +2040,7 @@ pub async fn send_url_scheme(url: String) -> ResultType<()> {
     Ok(())
 }
 
-// Emit `close` events to ipc.
+// 向 ipc 发出 `close` 事件。
 pub fn close_all_instances() -> ResultType<bool> {
     match crate::ipc::send_url_scheme(IPC_ACTION_CLOSE.to_owned()) {
         Ok(_) => Ok(true),
@@ -2268,7 +2268,7 @@ async fn handle_wayland_screencast_restore_token(
 pub async fn set_install_option(k: String, v: String) -> ResultType<()> {
     if let Ok(mut c) = connect(1000, "").await {
         c.send(&&Data::InstallOption(Some((k, v)))).await?;
-        // do not put below before connect, because we need to check should_exit
+        // 不要把下面的内容放到 connect 之前，因为我们需要检查 should_exit
         c.next_timeout(1000).await.ok();
     }
     Ok(())

@@ -72,7 +72,7 @@ class _InstallPageBodyState extends State<_InstallPageBody>
   final RxBool btnEnabled = true.obs;
   final RxBool cancelEnabled = true.obs;
 
-  // todo move to theme.
+  // todo 移到 theme。
   final buttonStyle = OutlinedButton.styleFrom(
     textStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
     padding: EdgeInsets.symmetric(vertical: 15, horizontal: 12),
@@ -131,7 +131,7 @@ class _InstallPageBodyState extends State<_InstallPageBody>
 
   InkWell Option(RxBool option, {String label = ''}) {
     return InkWell(
-      // todo mouseCursor: "SystemMouseCursors.forbidden" or no cursor on btnEnabled == false
+      // todo 使用 mouseCursor: "SystemMouseCursors.forbidden"，或在 btnEnabled == false 时不显示光标
       borderRadius: BorderRadius.circular(6),
       onTap: () => btnEnabled.value ? option.value = !option.value : null,
       child: Row(
@@ -234,7 +234,7 @@ class _InstallPageBodyState extends State<_InstallPageBody>
               Row(
                 children: [
                   Expanded(
-                    // NOT use Offstage to wrap LinearProgressIndicator
+                    // 不要用 Offstage 包裹 LinearProgressIndicator
                     child: Obx(() => showProgress.value
                         ? LinearProgressIndicator().marginOnly(right: 10)
                         : Offstage()),

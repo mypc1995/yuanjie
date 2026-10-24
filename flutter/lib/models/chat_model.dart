@@ -130,7 +130,7 @@ class ChatModel with ChangeNotifier {
         bool isShiftPressed = event.isKeyPressed(LogicalKeyboardKey.shiftLeft);
         bool isEnterPressed = event.isKeyPressed(LogicalKeyboardKey.enter);
 
-        // don't send empty messages
+        // 不发送空消息
         if (isEnterPressed && isEnterPressed && textController.text.isEmpty) {
           return KeyEventResult.handled;
         }
@@ -157,7 +157,7 @@ class ChatModel with ChangeNotifier {
     if (chatIconOverlayEntry != null) {
       chatIconOverlayEntry!.remove();
     }
-    // mobile check navigationBar
+    // 移动端检查 navigationBar
     final bar = navigationBarKey.currentWidget;
     if (bar != null) {
       if ((bar as BottomNavigationBar).currentIndex == 1) {
@@ -388,11 +388,11 @@ class ChatModel with ChangeNotifier {
 
     final messagekey = MessageKey(peerId, id);
 
-    // mobile: first message show overlay icon
+    // 移动端：第一条消息显示浮层图标
     if (!isDesktop && chatIconOverlayEntry == null) {
       showChatIconOverlay();
     }
-    // show chat page
+    // 显示聊天页面
     await showChatPage(messagekey);
     late final ChatUser chatUser;
     if (id == clientModeID) {
@@ -408,8 +408,8 @@ class ChatModel with ChangeNotifier {
               .indexWhere((e) => e.key == session.id);
           final notSelected =
               index >= 0 && tabController.state.value.selected != index;
-          // minisized: top and switch tab
-          // not minisized: add count
+          // 最小化时：置顶并切换标签页
+          // 未最小化时：增加计数
           if (await WindowController.fromWindowId(stateGlobal.windowId)
               .isMinimized()) {
             windowOnTop(stateGlobal.windowId);
@@ -432,7 +432,7 @@ class ChatModel with ChangeNotifier {
       }
       if (isDesktop) {
         windowOnTop(null);
-        // disable auto jumpTo other tab when hasFocus, and mark unread message
+        // 当有焦点时禁用自动跳转到其他标签页，并标记未读消息
         final currentSelectedTab =
             session.serverModel.tabController.state.value.selectedTabInfo;
         if (currentSelectedTab.key != id.toString() && inputNode.hasFocus) {
@@ -452,7 +452,7 @@ class ChatModel with ChangeNotifier {
     insertMessage(messagekey,
         ChatMessage(text: text, user: chatUser, createdAt: DateTime.now()));
     if (id == clientModeID || _currentKey.peerId.isEmpty) {
-      // client or invalid
+      // 客户端或无效
       _currentKey = messagekey;
       mobileClearClientUnread(messagekey.connId);
     }
@@ -551,7 +551,7 @@ class ChatModel with ChangeNotifier {
       if (!bounds.contains(event.position)) return false;
       _softKeyboardRequested.value = true;
       _restoreChatInputControl();
-      // Reconnect so the platform receives the keyboard type instead of none.
+      // 重新连接，让平台收到键盘类型而不是 none。
       inputNode.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
       scheduleMicrotask(() {
         if (chatWindowOverlayEntry != null && _softKeyboardRequested.value) {
@@ -572,7 +572,7 @@ class ChatModel with ChangeNotifier {
     }
     if (_usingPhysicalChatInput) return;
     _usingPhysicalChatInput = true;
-    // Keep the platform text-input connection for physical editing, without IME UI.
+    // 保留平台的文本输入连接以支持物理编辑，不带输入法界面。
     TextInput.setInputControl(null);
   }
 
@@ -596,8 +596,8 @@ class ChatModel with ChangeNotifier {
   void onVoiceCallClosed(String reason) {
     _voiceCallStatus.value = VoiceCallStatus.notStarted;
     if (isAndroid) {
-      // We can always invoke "on_voice_call_closed"
-      // no matter if the `_voiceCallStatus` was `VoiceCallStatus.notStarted` or not.
+      // 我们始终可以调用 "on_voice_call_closed"
+      // 无论 `_voiceCallStatus` 是否为 `VoiceCallStatus.notStarted`。
       parent.target?.invokeMethod("on_voice_call_closed");
     }
   }
@@ -617,6 +617,6 @@ enum VoiceCallStatus {
   notStarted,
   waitingForResponse,
   connected,
-  // Connection manager only.
+  // 仅连接管理器使用。
   incoming
 }

@@ -50,16 +50,16 @@ pub fn get_custom_server_from_string(s: &str) -> ResultType<CustomServer> {
         s
     };
     /*
-     * The following code tokenizes the file name based on commas and
-     * extracts relevant parts sequentially.
+     * 以下代码按逗号对文件名进行分词，并
+     * 依次提取相关部分。
      *
-     * host= is expected to be the first part.
+     * host= 应该是第一部分。
      *
-     * Since Windows renames files adding (1), (2) etc. before the .exe
-     * in case of duplicates, which causes the host or key values to be
-     * garbled.
+     * 由于 Windows 在重名时会在 .exe 之前加上 (1)、(2) 等
+     * 后缀，这会导致 host 或 key 的值
+     * 变得混乱。
      *
-     * This allows using a ',' (comma) symbol as a final delimiter.
+     * 这样就可以用 ','（逗号）作为最后的分隔符。
      */
     if s.to_lowercase().contains("host=") {
         let stripped = &s[s.to_ascii_lowercase().find("host=").unwrap_or(0)..s.len()];
@@ -138,7 +138,7 @@ mod test {
                 relay: "".to_owned(),
             }
         );
-        // key in these tests is "foobar.,2" base64 encoded
+        // 这些测试中的 key 是 "foobar.,2" 的 base64 编码
         assert_eq!(
             get_custom_server_from_string(
                 "rustdesk-host=server.example.net,api=abc,key=Zm9vYmFyLiwyCg==.exe"
@@ -220,14 +220,14 @@ mod test {
         assert_eq!(
             get_custom_server_from_string("rustdesk-licensed--0nI900VsFHZVBVdIlncwpHS4V0bOZ0dtVldrpVO4JHdCp0YV5WdzUGZzdnYRVjI6ISeltmIsISMuEjLx4SMiojI0N3boJye--.exe")
                 .unwrap(), lic);
-        // padded base64 (one '=' after reversal) is accepted, wrong padding is not
+        // 带填充的 base64（反转后有一个 '='）可以接受，填充错误则不行
         assert_eq!(
             get_custom_server_from_string("rustdesk-licensed-=0nI900VsFHZVBVdIlncwpHS4V0bOZ0dtVldrpVO4JHdCp0YV5WdzUGZzdnYRVjI6ISeltmIsISMuEjLx4SMiojI0N3boJye.exe")
                 .unwrap(), lic);
         assert!(
             get_custom_server_from_string("rustdesk-licensed-==0nI900VsFHZVBVdIlncwpHS4V0bOZ0dtVldrpVO4JHdCp0YV5WdzUGZzdnYRVjI6ISeltmIsISMuEjLx4SMiojI0N3boJye.exe")
                 .is_err());
-        // bare string as passed to `--config`
+        // 原样字符串，与 `--config` 传入的一致
         assert_eq!(
             get_custom_server_from_string("=0nI900VsFHZVBVdIlncwpHS4V0bOZ0dtVldrpVO4JHdCp0YV5WdzUGZzdnYRVjI6ISeltmIsISMuEjLx4SMiojI0N3boJye.exe")
                 .unwrap(), lic);
@@ -235,7 +235,7 @@ mod test {
 
     #[test]
     fn test_filename_license_string_in_non_ascii_path() {
-        // Windows passes the full exe path, and `İ` grows from 2 to 3 bytes when lowercased.
+        // Windows 会传入完整的 exe 路径，且 `İ` 转小写后会从 2 字节变成 3 字节。
         assert_eq!(
             get_custom_server_from_string(
                 r"C:\Users\İsmail\Downloads\rustdesk-host=server.example.net,key=Zm9vYmFyLiwyCg==.exe"

@@ -30,7 +30,7 @@ impl Drop for VerifiedDmg {
     }
 }
 
-// Retain the named copy until the privileged installer has verified its root-owned copy.
+// 保留具名副本，直到特权安装程序验证了它 root 所有的副本。
 pub(super) fn copy_and_verify_dmg_file(
     file: &str,
     expected_sha256: &str,
@@ -121,7 +121,7 @@ impl Drop for DmgGuard {
 
 pub(super) fn attach_dmg(dmg_path: &str) -> ResultType<DmgGuard> {
     let mount_point = create_dmg_mount_point()?;
-    // Update images are input only, so never mount them writable.
+    // 更新镜像只用于输入，所以绝不以可写方式挂载它们。
     let output = match Command::new("/usr/bin/hdiutil")
         .args([
             "attach",

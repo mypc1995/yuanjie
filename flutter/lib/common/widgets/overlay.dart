@@ -169,7 +169,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
 
-/// floating buttons of back/home/recent actions for android
+/// android 的返回/主页/最近任务悬浮按钮
 class DraggableMobileActions extends StatelessWidget {
   DraggableMobileActions(
       {this.onBackPressed,
@@ -278,8 +278,8 @@ class DraggableKeyPosition {
     _triggerStore();
   }
 
-  // Adjust position to keep it in the screen
-  // Only used for desktop and web desktop
+  // 调整位置使其保持在屏幕内
+  // 仅用于桌面端和 web 桌面端
   tryAdjust(double w, double h, double scale) {
     final size = MediaQuery.of(Get.context!).size;
     w = w * scale;
@@ -397,7 +397,7 @@ class _DraggableState extends State<Draggable> {
   }
 
   checkScreenSize() {
-    // Ensure the draggable always stays within current screen bounds
+    // 确保可拖动元素始终位于当前屏幕边界内
     widget.position.tryAdjust(widget.width, widget.height, 1);
   }
 
@@ -405,12 +405,12 @@ class _DraggableState extends State<Draggable> {
     final bottomHeight = MediaQuery.of(context).viewInsets.bottom;
     final currentVisible = bottomHeight != 0;
 
-    // save
+    // 保存
     if (!_keyboardVisible && currentVisible) {
       _saveHeight = position.dy;
     }
 
-    // reset
+    // 重置
     if (_lastBottomHeight > 0 && bottomHeight == 0) {
       setState(() {
         widget.position.update(Offset(position.dx, _saveHeight));
@@ -493,12 +493,12 @@ class IOSDraggableState extends State<IOSDraggable> {
     final bottomHeight = MediaQuery.of(context).viewInsets.bottom;
     final currentVisible = bottomHeight != 0;
 
-    // save
+    // 保存
     if (!_keyboardVisible && currentVisible) {
       _saveHeight = position.pos.dy;
     }
 
-    // reset
+    // 重置
     if (_lastBottomHeight > 0 && bottomHeight == 0) {
       setState(() {
         position.update(Offset(position.pos.dx, _saveHeight));
@@ -596,7 +596,7 @@ class QualityMonitor extends StatelessWidget {
                     children: [
                       _row("Speed", qualityMonitorModel.data.speed ?? '-'),
                       _row("FPS", qualityMonitorModel.data.fps ?? '-'),
-                      // let delay be 0 if fps is 0
+                      // 如果 fps 为 0，则让 delay 为 0
                       _row(
                           "Delay",
                           "${qualityMonitorModel.data.delay == null ? '-' : (qualityMonitorModel.data.fps ?? "").replaceAll(' ', '').replaceAll('0', '').isEmpty ? 0 : qualityMonitorModel.data.delay}ms",
@@ -635,7 +635,7 @@ class BlockableOverlayState extends OverlayKeyState {
   void applyFfi(FFI ffi) {
     ffi.dialogManager.setOverlayState(this);
     ffi.chatModel.setOverlayState(this);
-    // make remote page penetrable automatically, effective for chat over remote
+    // 自动让远程页面可穿透，对远程下的聊天有效
     onMiddleBlockedClick = () {
       setMiddleBlocked(false);
     };
@@ -656,7 +656,7 @@ class BlockableOverlay extends StatelessWidget {
     final initialEntries = [
       OverlayEntry(builder: (_) => underlying),
 
-      /// middle layer
+      /// 中间层
       OverlayEntry(
           builder: (context) => Obx(() => Listener(
               onPointerDown: (_) {
@@ -671,7 +671,7 @@ class BlockableOverlay extends StatelessWidget {
       initialEntries.addAll(upperLayer!);
     }
 
-    /// set key
+    /// 设置 key
     return Overlay(key: state.key, initialEntries: initialEntries);
   }
 }

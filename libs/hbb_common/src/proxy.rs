@@ -47,13 +47,13 @@ pub enum ProxyError {
 }
 
 const MAXIMUM_RESPONSE_HEADER_LENGTH: usize = 4096;
-/// The maximum HTTP Headers, which can be parsed.
+/// 可解析的最大 HTTP 头数量。
 const MAXIMUM_RESPONSE_HEADERS: usize = 16;
 const DEFINE_TIME_OUT: u64 = 600;
 
 pub trait IntoUrl {
-    // Besides parsing as a valid `Url`, the `Url` must be a valid
-    // `http::Uri`, in that it makes sense to use in a network request.
+    // 除了能被解析为合法的 `Url` 之外，该 `Url` 还必须是合法的
+    // `http::Uri`，即用在网络请求中是合理的。
     fn into_url(self) -> Result<Url, ProxyError>;
 
     fn as_str(&self) -> &str;
@@ -195,7 +195,7 @@ impl ProxyScheme {
     fn parse(url: Url) -> Result<Self, ProxyError> {
         use url::Position;
 
-        // Resolve URL to a host and port
+        // 把 URL 解析为主机和端口
         let to_addr = || {
             let addrs = url.socket_addrs(|| match url.scheme() {
                 "socks5" => Some(1080),
@@ -290,12 +290,12 @@ pub trait IntoProxyScheme {
 
 impl<S: IntoUrl> IntoProxyScheme for S {
     fn into_proxy_scheme(self) -> Result<ProxyScheme, ProxyError> {
-        // validate the URL
+        // 校验 URL
         let url = match self.as_str().into_url() {
             Ok(ok) => ok,
             Err(e) => {
                 match e {
-                    // If the string does not contain protocol headers, try to parse it using the socks5 protocol
+                    // 如果字符串不包含协议头，则尝试用 socks5 协议解析
                     ProxyError::UrlParseScheme(_source) => {
                         let try_this = format!("socks5://{}", self.as_str());
                         try_this.into_url()?
@@ -443,7 +443,7 @@ impl Proxy {
                         .await?
                     }
                     _ => {
-                        // Unreachable
+                        // 不可达
                         crate::bail!("Unreachable, TlsType::Plain in HTTPS proxy");
                     }
                 };
@@ -564,16 +564,16 @@ impl Proxy {
             }
             Err(e) => {
                 // NOTE: Maybe it's better to check if the error is related to TLS here. (ProxyError::IoError(e), or ProxyError::NativeTlsError(e))
-                // But we can only get the error when the TLS protocol is TLSv1.1.
-                // The error message of the following is unclear:
+                // 但只有当 TLS 协议为 TLSv1.1 时才能拿到该错误。
+                // 下面这条的错误信息不清楚：
                 // https://github.com/rustdesk/rustdesk-server-pro/issues/189#issuecomment-1895701480
-                // So we just try to fallback unconditionally here.
+                // 所以这里我们直接无条件尝试回退。
                 //
-                // If the protocol is TLS 1.1, the error is:
+                // 如果协议是 TLS 1.1，错误为：
                 // 1. "IO Error: received fatal alert: ProtocolVersion"
-                // 2. "IO Error: An existing connection was forcibly closed by the remote host. (os error 10054)" on Windows sometimes.
+                // 2. "IO Error: An existing connection was forcibly closed by the remote host. (os error 10054)"，在 Windows 上有时会出现。
                 //
-                // If the cert verification fails, the error is:
+                // 如果证书校验失败，错误为：
                 // "IO Error: invalid peer certificate: UnknownIssuer"
 
                 let s = if danger_accept_invalid_cert.is_none() {
@@ -670,7 +670,7 @@ impl Proxy {
 
 fn get_domain_and_port<'a>(target_addr: &TargetAddr<'a>) -> Result<(String, u16), ProxyError> {
     match target_addr {
-        // CONNECT requires brackets around IPv6 literals in both the target and Host header.
+        // CONNECT 要求在目标和 Host 头中都给 IPv6 字面量加上方括号。
         tokio_socks::TargetAddr::Ip(SocketAddr::V6(addr)) => {
             Ok((format!("[{}]", addr.ip()), addr.port()))
         }

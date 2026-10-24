@@ -48,7 +48,7 @@ pub(super) fn start_listening() -> ResultType<()> {
                             if let Some(self_addr) = get_ipaddr_by_peer(&addr) {
                                 let mut msg_out = Message::new();
                                 let mut hostname = crate::whoami_hostname();
-                                // The default hostname is "localhost" which is a bit confusing
+                                // 默认主机名是 "localhost"，这有点让人困惑
                                 if hostname == "localhost" {
                                     hostname = "unknown".to_owned();
                                 }
@@ -91,7 +91,7 @@ pub fn send_wol(id: String) {
                 if let Ok(mac_addr) = mac.parse() {
                     for interface in &interfaces {
                         for ipv4 in &interface.ipv4 {
-                            // remove below mask check to avoid unexpected bug
+                            // 移除下面的掩码检查，以避免意外 bug
                             // if (u32::from(ipv4.addr) & u32::from(ipv4.netmask)) == (u32::from(peer_ip) & u32::from(ipv4.netmask))
                             log::info!("Send wol to {mac_addr} of {}", ipv4.addr);
                             allow_err!(wol::send_wol(mac_addr, None, Some(IpAddr::V4(ipv4.addr))));
@@ -143,7 +143,7 @@ fn get_mac_by_ip(ip: &IpAddr) -> ResultType<String> {
     bail!("No interface found for ip: {:?}", ip);
 }
 
-// Mainly from https://github.com/shellrow/default-net/blob/cf7ca24e7e6e8e566ed32346c9cfddab3f47e2d6/src/interface/shared.rs#L4
+// 主要来自 https://github.com/shellrow/default-net/blob/cf7ca24e7e6e8e566ed32346c9cfddab3f47e2d6/src/interface/shared.rs#L4
 fn get_ipaddr_by_peer<A: ToSocketAddrs>(peer: A) -> Option<IpAddr> {
     let socket = match UdpSocket::bind("0.0.0.0:0") {
         Ok(s) => s,
@@ -164,8 +164,8 @@ fn get_ipaddr_by_peer<A: ToSocketAddrs>(peer: A) -> Option<IpAddr> {
 fn create_broadcast_sockets() -> Vec<UdpSocket> {
     let mut ipv4s = Vec::new();
     // TODO: maybe we should use a better way to get ipv4 addresses.
-    // But currently, it's ok to use `[Ipv4Addr::UNSPECIFIED]` for discovery.
-    // `default_net::get_interfaces()` causes undefined symbols error when `flutter build` on iOS simulator x86_64
+    // 但目前用 `[Ipv4Addr::UNSPECIFIED]` 做发现是没问题的。
+    // 在 iOS 模拟器 x86_64 上执行 `flutter build` 时，`default_net::get_interfaces()` 会导致 undefined symbols 错误
     #[cfg(not(any(target_os = "ios")))]
     for interface in default_net::get_interfaces() {
         for ipv4 in &interface.ipv4 {
@@ -175,7 +175,7 @@ fn create_broadcast_sockets() -> Vec<UdpSocket> {
     ipv4s.push(Ipv4Addr::UNSPECIFIED); // for robustness
     let mut sockets = Vec::new();
     for v4_addr in ipv4s {
-        // removing v4_addr.is_private() check, https://github.com/rustdesk/rustdesk/issues/4663
+        // 移除 v4_addr.is_private() 检查，https://github.com/rustdesk/rustdesk/issues/4663
         if let Ok(s) = UdpSocket::bind(SocketAddr::from((v4_addr, 0))) {
             if s.set_broadcast(true).is_ok() {
                 sockets.push(s);
@@ -192,15 +192,15 @@ fn send_query() -> ResultType<Vec<UdpSocket>> {
     }
 
     let mut msg_out = Message::new();
-    // We may not be able to get the mac address on mobile platforms.
-    // So we need to use the id to avoid discovering ourselves.
+    // 在移动平台上我们可能无法获取 mac 地址。
+    // 所以我们需要用 id 来避免发现我们自己。
     #[cfg(any(target_os = "android", target_os = "ios"))]
     let id = crate::ui_interface::get_id();
-    // `crate::ui_interface::get_id()` will cause error:
-    // `get_id()` uses async code with `current_thread`, which is not allowed in this context.
+    // `crate::ui_interface::get_id()` 会导致错误：
+    // `get_id()` 用了带 `current_thread` 的异步代码，而在此上下文中不允许这样做。
     //
-    // No need to get id for desktop platforms.
-    // We can use the mac address to identify the device.
+    // 桌面平台无需获取 id。
+    // 我们可以用 mac 地址来标识设备。
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let id = "".to_owned();
     let peer = PeerDiscovery {

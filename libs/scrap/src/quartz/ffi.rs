@@ -48,13 +48,13 @@ pub fn cfbool(x: bool) -> CFBooleanRef {
 #[repr(i32)]
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum CGDisplayStreamFrameStatus {
-    /// A new frame was generated.
+    /// 生成了新的一帧。
     FrameComplete = 0,
-    /// A new frame was not generated because the display did not change.
+    /// 因为显示内容没有变化，没有生成新的一帧。
     FrameIdle = 1,
-    /// A new frame was not generated because the display has gone blank.
+    /// 因为显示已变黑，没有生成新的一帧。
     FrameBlank = 2,
-    /// The display stream was stopped.
+    /// 显示流已停止。
     Stopped = 3,
     #[doc(hidden)]
     __Nonexhaustive,
@@ -63,15 +63,15 @@ pub enum CGDisplayStreamFrameStatus {
 #[repr(i32)]
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum CFNumberType {
-    /* Fixed-width types */
+    /* 定长类型 */
     SInt8 = 1,
     SInt16 = 2,
     SInt32 = 3,
     SInt64 = 4,
     Float32 = 5,
     Float64 = 6,
-    /* 64-bit IEEE 754 */
-    /* Basic C types */
+    /* 64 位 IEEE 754 */
+    /* 基本 C 类型 */
     Char = 7,
     Short = 8,
     Int = 9,
@@ -79,7 +79,7 @@ pub enum CFNumberType {
     LongLong = 11,
     Float = 12,
     Double = 13,
-    /* Other */
+    /* 其他 */
     CFIndex = 14,
     NSInteger = 15,
     CGFloat = 16,
@@ -107,13 +107,13 @@ pub enum CGError {
 #[repr(i32)]
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum PixelFormat {
-    /// Packed Little Endian ARGB8888
+    /// 紧凑小端 ARGB8888
     Argb8888 = pixel_format!('B', 'G', 'R', 'A'),
-    /// Packed Little Endian ARGB2101010
+    /// 紧凑小端 ARGB2101010
     Argb2101010 = pixel_format!('l', '1', '0', 'r'),
-    /// 2-plane "video" range YCbCr 4:2:0
+    /// 2 平面 “video” 范围 YCbCr 4:2:0
     YCbCr420Video = pixel_format!('4', '2', '0', 'v'),
-    /// 2-plane "full" range YCbCr 4:2:0
+    /// 2 平面 “full” 范围 YCbCr 4:2:0
     YCbCr420Full = pixel_format!('4', '2', '0', 'f'),
     #[doc(hidden)]
     __Nonexhaustive,
@@ -217,7 +217,7 @@ extern "C" {
     pub static kCFTypeDictionaryKeyCallBacks: CFDictionaryKeyCallBacks;
     pub static kCFTypeDictionaryValueCallBacks: CFDictionaryValueCallBacks;
 
-    // EVEN THE BOOLEANS ARE REFERENCES.
+    // 即使是布尔值也是引用。
     pub static kCFBooleanTrue: CFBooleanRef;
     pub static kCFBooleanFalse: CFBooleanRef;
 

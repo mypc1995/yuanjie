@@ -73,7 +73,7 @@ pub fn unregister_whiteboard(k: String) {
             let mut whiteboard = TX_WHITEBOARD.write().unwrap();
             whiteboard.as_ref().map(|tx| {
                 allow_err!(tx.send(("".to_string(), CustomEvent::Exit)));
-                // Simple sleep to wait the whiteboard process exiting.
+                // 简单地 sleep 一下，等待白板进程退出。
                 std::thread::sleep(std::time::Duration::from_millis(3_00));
             });
             whiteboard.take();
@@ -91,7 +91,7 @@ pub fn update_whiteboard(k: String, e: CustomEvent) {
             conn.last_cursor_evt.c += 1;
             conn.last_cursor_evt.tm = Instant::now();
             if cursor.btns == 0 {
-                // Send one movement event every 4.
+                // 每隔 4 发送一个移动事件。
                 if conn.last_cursor_evt.c > 3 {
                     conn.last_cursor_evt.c = 0;
                     conn.last_cursor_evt.evt = None;

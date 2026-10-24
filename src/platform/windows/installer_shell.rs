@@ -122,8 +122,8 @@ fn get_known_folder(id: &windows::core::GUID) -> ResultType<PathBuf> {
     Ok(PathBuf::from(path?))
 }
 
-// `%VAR%` is expanded before cmd.exe executes even inside a quoted `set` assignment.
-// Reject all `%` so a handoff path cannot alter the elevated bootstrap before hash verification.
+// 即使在带引号的 `set` 赋值中，`%VAR%` 也会在 cmd.exe 执行前被展开。
+// 拒绝所有 `%`，这样交接路径就无法在校验哈希之前篡改提权的引导内容。
 // https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/set_1
 pub(super) fn path_for_cmd_environment(path: &Path) -> ResultType<&str> {
     let value = path
@@ -151,7 +151,7 @@ fn trusted_install_environment_from_paths(
         .parent()
         .ok_or_else(|| anyhow!("System directory has no parent"))?;
     let cmd = system.join(CMD_RELATIVE_PATH);
-    // These paths are parsed once from the protected BAT, with delayed expansion disabled.
+    // 这些路径从受保护的 BAT 中一次性解析，并禁用延迟展开。
     let system = path_for_cmd_environment(system)?;
     let windows = path_for_cmd_environment(windows)?;
     let cmd = path_for_cmd_environment(&cmd)?;
@@ -262,7 +262,7 @@ pub(super) fn launch_elevated(
     Ok(ProcessHandle(info.hProcess))
 }
 
-// Escape `^` before using it to escape `&` so both survive nested cmd.exe parsing.
+// 先用 `^` 转义 `^` 本身，再用它来转义 `&`，这样两者都能在嵌套的 cmd.exe 解析中存活。
 // https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/cc754250(v=ws.11)
 pub(super) fn escape_nested_cmd_ampersands(value: &str) -> String {
     value.replace('^', "^^").replace('&', "^&")

@@ -30,7 +30,7 @@ import 'package:flutter_hbb/native/custom_cursor.dart'
 
 final SimpleWrapper<bool> _firstEnterImage = SimpleWrapper(false);
 
-// Used to skip session close if "move to new window" is clicked.
+// 当点击"在新窗口中打开"时，用于跳过会话关闭。
 final Map<String, bool> closeSessionOnDispose = {};
 
 class RemotePage extends StatefulWidget {
@@ -68,8 +68,8 @@ class RemotePage extends StatefulWidget {
 
   void releaseMacOSInputForTabTransfer() {
     if (!isMacOS) return;
-    // Release before removing the source tab. Its delayed disposal must not
-    // disable a native keyboard hook already acquired by the destination page.
+    // 在移除源标签页之前先释放。其延迟销毁不得
+    // 禁用目标页面已经获取的原生键盘钩子。
     (_lastState.value! as _RemotePageState)._releaseMacOSRemoteInput();
   }
 
@@ -90,16 +90,16 @@ class _RemotePageState extends State<RemotePage>
   Timer? _timer;
   String keyboardMode = "legacy";
   bool _isWindowBlur = false;
-  // Known macOS remote-input trade-offs (kept simple intentionally):
-  // 1. Dialogs rely on FocusNode loss plus middleBlocked, not mirrored dialog
-  //    state. Reproduce: activate remote input, open a dialog, then type.
-  // 2. Delayed fullscreen recovery can race a local-control focus change; no
-  //    owner state is added. Reproduce: focus the toolbar during a Space switch.
-  // 3. Input-source switching releases native input without updating this
-  //    page's cache. Reproduce: switch sources, then type before and after
-  //    clicking the remote image; the click reasserts input.
-  // These latches compensate for out-of-order macOS focus events. Treat them
-  // as coupled when changing a transition or _syncMacOSKeyboardGrab().
+  // 已知的 macOS 远程输入取舍（有意保持简单）：
+  // 1. 对话框依赖 FocusNode 失焦加上 middleBlocked，而不是镜像对话框
+  //    状态。复现方式：激活远程输入，打开一个对话框，然后输入。
+  // 2. 延迟的全屏恢复可能与本地控件的焦点切换发生竞争；不会
+  //    增加归属状态。复现方式：在切换 Space 期间聚焦工具栏。
+  // 3. 切换输入源时会释放原生输入，但没有更新本
+  //    页面的缓存。复现方式：切换输入源，然后在点击远端图像前后分别输入；
+  //    点击会重新取得输入。
+  // 这些闩锁用于补偿 macOS 乱序的焦点事件。修改某个过渡或
+  // _syncMacOSKeyboardGrab() 时要把它们视为相互关联。
   AppLifecycleState? _macOSLifecycleState;
   bool _macOSLocalFocusLost = false;
   bool _macOSInputActive = false;
@@ -118,12 +118,12 @@ class _RemotePageState extends State<RemotePage>
 
   final FocusNode _rawKeyFocusNode = FocusNode(debugLabel: "rawkeyFocusNode");
 
-  // Debounce timer for pointer lock center updates during window events.
-  // Uses kDefaultPointerLockCenterThrottleMs from consts.dart for the duration.
+  // 窗口事件期间用于更新指针锁定中心的防抖定时器。
+  // 时长使用 consts.dart 中的 kDefaultPointerLockCenterThrottleMs。
   Timer? _pointerLockCenterDebounceTimer;
 
-  // We need `_instanceIdOnEnterOrLeaveImage4Toolbar` together with `_onEnterOrLeaveImage4Toolbar`
-  // to identify the toolbar instance and its callback function.
+  // 我们需要 `_instanceIdOnEnterOrLeaveImage4Toolbar` 配合 `_onEnterOrLeaveImage4Toolbar`
+  // 来标识工具栏实例及其回调函数。
   int? _instanceIdOnEnterOrLeaveImage4Toolbar;
   Function(bool)? _onEnterOrLeaveImage4Toolbar;
 
@@ -150,7 +150,7 @@ class _RemotePageState extends State<RemotePage>
     super.initState();
     _ffi = FFI(widget.sessionId);
     if (isMacOS) {
-      // SchedulerBinding.instance.lifecycleState is null in the first connection in a new window.
+      // 新窗口中的第一次连接时，SchedulerBinding.instance.lifecycleState 为 null。
       _macOSLifecycleState = SchedulerBinding.instance.lifecycleState;
       WidgetsBinding.instance.addObserver(this);
       _tabStateSubscription =
@@ -163,11 +163,11 @@ class _RemotePageState extends State<RemotePage>
           _ffi.ffiModel.pi.platform, _ffi.dialogManager);
       _ffi.recordingModel
           .updateStatus(bind.sessionGetIsRecording(sessionId: _ffi.sessionId));
-      // Seed shortcut action callbacks once the session is ready, so that
-      // global keyboard shortcuts work even if the user never opens the
-      // toolbar menu. The returned list is intentionally discarded — the
-      // side effect of registering callbacks (inside toolbarControls) is
-      // what we want here.
+      // 会话就绪后初始化快捷键动作回调，使得
+      // 即使用户从未打开
+      // 工具栏菜单，全局键盘快捷键也能工作。返回的列表被有意丢弃 —— 
+      // 注册回调（在 toolbarControls 内部）的副作用
+      // 正是我们这里需要的。
       if (mounted) {
         toolbarControls(context, widget.id, _ffi);
         registerSessionShortcutActions(_ffi,
@@ -198,7 +198,7 @@ class _RemotePageState extends State<RemotePage>
     _ffi.qualityMonitorModel.checkShowQualityMonitor(sessionId);
     _ffi.dialogManager.loadMobileActionsOverlayVisible();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Session option should be set after models.dart/FFI.start
+      // 会话选项应在 models.dart/FFI.start 之后设置
       _showRemoteCursor.value = bind.sessionGetToggleOptionSync(
           sessionId: sessionId, arg: 'show-remote-cursor');
       _zoomCursor.value = bind.sessionGetToggleOptionSync(
@@ -218,12 +218,12 @@ class _RemotePageState extends State<RemotePage>
     // }
 
     _blockableOverlayState.applyFfi(_ffi);
-    // Call onSelected in post frame callback, since we cannot guarantee that the callback will not call setState.
+    // 在 post frame 回调中调用 onSelected，因为无法保证该回调不会调用 setState。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.tabController?.onSelected?.call(widget.id);
     });
 
-    // Register callback to cancel debounce timer when relative mouse mode is disabled
+    // 注册回调，在相对鼠标模式被禁用时取消防抖定时器
     _ffi.inputModel.onRelativeMouseModeDisabled =
         _cancelPointerLockCenterDebounceTimer;
 
@@ -270,7 +270,7 @@ class _RemotePageState extends State<RemotePage>
     }
   }
 
-  /// Cancel the pointer lock center debounce timer
+  /// 取消指针锁定中心的防抖定时器
   void _cancelPointerLockCenterDebounceTimer() {
     _pointerLockCenterDebounceTimer?.cancel();
     _pointerLockCenterDebounceTimer = null;
@@ -286,8 +286,8 @@ class _RemotePageState extends State<RemotePage>
         tabState.tabs[selected].key == widget.id;
   }
 
-  // Every Windows requestFocus() must pass this, or a blocking dialog or an
-  // inactive tab could hand remote input to this page.
+  // Windows 上的每次 requestFocus() 都必须经过这里，否则一个阻塞式对话框或
+  // 非活动标签页可能会把远程输入交给本页。
   bool get _windowsCanFocusRemoteInput =>
       _isSelectedTab && _blockableOverlayState.middleBlocked.isFalse;
 
@@ -301,8 +301,8 @@ class _RemotePageState extends State<RemotePage>
       _syncMacOSKeyboardGrab();
       return;
     }
-    // Tab listeners run synchronously. Defer the selected page so the previous
-    // page releases first; a late leave from it can disable the new session.
+    // 标签页监听器是同步执行的。把选中页面的处理延后，让前一个
+    // 页面先释放；它迟到的离开事件可能会禁用新的会话。
     scheduleMicrotask(() {
       if (mounted) {
         _syncMacOSKeyboardGrab(reassert: true);
@@ -321,8 +321,8 @@ class _RemotePageState extends State<RemotePage>
   }
 
   void _onMacOSFocusChange() {
-    // requestFocus() notifies later; only a recorded explicit request may clear
-    // the local-focus-loss latch.
+    // requestFocus() 是稍后才通知的；只有记录下来的显式请求才能清除
+    // 本地失焦闩锁。
     if (_rawKeyFocusNode.hasPrimaryFocus) {
       final explicitRequest = _macOSExplicitFocusRequestPending;
       _macOSExplicitFocusRequestPending = false;
@@ -341,23 +341,23 @@ class _RemotePageState extends State<RemotePage>
     }
   }
 
-  // 1. Sync the keyboard grab state with the current context.
-  // 2. Call enterOrLeave() to update the input state in the FFI layer.
-  // 3. Request or unfocus the raw key focus node based on the current context.
-  // Flutter focus and native input are separate; native input activates only
-  // after the FocusNode has primary focus.
+  // 1. 将键盘捕获状态与当前上下文同步。
+  // 2. 调用 enterOrLeave() 更新 FFI 层中的输入状态。
+  // 3. 根据当前上下文请求或取消聚焦原始按键焦点节点。
+  // Flutter 焦点与原生输入是两套机制；原生输入只有在
+  // FocusNode 获得主焦点后才会激活。
   void _syncMacOSKeyboardGrab({
     bool reassert = false,
     bool allowInactiveLifecycle = false,
   }) {
     if (!isMacOS) return;
-    // A secondary engine may stay hidden while its window is visible, so
-    // explicit pointer/fullscreen recovery must bypass the global lifecycle.
+    // 副引擎在窗口可见时仍可能处于隐藏状态，因此
+    // 显式的指针/全屏恢复必须绕过全局生命周期。
     final lifecycleAllowsInput = allowInactiveLifecycle ||
         _macOSLifecycleState == null ||
         _macOSLifecycleState == AppLifecycleState.resumed;
-    // Input stays pointer-gated except for focused fullscreen recovery, which
-    // compensates when macOS omits PointerEnter during a Space switch.
+    // 除获得焦点的全屏恢复外，输入始终受指针门控，它
+    // 用于补偿 macOS 在切换 Space 时不发送 PointerEnter 的情况。
     final shouldFocus = lifecycleAllowsInput &&
         _isMacOSKeyboardContextActive &&
         !_macOSInputSuppressed &&
@@ -388,8 +388,8 @@ class _RemotePageState extends State<RemotePage>
     required int generation,
     bool allowHiddenLifecycle = false,
   }) {
-    // Fullscreen callbacks preserve recovery while hidden. Native window focus
-    // may bypass a stale hidden lifecycle for the newly visible Space.
+    // 全屏回调在隐藏期间会保留恢复逻辑。原生窗口焦点
+    // 对于刚变为可见的 Space，可能绕过过期的隐藏生命周期。
     if (!_macOSFullScreenFocusRecovery.isCurrent(generation) ||
         (!allowHiddenLifecycle &&
             _macOSLifecycleState == AppLifecycleState.hidden)) {
@@ -397,9 +397,9 @@ class _RemotePageState extends State<RemotePage>
     }
     final contextActive =
         stateGlobal.isFocused.value && !_isWindowBlur && _isSelectedTab;
-    // macOS can focus a fullscreen Space without sending PointerEnter. Native
-    // window focus is authoritative here; a later blur cancels this generation
-    // before an off-screen window can restore input.
+    // macOS 可能在不发送 PointerEnter 的情况下聚焦某个全屏 Space。原生
+    // 窗口焦点在此处是权威依据；之后的失焦会在离屏窗口
+    // 恢复输入之前取消本次生成。
     final shouldInferPointerInside = !_cursorOverImage.value &&
         allowHiddenLifecycle &&
         stateGlobal.fullscreen.isTrue &&
@@ -409,7 +409,7 @@ class _RemotePageState extends State<RemotePage>
         (_cursorOverImage.value || shouldInferPointerInside);
     if (!_macOSFullScreenFocusRecovery.consume(generation)) return;
     if (!canRestore) {
-      // Consuming recovery here requires a later pointer/window/tab event.
+      // 在此处消费恢复动作需要后续的指针/窗口/标签页事件。
       return;
     }
     if (shouldInferPointerInside) {
@@ -424,8 +424,8 @@ class _RemotePageState extends State<RemotePage>
     required int generation,
     bool allowHiddenLifecycle = false,
   }) {
-    // Fullscreen can deliver FocusNode loss after its callback; wait for frame
-    // completion and then advance one event-loop turn before restoring.
+    // 全屏可能在其回调之后才抛出 FocusNode 失焦；等待帧
+    // 结束后再推进一轮事件循环，然后才恢复。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Timer.run(() {
         if (mounted) {
@@ -480,29 +480,29 @@ class _RemotePageState extends State<RemotePage>
   @override
   void onWindowBlur() {
     super.onWindowBlur();
-    // On windows, we use `focus` way to handle keyboard better.
-    // Now on Linux, there's some rdev issues which will break the input.
-    // We disable the `focus` way for Linux temporarily.
+    // 在 Windows 上，我们使用 `focus` 方式更好地处理键盘。
+    // 现在在 Linux 上，rdev 存在一些会破坏输入的问题。
+    // 我们暂时为 Linux 禁用 `focus` 方式。
     if (isWindows || isMacOS) {
       _isWindowBlur = true;
     }
     if (isMacOS) {
       _macOSFullScreenFocusRecovery.cancel();
-      // A blur or Space switch may not emit PointerExit, so cursor state alone
-      // cannot prevent the old remote surface from reclaiming the keyboard.
+      // 失焦或切换 Space 可能不会发出 PointerExit，因此仅靠光标状态
+      // 无法阻止旧的远端画面重新抢走键盘。
       _macOSLocalFocusLost = true;
     }
     if (isWindows) {
-      // unfocus the primary-focus when the whole window is lost focus,
-      // and let OS to handle events instead.
+      // 整个窗口失去焦点时取消主焦点的聚焦，
+      // 改为让操作系统处理事件。
       _rawKeyFocusNode.unfocus();
     }
     stateGlobal.isFocused.value = false;
     _syncMacOSKeyboardGrab();
 
-    // When window loses focus, temporarily release relative mouse mode constraints
-    // to allow user to interact with other applications normally.
-    // The cursor will be re-hidden and re-centered when window regains focus.
+    // 窗口失去焦点时，临时释放相对鼠标模式的约束
+    // 以允许用户正常与其他应用交互。
+    // 窗口重新获得焦点时，光标会被重新隐藏并重新居中。
     if (_ffi.inputModel.relativeMouseMode.value) {
       _ffi.inputModel.onWindowBlur();
     }
@@ -511,28 +511,28 @@ class _RemotePageState extends State<RemotePage>
   @override
   void onWindowFocus() {
     super.onWindowFocus();
-    // See [onWindowBlur].
+    // 参见 [onWindowBlur]。
     if (isWindows || isMacOS) {
       _isWindowBlur = false;
     }
     if (isMacOS) stateGlobal.getInputSource(force: true);
     stateGlobal.isFocused.value = true;
 
-    // Normal macOS windows wait for PointerEnter or PointerDown. A focused
-    // fullscreen Space queues delayed recovery; if this window blurs again, the
-    // pending recovery is cancelled before native input can reactivate.
-    // Regression: switch directly between fullscreen remote Spaces without
-    // moving or clicking; only the newly focused session may receive input.
+    // 普通的 macOS 窗口会等待 PointerEnter 或 PointerDown。获得焦点的
+    // 全屏 Space 会排队一次延迟恢复；如果该窗口再次失焦，
+    // 待处理的恢复会在原生输入重新激活之前被取消。
+    // 回归问题：在不移动也不点击的情况下，直接在多个全屏远端 Space 之间切换，
+    // 只有新获得焦点的会话可以接收输入。
     if (isMacOS &&
         stateGlobal.fullscreen.isTrue &&
         !_ffi.inputModel.relativeMouseMode.value) {
-      // Native window focus is authoritative when a secondary engine retains a
-      // stale hidden lifecycle state after its fullscreen Space becomes visible.
+      // 当副引擎在全屏 Space 变为可见后仍保留着
+      // 过期的隐藏生命周期状态时，原生窗口焦点是权威依据。
       _queueMacOSKeyboardAfterFullScreen(allowHiddenLifecycle: true);
     }
 
-    // Refocus without PointerEnter: the cursor already hovers the image when
-    // focus returns (Alt+Tab, taskbar), so enterView() never fires again.
+    // 没有 PointerEnter 的重新聚焦：焦点返回时（Alt+Tab、任务栏）光标本就已悬停在图像上，
+    // 因此 enterView() 不会再触发。
     if (isWindows &&
         _cursorOverImage.value &&
         _windowsCanFocusRemoteInput &&
@@ -540,12 +540,12 @@ class _RemotePageState extends State<RemotePage>
       _rawKeyFocusNode.requestFocus();
     }
 
-    // Restore relative mouse mode constraints when window regains focus.
+    // 窗口重新获得焦点时恢复相对鼠标模式的约束。
     if (_ffi.inputModel.relativeMouseMode.value) {
       if (isMacOS) {
-        // Native relative mode retains pointer capture and does not emit
-        // PointerEnter after window focus returns. Restore both latches unless
-        // a local overlay still owns input.
+        // 原生相对模式会保持指针捕获，并且不会发出
+        // 窗口焦点返回后的 PointerEnter。除非
+        // 本地叠加层仍持有输入，否则要同时恢复两个闩锁。
         if (_blockableOverlayState.middleBlocked.isFalse) {
           _cursorOverImage.value = true;
           _macOSLocalFocusLost = false;
@@ -561,45 +561,45 @@ class _RemotePageState extends State<RemotePage>
   @override
   void onWindowRestore() {
     super.onWindowRestore();
-    // On windows, we use `onWindowRestore` way to handle window restore from
-    // a minimized state.
+    // 在 Windows 上，我们使用 `onWindowRestore` 方式处理窗口从
+    // 最小化状态恢复。
     if (isWindows) {
       _isWindowBlur = false;
     }
     WakelockManager.enable(_uniqueKey);
-    // Update pointer lock center when window is restored
+    // 窗口恢复时更新指针锁定中心
     _updatePointerLockCenterIfNeeded();
   }
 
-  // When the window is unminimized, onWindowMaximize or onWindowRestore can be called when the old state was maximized or not.
+  // 窗口取消最小化时，无论旧状态是否为最大化，都可能调用 onWindowMaximize 或 onWindowRestore。
   @override
   void onWindowMaximize() {
     super.onWindowMaximize();
     WakelockManager.enable(_uniqueKey);
-    // Update pointer lock center when window is maximized
+    // 窗口最大化时更新指针锁定中心
     _updatePointerLockCenterIfNeeded();
   }
 
   @override
   void onWindowResize() {
     super.onWindowResize();
-    // Update pointer lock center when window is resized
+    // 窗口调整大小时更新指针锁定中心
     _updatePointerLockCenterIfNeeded();
   }
 
   @override
   void onWindowMove() {
     super.onWindowMove();
-    // Update pointer lock center when window is moved
+    // 窗口移动时更新指针锁定中心
     _updatePointerLockCenterIfNeeded();
   }
 
-  /// Update pointer lock center with debouncing to avoid excessive updates
-  /// during rapid window move/resize events.
+  /// 以防抖方式更新指针锁定中心，避免更新过于频繁
+  /// （在窗口快速移动/缩放事件期间）。
   void _updatePointerLockCenterIfNeeded() {
     if (!_ffi.inputModel.relativeMouseMode.value) return;
 
-    // Cancel any pending update and schedule a new one (debounce pattern)
+    // 取消任何待处理的更新并安排一次新的更新（防抖模式）
     _pointerLockCenterDebounceTimer?.cancel();
     _pointerLockCenterDebounceTimer = Timer(
       const Duration(milliseconds: kDefaultPointerLockCenterThrottleMs),
@@ -623,7 +623,7 @@ class _RemotePageState extends State<RemotePage>
       stateGlobal.isFocused.value = false;
       _syncMacOSKeyboardGrab();
     }
-    // Release cursor constraints when minimized
+    // 最小化时释放光标约束
     if (_ffi.inputModel.relativeMouseMode.value) {
       _ffi.inputModel.onWindowBlur();
     }
@@ -653,7 +653,7 @@ class _RemotePageState extends State<RemotePage>
 
     // https://github.com/flutter/flutter/issues/64935
     if (isMacOS) {
-      // Tab moves release before transfer to avoid a late retained-session leave.
+      // 标签页移动时先释放再转移，避免保留会话的迟到离开事件。
       if (closeSession) {
         _releaseMacOSRemoteInput();
       }
@@ -663,20 +663,20 @@ class _RemotePageState extends State<RemotePage>
     super.dispose();
     debugPrint("REMOTE PAGE dispose session $sessionId ${widget.id}");
 
-    // Defensive cleanup: ensure host system-key propagation is reset even if
-    // MouseRegion.onExit never fired (e.g., tab closed while cursor inside).
+    // 防御性清理：确保宿主系统按键传递被重置，即使
+    // MouseRegion.onExit 从未触发（例如光标在标签页内部时标签页被关闭）。
     if (!isWeb) bind.hostStopSystemKeyPropagate(stopped: true);
 
     _pointerLockCenterDebounceTimer?.cancel();
     _pointerLockCenterDebounceTimer = null;
     _waylandKeyboardModeWorker?.dispose();
-    // Clear callback reference to prevent memory leaks and stale references
+    // 清除回调引用，防止内存泄漏和过期引用
     _ffi.inputModel.onRelativeMouseModeDisabled = null;
-    // Relative mouse mode cleanup is centralized in FFI.close(closeSession: ...).
+    // 相对鼠标模式的清理由 FFI.close(closeSession: ...) 集中处理。
     _ffi.textureModel.onRemotePageDispose(closeSession);
     if (closeSession && !isMacOS) {
-      // ensure we leave this session, this is a double check
-      // enterOrLeave() is already called previously in _releaseMacOSRemoteInput() for macOS.
+      // 确保我们离开这个会话，这是一次复查
+      // 在 macOS 上，enterOrLeave() 之前已在 _releaseMacOSRemoteInput() 中调用过。
       _ffi.inputModel.enterOrLeave(false);
     }
     DesktopMultiWindow.removeListener(this);
@@ -700,8 +700,8 @@ class _RemotePageState extends State<RemotePage>
   }
 
   Widget emptyOverlay() => BlockableOverlay(
-        /// the Overlay key will be set with _blockableOverlayState in BlockableOverlay
-        /// see override build() in [BlockableOverlay]
+        /// Overlay 键会在 BlockableOverlay 中通过 _blockableOverlayState 设置
+        /// 参见 [BlockableOverlay] 中重写的 build()
         state: _blockableOverlayState,
         underlying: Container(
           color: Colors.transparent,
@@ -718,8 +718,8 @@ class _RemotePageState extends State<RemotePage>
             _onEnterOrLeaveImage4Toolbar = func;
           },
           onEnterOrLeaveImageCleaner: (id) {
-            // If _instanceIdOnEnterOrLeaveImage4Toolbar != id
-            // it means `_onEnterOrLeaveImage4Toolbar` is not set or it has been changed to another toolbar.
+            // 如果 _instanceIdOnEnterOrLeaveImage4Toolbar != id
+            // 说明 `_onEnterOrLeaveImage4Toolbar` 未设置，或已被改为另一个工具栏。
             if (_instanceIdOnEnterOrLeaveImage4Toolbar == id) {
               _instanceIdOnEnterOrLeaveImage4Toolbar = null;
               _onEnterOrLeaveImage4Toolbar = null;
@@ -738,7 +738,7 @@ class _RemotePageState extends State<RemotePage>
                   onFocusChange: (bool imageFocused) {
                     debugPrint(
                         "onFocusChange(window active:${!_isWindowBlur}) $imageFocused");
-                    // See [onWindowBlur].
+                    // 参见 [onWindowBlur]。
                     if (isWindows) {
                       if (_isWindowBlur) {
                         imageFocused = false;
@@ -779,9 +779,9 @@ class _RemotePageState extends State<RemotePage>
                             ));
                       }
                     }(),
-              // Use Overlay to enable rebuild every time on menu button click.
-              // Hide toolbar when relative mouse mode is active to prevent
-              // cursor from escaping to toolbar area.
+              // 使用 Overlay 使每次点击菜单按钮都能重新构建。
+              // 相对鼠标模式激活时隐藏工具栏，防止
+              // 光标逃逸到工具栏区域。
               Obx(() => _ffi.inputModel.relativeMouseMode.value
                   ? const Offstage()
                   : _ffi.ffiModel.pi.isSet.isTrue
@@ -802,25 +802,25 @@ class _RemotePageState extends State<RemotePage>
         final imageReady = _ffi.ffiModel.pi.isSet.isTrue &&
             _ffi.ffiModel.waitForFirstImage.isFalse;
         if (imageReady) {
-          // If the privacy mode(disable physical displays) is switched,
-          // we should not dismiss the dialog immediately.
+          // 如果切换了隐私模式（禁用物理显示器），
+          // 则不应立即关闭对话框。
           if (DateTime.now().difference(togglePrivacyModeTime) >
               const Duration(milliseconds: 3000)) {
-            // `dismissAll()` is to ensure that the state is clean.
-            // It's ok to call dismissAll() here.
+            // 调用 `dismissAll()` 是为了确保状态干净。
+            // 在这里调用 dismissAll() 没问题。
             _ffi.dialogManager.dismissAll();
-            // Recreate the block state to refresh the state.
+            // 重新创建阻塞状态以刷新状态。
             _blockableOverlayState = BlockableOverlayState();
             _blockableOverlayState.applyFfi(_ffi);
           }
-          // Block the whole `bodyWidget()` when dialog shows.
+          // 对话框显示时阻塞整个 `bodyWidget()`。
           return BlockableOverlay(
             underlying: bodyWidget(),
             state: _blockableOverlayState,
           );
         } else {
-          // `_blockableOverlayState` is not recreated here.
-          // The toolbar's block state won't work properly when reconnecting, but that's okay.
+          // 这里不会重新创建 `_blockableOverlayState`。
+          // 重连时工具栏的阻塞状态无法正常工作，但也没关系。
           return bodyWidget();
         }
       }),
@@ -857,15 +857,15 @@ class _RemotePageState extends State<RemotePage>
       }
     }
 
-    // See [onWindowBlur].
+    // 参见 [onWindowBlur]。
     if (isMacOS) {
       _macOSLocalFocusLost = false;
       stateGlobal.getInputSource(force: true);
       _syncMacOSKeyboardGrab(reassert: true, allowInactiveLifecycle: true);
     } else if (isWindows) {
-      // Blur unfocuses this node and nothing restores it, so the keyboard stayed
-      // dead until a click. Focus only while the window is really active, or a
-      // background window would grab system keys. onFocusChange does enterOrLeave.
+      // 失焦会使该节点失去焦点且没有任何机制恢复它，因此键盘一直
+      // 处于失效状态直到被点击。只在窗口真正处于活动状态时获取焦点，否则
+      // 后台窗口会抢走系统按键。onFocusChange 会执行 enterOrLeave。
       if (!_isWindowBlur &&
           _windowsCanFocusRemoteInput &&
           !_rawKeyFocusNode.hasFocus) {
@@ -896,7 +896,7 @@ class _RemotePageState extends State<RemotePage>
       }
     }
 
-    // See [onWindowBlur].
+    // 参见 [onWindowBlur]。
     if (isMacOS) {
       _syncMacOSKeyboardGrab();
     } else if (!isWindows) {
@@ -924,19 +924,19 @@ class _RemotePageState extends State<RemotePage>
       onEnter: onEnter,
       onExit: onExit,
       onPointerDown: (event) {
-        // A double check for blur status on Windows and macOS.
-        // Note: If there's an `onPointerDown` event is triggered, `_isWindowBlur` is expected being false.
-        // Sometimes the system does not send the necessary focus event to flutter. We should manually
-        // handle this inconsistent status by setting `_isWindowBlur` to false. So we can
-        // ensure the grab-key thread is running when our users are clicking the remote canvas.
+        // 在 Windows 和 macOS 上对失焦状态的再次确认。
+        // 注意：如果触发了 `onPointerDown` 事件，预期 `_isWindowBlur` 为 false。
+        // 有时系统不会把必要的焦点事件发送给 flutter。我们应该手动
+        // 通过把 `_isWindowBlur` 设为 false 来处理这种不一致状态。这样我们就能
+        // 确保用户点击远端画布时抓键线程正在运行。
         if ((isWindows || isMacOS) && _isWindowBlur) {
           debugPrint(
               "Unexpected status: onPointerDown is triggered while the remote window is in blur status");
           _isWindowBlur = false;
         }
         if (isMacOS) {
-          // Regions without matching enter/exit callbacks cannot safely own
-          // keyboard state.
+          // 没有配对的进入/离开回调的区域无法安全地持有
+          // 键盘状态。
           if (onEnter == null || onExit == null) return;
           if (!stateGlobal.isFocused.value) {
             stateGlobal.isFocused.value = true;
@@ -1018,9 +1018,9 @@ class _RemotePageState extends State<RemotePage>
   bool get wantKeepAlive => true;
 }
 
-/// Tracks view size and DPR to update CanvasModel.updateViewStyle()
-/// and InputModel.updateImageWidgetSize() only when either changes.
-/// This avoids scheduling post-frame callbacks on every LayoutBuilder rebuild.
+/// 跟踪视图尺寸和 DPR，以更新 CanvasModel.updateViewStyle()
+/// 和 InputModel.updateImageWidgetSize()，且仅在二者之一发生变化时才更新。
+/// 这样可以避免在每次 LayoutBuilder 重建时都调度 post-frame 回调。
 class _ViewStyleUpdater extends StatefulWidget {
   final CanvasModel canvasModel;
   final InputModel inputModel;
@@ -1049,7 +1049,7 @@ class _ViewStyleUpdaterState extends State<_ViewStyleUpdater> {
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
         final maxHeight = constraints.maxHeight;
-        // Guard against infinite constraints (e.g., unconstrained ancestor).
+        // 防止出现无限约束（例如无约束的父级）。
         if (!maxWidth.isFinite || !maxHeight.isFinite) {
           return widget.child;
         }
@@ -1057,9 +1057,9 @@ class _ViewStyleUpdaterState extends State<_ViewStyleUpdater> {
         if (_lastSize != newSize || _lastDevicePixelRatio != devicePixelRatio) {
           _lastSize = newSize;
           _lastDevicePixelRatio = devicePixelRatio;
-          // Schedule the update for after the current frame to avoid setState during build.
-          // Use _callbackScheduled flag to prevent accumulating multiple callbacks
-          // when size changes rapidly before any callback executes.
+          // 把更新安排到当前帧之后，以避免在 build 期间调用 setState。
+          // 使用 _callbackScheduled 标志位，防止累积多个回调
+          // （在尺寸快速变化而回调尚未执行时）。
           if (!_callbackScheduled) {
             _callbackScheduled = true;
             SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -1118,7 +1118,7 @@ class _ImagePaintState extends State<ImagePaint> {
     final m = Provider.of<ImageModel>(context);
     var c = Provider.of<CanvasModel>(context);
     final s = c.scale;
-    // Read the live DPR while the canvas's post-frame update is pending.
+    // 在画布的 post-frame 更新待处理期间读取实时 DPR。
     final dpr = MediaQuery.devicePixelRatioOf(context);
 
     bool isViewOriginal() => c.viewStyle.style == kRemoteViewStyleOriginal;
@@ -1137,7 +1137,7 @@ class _ImagePaintState extends State<ImagePaint> {
               cursor: cursorOverImage.isTrue
                   ? c.cursorEmbedded
                       ? SystemMouseCursors.none
-                      // Hide cursor when relative mouse mode is active
+                      // 相对鼠标模式激活时隐藏光标
                       : widget.ffi.inputModel.relativeMouseMode.value
                           ? SystemMouseCursors.none
                           : keyboardEnabled.isTrue
@@ -1204,10 +1204,10 @@ class _ImagePaintState extends State<ImagePaint> {
     }
   }
 
-  /// Matches desktop cursors to the rendered image and native pixel units.
+  /// 把桌面光标与渲染后的图像及原生像素单位进行匹配。
   ///
-  /// Windows cursor pixels are physical; NSCursor/GdkCursor use logical pixels.
-  /// Unzoomed Adaptive/Custom views preserve macOS cursors' point dimensions.
+  /// Windows 光标像素是物理像素；NSCursor/GdkCursor 使用逻辑像素。
+  /// 未缩放的自适应/自定义视图保持 macOS 光标的点尺寸。
   double _getDesktopCursorScale(CanvasModel c, double dpr) {
     final peer = widget.ffi.ffiModel;
     if (!zoomCursor.value &&
@@ -1218,7 +1218,7 @@ class _ImagePaintState extends State<ImagePaint> {
     }
     if (peer.isPeerLinux && peer.pi.currentDisplay == kAllDisplayValue) {
       if (!zoomCursor.value || c.viewStyle.style == kRemoteViewStyleOriginal) {
-        // Remove the host output's density without applying canvas zoom.
+        // 去掉宿主输出的缩放密度，但不应用画布缩放。
         final scale = 1.0 / _cursorDisplayScale.value;
         return isWindows ? scale : scale / dpr;
       }
@@ -1226,7 +1226,7 @@ class _ImagePaintState extends State<ImagePaint> {
       return isWindows ? scale * dpr : scale;
     }
     if (!zoomCursor.value || c.viewStyle.style == kRemoteViewStyleOriginal) {
-      // Original and unzoomed views do not apply canvas zoom.
+      // 原始视图和未缩放视图不应用画布缩放。
       final scale = _getCursorScaleForDisplay(1.0);
       return isWindows ? scale : scale / dpr;
     }
@@ -1236,23 +1236,23 @@ class _ImagePaintState extends State<ImagePaint> {
 
   double _getCursorScaleForDisplay(double scale) {
     final peer = widget.ffi.ffiModel;
-    // All Displays can mix densities; no single display scale applies.
+    // 所有显示器可以混合不同的密度，不存在统一的显示缩放比例。
     if (peer.pi.currentDisplay == kAllDisplayValue) return scale;
     final displays = peer.pi.getCurDisplays();
     if (displays.isEmpty) return scale;
     if (peer.pi.platform == kPeerPlatformMacOS) {
-      // macOS sends NSImage.size in points (src/platform/macos.rs:640,682),
-      // while HiDPI screen frames use backing pixels (libs/scrap/src/quartz/display.rs:37).
+      // macOS 以点为单位发送 NSImage.size（src/platform/macos.rs:640,682），
+      // 而 HiDPI 屏幕帧使用后备像素（libs/scrap/src/quartz/display.rs:37）。
       return scale * displays.first.scale;
     }
     if (!peer.isPeerLinux) return scale;
-    // Match rendering when a Wayland host
-    // with multiple outputs reports a display scale > 1.
-    // A single-output host keeps scale at 1.0 to preserve physical uinput
-    // coordinates, even with OS scaling enabled. This counts host outputs,
-    // not the selected displays.length.
-    // See src/server/display_service.rs:650 (update_sync_displays) and
-    // src/server/drm_capturer.rs:1523 (DRM's matching convention).
+    // 当 Wayland 宿主
+    // 有多路输出并报告显示缩放 > 1 时保持渲染一致。
+    // 单输出宿主保持缩放为 1.0，以保留物理 uinput
+    // 坐标，即使开启了系统缩放。这里统计的是宿主输出，
+    // 而不是所选的 displays.length。
+    // 参见 src/server/display_service.rs:650（update_sync_displays）和
+    // src/server/drm_capturer.rs:1523（DRM 的对应约定）。
     return scale / displays.first.scale;
   }
 
@@ -1305,7 +1305,7 @@ class _ImagePaintState extends State<ImagePaint> {
       final textureId = widget.ffi.textureModel
           .getTextureId(curDisplay == kAllDisplayValue ? i : curDisplay);
       if (true) {
-        // both "textureId.value != -1" and "true" seems ok
+        // "textureId.value != -1" 和 "true" 似乎都可以
         final sizeScale = isPeerLinux ? s / displays[i].scale : s;
         children.add(Positioned(
           left: (displays[i].x - rect.left) * s + offset.dx,
@@ -1477,7 +1477,7 @@ class CursorPaint extends StatelessWidget {
         c.scrollStyle == ScrollStyle.scrollbar) {
       final rect = c.parent.target!.ffiModel.rect;
       if (rect == null) {
-        // unreachable!
+        // 不可达！
         debugPrint('unreachable! The displays rect is null.');
         return Container();
       }

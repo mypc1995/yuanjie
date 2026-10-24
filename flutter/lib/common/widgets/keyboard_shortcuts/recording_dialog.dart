@@ -1,14 +1,14 @@
 // flutter/lib/common/widgets/keyboard_shortcuts/recording_dialog.dart
 //
-// Modal dialog used by the Keyboard Shortcuts settings page to capture a new
-// key combination for a given action. The dialog listens for KeyDown events,
-// extracts the modifier set + non-modifier key, validates that at least one
-// modifier is present, and reports any conflict with another already-bound
-// action.
+// 键盘快捷键设置页面使用的模态对话框，用于捕获新的
+// 按键组合并绑定到指定操作。该对话框监听 KeyDown 事件，
+// 提取修饰键集合 + 非修饰键，校验至少存在一个
+// 修饰键，并报告与另一个已绑定操作之间的
+// 冲突。
 //
-// On Save, returns the new binding map ({action, mods, key}) plus the
-// optional id of the action whose binding should be cleared (the conflict
-// "Replace" path). On Cancel, returns null.
+// 点击保存时，返回新的绑定映射（{action, mods, key}），以及
+// 需要清除其绑定的操作的可选 id（冲突时的
+// "替换"路径）。点击取消时返回 null。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -17,27 +17,27 @@ import 'package:flutter/services.dart';
 import '../../../common.dart';
 import 'shortcut_utils.dart';
 
-/// Result of the recording dialog.
+/// 录制对话框的结果。
 class RecordingResult {
-  /// The new binding map to write: {action, mods, key}.
+  /// 要写入的新绑定映射：{action, mods, key}。
   final Map<String, dynamic> binding;
 
-  /// If the chosen combo conflicted with another action, the user chose
-  /// "Replace" — the caller must clear this action's binding before writing
-  /// the new one.
+  /// 如果所选组合与另一个操作冲突，说明用户选择了
+  /// "替换"——调用方必须先清除该操作的绑定，再写入
+  /// 新的绑定。
   final String? clearActionId;
 
   RecordingResult(this.binding, this.clearActionId);
 }
 
-/// Show the recording dialog.
+/// 显示录制对话框。
 ///
-/// [actionId] is the action being edited (used for the title and to detect
-/// "binding to itself" — that's not a conflict).
-/// [actionLabel] is the translated, user-facing action name.
-/// [existingBindings] is the current bindings list (used for conflict detection).
-/// [actionLabelLookup] resolves an actionId to its translated label, used in
-/// the conflict warning.
+/// [actionId] 是正在编辑的操作（用于标题以及检测
+/// "绑定到自身"——这不算冲突）。
+/// [actionLabel] 是经过翻译、面向用户的操作名称。
+/// [existingBindings] 是当前的绑定列表（用于冲突检测）。
+/// [actionLabelLookup] 把 actionId 解析为其翻译后的名称，用于
+/// 冲突警告。
 Future<RecordingResult?> showRecordingDialog({
   required BuildContext context,
   required String actionId,
@@ -77,23 +77,23 @@ class _RecordingDialog extends StatefulWidget {
 class _RecordingDialogState extends State<_RecordingDialog> {
   final FocusNode _focusNode = FocusNode();
 
-  // Captured combo. null until the user presses something with a non-modifier.
+  // 已捕获的组合。在用户按下带有非修饰键的按键之前为 null。
   Set<String> _mods = {};
   String? _key;
 
-  // Human-readable label for the most recent press that we couldn't bind to
-  // (e.g. F13, media keys). null when the last press was either supported or
-  // a modifier-only press. Cleared whenever a supported key arrives, so a
-  // user who hits an unsupported key after a valid capture sees the warning
-  // until they press something else. Distinct from `_key == null` so the
-  // status line can tell the user *why* their press was ignored instead of
-  // silently doing nothing.
+  // 最近一次无法绑定按键的可读名称
+  // （例如 F13、媒体键）。当上一次按键要么受支持、要么
+  // 只是修饰键时为 null。只要有受支持的按键到来就会清除，因此
+  // 用户在成功捕获之后又按下不受支持的按键时，会看到该警告
+  // 直到按下其他按键。它与 `_key == null` 不同，这样
+  // 状态行就能告诉用户*为什么*这次按键被忽略，而不是
+  // 毫无反应。
   String? _unsupportedKey;
 
-  // Modifier LogicalKeyboardKeys we should *not* treat as "unsupported" when
-  // they fail to map to a key name. A modifier-only press is normal during
-  // combo capture (the user is building up their combo) — only non-modifier
-  // unmapped keys deserve the warning.
+  // 当映射不到键名时，我们*不*应视为"不受支持"的
+  // 修饰键 LogicalKeyboardKeys。只按下修饰键在
+  // 组合捕获过程中是正常的（用户正在逐步组合按键）——只有非修饰键
+  // 映射不到键名时才值得给出警告。
   static final _modifierKeys = <LogicalKeyboardKey>{
     LogicalKeyboardKey.shift,
     LogicalKeyboardKey.shiftLeft,
@@ -132,15 +132,15 @@ class _RecordingDialogState extends State<_RecordingDialog> {
       defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.iOS;
 
-  /// True when the captured combo includes at least one modifier. Lower bound
-  /// for any sensible binding — pure single-key bindings would swallow normal
-  /// typing the moment shortcuts are enabled. Beyond one mod the user is on
-  /// their own; the in-session pass-through toggle is the escape hatch when
-  /// a chosen combo collides with something needed on the remote.
+  /// 当捕获到的组合中至少包含一个修饰键时为 true。这是任何合理绑定的下限
+  /// ——纯单键绑定会在快捷键启用后立即吞掉正常的
+  /// 输入。超过一个修饰键则由用户自行决定；
+  /// 会话内的直通（pass-through）开关是应急出口，当
+  /// 所选组合与远端需要的功能冲突时可以使用。
   bool get _hasRequiredPrefix => _mods.isNotEmpty;
 
-  /// Return the actionId that this combo currently conflicts with, or null.
-  /// The action being edited is not a conflict with itself.
+  /// 返回该组合当前冲突的操作 id，若无冲突则返回 null。
+  /// 正在编辑的操作不与自身冲突。
   String? get _conflictActionId {
     if (_key == null || !_hasRequiredPrefix) return null;
     for (final b in widget.existingBindings) {
@@ -168,11 +168,11 @@ class _RecordingDialogState extends State<_RecordingDialog> {
     final logical = event.logicalKey;
     final keyName = shortcutKeyNameForEvent(event);
 
-    // Mirror of `normalize_modifiers` in src/keyboard/shortcuts.rs:
-    //   * macOS: Cmd → primary, Ctrl → ctrl (distinct).
-    //   * Win/Linux: Ctrl → primary, no separate Ctrl modifier.
-    // The two halves must agree on labels, otherwise saved bindings will not
-    // match the events the matcher sees at runtime.
+    // 对应 src/keyboard/shortcuts.rs 中 `normalize_modifiers` 的镜像实现：
+    //   * macOS：Cmd → primary，Ctrl → ctrl（两者不同）。
+    //   * Win/Linux：Ctrl → primary，没有单独的 Ctrl 修饰键。
+    // 两端的标签必须一致，否则保存的绑定将无法
+    // 匹配 matcher 在运行时看到的事件。
     final mods = <String>{};
     if (HardwareKeyboard.instance.isAltPressed) mods.add('alt');
     if (HardwareKeyboard.instance.isShiftPressed) mods.add('shift');
@@ -192,14 +192,14 @@ class _RecordingDialogState extends State<_RecordingDialog> {
         _unsupportedKey = LogicalKeyboardKey.altGraph.keyLabel;
         return;
       }
-      // Match runtime dispatch: modifiers added after a held letter do not
-      // produce a new shortcut key-down event.
+      // 与运行时的派发行为保持一致：按住字母键之后才按下的修饰键不会
+      // 产生新的快捷键按下事件。
       _key = keyName;
       _unsupportedKey = null;
       if (keyName == null && !_modifierKeys.contains(logical)) {
-        // Non-modifier key we don't recognize (e.g. F13, media keys, IME
-        // compose keys). Surface a warning instead of silently dropping the
-        // press — the dialog otherwise looks unresponsive.
+        // 我们不认识的非修饰键（例如 F13、媒体键、输入法
+        // 组合键）。给出警告，而不是静默丢弃这次
+        // 按键——否则对话框看起来像是没有响应。
         final label = logical.keyLabel.isNotEmpty
             ? logical.keyLabel
             : (logical.debugName ?? 'this key');
@@ -212,7 +212,7 @@ class _RecordingDialogState extends State<_RecordingDialog> {
   KeyEventResult _onRawKeyEvent(FocusNode node, RawKeyEvent event) {
     final data = event.data;
     const gtkMod5Mask = 1 << 7;
-    // GTK can expose AltGr only through Mod5, without a logical AltGraph key.
+    // GTK 只能通过 Mod5 暴露 AltGr，而没有逻辑上的 AltGraph 键。
     if (event is RawKeyDownEvent &&
         data is RawKeyEventDataLinux &&
         data.keyHelper is GtkKeyHelper &&
@@ -238,15 +238,15 @@ class _RecordingDialogState extends State<_RecordingDialog> {
   }
 
   String _formatPrefix() {
-    // Used in the "must include..." validation row; lists the modifier set
-    // a binding can pick from. Localised modifier glyphs aren't used here so
-    // the names stay greppable for users searching for "Option" / "Cmd".
+    // 用于"必须包含……"校验行；列出绑定可选择的修饰键集合。
+    // 这里不使用本地化的修饰键字形，这样
+    // 用户搜索 "Option" / "Cmd" 时这些名称仍可被检索到。
     if (_isMac) return 'Cmd / Control / Option / Shift';
     return 'Ctrl / Alt / Shift';
   }
 
   String _formatCombo() {
-    // Plain-text labels (see same rationale in display.dart::_keyDisplay).
+    // 纯文本标签（同样的理由见 display.dart::_keyDisplay）。
     final parts = <String>[];
     for (final m in ['primary', 'ctrl', 'alt', 'shift']) {
       if (!_mods.contains(m)) continue;
@@ -302,10 +302,10 @@ class _RecordingDialogState extends State<_RecordingDialog> {
 
     Widget statusLine;
     if (_unsupportedKey != null) {
-      // Most recent press was unsupported. Take precedence over the
-      // captured-combo states so the user gets explicit feedback that their
-      // last keystroke was ignored, regardless of whether a previous combo
-      // is still captured.
+      // 最近一次按下的是不受支持的按键。它的优先级高于
+      // 已捕获组合的各种状态，这样用户能明确得知自己
+      // 上一次按键被忽略了，无论之前是否
+      // 仍有已捕获的组合。
       statusLine = Row(
         children: [
           const Icon(Icons.close, size: 16, color: Colors.red),

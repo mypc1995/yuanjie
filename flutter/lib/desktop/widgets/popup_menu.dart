@@ -88,7 +88,7 @@ class MyPopupMenuItemState<T, W extends PopupMenuChildrenItem<T>>
 }
 
 class MenuConfig {
-  // adapt to the screen height
+  // 适应屏幕高度
   static const fontSize = 14.0;
   static const midPadding = 10.0;
   static const iconScale = 0.8;
@@ -564,7 +564,7 @@ class MenuEntrySwitch<T> extends MenuEntrySwitchBase<T> {
   }
 }
 
-// Compatible with MenuEntrySwitch, it uses value instead of getter
+// 与 MenuEntrySwitch 兼容，它使用 value 而不是 getter
 class MenuEntrySwitchSync<T> extends MenuEntrySwitchBase<T> {
   final SwitchSetter setter;
   final RxBool _curOption = false.obs;
@@ -597,7 +597,7 @@ class MenuEntrySwitchSync<T> extends MenuEntrySwitchBase<T> {
   setOption(bool? option) async {
     if (option != null) {
       await setter(option);
-      // Notice: no ensure with getter, best used on menus that are destroyed on click
+      // 注意：getter 没有 ensure，最好用在点击后即销毁的菜单上
       if (_curOption.value != option) {
         _curOption.value = option;
       }

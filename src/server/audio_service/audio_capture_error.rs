@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
 };
 
-// Each stream owns its flag so a late callback cannot restart a replacement.
+// 每条流各自拥有自己的标志，这样迟到的回调就不会重启一个替换实例。
 #[derive(Clone, Default)]
 pub(super) struct CaptureErrorHandler {
     interrupted: Arc<AtomicBool>,
@@ -15,20 +15,20 @@ impl CaptureErrorHandler {
             error,
             cpal::StreamError::StreamInterrupted { .. } | cpal::StreamError::DeviceNotAvailable
         ) {
-            // ScreenCaptureKit can stop capture while the remote session stays open.
-            // The observed -3821 error does not identify its underlying trigger.
+            // ScreenCaptureKit 可能在远程会话仍然打开时停止采集。
+            // 观察到的 -3821 错误并未指出其根本触发原因。
             // https://developer.apple.com/documentation/screencapturekit/scstreamdelegate/stream(_:didstopwitherror:)
             hbb_common::log::error!("Audio capture stream interrupted: {error}");
             self.interrupted.store(true, Ordering::Relaxed);
         } else {
-            // Keep frequent sample-buffer errors at the existing trace level.
+            // 频繁出现的 sample buffer 错误保持现有的 trace 级别。
             hbb_common::log::trace!("an error occurred on stream: {error}");
         }
     }
 
     pub(super) fn process_frame(&self, process: impl FnOnce() -> hbb_common::ResultType<()>) {
-        // Defensive recovery: persistent processing failures with valid capture input
-        // have not been reproduced. Stop using a failed processor until stream replacement.
+        // 防御性恢复：在采集输入有效的情况下持续出现的处理失败
+        // 尚未复现。在流被替换之前停止使用已出错的处理器。
         if self.needs_restart() {
             return;
         }

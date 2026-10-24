@@ -40,7 +40,7 @@ fn apply_grant_sid_allow_ace_to_path(
     is_group: bool,
     is_dir: bool,
 ) -> ResultType<()> {
-    // Merge mode: read existing DACL and append/replace ACE via SetEntriesInAclW.
+    // 合并模式：读取现有的 DACL，并通过 SetEntriesInAclW 追加/替换 ACE。
     // https://learn.microsoft.com/en-us/windows/win32/secauthz/modifying-the-acls-of-an-object-in-c--
     let mut old_dacl: *mut ACL = std::ptr::null_mut();
     let mut security_descriptor = PSECURITY_DESCRIPTOR::default();
@@ -130,10 +130,10 @@ fn apply_grant_sid_allow_ace_to_path(
     Ok(())
 }
 
-/// Grants `Everyone` on `dir` recursively for helper/runtime files that must be
-/// readable/executable across user contexts.
+/// 递归地为 `dir` 授予 `Everyone` 权限，用于那些必须
+/// 在不同用户上下文中可读/可执行的辅助/运行时文件。
 ///
-/// `access_mask` is the Win32 file access mask to grant recursively.
+/// `access_mask` 是要递归授予的 Win32 文件访问掩码。
 pub fn set_path_permission(dir: &Path, access_mask: u32) -> ResultType<()> {
     let metadata = fs::symlink_metadata(dir).map_err(|e| {
         anyhow!(
@@ -187,11 +187,11 @@ pub fn set_path_permission(dir: &Path, access_mask: u32) -> ResultType<()> {
     Ok(())
 }
 
-/// Returns the current process user SID as a standard SID string
-/// (for example: `S-1-5-18`).
+/// 以标准 SID 字符串形式返回当前进程用户的 SID
+/// （例如：`S-1-5-18`）。
 ///
-/// Source:
-/// - Official SID-to-string API (`ConvertSidToStringSidW`):
+/// 来源：
+/// - 官方的 SID 转字符串 API（`ConvertSidToStringSidW`）：
 ///   https://learn.microsoft.com/en-us/windows/win32/api/sddl/nf-sddl-convertsidtostringsidw
 pub(crate) fn current_process_user_sid_string() -> ResultType<String> {
     let mut token = HANDLE::default();
@@ -236,35 +236,35 @@ pub(crate) fn current_process_user_sid_string() -> ResultType<String> {
     result
 }
 
-/// Hardens ACLs for portable-service shared-memory path (directory or file).
+/// 为便携服务的共享内存路径（目录或文件）加固 ACL。
 ///
-/// Why:
-/// - Shared memory used by portable service carries runtime control/data and must not inherit
-///   broad/default ACLs.
-/// - We explicitly grant only trusted principals and remove broad groups to reduce local
-///   privilege-boundary bypass risk.
+/// 原因：
+/// - 便携服务使用的共享内存承载运行时控制/数据，不能继承
+///   宽泛/默认的 ACL。
+/// - 我们只显式授予受信任的主体，并移除宽泛的组，以降低本地
+///   权限边界被绕过的风险。
 ///
-/// ACL policy applied via Win32 ACL APIs (`SetEntriesInAclW` + `SetNamedSecurityInfoW`):
-/// - common (directory + file):
-///   - `S-1-5-18` (LocalSystem): full control
-///   - `S-1-5-32-544` (Built-in Administrators): full control
-///   - `current_process_user_sid_string()` result: full control
-/// - directory (`portable_service_shmem` parent):
-///   - keep `Authenticated Users` directory-level write so other local accounts can
-///     create their own runtime shmem files after account switching
-///   - `FILE_GENERIC_WRITE + NO_INHERITANCE` means write/create on this directory itself;
-///     it is intentionally not inherited by children.
-///     Reference:
-///     - File access rights:
+/// 通过 Win32 ACL API（`SetEntriesInAclW` + `SetNamedSecurityInfoW`）应用的 ACL 策略：
+/// - 通用（目录 + 文件）：
+///   - `S-1-5-18`（LocalSystem）：完全控制
+///   - `S-1-5-32-544`（Built-in Administrators）：完全控制
+///   - `current_process_user_sid_string()` 的结果：完全控制
+/// - 目录（`portable_service_shmem` 的父目录）：
+///   - 保留 `Authenticated Users` 的目录级写权限，以便其他本地账户
+///     在切换账户后创建自己的运行时共享内存文件
+///   - `FILE_GENERIC_WRITE + NO_INHERITANCE` 表示仅对该目录本身可写/可创建；
+///     有意不被子项继承。
+///     参考：
+///     - 文件访问权限：
 ///       https://learn.microsoft.com/en-us/windows/win32/fileio/file-access-rights-constants
-///     - ACE inheritance rules:
+///     - ACE 继承规则：
 ///       https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-inheritance-rules
-///   - remove `Everyone` and `Users` grants
-/// - file (`shared_memory*` flink):
-///   - remove broad grants:
-///     - `S-1-1-0` (Everyone)
-///     - `S-1-5-11` (Authenticated Users)
-///     - `S-1-5-32-545` (Users)
+///   - 移除 `Everyone` 和 `Users` 的授权
+/// - 文件（`shared_memory*` flink）：
+///   - 移除宽泛的授权：
+///     - `S-1-1-0`（Everyone）
+///     - `S-1-5-11`（Authenticated Users）
+///     - `S-1-5-32-545`（Users）
 ///
 /// https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids
 pub fn set_path_permission_for_portable_service_shmem_dir(path: &Path) -> ResultType<()> {
@@ -296,8 +296,8 @@ impl Drop for LocalAllocGuard {
         if self.0.is_null() {
             return;
         }
-        // Buffers returned by ConvertStringSidToSidW / SetEntriesInAclW /
-        // ConvertSidToStringSidW are LocalAlloc-owned and must be LocalFree'ed.
+        // 由 ConvertStringSidToSidW / SetEntriesInAclW /
+        // ConvertSidToStringSidW 返回的缓冲区由 LocalAlloc 分配，必须用 LocalFree 释放。
         unsafe {
             let _ = LocalFree(Some(HLOCAL(self.0)));
         }
@@ -325,8 +325,8 @@ fn make_sid_trustee_entry(
     inheritance: ACE_FLAGS,
     is_group: bool,
 ) -> EXPLICIT_ACCESS_W {
-    // `is_group` is explicitly provided by the caller from the concrete SID semantic
-    // (e.g. Administrators/Authenticated Users => group, LocalSystem/current user => user).
+    // `is_group` 由调用方根据具体的 SID 语义显式提供
+    // （例如 Administrators/Authenticated Users => 组，LocalSystem/当前用户 => 用户）。
     EXPLICIT_ACCESS_W {
         grfAccessPermissions: access_permissions,
         grfAccessMode: SET_ACCESS,
@@ -340,7 +340,7 @@ fn make_sid_trustee_entry(
             } else {
                 TRUSTEE_IS_USER
             },
-            // SAFETY: With TrusteeForm=TRUSTEE_IS_SID, ptstrName is interpreted as PSID.
+            // 安全：当 TrusteeForm=TRUSTEE_IS_SID 时，ptstrName 会被解释为 PSID。
             ptstrName: PWSTR::from_raw(sid_ptr as *mut u16),
         },
     }
@@ -396,9 +396,9 @@ fn set_path_permission_for_portable_service_shmem_impl(
                 if e.kind() == io::ErrorKind::NotFound
                     || e.kind() == io::ErrorKind::PermissionDenied =>
             {
-                // Keep going and let Win32 ACL APIs return the final OS error.
-                // `Path::exists()/is_file()` and metadata can collapse ACL-denied paths into
-                // a false "not found" signal under restricted directory ACLs.
+                // 继续执行，让 Win32 ACL API 返回最终的系统错误。
+                // `Path::exists()/is_file()` 和元数据会把被 ACL 拒绝的路径压缩成
+                // 在受限目录 ACL 下一个错误的"未找到"信号。
             }
             Err(e) => {
                 bail!(
@@ -446,7 +446,7 @@ fn set_path_permission_for_portable_service_shmem_impl(
         ),
     ];
     if let Some(auth_sid) = authenticated_users_sid.as_ref() {
-        // Keep the shared parent directory multi-user writable at directory level.
+        // 让共享的父目录在目录级别保持多用户可写。
         entries.push(make_sid_trustee_entry(
             auth_sid.as_sid_ptr(),
             FILE_GENERIC_WRITE.0,
@@ -455,12 +455,12 @@ fn set_path_permission_for_portable_service_shmem_impl(
         ));
     }
 
-    // Rebuild mode: build a fresh DACL (old ACL not merged) and apply as protected.
-    // This avoids carrying over broad legacy ACEs from inherited/default ACLs.
-    // Reference:
-    // - SetEntriesInAclW:
+    // 重建模式：构建全新的 DACL（不合并旧 ACL），并作为受保护的 ACL 应用。
+    // 这样可以避免从继承/默认 ACL 中带入宽泛的旧 ACE。
+    // 参考：
+    // - SetEntriesInAclW：
     //   https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setentriesinaclw
-    // - SetNamedSecurityInfoW (PROTECTED_DACL_SECURITY_INFORMATION):
+    // - SetNamedSecurityInfoW（PROTECTED_DACL_SECURITY_INFORMATION）：
     //   https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow
     let mut new_acl: *mut ACL = std::ptr::null_mut();
     let set_entries_result =

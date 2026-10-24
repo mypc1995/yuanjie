@@ -107,7 +107,7 @@ pub mod screenshot;
 
 pub const MILLI1: Duration = Duration::from_millis(1);
 pub const SEC30: Duration = Duration::from_secs(30);
-// Empirical restart reconnect grace window.
+// 经验得出的重启重连宽限期。
 const RESTART_REMOTE_DEVICE_GRACE: Duration = Duration::from_secs(5 * 60);
 pub const VIDEO_QUEUE_SIZE: usize = 120;
 const MAX_DECODE_FAIL_COUNTER: usize = 3;
@@ -146,7 +146,7 @@ pub(crate) struct ClientClipboardContext {
     pub is_file_supported: bool,
 }
 
-/// Client of the remote desktop.
+/// 远程桌面的客户端。
 pub struct Client;
 
 #[cfg(not(target_os = "ios"))]
@@ -185,9 +185,9 @@ pub fn get_key_state(key: enigo::Key) -> bool {
     ENIGO.lock().unwrap().get_key_state(key)
 }
 
-/// Closes an unadopted WebRTC offerer's pc on drop. Without an answer it stays in ICE `New`
-/// forever, so its state handler never fires to self-remove it from `SESSIONS`; this covers the
-/// early returns and cancelled races that would leak it. `into_inner` disarms on adoption.
+/// 在 drop 时关闭未被接管的 WebRTC offerer 的 pc。没有应答时它会一直停留在 ICE `New` 状态，
+/// 导致它的状态处理函数永远不会被触发、无法把自己从 `SESSIONS` 中移除；这覆盖了
+/// 那些会泄漏它的提前返回和被取消的竞态。被接管时 `into_inner` 会解除武装。
 struct OffererGuard(Option<WebRTCStream>);
 
 impl OffererGuard {
@@ -212,12 +212,12 @@ impl Drop for OffererGuard {
     }
 }
 
-/// Race WebRTC against the other transports, preferring P2P: `select_ok` would always pick the
-/// relay, whose TCP connect beats ICE + DTLS + SCTP by an order of magnitude. An `is_p2p` result
-/// wins outright; a relayed one — from either side, since `webrtc_fut` is a whole punch attempt
-/// that can also end in a relay — is held for `window_ms` to give the other side a chance.
+/// 让 WebRTC 与其他传输方式竞速，优先选择 P2P：`select_ok` 总是会选中
+/// 中继，而中继的 TCP 连接比 ICE + DTLS + SCTP 快了一个数量级。`is_p2p` 的结果
+/// 直接获胜；而中继的结果——无论来自哪一侧，因为 `webrtc_fut` 是一次完整的打洞尝试，
+/// 它自身也可能以中继告终——会被暂存 `window_ms` 时间，给另一侧一次机会。
 ///
-/// `others` must be non-empty (`select_ok` requires it).
+/// `others` 必须非空（`select_ok` 要求如此）。
 async fn race_transports_prefer_webrtc<'a, T: 'a>(
     webrtc_fut: BoxFuture<'a, ResultType<T>>,
     others: Vec<BoxFuture<'a, ResultType<T>>>,
@@ -242,13 +242,13 @@ async fn race_transports_prefer_webrtc<'a, T: 'a>(
             }, if webrtc_fut.is_some() => {
                 webrtc_fut = None;
                 match res {
-                    // A direct connection is the outcome this race exists to protect: commit it
-                    // outright, and a held relay conn just drops.
+                    // 直连正是这场竞速要保护的结果：直接提交它，
+                    // 而被暂存的中继连接就直接丢弃。
                     Ok(conn) if is_p2p(&conn) || others_fut.is_none() => return Ok(conn),
-                    // `webrtc_fut` is a whole punch attempt, not just the WebRTC connect, so it
-                    // can end in a relay of its own. Committing that immediately would preempt a
-                    // direct punch still in flight on the other branch — the exact inversion this
-                    // function exists to prevent — so hold it on the same terms as any relay.
+                    // `webrtc_fut` 是一次完整的打洞尝试，而不只是 WebRTC 的连接，所以它
+                    // 自身也可能以中继收场。立刻提交它就会抢先于
+                    // 另一分支上仍在进行中的直连打洞——这恰恰是本函数
+                    // 要防止的倒挂——所以按对待其他中继的同样条件把它暂存。
                     Ok(conn) => {
                         if held.is_none() {
                             held = Some(conn);
@@ -259,17 +259,17 @@ async fn race_transports_prefer_webrtc<'a, T: 'a>(
                         }
                     }
                     Err(e) => {
-                        // Commit a held relay only when nothing direct is still racing; otherwise
-                        // keep it and let the survivor (or the window) decide.
+                        // 只有在不再有任何直连仍在竞速时才提交被暂存的中继；否则
+                        // 继续保留它，让胜出的那个（或等待窗口结束）来决定。
                         if others_fut.is_none() {
                             if let Some(conn) = held.take() {
                                 return Ok(conn);
                             }
                         }
                         match others_err.take() {
-                            // Report one error, as `select_ok` does: the UI matches and translates
-                            // the text whole (e.g. the offline auto-retry), and both legs often
-                            // carry the same rendezvous refusal anyway.
+                            // 像 `select_ok` 那样只报告一个错误：UI 会对整段文本做匹配和翻译
+                            // （例如离线自动重试），而两个分支通常
+                            // 本来就会带上同样的 rendezvous 拒绝信息。
                             Some(oe) => {
                                 log::warn!("fallback leg also failed: {}", oe);
                                 return Err(e);
@@ -292,9 +292,9 @@ async fn race_transports_prefer_webrtc<'a, T: 'a>(
                         if is_p2p(&conn) {
                             return Ok(conn);
                         }
-                        // Relayed: commit now only if nothing direct can still arrive. If a
-                        // direct attempt is still in flight (here or in `unfinished`), hold it
-                        // and keep racing for the preference window instead of discarding them.
+                        // 中继结果：只有在不可能再有直连到达时才立刻提交。如果
+                        // 还有直连尝试正在进行（无论是这里还是 `unfinished` 里的），就把它暂存，
+                        // 并继续在偏好窗口内竞速，而不是把它们丢弃。
                         if webrtc_fut.is_none() && unfinished.is_empty() {
                             return Ok(conn);
                         }
@@ -310,8 +310,8 @@ async fn race_transports_prefer_webrtc<'a, T: 'a>(
                         }
                     }
                     Err(e) => match webrtc_err.take() {
-                        // Nothing more can win, but a parked relay is still a valid outcome — take
-                        // it before failing the connection.
+                        // 已经没有其他可能胜出的了，但被暂存的中继依然是一个有效结果——
+                        // 在判定连接失败之前先采用它。
                         Some(we) => match held.take() {
                             Some(conn) => return Ok(conn),
                             None => {
@@ -337,9 +337,9 @@ async fn race_transports_prefer_webrtc<'a, T: 'a>(
     }
 }
 
-// A peer decides how many ICE candidates it sends, and the rendezvous route that carries them is
-// reachable without a prior punch, so these sites would otherwise let someone else set how much
-// this machine writes to its log file. One line a minute each, carrying the suppressed count.
+// 对端自行决定发送多少 ICE 候选，而承载它们的 rendezvous 通道
+// 无需事先打洞就能访问，因此这些站点否则就会让别人决定这台机器
+// 往自己的日志文件里写多少。每个站点每分钟一行，携带被抑制的计数。
 use hbb_common::log_throttle::LogThrottle;
 const ICE_LOG_INTERVAL: Duration = Duration::from_secs(60);
 static REJECTED_ICE_LOG: LogThrottle = LogThrottle::new(ICE_LOG_INTERVAL);
@@ -348,16 +348,16 @@ static UNEXPECTED_ICE_LOG: LogThrottle = LogThrottle::new(ICE_LOG_INTERVAL);
 static PENDING_ICE_FULL_LOG: LogThrottle = LogThrottle::new(ICE_LOG_INTERVAL);
 
 fn request_allows_tcp_punch(webrtc_sdp_offer: &str) -> bool {
-    // WebRTC trickle ICE retains the rendezvous socket as its signaling bridge. Only a request
-    // without an offer may close that socket and reuse its local address for TCP punching.
+    // WebRTC 的 trickle ICE 会保留 rendezvous 套接字作为信令桥。只有请求
+    // 不带 offer 时才可以关闭该套接字，并复用它的本地地址做 TCP 打洞。
     webrtc_sdp_offer.is_empty()
 }
 
-/// TCP punch is a user option like the other direct transports, but it is also the backstop:
-/// with every direct transport switched off there would be nothing left to punch with, so it
-/// runs regardless. Only the switches decide that — a transport that is enabled but fails to
-/// materialize (no public v6 address, offerer setup error) leaves this alone, because the
-/// relay fallback already covers a round that ends up with no usable direct transport.
+/// TCP 打洞和别的直连传输一样是用户可选项，但它同时也是兜底手段：
+/// 如果把所有直连传输都关掉，就没有任何东西可以用来打洞了，所以它
+/// 无论如何都会运行。只有那些开关能决定这一点——某个已启用但未能
+/// 真正建立起来的传输方式（没有公网 v6 地址、offerer 设置出错）不影响这里，因为
+/// 中继回退已经覆盖了最终没有可用直连传输的情况。
 fn tcp_punch_allowed() -> bool {
     crate::get_tcp_punch_enabled()
         || !(crate::get_udp_punch_enabled()
@@ -368,7 +368,7 @@ fn tcp_punch_allowed() -> bool {
 impl Client {
     const CLIENT_CLIPBOARD_NAME: &'static str = "client-clipboard";
 
-    /// Start a new connection.
+    /// 发起一个新连接。
     pub async fn start(
         peer: &str,
         key: &str,
@@ -398,7 +398,7 @@ impl Client {
                 }
             }
             Ok(x) => {
-                // Set x.2 to true only in the connect() function to indicate that direct_failures needs to be updated; everywhere else it should be set to false.
+                // 只在 connect() 函数里把 x.2 设为 true，表示 direct_failures 需要更新；其他地方都应设为 false。
                 if x.2 {
                     let direct_failures = interface.get_lch().read().unwrap().direct_failures;
                     let direct = x.0 .1;
@@ -413,7 +413,7 @@ impl Client {
         }
     }
 
-    /// Start a new connection.
+    /// 发起一个新连接。
     async fn _start(
         peer: &str,
         key: &str,
@@ -434,7 +434,7 @@ impl Client {
         if config::is_incoming_only() && !is_switch_sides_back(conn_type, &interface).await {
             bail!("Incoming only mode");
         }
-        // to-do: remember the port for each peer, so that we can retry easier
+        // 待办：记住每个对端的端口，这样重试会更容易
         if hbb_common::is_ip_str(peer) {
             return Ok((
                 (
@@ -449,7 +449,7 @@ impl Client {
                 false,
             ));
         }
-        // Allow connect to {domain}:{port}
+        // 允许连接到 {domain}:{port}
         if hbb_common::is_domain_port_str(peer) {
             return Ok((
                 (
@@ -487,16 +487,16 @@ impl Client {
             }
         };
 
-        // Same relay gate as the v6 socket below: under any forced relay the v6 punch cannot
-        // be used, so probing v6 reachability is wasted work on every such connection.
+        // 与下面的 v6 套接字使用同样的中继门控：在任何强制中继下，v6 打洞都无法
+        // 使用，所以在每次这类连接上探测 v6 可达性都是白费力气。
         if crate::get_ipv6_punch_enabled() && !interface.is_force_relay() {
             crate::test_ipv6().await;
         }
 
         let (stop_udp_tx, stop_udp_rx) = oneshot::channel::<()>();
         let udp =
-        // no need to care about multiple rendezvous servers case, since it is acutally not used any more.
-        // Shared state for UDP NAT test result
+        // 不需要考虑多台 rendezvous 服务器的情况，因为实际上已经不再使用了。
+        // UDP NAT 测试结果的共享状态
         if crate::get_udp_punch_enabled() && !interface.is_force_relay() {
             if let Ok((socket, addr)) = new_direct_udp_for_unverified(&rendezvous_server).await {
                 let udp_port = Arc::new(Mutex::new(0));
@@ -513,20 +513,20 @@ impl Client {
         } else {
             (None, None)
         };
-        // Under force-relay a direct IPv6 path is not allowed, so don't bind the v6 socket;
-        // the controlled side likewise skips v6 when relaying.
+        // 在强制中继下不允许直连 IPv6，所以不要绑定 v6 套接字；
+        // 被控端在中继时同样会跳过 v6。
         let ipv6 = if crate::get_ipv6_punch_enabled() && !interface.is_force_relay() {
             crate::get_ipv6_socket().await
         } else {
             None
         };
-        // WebRTC uses its own ICE sockets and does not depend on the legacy UDP punch socket.
-        // When this request carries an offer, `_start_inner` keeps its rendezvous socket solely
-        // for trickle signaling; a separate offer-less request owns any TCP punch attempt.
+        // WebRTC 使用自己的 ICE 套接字，不依赖旧版的 UDP 打洞套接字。
+        // 当这个请求携带 offer 时，`_start_inner` 保留其 rendezvous 套接字仅仅
+        // 用于 trickle 信令；任何 TCP 打洞尝试都由另一个不带 offer 的请求负责。
         let webrtc_offerer = if Self::should_create_webrtc_offerer(&interface) {
-            // ICE policy follows relay-by-POLICY, not force_relay: under WebSocket the
-            // latter is set for the classic paths, but ICE opens its own sockets and may
-            // still go direct - that is the only P2P path ws deployments have.
+            // ICE 策略跟随“按策略中继”，而不是 force_relay：在 WebSocket 下
+            // 后者会针对传统路径被设置，但 ICE 会自己开套接字，仍然可能
+            // 走直连——这是 ws 部署唯一拥有的 P2P 通路。
             match WebRTCStream::new("", interface.is_policy_relay(), CONNECT_TIMEOUT).await {
                 Ok(stream) => Some(stream),
                 Err(err) => {
@@ -552,9 +552,9 @@ impl Client {
             servers.clone(),
             contained,
         );
-        // The fallback request exists only to carry a TCP punch, so it is pointless once TCP
-        // punch is off — it would reach `connect()` with nothing to try and just open a second
-        // relay.
+        // 这个回退请求存在的唯一目的就是承载 TCP 打洞，所以一旦 TCP
+        // 打洞被关闭，它就毫无意义——它会带着无从尝试的内容走到 `connect()`，白白再开一条
+        // 中继。
         if interface.is_force_relay()
             || (udp.0.is_none() && !has_webrtc_offerer)
             || !tcp_punch_allowed()
@@ -562,10 +562,10 @@ impl Client {
             return fut.await;
         }
         let preferred_fut = fut.boxed();
-        // This is deliberately a pure TCP punch request: its WebRTC argument must stay `None`.
-        // TCP punching closes the rendezvous socket before binding a new connection to the same
-        // local address; a WebRTC ICE bridge would retain that socket and break the port reuse.
-        // The preferred request retains its own socket for WebRTC signaling.
+        // 这刻意是一个纯 TCP 打洞请求：它的 WebRTC 参数必须保持 `None`。
+        // TCP 打洞会先关闭 rendezvous 套接字，再把新连接绑定到同一个
+        // 本地地址上；WebRTC 的 ICE 桥会保留该套接字，从而破坏端口复用。
+        // 优先的那个请求则保留自己的套接字用于 WebRTC 信令。
         let fallback_fut = Self::_start_inner(
             peer.to_owned(),
             key.to_owned(),
@@ -601,12 +601,12 @@ impl Client {
         !session_key.is_empty() && ice.session_key == session_key && !ice.candidate.is_empty()
     }
 
-    /// Whether to build a WebRTC offerer for this connection.
+    /// 是否为这个连接构建 WebRTC offerer。
     ///
-    /// A SOCKS proxy rules it out: ICE binds its own UDP sockets and speaks STUN directly, past
-    /// the proxy and with the real IP. Relay-by-policy without TURN rules it out too, since
-    /// Relay-only ICE can then gather nothing. WebSocket does not: it tunnels only the signaling
-    /// and relay legs, so the offer keeps full ICE and direct is exactly what it is there for.
+    /// SOCKS 代理会排除这种可能：ICE 自己绑定 UDP 套接字并直接说 STUN，绕过
+    /// 代理并使用真实 IP。按策略中继但没有 TURN 也会排除它，因为
+    /// 此时 Relay-only ICE 采集不到任何候选。WebSocket 不会：它只隧道信令
+    /// 和中继这两条通路，所以 offer 保留完整的 ICE，而直连正是它存在的意义。
     fn should_create_webrtc_offerer(interface: &impl Interface) -> bool {
         if !crate::get_webrtc_enabled() {
             return false;
@@ -620,24 +620,24 @@ impl Client {
         true
     }
 
-    /// Max ICE candidates buffered during the punch window before the answer is applied.
-    /// Bounds memory if a misbehaving rendezvous floods candidates. On overflow the oldest is
-    /// evicted: gathering order is host, then srflx, then relay, so the newest arrivals are the
-    /// ones that traverse NAT.
+    /// 在打洞窗口内、应用应答之前缓冲的 ICE 候选上限。
+    /// 当行为异常的 rendezvous 大量灌入候选时用来限制内存。溢出时淘汰最旧的，
+    /// 因为收集顺序是 host、然后 srflx、再到 relay，所以最新到达的才是
+    /// 能够穿越 NAT 的那些。
     const MAX_PENDING_WEBRTC_ICE: usize = 64;
 
-    /// Default relay fallback delay: how long an already-established relay result is held back
-    /// while a WebRTC attempt is still in flight, and the floor for a punch-path WebRTC attempt
-    /// whose race timeout is tuned for a raw TCP SYN. Long enough for candidate trickle + ICE
-    /// checks + DTLS on high-latency links; short enough that UDP-blocked networks settle on
-    /// relay without a noticeable wait. The same role RFC 8305 calls a connection attempt delay.
+    /// 默认的中继回退延迟：一个已经建立成功的中继结果会被暂存多久，
+    /// 同时 WebRTC 尝试仍在进行中；它也是打洞通路上的 WebRTC 尝试
+    /// （其竞速超时是按裸 TCP SYN 调校的）的下限。要足够长以容纳候选 trickle + ICE
+    /// 检查 + DTLS 在高延迟链路上所需的时间；又要足够短，使被 UDP 阻断的网络能
+    /// 不至于明显等待就落到中继上。RFC 8305 把同样的角色称为连接尝试延迟。
     const RELAY_FALLBACK_DELAY_MS: u64 = 2500;
 
-    /// The delay as the user configured it, falling back to `RELAY_FALLBACK_DELAY_MS`. The
-    /// settings field holds seconds, which is what a user reasons about; everything here is
-    /// milliseconds. Unparseable, zero or negative all mean "unset", so clearing the field
-    /// restores the default instead of collapsing the delay and handing every race to the
-    /// relay.
+    /// 按用户配置取该延迟，缺省回退到 `RELAY_FALLBACK_DELAY_MS`。
+    /// 设置项里存的是秒，这是用户习惯思考的单位；而这里的一切都是
+    /// 毫秒。无法解析、为零或为负都表示“未设置”，所以清空该字段
+    /// 会恢复默认值，而不是把延迟压到零、把每场竞速都交给
+    /// 中继。
     fn relay_fallback_delay_ms() -> u64 {
         match LocalConfig::get_option(keys::OPTION_RELAY_FALLBACK_DELAY)
             .trim()
@@ -648,39 +648,39 @@ impl Client {
         }
     }
 
-    /// UDP-NAT-test wait when the TCP clock is implausible (see TCP_RTT_PLAUSIBLE_MIN). The
-    /// normal bound is `rtt / 2`: the test has been running since before the TCP connect, so on
-    /// a network where TCP RTT ~ UDP RTT its response has already landed. A transparent TCP
-    /// proxy — a TUN-mode VPN on the host, or a redirect-mode proxy on the LAN gateway (soft
-    /// router), which fakes the handshake for every device behind it — breaks that by answering
-    /// in ~3ms while the real UDP round trip is hundreds of ms: the window collapsed to ~1.5ms,
-    /// udp_port stayed 0, and UDP punch never ran on such networks. The wait still exits the instant the port
-    /// arrives, so a genuinely nearby server (LAN hbbs) pays nothing; only UDP-dead networks
-    /// wait out the full grace, and only on this round — the pure-TCP fallback round never
-    /// waits. Sized as a ceiling on real-world rendezvous RTTs plus one 20ms retransmit
-    /// (intercontinental ~300ms); paths slower than that lose UDP punch under a proxy, which
-    /// is today's behavior, not a regression.
+    /// 当 TCP 时钟不合理时的 UDP NAT 测试等待时间（参见 TCP_RTT_PLAUSIBLE_MIN）。
+    /// 正常情况下上限是 `rtt / 2`：这个测试从 TCP 连接之前就已经在跑了，所以
+    /// 在 TCP RTT ≈ UDP RTT 的网络上，它的响应早已到达。透明 TCP
+    /// 代理——主机上的 TUN 模式 VPN，或局域网网关上的重定向模式代理（软
+    /// 路由）——会替身后的每台设备伪造握手——这破坏了上述假设，因为它
+    /// 在约 3ms 内就应答，而真实的 UDP 往返是几百毫秒：窗口被压缩到约 1.5ms，
+    /// udp_port 一直是 0，UDP 打洞在这类网络上从未运行过。不过一旦端口到达，等待仍会立即退出，
+    /// 所以真正在附近的服务器（局域网内的 hbbs）完全不付出代价；只有 UDP 完全不通的网络
+    /// 才需要等满整个宽限期，而且只在这一轮——纯 TCP 的回退轮次从不
+    /// 等待。它按真实场景中 rendezvous RTT 的上限再加一次 20ms 重传来设定
+    /// （洲际约 300ms）；比这更慢的路径在代理下会失去 UDP 打洞，而这
+    /// 就是当前的行为，并非回归。
     const UDP_NAT_TEST_GRACE: Duration = Duration::from_millis(400);
 
-    /// Below this, the measured TCP connect time is not a believable WAN round trip — it was
-    /// answered inside the LAN (host TUN proxy, gateway transparent proxy, or a genuinely local
-    /// server) — and must not be used to size the UDP window.
-    /// Generous on purpose: over-triggering costs nothing (the wait exits on arrival, and a
-    /// UDP-dead round loses to the racing fallback anyway), while a tight bound would let a
-    /// busy proxy's occasional ~80ms handshake slip through and silently drop UDP punch.
+    /// 低于这个值时，测得的 TCP 连接时间就不是可信的 WAN 往返——它
+    /// 是在局域网内就被应答的（主机 TUN 代理、网关透明代理，或真正在本地的
+    /// 服务器）——不能拿它来推算 UDP 等待窗口。
+    /// 这里刻意放宽：触发过头没有任何代价（端口一到等待就退出，而
+    /// UDP 不通的轮次反正也会输给竞速中的回退方案），而上限过紧会让
+    /// 繁忙代理偶尔出现的约 80ms 握手蒙混过关，导致 UDP 打洞被悄悄丢掉。
     const TCP_RTT_PLAUSIBLE_MIN: Duration = Duration::from_millis(100);
 
-    /// Delay before re-sending an ICE candidate over the rendezvous route once. The hop to the
-    /// peer can be UDP (the controlled side's mediator channel), so a candidate can be lost in
-    /// flight; the remote ICE agent dedups repeats, so the second copy is free.
+    /// 通过 rendezvous 通道重发一次 ICE 候选前的延迟。到对端的
+    /// 一跳可能是 UDP（被控端的中介通道），所以候选可能在传输中丢失；
+    /// 远端 ICE agent 会去重重复项，所以第二份拷贝是免费的。
     const WEBRTC_ICE_RESEND_DELAY: Duration = Duration::from_millis(400);
 
-    /// Bridge local ICE candidates to the peer over the punch socket, and feed the peer's back
-    /// into the pc.
+    /// 通过打洞套接字把本地 ICE 候选桥接给对端，并把对端的候选回灌
+    /// 到 pc 中。
     ///
-    /// Never reconnect this socket: its address *is* the return route (the server mangles it into
-    /// `PunchHole.socket_addr` and resolves the echo through `tcp_punch`), so a new address is one
-    /// nothing points at. Once it dies, both directions are dead — abandon WebRTC, do not retry.
+    /// 绝不重连这个套接字：它的地址*就是*回程路径（服务器会把它变形写入
+    /// `PunchHole.socket_addr`，并通过 `tcp_punch` 解析回显），所以一个新地址是
+    /// 没有任何东西指向的。它一旦失效，双向都断了——放弃 WebRTC，不要重试。
     fn spawn_webrtc_ice_bridge(
         mut socket: Stream,
         mut local_ice_rx: Option<UnboundedReceiver<String>>,
@@ -708,8 +708,8 @@ impl Client {
                                     candidate,
                                     ..Default::default()
                                 });
-                                // Bound the send so a stalled rendezvous socket cannot block the
-                                // bridge past its stop signal.
+                                // 给发送设上限，避免卡住的 rendezvous 套接字把
+                                // 桥接逻辑阻塞到超过它的停止信号。
                                 match timeout(3000, socket.send(&msg)).await {
                                     Ok(Ok(())) => {}
                                     Ok(Err(err)) => {
@@ -732,8 +732,8 @@ impl Client {
                     }
                 }
 
-                // Re-send each candidate once after a short delay: the rendezvous hop to the peer
-                // can be UDP, so the first copy may be lost; the remote ICE agent dedups repeats.
+                // 在短暂延迟后把每个候选重发一次：到对端的 rendezvous 一跳
+                // 可能是 UDP，所以第一份拷贝可能丢失；远端 ICE agent 会去重重复项。
                 let mut i = 0;
                 while i < pending_resend.len() {
                     if pending_resend[i].0.elapsed() >= Self::WEBRTC_ICE_RESEND_DELAY {
@@ -754,11 +754,11 @@ impl Client {
                     }
                 }
 
-                // Read one incoming message, blocking up to the poll window. Distinguish a real
-                // timeout (keep looping to drain outbound candidates) from stream EOF/error: the
-                // rendezvous server closes the punch connection after the response, and an
-                // unrecognized-message server closes it on the first candidate we send. Without
-                // this, the collapsed None-on-EOF made the loop hot-spin a core until stop.
+                // 读取一条传入消息，最多阻塞到轮询窗口结束。要区分真正的
+                // 超时（继续循环以排空待发候选）和流 EOF/错误：
+                // rendezvous 服务器在应答之后会关闭打洞连接，而
+                // 不认识的消息的服务器会在我们发出第一个候选时就关闭它。如果没有这一处理，
+                // EOF 返回 None 的写法会让循环空转到占满一个核心，直到 stop。
                 match timeout(100, socket.next()).await {
                     Err(_) => {}
                     Ok(None) => break,
@@ -816,9 +816,9 @@ impl Client {
         (i32, String),
         bool,
     )> {
-        // Wrap the offerer so any early return below (?/bail) or cancellation of this future by
-        // the outer select_ok closes its pc instead of leaking it in SESSIONS. Disarmed via
-        // into_inner() once the stream is adopted into a connection attempt.
+        // 把 offerer 包一层，使得下面任何提前返回（?/bail）或外层
+        // select_ok 取消这个 future 时，会关闭它的 pc，而不是把它泄漏在 SESSIONS 里。通过
+        // into_inner() 在流被接管进一次连接尝试后解除武装。
         let mut webrtc_offerer = webrtc_offerer.map(OffererGuard::new);
         let mut start = Instant::now();
         let mut socket = connect_tcp(&*rendezvous_server, CONNECT_TIMEOUT).await;
@@ -859,17 +859,17 @@ impl Client {
         let switch_code = interface.get_switch_code();
         let legacy_secure = !key.is_empty() && (!token.is_empty() || !switch_code.is_empty());
         let carries_offer = webrtc_offerer.as_ref().and_then(|g| g.stream()).is_some();
-        // Counted from before the key exchange, so the exchange spends the UDP NAT test's own
-        // wait rather than replacing it: the test runs beside both.
+        // 从密钥交换之前开始计时，这样密钥交换会消耗掉 UDP NAT 测试自己的
+        // 等待时间，而不是取代它：这个测试与两者并行运行。
         let udp_nat_wait_from = Instant::now();
         let mut exchanged = false;
         if carries_offer {
-            // An offer puts both sides' ICE candidates, every interface address of both
-            // machines, on this socket, so it goes out only once the server's key exchange has
-            // encrypted it. When the server does not complete one, an hbbs from before the
-            // exchange, the offer is dropped and this becomes a punch without WebRTC, on a fresh
-            // socket since the failed exchange may have consumed a message on this one. Degrade
-            // to no WebRTC, never to WebRTC signalling in the clear.
+            // offer 会把双方的 ICE 候选、两台机器的每一个网络接口地址
+            // 都放到这个套接字上，所以只有在服务器的密钥交换
+            // 加密之后才能发出。当服务器没有完成密钥交换（比如来自交换之前的
+            // hbbs），offer 会被丢弃，这次就变成不含 WebRTC 的打洞，并使用一个全新的
+            // 套接字，因为失败的交换可能已经在这个套接字上消耗掉一条消息。只能
+            // 降级为不使用 WebRTC，绝不能降级为明文的 WebRTC 信令。
             match secure_tcp_required(&mut socket, &key).await {
                 Ok(()) => exchanged = true,
                 Err(err) => {
@@ -889,15 +889,15 @@ impl Client {
                 .await
                 .map_err(|e| anyhow!("Failed to secure tcp: {}", e))?;
         }
-        // A token or switch code has always taken this socket straight to the punch without
-        // waiting for the UDP NAT test. The WebRTC exchange does not replace that wait, it only
-        // spends part of the same budget, so what is left of it is waited out here and a result
-        // that has already arrived is taken at once.
+        // 令牌或切换码历来都是直接用这个套接字进入打洞，而不
+        // 等待 UDP NAT 测试。WebRTC 交换并不取代那段等待，它只是
+        // 花掉了同一份预算的一部分，所以剩下的部分在这里等完，而已经
+        // 到达的结果会被立刻采用。
         if let Some(udp) = udp.1.as_ref().filter(|_| !legacy_secure) {
             let tm = udp_nat_wait_from;
-            // rtt is the TCP connect time. When it is too short to be a real WAN round trip it
-            // says nothing about the UDP path (a TUN VPN or the LAN gateway answered the
-            // handshake, not the server), so fall back to the flat grace; otherwise trust it.
+            // rtt 是 TCP 连接耗时。当它短到不可能是真实的 WAN 往返时，它
+            // 对 UDP 通路毫无说明力（应答握手的是 TUN VPN 或局域网网关，
+            // 而不是服务器），所以回退到固定的宽限时间；否则就信任它。
             let udp_nat_wait = if rtt < Self::TCP_RTT_PLAUSIBLE_MIN {
                 Self::UDP_NAT_TEST_GRACE
             } else {
@@ -914,7 +914,7 @@ impl Client {
                 hbb_common::sleep(0.001).await;
             }
         }
-        // Stop UDP NAT test task if still running
+        // 如果 UDP NAT 测试任务还在运行就停止它
         stop_udp_tx.map(|tx| tx.send(()));
         let mut msg_out = RendezvousMessage::new();
         let mut ipv6 = ipv6
@@ -928,10 +928,10 @@ impl Client {
             .map(|stream| stream.local_endpoint().to_owned())
             .unwrap_or_default();
         let allow_tcp_punch = tcp_punch_allowed() && request_allows_tcp_punch(&webrtc_sdp_offer);
-        // Every direct transport this round carries, not one of them: a round can carry several
-        // at once (a NAT port and an offer and a v6 address), and since the TCP punch became a
-        // switch it can carry none — a single name had to misreport both. `relay` is not a punch,
-        // it is what a round with nothing to punch with can still end as.
+        // 这一轮携带的每一种直连传输，而不是其中某一种：一轮可以同时携带多种
+        // （一个 NAT 端口、一个 offer 和一个 v6 地址），而自从 TCP 打洞变成
+        // 开关之后它也可能一种都不带——之前用单个名字不得不同时误报两种情况。`relay` 不是打洞，
+        // 它是一轮在没有任何可打洞目标时仍然可能得到的结局。
         let mut transports = Vec::new();
         if udp_nat_port > 0 {
             transports.push("UDP");
@@ -961,9 +961,9 @@ impl Client {
             force_relay: interface.is_force_relay(),
             socket_addr_v6: ipv6.1.unwrap_or_default(),
             switch_code,
-            // The offer's envelope itself declares its ICE policy (`ice_policy: "all"` under
-            // pure ws), telling the controlled side its answer may gather every candidate
-            // type despite force_relay instead of requiring TURN.
+            // offer 的信封本身就声明了它的 ICE 策略（纯 ws 下为 `ice_policy: "all"`，
+            // 也就是告诉被控端，它的应答可以收集所有类型的候选，
+            // 即便存在 force_relay 也不必依赖 TURN。
             webrtc_sdp_offer,
             ..Default::default()
         });
@@ -983,7 +983,7 @@ impl Client {
                 peer
             );
             socket.send(&msg_out).await?;
-            // below timeout should not bigger than hbbs's connection timeout.
+            // 下面的超时不应大于 hbbs 的连接超时。
             let attempt_deadline = Instant::now() + Duration::from_millis((i * 3000) as u64);
             loop {
                 let remaining = attempt_deadline.saturating_duration_since(Instant::now());
@@ -1076,9 +1076,9 @@ impl Client {
                         let mut webrtc_for_connect = None;
                         if !rr.webrtc_sdp_answer.is_empty() {
                             if let Some(guard) = webrtc_offerer.take() {
-                                // Run the awaited setup on the guard's borrowed stream so a
-                                // cancellation during these awaits still closes the pc via the
-                                // guard's drop; take ownership only at the synchronous handoff.
+                                // 在 guard 借用的流上执行这些 await，这样在
+                                // 这些 await 期间发生取消时，仍能通过
+                                // guard 的 drop 关闭 pc；只在同步交接时才取得所有权。
                                 let setup_ok = if let Some(webrtc) = guard.stream() {
                                     if let Err(err) =
                                         webrtc.set_remote_endpoint(&rr.webrtc_sdp_answer).await
@@ -1114,15 +1114,15 @@ impl Client {
                                     ));
                                     webrtc_for_connect = Some(webrtc);
                                 }
-                                // If setup failed, `guard` drops here and closes the pc.
+                                // 如果 setup 失败，`guard` 在这里被 drop 并关闭 pc。
                             }
                         }
-                        // An offerer not adopted into the relay race (empty answer) is closed by
-                        // the guard's drop here.
+                        // 未被接管进中继竞速的 offerer（应答为空）会被
+                        // guard 在这里的 drop 关闭。
                         drop(webrtc_offerer.take());
-                        // Keep relay_server for a WebRTC secure-failure fallback: request_relay
-                        // coordinates a FRESH uuid via the rendezvous server, so it works even if
-                        // the raced create_relay already consumed the original uuid pairing.
+                        // 保留 relay_server 以便在 WebRTC 安全握手失败时回退：request_relay
+                        // 通过 rendezvous 服务器协商出一个全新的 uuid，所以即使
+                        // 竞速中的 create_relay 已经消耗掉原来的 uuid 配对，它依然可用。
                         let relay_server_rr = rr.relay_server.clone();
                         let fut = Self::create_relay(
                             &peer,
@@ -1144,37 +1144,37 @@ impl Client {
                             }
                             .boxed(),
                         );
-                        // Keep the adopted offerer in a guard that stays armed across the race AND
-                        // secure_connection, so cancellation of this future by the outer race (or a
-                        // secure-handshake failure) closes the pc instead of leaking it. It is
-                        // disarmed only once WebRTC is confirmed the winning, secured transport.
+                        // 把已接管的 offerer 放在一个 guard 里，它在竞速和
+                        // secure_connection 之间始终保持武装，这样外层竞速取消这个 future（或
+                        // 安全握手失败）会关闭 pc，而不是泄漏它。它
+                        // 只有在确认 WebRTC 是胜出且已加密的传输方式之后才解除武装。
                         let mut webrtc_guard = None;
                         let race_result = if let Some(webrtc) = webrtc_for_connect {
                             webrtc_guard = Some(OffererGuard::new(webrtc.clone()));
                             let mut raced = webrtc;
                             let webrtc_fut = async move {
                                 raced.wait_connected(CONNECT_TIMEOUT).await?;
-                                // Resolve relayed-ness here, not from the label: WebRTC is only a
-                                // P2P path when ICE nominated a non-TURN pair, and the race has to
-                                // know which it got. Committing a TURN pair as if it were direct
-                                // cancels a genuine direct attempt still in flight — the same
-                                // inversion the preference window exists to prevent, one level up.
+                                // 在这里判定是否走中继，而不是依据标签：WebRTC 只有在
+                                // ICE 选定了非 TURN 候选对时才算 P2P 通路，而竞速必须
+                                // 知道自己拿到的是哪一种。把 TURN 候选对当作直连提交，
+                                // 就会取消仍在进行中的真正直连尝试——这正是
+                                // 偏好窗口要防止的倒挂，只不过发生在更上一层。
                                 let relayed = raced.is_relayed().await.unwrap_or(true);
                                 Ok((Stream::WebRTC(raced), None, "WebRTC", !relayed))
                             }
                             .boxed();
                             if interface.is_policy_relay() {
-                                // Relay-only WebRTC can use only TURN, so it has no P2P advantage
-                                // over the RustDesk relay. Take the first successful relay instead
-                                // of delaying an already-ready result for the preference window.
-                                // Policy, not force_relay: under ws the offer is full ICE and a
-                                // direct path is exactly what the preference window exists for.
+                                // Relay-only 的 WebRTC 只能用 TURN，所以相比 RustDesk 的中继它没有任何 P2P 优势。
+                                // 直接采用第一个成功的中继，
+                                // 而不是为一个已经就绪的结果多等一个偏好窗口。
+                                // 是策略，而不是 force_relay：在 ws 下 offer 是完整 ICE，而
+                                // 直连通路正是偏好窗口存在的意义。
                                 connect_futures.push(webrtc_fut);
                                 select_ok(connect_futures).await.map(|r| r.0)
                             } else {
-                                // The peer answered WebRTC: prefer P2P. The relay result is held
-                                // for the preference window so WebRTC can win even though a relay
-                                // TCP connect completes much faster than ICE + DTLS setup.
+                                // 对端应答了 WebRTC：优先选择 P2P。中继结果会被暂存
+                                // 一个偏好窗口，好让 WebRTC 有机会胜出，尽管中继
+                                // 的 TCP 连接比 ICE + DTLS 建立快得多。
                                 race_transports_prefer_webrtc(
                                     webrtc_fut,
                                     connect_futures,
@@ -1184,14 +1184,14 @@ impl Client {
                                 .await
                             }
                         } else {
-                            // Run all connection attempts concurrently, take the first success.
+                            // 并发运行所有连接尝试，采用第一个成功的结果。
                             select_ok(connect_futures).await.map(|r| r.0)
                         };
                         if let Some(stop) = webrtc_bridge_stop {
                             let _ = stop.send(());
                         }
-                        // The ? / secure_connection failures below return early; webrtc_guard stays
-                        // in scope and closes the offerer on any such exit (loss, error, cancellation).
+                        // 下面的 ? / secure_connection 失败会提前返回；webrtc_guard 仍然
+                        // 在作用域内，会在任何这类退出时关闭 offerer（丢失、错误、取消）。
                         let (mut conn, kcp, mut typ, mut direct) = race_result?;
                         feedback = rr.feedback;
                         log::info!("{:?} used to establish {typ} connection", start.elapsed());
@@ -1205,11 +1205,11 @@ impl Client {
                         {
                             Ok(pk) => pk,
                             Err(e) if typ == "WebRTC" => {
-                                // WebRTC won the race but identity/DTLS binding failed. Fall back
-                                // to a freshly-coordinated relay (request_relay negotiates a new
-                                // uuid, immune to the raced create_relay having consumed the
-                                // original pairing) so a bad WebRTC handshake does not kill the
-                                // whole session when relay is available.
+                                // WebRTC 赢得了竞速，但身份/DTLS 绑定失败。回退
+                                // 到重新协商的中继（request_relay 会协商出一个新的
+                                // uuid，不受竞速中的 create_relay 已经消耗掉
+                                // 原配对影响），这样一次糟糕的 WebRTC 握手不会毁掉
+                                // 整个会话——只要中继可用。
                                 log::warn!(
                                     "WebRTC secure handshake failed ({}), falling back to relay",
                                     e
@@ -1242,17 +1242,17 @@ impl Client {
                                 .await?;
                                 conn = relay_conn;
                                 typ = if use_ws() { "WebSocket" } else { "Relay" };
-                                // The transport is now a relay: the WebRTC win it replaced must
-                                // not carry its direct flag into the return, or the relay is
-                                // reported P2P and the outer race treats it as one.
+                                // 传输方式现在变成了中继：它所取代的那个 WebRTC 胜出结果
+                                // 不能把它的 direct 标志带进返回值，否则中继会被
+                                // 报告成 P2P，外层竞速也会这么对待它。
                                 direct = false;
                                 pk
                             }
                             Err(e) => return Err(e),
                         };
-                        // `direct` came from the winning future, which resolved it while the pc was
-                        // definitely alive — the race needed it to pick a winner at all.
-                        // Secured and WebRTC won: disarm so the returned conn keeps the pc alive.
+                        // `direct` 来自胜出的那个 future，它在 pc 确实
+                        // 还活着时就解析出了它——竞速要选出胜者本来就离不开它。
+                        // 已加密且 WebRTC 胜出：解除武装，让返回的 conn 保持 pc 存活。
                         if typ == "WebRTC" {
                             if let Some(guard) = webrtc_guard.take() {
                                 let _ = guard.into_inner();
@@ -1266,10 +1266,10 @@ impl Client {
                     }
                     Some(rendezvous_message::Union::IceCandidate(ice)) => {
                         if Self::is_expected_webrtc_ice_candidate(&ice, &webrtc_session_key) {
-                            // Evict the oldest, not the newest. Candidates arrive in gathering
-                            // order — host first, then srflx, then relay — so dropping arrivals
-                            // would discard exactly the ones that traverse NAT and keep the
-                            // host ones that only work on a shared LAN.
+                            // 淘汰最旧的，而不是最新的。候选按收集
+                            // 顺序到达——先 host，再 srflx，最后 relay——所以丢弃后到的
+                            // 恰恰会丢掉那些能穿越 NAT 的候选，却留下那些
+                            // 只在同一局域网内才有效的 host 候选。
                             if pending_webrtc_ice.len() >= Self::MAX_PENDING_WEBRTC_ICE {
                                 if let Some(n) = PENDING_ICE_FULL_LOG.due() {
                                     log::warn!(
@@ -1299,9 +1299,9 @@ impl Client {
         let mut webrtc_for_connect = None;
         if !webrtc_sdp_answer.is_empty() {
             if let Some(guard) = webrtc_offerer.take() {
-                // Run the awaited setup on the guard's borrowed stream so a cancellation during
-                // these awaits still closes the pc via the guard's drop; take ownership only at
-                // the synchronous handoff below.
+                // 在 guard 借用的流上执行这些 await，这样在
+                // 这些 await 期间发生取消时仍能通过 guard 的 drop 关闭 pc；只在
+                // 下面的同步交接处才取得所有权。
                 let setup_ok = if let Some(webrtc) = guard.stream() {
                     if let Err(err) = webrtc.set_remote_endpoint(&webrtc_sdp_answer).await {
                         log::warn!("failed to set WebRTC answer: {}", err);
@@ -1329,7 +1329,7 @@ impl Client {
                     ));
                     webrtc_for_connect = Some(webrtc);
                 } else {
-                    // setup failed (guard dropped -> pc closed) or no stream: release the socket.
+                    // setup 失败（guard 被 drop -> pc 已关闭）或没有流：释放套接字。
                     drop(socket);
                 }
             } else {
@@ -1338,12 +1338,12 @@ impl Client {
         } else {
             drop(socket);
         }
-        // An offerer never adopted into a connection attempt (e.g. the peer returned no WebRTC
-        // answer) is closed by the guard's drop here, so its pc does not linger in SESSIONS.
+        // 从未被接管进任何连接尝试的 offerer（例如对端没有返回 WebRTC
+        // 应答）会被 guard 在这里的 drop 关闭，这样它的 pc 不会滞留在 SESSIONS 里。
         drop(webrtc_offerer.take());
         if peer_addr.port() == 0 {
-            // Bailing before connect(): an offerer already adopted into webrtc_for_connect was
-            // disarmed out of its guard, so close it (and stop its bridge) explicitly here.
+            // 在 connect() 之前放弃：已经被接管进 webrtc_for_connect 的 offerer
+            // 已从它的 guard 中解除武装，所以在这里显式关闭它（并停止它的桥接）。
             if let Some(webrtc) = webrtc_for_connect.take() {
                 webrtc.close_detached();
             }
@@ -1393,7 +1393,7 @@ impl Client {
         ))
     }
 
-    /// Connect to the peer.
+    /// 连接到对端。
     async fn connect(
         local_addr: SocketAddr,
         peer: SocketAddr,
@@ -1422,9 +1422,9 @@ impl Client {
         Option<KcpStream>,
         &'static str,
     )> {
-        // Guard the offerer for the whole of connect(): any early return — cancellation during the
-        // awaits below, the relay override, or a secure_connection failure — closes its pc via the
-        // guard's drop. Disarmed only once WebRTC is the confirmed winning, secured transport.
+        // 在整个 connect() 期间守护 offerer：任何提前返回——包括这些
+        // await 期间的取消、中继覆盖，或 secure_connection 失败——都会通过
+        // guard 的 drop 关闭它的 pc。只有在确认 WebRTC 是胜出且已加密的传输方式后才解除武装。
         let mut webrtc_guard = webrtc_offerer.map(OffererGuard::new);
         let direct_failures = interface.get_lch().read().unwrap().direct_failures;
         let mut connect_timeout = 0;
@@ -1461,8 +1461,8 @@ impl Client {
         log::info!("peer address: {}, timeout: {}", peer, connect_timeout);
         let start = std::time::Instant::now();
 
-        // Each attempt carries whether its path is direct (4th field). TCP/UDP/IPv6 punch are
-        // always direct; WebRTC is direct only when ICE nominated a non-TURN pair.
+        // 每次尝试都携带其路径是否为直连（第 4 个字段）。TCP/UDP/IPv6 打洞
+        // 始终是直连；WebRTC 只有在 ICE 选定了非 TURN 候选对时才算直连。
         let mut direct_futures = Vec::new();
         if allow_tcp_punch {
             let fut = connect_tcp_local(peer, Some(local_addr), connect_timeout);
@@ -1494,31 +1494,31 @@ impl Client {
                 .boxed(),
             );
         }
-        // Race a clone of the offerer; the guard retains its own clone so a losing/cancelled race
-        // still closes the pc (select_ok drops the future's clone without closing).
+        // 用 offerer 的克隆参与竞速；guard 保留自己的克隆，这样落败或被取消的竞速
+        // 仍会关闭 pc（select_ok 只是丢弃 future 的克隆而不关闭它）。
         let webrtc_fut = webrtc_guard
             .as_ref()
             .and_then(|g| g.stream())
             .map(|stream| {
                 let mut raced = stream.clone();
-                // The punch-tuned timeout can be as low as 1s — enough for a raw TCP SYN but not
-                // for candidate trickle + ICE checks + DTLS. Give WebRTC its own floor (prefer-P2P)
-                // so a viable P2P path is not abandoned before it can complete; TCP/UDP keep the
-                // tighter timeout, so a working direct connection still wins immediately, and the
-                // relay fallback only waits the extra time when direct attempts all failed.
+                // 按打洞调校的超时可能低到 1 秒——够一次裸 TCP SYN，但不够
+                // 候选 trickle + ICE 检查 + DTLS。给 WebRTC 自己设一个下限（prefer-P2P），
+                // 这样一条可行的 P2P 通路不会在完成之前就被放弃；TCP/UDP 仍保持
+                // 更紧的超时，因此可用的直连连接仍会立刻胜出，而
+                // 中继回退只有在所有直连尝试都失败时才会多等那段时间。
                 let webrtc_timeout = connect_timeout.max(Self::relay_fallback_delay_ms());
                 async move {
                     raced.wait_connected(webrtc_timeout).await?;
-                    // Resolve the pair here: a TURN win is relayed, not direct, and must be held
-                    // behind still-racing direct attempts rather than committed as P2P.
+                    // 在这里判定候选对：TURN 胜出属于走中继，不是直连，必须
+                    // 排在仍在竞速的直连尝试之后，而不能直接当作 P2P 提交。
                     let relayed = raced.is_relayed().await.unwrap_or(true);
                     Ok((Stream::WebRTC(raced), None, "WebRTC", !relayed))
                 }
                 .boxed()
             });
-        // Prefer P2P: a direct result wins outright, a relayed WebRTC (TURN) is held for the
-        // window so a direct punch can still land. Falls back to plain select_ok when only one
-        // kind is present.
+        // 优先 P2P：直连结果直接胜出，走中继的 WebRTC（TURN）会被暂存
+        // 一个窗口，好让直连打洞仍有机会落地。当只有一种尝试存在时，退回普通的 select_ok；
+        // 有多种时则按上面的 P2P 优先规则处理。
         let direct_result = match (webrtc_fut, direct_futures.is_empty()) {
             (Some(webrtc_fut), false) => {
                 race_transports_prefer_webrtc(
@@ -1540,13 +1540,13 @@ impl Client {
         if let Some(stop) = webrtc_bridge_stop {
             let _ = stop.send(());
         }
-        // webrtc_guard stays armed across the relay override and secure_connection below; it is
-        // disarmed only at the successful return when WebRTC is the kept transport.
+        // webrtc_guard 在下面的中继覆盖和 secure_connection 之间始终保持武装；它
+        // 只在成功返回、且保留 WebRTC 作为传输方式时才解除武装。
 
-        // Keep a WebRTC win instead of replacing it with the RustDesk relay: under relay-by-
-        // policy the pc was built with Relay-only ICE (TURN configured), which already honors
-        // the relay requirement, and under ws-forced relay a direct full-ICE connection is the
-        // preferred outcome, not a violation.
+        // 保留 WebRTC 的胜出结果，而不是用 RustDesk 中继替换它：在按策略
+        // 中继的情况下，pc 是用 Relay-only ICE（TURN 已配置）构建的，这本身已经满足
+        // 中继要求；而在 ws 强制中继的情况下，一条直连的完整 ICE 连接恰恰是
+        // preferred 的结果，而不是违规。
         if (interface.is_force_relay() && typ != "WebRTC") || conn.is_err() {
             if !relay_server.is_empty() {
                 let switch_code = interface.get_switch_code();
@@ -1562,7 +1562,7 @@ impl Client {
                 )
                 .await;
                 if let Err(e) = conn {
-                    // this direct is mainly used by on_establish_connection_error, so we update it here before bail
+                    // 这个 direct 主要被 on_establish_connection_error 使用，所以在 bail 之前先在这里更新它
                     interface.update_direct(Some(false));
                     bail!("Failed to connect via relay server: {}", e);
                 }
@@ -1582,9 +1582,9 @@ impl Client {
         let pk: Option<Vec<u8>> = match res {
             Ok(pk) => pk,
             Err(e) if typ == "WebRTC" && !relay_server.is_empty() => {
-                // WebRTC won the race but identity/DTLS binding failed; fall back to a freshly
-                // coordinated relay instead of failing the whole attempt. The guard is dropped
-                // first so the bad pc is closed promptly.
+                // WebRTC 赢得了竞速，但身份/DTLS 绑定失败；回退到一个重新
+                // 协商的中继，而不是让整个尝试失败。guard 会被
+                // 优先 drop，以便那个坏掉的 pc 尽快关闭。
                 log::warn!("WebRTC secure handshake failed ({}), falling back to relay", e);
                 drop(webrtc_guard.take());
                 match Self::request_relay(
@@ -1626,21 +1626,21 @@ impl Client {
                 }
             }
             Err(e) => {
-                // this direct is mainly used by on_establish_connection_error, so we update it here before bail
+                // 这个 direct 主要被 on_establish_connection_error 使用，所以在 bail 之前先在这里更新它
                 interface.update_direct(Some(direct));
-                // webrtc_guard is still armed here, so a WebRTC winner whose secure handshake
-                // failed is closed by the guard's drop as we bail (no explicit close needed).
+                // webrtc_guard 在这里仍然处于武装状态，所以那个安全握手
+                // 失败的 WebRTC 胜出结果会在我们 bail 时被 guard 的 drop 关闭（无需显式关闭）。
                 bail!(e);
             }
         };
         if typ == "WebRTC" {
-            // WebRTC through a TURN server (force_relay, or a TURN pair winning under All
-            // policy) is relayed traffic; report the direct flag accordingly. An unknown answer
-            // counts as relayed — claiming a P2P path needs evidence of one.
+            // 经由 TURN 服务器的 WebRTC（force_relay，或在 All
+            // 策略下由 TURN 候选对胜出）属于中继流量；要相应地报告 direct 标志。无法识别的应答
+            // 也算走中继——声称有一条 P2P 通路需要有证据。
             if conn.webrtc_relayed().await.unwrap_or(true) {
                 direct = false;
             }
-            // Secured: disarm so the returned conn keeps the pc alive.
+            // 已加密：解除武装，让返回的 conn 保持 pc 存活。
             if let Some(guard) = webrtc_guard.take() {
                 let _ = guard.into_inner();
             }
@@ -1649,7 +1649,7 @@ impl Client {
         Ok((conn, direct, pk, kcp, typ))
     }
 
-    /// Establish secure connection with the server.
+    /// 与服务器建立安全连接。
     async fn secure_connection(
         peer_id: &str,
         signed_id_pk: Vec<u8>,
@@ -1661,14 +1661,14 @@ impl Client {
         } else {
             key
         });
-        // A WebRTC channel is peer-authenticated only once its DTLS fingerprint is bound to the
-        // verified peer identity below. Once a trusted identity IS established, every binding
-        // failure fails closed: any peer able to answer WebRTC also signs its fingerprint, so a
-        // mismatch is concrete evidence of a rendezvous/relay MITM (not a legacy peer), and
-        // callers fall back to a fresh relay connection rather than proceeding on that channel.
-        // Without a trusted identity (absent, or unverifiable under our configured root) no
-        // binding is possible at all; WebRTC then proceeds like TCP's non-secure fallback —
-        // DTLS-encrypted but reported unsecured. TCP/UDP/relay keep their existing behavior.
+        // 只有当 WebRTC 通道的 DTLS 指纹绑定到下面经过校验的
+        // 对端身份之后，它才算完成了对端认证。一旦建立了可信身份，任何绑定
+        // 失败都按“失败即关闭”处理：任何能应答 WebRTC 的对端都会签署自己的指纹，所以
+        // 不匹配就是 rendezvous/中继 MITM 的确凿证据（而不是旧版对端），
+        // 调用方会回退到一条全新的中继连接，而不是继续用该通道。
+        // 没有可信身份（缺失，或在我们配置的根下无法校验）时，根本
+        // 无法建立任何绑定；此时 WebRTC 的处理方式与 TCP 的非安全回退相同——
+        // 经 DTLS 加密，但报告为未加密。TCP/UDP/中继保持原有行为。
         let is_webrtc = conn.is_webrtc();
         let mut sign_pk = None;
         let mut option_pk = None;
@@ -1688,11 +1688,11 @@ impl Client {
         let sign_pk = match sign_pk {
             Some(v) => v,
             None => {
-                // No trusted peer identity (key-less deployment, or a blob that does not verify
-                // under our root), so no fingerprint binding is possible. Fall through like TCP's
-                // non-secure path with is_secured() false: bailing would only move the session to
-                // a relay that fails the same check and then runs in plaintext.
-                // send an empty message out in case server is setting up secure and waiting for first message
+                // 没有可信的对端身份（无密钥部署，或某个 blob 在我们的根下无法
+                // 校验），因此无法进行指纹绑定。像 TCP 的
+                // 非安全路径一样继续，is_secured() 为 false：直接放弃只会把会话转移到
+                // 一个同样通不过检查、然后明文运行的中继上。
+                // 发一条空消息出去，以防服务器正在建立安全连接并等待第一条消息
                 conn.send(&Message::new()).await?;
                 return Ok(option_pk);
             }
@@ -1706,10 +1706,10 @@ impl Client {
                             decode_id_pk_dtls(&si.id, &sign_pk)
                         {
                             if id == peer_id {
-                                // WebRTC only: bind the DTLS channel to the verified peer identity.
-                                // webrtc-rs already bound the certificate to the remote SDP, so
-                                // requiring the peer to have SIGNED that fingerprint defeats a
-                                // rendezvous/relay MITM that swaps SDPs. Fail closed.
+                                // 仅 WebRTC：把 DTLS 通道绑定到已校验的对端身份。
+                                // webrtc-rs 已经把证书绑定到了远端 SDP，因此
+                                // 要求对端“签署”该指纹就能挫败一种
+                                // 通过替换 SDP 实施的 rendezvous/中继 MITM。按“失败即关闭”处理。
                                 if is_webrtc {
                                     let actual_fp = conn.dtls_fingerprint(false).await.ok_or_else(
                                         || anyhow!("WebRTC DTLS fingerprint unavailable"),
@@ -1720,8 +1720,8 @@ impl Client {
                                 }
                                 let (asymmetric_value, symmetric_value, key) =
                                     create_symmetric_key_msg(their_pk_b);
-                                // A WebRTC stream is encrypted by DTLS and takes no stream
-                                // key of its own, split or not, so the pick says what runs: 0.
+                                // WebRTC 流由 DTLS 加密，本身不带任何流
+                                // 密钥（无论是否分片），所以这个选择决定实际运行什么：0。
                                 let picked = if is_webrtc {
                                     0
                                 } else {
@@ -1756,7 +1756,7 @@ impl Client {
                             if is_webrtc {
                                 bail!("WebRTC peer identity could not be verified (refusing unbound channel)");
                             }
-                            // fall back to non-secure connection in case pk mismatch
+                            // 在公钥不匹配时回退到非安全连接
                             log::info!("pk mismatch, fall back to non-secure");
                             let mut msg_out = Message::new();
                             msg_out.set_public_key(PublicKey::new());
@@ -1784,7 +1784,7 @@ impl Client {
         Ok(option_pk)
     }
 
-    /// Request a relay connection to the server.
+    /// 向服务器请求一条中继连接。
     async fn request_relay(
         peer: &str,
         relay_server: String,
@@ -1800,7 +1800,7 @@ impl Client {
         let mut ipv4 = true;
 
         for i in 1..=3 {
-            // use different socket due to current hbbs implementation requiring different nat address for each attempt
+            // 由于当前 hbbs 实现要求每次尝试使用不同的 nat 地址，所以使用不同的套接字
             let mut socket = connect_tcp(rendezvous_server, CONNECT_TIMEOUT)
                 .await
                 .with_context(|| "Failed to connect to rendezvous server")?;
@@ -1849,7 +1849,7 @@ impl Client {
         Self::create_relay(peer, uuid, relay_server, key, conn_type, ipv4).await
     }
 
-    /// Create a relay connection to the server.
+    /// 创建一条到服务器的中继连接。
     async fn create_relay(
         peer: &str,
         uuid: String,
@@ -1858,7 +1858,7 @@ impl Client {
         conn_type: ConnType,
         ipv4: bool,
     ) -> ResultType<Stream> {
-        // The proxy's address family does not constrain the relay target.
+        // 代理的地址族并不约束中继目标。
         let relay_server = check_port(relay_server, RELAY_PORT);
         let use_ws_proxy = Config::is_proxy() && is_ws_endpoint(&check_ws(&relay_server));
         let mut conn = connect_tcp(
@@ -1894,8 +1894,8 @@ impl Client {
 
     #[cfg(not(target_os = "ios"))]
     fn try_stop_clipboard() {
-        // Disconnected Flutter sessions may keep UI handlers alive, so only connected sessions
-        // should block clipboard cleanup.
+        // 已断开的 Flutter 会话可能仍让 UI 处理器存活，所以只有已连接的会话
+        // 才应阻止剪贴板清理。
         #[cfg(feature = "flutter")]
         if crate::flutter::sessions::has_connected_sessions_running(ConnType::DEFAULT_CONN) {
             return;
@@ -1914,11 +1914,11 @@ impl Client {
         clipboard::platform::unix::fuse::uninit_fuse_context(true);
     }
 
-    // `try_start_clipboard` is called by all session when connection is established. (When handling peer info).
-    // This function only create one thread with a loop, the loop is shared by all sessions.
-    // After all sessions are end, the loop exists.
+    // 连接建立时所有会话都会调用 `try_start_clipboard`。（在处理对端信息时）。
+    // 这个函数只创建一个带循环的线程，该循环由所有会话共享。
+    // 所有会话结束后，循环就退出。
     //
-    // If clipboard update is detected, the text will be sent to all sessions by `send_clipboard_msg`.
+    // 检测到剪贴板更新时，文本会通过 `send_clipboard_msg` 发送给所有会话。
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn try_start_clipboard(
         _client_clip_ctx: Option<ClientClipboardContext>,
@@ -1958,7 +1958,7 @@ impl Client {
                     }
                     #[cfg(all(target_os = "linux", feature = "unix-file-copy-paste"))]
                     Ok(ClipboardEvent::InitialSelection) => {
-                        // Preserve file startup sync without bypassing text initial-sync settings.
+                        // 保留文件启动同步，同时不绕过文本初始同步的设置。
                         handler.check_clipboard(false);
                     }
                     Ok(ClipboardEvent::Stop) => {
@@ -2136,7 +2136,7 @@ impl ClientClipboardHandler {
     }
 }
 
-/// Audio handler for the [`Client`].
+/// [`Client`] 的音频处理器。
 #[derive(Default)]
 pub struct AudioHandler {
     audio_decoder: Option<(AudioDecoder, Vec<f32>)>,
@@ -2234,7 +2234,7 @@ impl AudioBuffer {
         let capacity = sample_rate * channels * AUDIO_BUFFER_MS / 1000;
         let old_capacity = self.0.lock().unwrap().capacity();
         if capacity != old_capacity {
-            *self.0.lock().unwrap() = ringbuf::HeapRb::<f32>::new(capacity);
+            * self.0.lock().unwrap() = ringbuf::HeapRb::<f32>::new(capacity);
             self.1 = sample_rate * channels;
             log::info!("Audio buffer resized from {old_capacity} to {capacity}");
         }
@@ -2263,9 +2263,9 @@ impl AudioBuffer {
             tms = dt;
         }
 
-        // the safer water mark to drop
+        // 更安全的水位线，超过就丢弃
         let mut zero = 0;
-        // the water mark taking most of time
+        // 耗时最多的水位线
         let mut max = 0;
         for i in 0..30 {
             if self.2[i] == 0 && zero == i {
@@ -2281,9 +2281,9 @@ impl AudioBuffer {
         }
         zero = zero * 2 / 3;
 
-        // how many data can be dropped:
-        // 1. will not drop if buffered data is less than 600ms
-        // 2. choose based on min(zero, max)
+        // 可以丢弃多少数据：
+        // 1. 缓冲数据少于 600ms 时不丢弃
+        // 2. 基于 min(zero, max) 选择
         const N: usize = 4;
         self.2[max] = 0;
         if max < 6 {
@@ -2304,16 +2304,16 @@ impl AudioBuffer {
         }
     }
 
-    /// The caller must hold the PCM buffer lock while signaling the discard.
+    /// 调用方在发出丢弃信号时必须持有 PCM 缓冲区锁。
     fn signal_discontinuity(&self) -> usize {
         self.3
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             .wrapping_add(1)
     }
 
-    /// append pcm to audio buffer, if buffered data
-    /// exceeds AUDIO_BUFFER_MS,  only AUDIO_BUFFER_MS
-    /// will be kept.
+    /// 把 pcm 追加到音频缓冲区，如果缓冲数据
+    /// 超过 AUDIO_BUFFER_MS，就只保留 AUDIO_BUFFER_MS
+    /// 的部分。
     fn append_pcm2(&self, buffer: &[f32]) -> usize {
         let mut lock = self.0.lock().unwrap();
         let cap = lock.capacity();
@@ -2332,9 +2332,9 @@ impl AudioBuffer {
         occupied
     }
 
-    /// append pcm to audio buffer, trying to drop data
-    /// when data is too much (per 12 seconds) based
-    /// statistics.
+    /// 把 pcm 追加到音频缓冲区，尝试丢弃数据
+    /// 当数据过多时（按 12 秒统计）依据
+    /// 统计结果。
     pub fn append_pcm(&mut self, buffer: &[f32]) {
         let having = self.append_pcm2(buffer);
         self.try_shrink(having);
@@ -2371,7 +2371,7 @@ impl AudioHandler {
         Ok(())
     }
 
-    /// Start the audio playback.
+    /// 启动音频播放。
     #[cfg(not(target_os = "linux"))]
     fn start_audio(&mut self, format0: AudioFormat) -> ResultType<()> {
         let device = AUDIO_HOST
@@ -2389,7 +2389,7 @@ impl AudioHandler {
         let mut config: StreamConfig = config.into();
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {
-            // this makes ios and android audio output not work
+            // 这会导致 ios 和 android 的音频输出不工作
             config.buffer_size = cpal::BufferSize::Fixed(64);
         }
 
@@ -2426,7 +2426,7 @@ impl AudioHandler {
         Ok(())
     }
 
-    /// Handle audio format and create an audio decoder.
+    /// 处理音频格式并创建音频解码器。
     pub fn handle_format(&mut self, f: AudioFormat) {
         self.handle_format_with_start(f, Self::start_audio);
     }
@@ -2466,9 +2466,9 @@ impl AudioHandler {
                     && !previous.playback_recovery.report_pending();
                 #[cfg(not(target_os = "linux"))]
                 if result.is_err() && keep_existing_stream {
-                    // The restarted capture has new Opus history even when output startup fails.
+                    // 即使输出启动失败，重新开始的采集也会带上新的 Opus 历史。
                     previous.audio_decoder = self.audio_decoder.take();
-                    *self = previous;
+                    * self = previous;
                     self.handle_audio_start_result(result, true);
                     return;
                 }
@@ -2490,13 +2490,13 @@ impl AudioHandler {
                     "Failed to replace audio playback stream; keeping the existing compatible stream: {error:#}"
                 );
             } else {
-                *self = Self::default();
+                * self = Self::default();
                 log::error!("Failed to start audio playback: {error:#}");
             }
         }
     }
 
-    /// Handle audio frame and play it.
+    /// 处理音频帧并播放。
     #[inline]
     pub fn handle_frame(&mut self, frame: AudioFrame) {
         #[cfg(not(target_os = "linux"))]
@@ -2554,7 +2554,7 @@ impl AudioHandler {
         });
     }
 
-    /// Build audio output stream for current device.
+    /// 为当前设备构建音频输出流。
     #[cfg(not(target_os = "linux"))]
     fn build_output_stream<T: cpal::Sample + cpal::SizedSample + cpal::FromSample<f32>>(
         &mut self,
@@ -2566,7 +2566,7 @@ impl AudioHandler {
         let err_fn = self.playback_recovery.new_error_callback();
         #[cfg(not(target_os = "windows"))]
         let err_fn = move |err| {
-            // too many errors, will improve later
+            // 错误太多，以后再改进
             log::trace!("an error occurred on stream: {}", err);
         };
         self.audio_buffer
@@ -2636,7 +2636,7 @@ mod audio_format_tests {
     }
 }
 
-/// Video handler for the [`Client`].
+/// [`Client`] 的视频处理器。
 pub struct VideoHandler {
     decoder: Decoder,
     pub rgb: ImageRgb,
@@ -2659,7 +2659,7 @@ impl VideoHandler {
         None
     }
 
-    /// Create a new video handler.
+    /// 创建一个新的视频处理器。
     pub fn new(format: CodecFormat, _display: usize) -> Self {
         let luid = Self::get_adapter_luid();
         log::info!("new video handler for display #{_display}, format: {format:?}, luid: {luid:?}");
@@ -2681,7 +2681,7 @@ impl VideoHandler {
         }
     }
 
-    /// Handle a new video frame.
+    /// 处理新的视频帧。
     #[inline]
     pub fn handle_frame(
         &mut self,
@@ -2735,7 +2735,7 @@ impl VideoHandler {
         }
     }
 
-    /// Reset the decoder, change format if it is Some
+    /// 重置解码器，若格式为 Some 则更换格式
     pub fn reset(&mut self, format: Option<CodecFormat>) {
         log::info!(
             "reset video handler for display #{}, format: {format:?}",
@@ -2750,7 +2750,7 @@ impl VideoHandler {
         self.first_frame = true;
     }
 
-    /// Start or stop screen record.
+    /// 开始或停止屏幕录制。
     pub fn record_screen(&mut self, start: bool, id: String, display_idx: usize, camera: bool) {
         self.record = false;
         if start {
@@ -2771,7 +2771,7 @@ impl VideoHandler {
     }
 }
 
-// The source of sent password
+// 发送密码的来源
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 enum PasswordSource {
     PersonalAb(Vec<u8>),
@@ -2786,7 +2786,7 @@ impl Default for PasswordSource {
 }
 
 impl PasswordSource {
-    // Whether the password is personal ab password
+    // 密码是否为个人 ab 密码
     pub fn is_personal_ab(&self, password: &[u8]) -> bool {
         if password.is_empty() {
             return false;
@@ -2797,7 +2797,7 @@ impl PasswordSource {
         }
     }
 
-    // Whether the password is shared ab password
+    // 密码是否为共享 ab 密码
     pub fn is_shared_ab(&self, password: &[u8], hash: &Hash) -> bool {
         if password.is_empty() {
             return false;
@@ -2808,7 +2808,7 @@ impl PasswordSource {
         }
     }
 
-    //  Whether the password equals to the connected password
+    //  密码是否与已连接的密码相同
     fn equal(password: &str, connected_password: &[u8], hash: &Hash) -> bool {
         let mut hasher = Sha256::new();
         hasher.update(password);
@@ -2825,7 +2825,7 @@ struct ConnToken {
     session_id: u64,
 }
 
-/// Login config handler for [`Client`].
+/// [`Client`] 的登录配置处理器。
 #[derive(Default)]
 pub struct LoginConfigHandler {
     id: String,
@@ -2836,32 +2836,32 @@ pub struct LoginConfigHandler {
     pub remember: bool,
     config: PeerConfig,
     pub port_forward: (String, i32),
-    /// This login's `multiplex`, filled with `port_forward` under the turn
-    /// lock. `port_forward_mux` says whether a mapping probes for the tunnel;
-    /// one the probe latched to the raw pipe logs in without asking, so an
-    /// upgraded peer keeps giving it the raw pipe.
+    /// 本次登录的 `multiplex`，在 turn 锁之下由 `port_forward` 填充。
+    /// `port_forward_mux` 表示某个映射是否需要探测隧道；
+    /// 某个已被探测锁定的映射会直接登录而不询问，因此
+    /// 升级后的对端仍会把它分到原始管道。
     pub(crate) port_forward_multiplex: bool,
-    /// Set once per window, before its mappings start: every accept's claim
-    /// reads it.
+    /// 每个窗口设置一次，在其映射启动之前：每次 accept 的认领
+    /// 都会读取它。
     pub(crate) port_forward_mux: bool,
-    /// Held by a port-forward mapping from filling `port_forward` and `hash`
-    /// until its login is built from them; a window's mappings log in
-    /// concurrently.
+    /// 被某个端口转发映射持有，不让它填入 `port_forward` 和 `hash`，
+    /// 直到用它构建出登录信息；一个窗口的各个映射是并发
+    /// 登录的。
     pub(crate) port_forward_login_turn: Arc<hbb_common::tokio::sync::Mutex<()>>,
     pub version: i64,
     features: Option<Features>,
     pub session_id: u64, // used for local <-> server communication
     pub supported_encoding: SupportedEncoding,
     restarting_remote_device: bool,
-    // Start time of the restart grace window. On Windows the peer may briefly
-    // reconnect before the real reboot disconnect.
+    // 重启宽限期的起始时间。在 Windows 上，对端可能会短暂地
+    // 在真正重启断线之前先重连。
     restart_remote_device_at: Option<Instant>,
     pub force_relay: bool,
-    // force_relay minus the WebSocket transport. ws forces relay for classic punching but says
-    // nothing about ICE, so every WebRTC decision keys off this: policy means Relay-only ICE,
-    // transport may still go direct.
+    // force_relay 减去 WebSocket 传输方式。ws 会为传统打洞强制中继，但对
+    // ICE 只字未提，所以所有 WebRTC 决策都以此为准：策略意味着 Relay-only ICE，
+    // 而传输方式仍可能走直连。
     pub policy_relay: bool,
-    // The peer-scoped part of it, and the only part that may be written back to the peer.
+    // 其中属于对端作用域的部分，也是唯一可以写回给对端的部分。
     pub peer_relay: bool,
     pub direct: Option<bool>,
     pub received: bool,
@@ -2897,12 +2897,12 @@ impl LoginConfigHandler {
         self.hash = hash;
     }
 
-    /// Initialize the login config handler.
+    /// 初始化登录配置处理器。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `id` - id of peer
-    /// * `conn_type` - Connection type enum.
+    /// * `id` - 对端的 id
+    /// * `conn_type` - 连接类型枚举。
     pub fn initialize(
         &mut self,
         id: String,
@@ -2935,7 +2935,7 @@ impl LoginConfigHandler {
                 key.to_owned()
             };
 
-            // here we can check <id>/r@server
+            // 在这里可以检查 <id>/r@server
             let real_id = crate::ui_interface::handle_relay_id(raw_id).to_string();
             if real_id != raw_id {
                 force_relay = true;
@@ -2968,16 +2968,16 @@ impl LoginConfigHandler {
         if sid == 0 {
             sid = rand::random();
             if sid == 0 {
-                // you won the lottery
+                // 你中大奖了
                 sid = 1;
             }
         }
         self.session_id = sid;
         self.supported_encoding = Default::default();
         self.clear_restarting_remote_device();
-        // Three scopes: what was decided about this PEER, what this CLIENT is set up as (proxy),
-        // and what its TRANSPORT forces (ws). Only the first may be written back to the peer's
-        // config — persisting the others would make a local setup a permanent peer property.
+        // 三个作用域：关于这个对端确定了什么、这个客户端被配置成什么（代理）、
+        // 以及它的传输方式强制了什么（ws）。只有第一个可以写回对端的
+        // 配置——持久化其余两个会把本地设置变成对端的永久属性。
         self.peer_relay =
             config::option2bool("force-always-relay", &self.get_option("force-always-relay"))
                 || force_relay;
@@ -3004,7 +3004,7 @@ impl LoginConfigHandler {
         self.record_state = false;
         self.record_permission = true;
 
-        // `std::env::remove_var("IS_TERMINAL_ADMIN");` is called in `session_add_sync()` - `flutter_ffi.rs`.
+        // `std::env::remove_var("IS_TERMINAL_ADMIN");` 在 `session_add_sync()` 中调用 —— `flutter_ffi.rs`。
         let is_terminal_admin = conn_type == ConnType::TERMINAL
             && std::env::var("IS_TERMINAL_ADMIN").map_or(false, |v| v == "Y");
         self.is_terminal_admin = is_terminal_admin;
@@ -3027,8 +3027,8 @@ impl LoginConfigHandler {
         }
     }
 
-    /// Check if the client should auto login.
-    /// Return password if the client should auto login, otherwise return empty string.
+    /// 检查客户端是否应该自动登录。
+    /// 如果客户端应自动登录则返回密码，否则返回空字符串。
     pub fn should_auto_login(&self) -> String {
         let l = self.lock_after_session_end.v;
         let a = !self.get_option("auto-login").is_empty();
@@ -3040,28 +3040,28 @@ impl LoginConfigHandler {
         }
     }
 
-    /// Load [`PeerConfig`].
+    /// 加载 [`PeerConfig`]。
     pub fn load_config(&self) -> PeerConfig {
         debug_assert!(self.id.len() > 0);
         PeerConfig::load(&self.id)
     }
 
-    /// Save a [`PeerConfig`] into the handler.
+    /// 把 [`PeerConfig`] 保存到处理器中。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `config` - [`PeerConfig`] to save.
+    /// * `config` - 要保存的 [`PeerConfig`]。
     pub fn save_config(&mut self, config: PeerConfig) {
         config.store(&self.id);
         self.config = config;
     }
 
-    /// Set an option for handler's [`PeerConfig`].
+    /// 为处理器的 [`PeerConfig`] 设置一个选项。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `k` - key of option
-    /// * `v` - value of option
+    /// * `k` - 选项的键
+    /// * `v` - 选项的值
     pub fn set_option(&mut self, k: String, v: String) {
         let mut config = self.load_config();
         if v == self.get_option(&k) {
@@ -3071,91 +3071,91 @@ impl LoginConfigHandler {
         self.save_config(config);
     }
 
-    //to-do: too many dup code below.
+    // 待办：下面有太多重复代码。
 
-    /// Save view style to the current config.
+    /// 把视图样式保存到当前配置。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `value` - The view style to be saved.
+    /// * `value` - 要保存的视图样式。
     pub fn save_view_style(&mut self, value: String) {
         let mut config = self.load_config();
         config.view_style = value;
         self.save_config(config);
     }
 
-    /// Save keyboard mode to the current config.
+    /// 把键盘模式保存到当前配置。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `value` - The view style to be saved.
+    /// * `value` - 要保存的视图样式。
     pub fn save_keyboard_mode(&mut self, value: String) {
         let mut config = self.load_config();
         config.keyboard_mode = value;
         self.save_config(config);
     }
 
-    /// Save reverse mouse wheel ("", "Y") to the current config.
+    /// 把反向鼠标滚轮（"", "Y"）保存到当前配置。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `value` - The reverse mouse wheel ("", "Y").
+    /// * `value` - 反向鼠标滚轮（"", "Y"）。
     pub fn save_reverse_mouse_wheel(&mut self, value: String) {
         let mut config = self.load_config();
         config.reverse_mouse_wheel = value;
         self.save_config(config);
     }
 
-    /// Save "displays_as_individual_windows" ("", "Y") to the current config.
+    /// 把 "displays_as_individual_windows"（"", "Y"）保存到当前配置。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `value` - The "displays_as_individual_windows" value ("", "Y").
+    /// * `value` - "displays_as_individual_windows" 的值（"", "Y"）。
     pub fn save_displays_as_individual_windows(&mut self, value: String) {
         let mut config = self.load_config();
         config.displays_as_individual_windows = value;
         self.save_config(config);
     }
 
-    /// Save "use_all_my_displays_for_the_remote_session" ("", "Y") to the current config.
+    /// 把 "use_all_my_displays_for_the_remote_session"（"", "Y"）保存到当前配置。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `value` - The "use_all_my_displays_for_the_remote_session" value ("", "Y").
+    /// * `value` - "use_all_my_displays_for_the_remote_session" 的值（"", "Y"）。
     pub fn save_use_all_my_displays_for_the_remote_session(&mut self, value: String) {
         let mut config = self.load_config();
         config.use_all_my_displays_for_the_remote_session = value;
         self.save_config(config);
     }
 
-    /// Save scroll style to the current config.
+    /// 把滚动样式保存到当前配置。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `value` - The scroll style to be saved.
+    /// * `value` - 要保存的滚动样式。
     pub fn save_scroll_style(&mut self, value: String) {
         let mut config = self.load_config();
         config.scroll_style = value;
         self.save_config(config);
     }
 
-    /// Save edge scroll edge thickness to the current config.
+    /// 把边缘滚动的边缘厚度保存到当前配置。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `value` - The edge thickness to be saved.
+    /// * `value` - 要保存的边缘厚度。
     pub fn save_edge_scroll_edge_thickness(&mut self, value: i32) {
         let mut config = self.load_config();
         config.edge_scroll_edge_thickness = value;
         self.save_config(config);
     }
 
-    /// Set a ui config of flutter for handler's [`PeerConfig`].
+    /// 为处理器的 [`PeerConfig`] 设置一项 flutter 的 ui 配置。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `k` - key of option
-    /// * `v` - value of option
+    /// * `k` - 选项的键
+    /// * `v` - 选项的值
     pub fn save_ui_flutter(&mut self, k: String, v: String) {
         let mut config = self.load_config();
         if v.is_empty() {
@@ -3172,12 +3172,12 @@ impl LoginConfigHandler {
         self.save_config(config);
     }
 
-    /// Get a ui config of flutter for handler's [`PeerConfig`].
-    /// Return String if the option is found, otherwise return "".
+    /// 获取处理器的 [`PeerConfig`] 的某项 flutter ui 配置。
+    /// 找到该选项时返回 String，否则返回 ""。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `k` - key of option
+    /// * `k` - 选项的键
     pub fn get_ui_flutter(&self, k: &str) -> String {
         if let Some(v) = self.config.ui_flutter.get(k) {
             v.clone()
@@ -3186,15 +3186,15 @@ impl LoginConfigHandler {
         }
     }
 
-    /// Toggle an option in the handler.
+    /// 切换处理器中的某个选项。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `name` - The name of the option to toggle.
+    /// * `name` - 要切换的选项名。
     ///
-    // It's Ok to check the option empty in this function.
-    // `toggle_option()` is only called in a session.
-    // Custom client advanced settings will not effect this function.
+    // 在这个函数里检查选项是否为空是可以的。
+    // `toggle_option()` 只在会话中调用。
+    // 客户端自定义高级设置不会影响这个函数。
     pub fn toggle_option(&mut self, name: String) -> Option<Message> {
         let mut option = OptionMessage::default();
         let mut config = self.load_config();
@@ -3255,7 +3255,7 @@ impl LoginConfigHandler {
             })
             .into();
         } else if name == "privacy-mode" {
-            // try toggle privacy mode
+            // 尝试切换隐私模式
             option.privacy_mode = (if config.privacy_mode.v {
                 BoolOption::No
             } else {
@@ -3342,19 +3342,19 @@ impl LoginConfigHandler {
         Some(msg_out)
     }
 
-    /// Get [`PeerConfig`] of the current [`LoginConfigHandler`].
+    /// 获取当前 [`LoginConfigHandler`] 的 [`PeerConfig`]。
     ///
-    /// # Arguments
+    /// # 参数
     pub fn get_config(&mut self) -> &mut PeerConfig {
         &mut self.config
     }
 
-    /// Get [`OptionMessage`] of the current [`LoginConfigHandler`].
-    /// Return `None` if there's no option, for example, when the session is only for file transfer.
+    /// 获取当前 [`LoginConfigHandler`] 的 [`OptionMessage`]。
+    /// 没有选项时返回 `None`，例如会话仅用于文件传输时。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `ignore_default` - If `true`, ignore the default value of the option.
+    /// * `ignore_default` - 若为 `true`，忽略该选项的默认值。
     fn get_option_message(&self, ignore_default: bool) -> Option<OptionMessage> {
         if self.conn_type.eq(&ConnType::PORT_FORWARD)
             || self.conn_type.eq(&ConnType::RDP)
@@ -3394,7 +3394,7 @@ impl LoginConfigHandler {
                     custom_fps = 30;
                 }
                 msg.custom_fps = custom_fps;
-                *self.custom_fps.lock().unwrap() = Some(custom_fps as _);
+                * self.custom_fps.lock().unwrap() = Some(custom_fps as _);
             }
         }
         let view_only = self.get_toggle_option("view-only");
@@ -3438,13 +3438,13 @@ impl LoginConfigHandler {
         )
     }
 
-    /// Parse the image quality option.
-    /// Return [`ImageQuality`] if the option is valid, otherwise return `None`.
+    /// 解析图像质量选项。
+    /// 选项有效时返回 [`ImageQuality`]，否则返回 `None`。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `q` - The image quality option.
-    /// * `ignore_default` - Ignore the default value.
+    /// * `q` - 图像质量选项。
+    /// * `ignore_default` - 忽略默认值。
     fn get_image_quality_enum(&self, q: &str, ignore_default: bool) -> Option<ImageQuality> {
         if q == "low" {
             Some(ImageQuality::Low)
@@ -3461,15 +3461,15 @@ impl LoginConfigHandler {
         }
     }
 
-    /// Get the status of a toggle option.
+    /// 获取某个开关选项的状态。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `name` - The name of the toggle option.
+    /// * `name` - 开关选项的名称。
     ///
-    // It's Ok to check the option empty in this function.
-    // `get_toggle_option()` is only called in a session.
-    // Custom client advanced settings will not effect this function.
+    // 在这个函数里检查选项是否为空是可以的。
+    // `get_toggle_option()` 只在会话中调用。
+    // 客户端自定义高级设置不会影响这个函数。
     pub fn get_toggle_option(&self, name: &str) -> bool {
         if name == "show-remote-cursor" {
             self.config.show_remote_cursor.v
@@ -3510,7 +3510,7 @@ impl LoginConfigHandler {
         }
     }
 
-    /// Create a [`Message`] for refreshing video.
+    /// 创建一个用于刷新视频的 [`Message`]。
     pub fn refresh() -> Message {
         let mut misc = Misc::new();
         misc.set_refresh_video(true);
@@ -3519,7 +3519,7 @@ impl LoginConfigHandler {
         msg_out
     }
 
-    /// Create a [`Message`] for refreshing video.
+    /// 创建一个用于刷新视频的 [`Message`]。
     pub fn refresh_display(display: usize) -> Message {
         let mut misc = Misc::new();
         misc.set_refresh_video_display(display as _);
@@ -3528,12 +3528,12 @@ impl LoginConfigHandler {
         msg_out
     }
 
-    /// Create a [`Message`] for saving custom image quality.
+    /// 创建一个用于保存自定义图像质量的 [`Message`]。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `bitrate` - The given bitrate.
-    /// * `quantizer` - The given quantizer.
+    /// * `bitrate` - 给定的码率。
+    /// * `quantizer` - 给定的量化参数。
     pub fn save_custom_image_quality(&mut self, image_quality: i32) -> Message {
         let mut misc = Misc::new();
         misc.set_option(OptionMessage {
@@ -3549,11 +3549,11 @@ impl LoginConfigHandler {
         msg_out
     }
 
-    /// Save the given image quality to the config.
-    /// Return a [`Message`] that contains image quality, or `None` if the image quality is not valid.
-    /// # Arguments
+    /// 把给定的图像质量保存到配置。
+    /// 返回一个包含图像质量的 [`Message`]，若图像质量无效则返回 `None`。
+    /// # 参数
     ///
-    /// * `value` - The image quality.
+    /// * `value` - 图像质量。
     pub fn save_image_quality(&mut self, value: String) -> Option<Message> {
         let mut res = None;
         if let Some(q) = self.get_image_quality_enum(&value, false) {
@@ -3578,12 +3578,12 @@ impl LoginConfigHandler {
         self.save_config(config);
     }
 
-    /// Create a [`Message`] for saving custom fps.
+    /// 创建一个用于保存自定义 fps 的 [`Message`]。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `fps` - The given fps.
-    /// * `save_config` - Save the config.
+    /// * `fps` - 给定的 fps。
+    /// * `save_config` - 保存配置。
     pub fn set_custom_fps(&mut self, fps: i32, save_config: bool) -> Message {
         let mut misc = Misc::new();
         misc.set_option(OptionMessage {
@@ -3599,7 +3599,7 @@ impl LoginConfigHandler {
                 .insert("custom-fps".to_owned(), fps.to_string());
             self.save_config(config);
         }
-        *self.custom_fps.lock().unwrap() = Some(fps as _);
+        * self.custom_fps.lock().unwrap() = Some(fps as _);
         msg_out
     }
 
@@ -3636,12 +3636,12 @@ impl LoginConfigHandler {
         self.save_config(config);
     }
 
-    /// Get user name.
-    /// Return the name of the given peer. If the peer has no name, return the name in the config.
+    /// 获取用户名。
+    /// 返回给定对端的名称。如果该对端没有名称，则返回配置中的名称。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `pi` - peer info.
+    /// * `pi` - 对端信息。
     pub fn get_username(&self, pi: &PeerInfo) -> String {
         return if pi.username.is_empty() {
             self.info.username.clone()
@@ -3650,12 +3650,12 @@ impl LoginConfigHandler {
         };
     }
 
-    /// Handle peer info.
+    /// 处理对端信息。
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `username` - The name of the peer.
-    /// * `pi` - The peer info.
+    /// * `username` - 对端的名称。
+    /// * `pi` - 对端信息。
     pub fn handle_peer_info(&mut self, pi: &PeerInfo) {
         if !pi.version.is_empty() {
             self.version = hbb_common::get_version_number(&pi.version);
@@ -3673,8 +3673,8 @@ impl LoginConfigHandler {
         let remember = self.remember;
         let hash = self.hash.clone();
         if remember {
-            // remember is true: use PeerConfig password or ui login
-            // not sync shared password to recent
+            // remember 为 true：使用 PeerConfig 中的密码或走 ui 登录
+            // 不把共享密码同步到 recent
             if !password.is_empty()
                 && password != password0
                 && !self.password_source.is_shared_ab(&password, &hash)
@@ -3684,7 +3684,7 @@ impl LoginConfigHandler {
             }
         } else {
             if self.password_source.is_personal_ab(&password) {
-                // sync personal ab password to recent automatically
+                // 自动把个人 ab 密码同步到 recent
                 config.password = password.clone();
                 log::debug!("save ab password of {} to recent", self.id);
             } else if !password0.is_empty() {
@@ -3699,8 +3699,8 @@ impl LoginConfigHandler {
                     .insert("other-server-key".to_owned(), c.clone());
             }
         }
-        // peer_relay only — see `initialize`: neither the proxy nor the WebSocket transport is a
-        // fact about this peer, and writing one here makes it permanent.
+        // 仅 peer_relay —— 参见 `initialize`：代理和 WebSocket 传输方式都不是
+        // 关于这个对端的事实，在这里写入就会变成永久性的。
         if self.peer_relay {
             config
                 .options
@@ -3708,7 +3708,7 @@ impl LoginConfigHandler {
         }
         #[cfg(feature = "flutter")]
         {
-            // sync connected password to personal ab automatically if it is not shared password
+            // 如果连接用的密码不是共享密码，就自动同步到个人 ab
             if !config.password.is_empty()
                 && !self.password_source.is_shared_ab(&password, &hash)
                 && !self.password_source.is_personal_ab(&password)
@@ -3741,7 +3741,7 @@ impl LoginConfigHandler {
                 config.keyboard_mode = KeyboardMode::Legacy.to_string();
             }
         }
-        // no matter if change, for update file time
+        // 无论是否发生变化，都是为了更新文件时间
         self.save_config(config);
         self.supported_encoding = pi.encoding.clone().unwrap_or_default();
         log::info!("peer info supported_encoding:{:?}", self.supported_encoding);
@@ -3766,7 +3766,7 @@ impl LoginConfigHandler {
         serde_json::to_string::<HashMap<String, String>>(&x).unwrap_or_default()
     }
 
-    /// Create a [`Message`] for login.
+    /// 创建一个用于登录的 [`Message`]。
     fn create_login_msg(
         &self,
         os_username: String,
@@ -3926,11 +3926,11 @@ impl LoginConfigHandler {
         if !self.restarting_remote_device {
             return false;
         }
-        // Keep this flag alive for a short grace window instead of clearing it on
-        // connection_ready or the first peer bytes. During OS restart the peer can
-        // briefly reconnect before the real reboot disconnect, and clearing it too
-        // early would let the next disconnect escape the restart flow and fall back
-        // to the normal error dialog / manual reconnect path.
+        // 让这个标志保持一小段宽限期，而不是在
+        // connection_ready 或对端的首批字节到达时就清除它。在操作系统重启期间，对端可能会
+        // 在真正重启断线之前短暂重连，而过早清除它
+        // 会让下一次断线逃出重启流程，退回到
+        // 常规的错误对话框 / 手动重连路径。
         self.restart_remote_device_at
             .map(|started_at| started_at.elapsed() < RESTART_REMOTE_DEVICE_GRACE)
             .unwrap_or(false)
@@ -3961,7 +3961,7 @@ impl LoginConfigHandler {
     }
 }
 
-/// Media data.
+/// 媒体数据。
 pub enum MediaData {
     VideoQueue,
     VideoFrame(Box<VideoFrame>),
@@ -3973,11 +3973,11 @@ pub enum MediaData {
 
 pub type MediaSender = mpsc::Sender<MediaData>;
 
-/// Start video thread.
+/// 启动视频线程。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `video_callback` - The callback for video frame. Being called when a video frame is ready.
+/// * `video_callback` - 视频帧的回调。视频帧就绪时会被调用。
 pub fn start_video_thread<F, T>(
     session: Session<T>,
     display: usize,
@@ -4009,7 +4009,7 @@ pub fn start_video_thread<F, T>(
                     MediaData::VideoFrame(_) | MediaData::VideoQueue => {
                         let vf = match data {
                             MediaData::VideoFrame(vf) => {
-                                *discard_queue.write().unwrap() = false;
+                                * discard_queue.write().unwrap() = false;
                                 *vf
                             }
                             MediaData::VideoQueue => {
@@ -4056,10 +4056,10 @@ pub fn start_video_thread<F, T>(
                                     // chroma
                                     if tmp_chroma.is_some() && last_chroma != tmp_chroma {
                                         last_chroma = tmp_chroma;
-                                        *chroma.write().unwrap() = tmp_chroma;
+                                        * chroma.write().unwrap() = tmp_chroma;
                                     }
 
-                                    // fps calculation
+                                    // fps 计算
                                     fps_calculate(
                                         &mut skip_beginning,
                                         &fps,
@@ -4070,17 +4070,17 @@ pub fn start_video_thread<F, T>(
                                     );
                                 }
                                 Err(e) => {
-                                    // This is a simple workaround.
+                                    // 这是一个简单的变通方案。
                                     //
-                                    // I only see the following error:
+                                    // 我只看到下面这个错误：
                                     // FailedCall("errcode=1 scrap::common::vpxcodec:libs\\scrap\\src\\common\\vpxcodec.rs:433:9")
-                                    // When switching from all displays to one display, the error occurs.
+                                    // 当从所有显示器切换到单台显示器时，会出现该错误。
                                     // eg:
-                                    // 1. Connect to a device with two displays (A and B).
-                                    // 2. Switch to display A. The error occurs.
-                                    // 3. If the error does not occur. Switch from A to display B. The error occurs.
+                                    // 1. 连接到一台有两个显示器（A 和 B）的设备。
+                                    // 2. 切换到显示器 A。错误出现。
+                                    // 3. 如果错误没有出现，从 A 切换到显示器 B。错误出现。
                                     //
-                                    // to-do: fix the error
+                                    // 待办：修复这个错误
                                     log::error!("handle video frame error, {}", e);
                                     session.refresh_video(display as _);
                                 }
@@ -4088,7 +4088,7 @@ pub fn start_video_thread<F, T>(
                             }
                         }
 
-                        // check invalid decoders
+                        // 检查无效的解码器
                         let mut should_update_supported = false;
                         if let Some(handler) = video_handler.as_mut() {
                             if !handler.decoder.valid()
@@ -4130,8 +4130,8 @@ pub fn start_video_thread<F, T>(
     });
 }
 
-/// Start an audio thread
-/// Return a audio [`MediaSender`]
+/// 启动音频线程
+/// 返回一个音频 [`MediaSender`]
 pub fn start_audio_thread() -> MediaSender {
     let (audio_sender, audio_receiver) = mpsc::channel::<MediaData>();
     std::thread::spawn(move || {
@@ -4171,30 +4171,30 @@ fn fps_calculate(
     duration: &mut std::time::Duration,
 ) {
     if format_changed {
-        *count = 0;
-        *duration = std::time::Duration::ZERO;
-        *skip_beginning = 0;
+        * count = 0;
+        * duration = std::time::Duration::ZERO;
+        * skip_beginning = 0;
     }
-    // // The first frame will be very slow
+    // 第一帧会非常慢
     if *skip_beginning < 3 {
-        *skip_beginning += 1;
+        * skip_beginning += 1;
         return;
     }
-    *duration += elapsed;
-    *count += 1;
+    * duration += elapsed;
+    * count += 1;
     let ms = duration.as_millis();
     if *count % 10 == 0 && ms > 0 {
-        *fps.write().unwrap() = Some((*count as usize) * 1000 / (ms as usize));
+        * fps.write().unwrap() = Some((*count as usize) * 1000 / (ms as usize));
     }
-    // Clear to get real-time fps
+    // 清空以获得实时 fps
     if *count >= 30 {
-        *count = 0;
-        *duration = Duration::ZERO;
+        * count = 0;
+        * duration = Duration::ZERO;
     }
 }
 
 fn get_hwcodec_config() {
-    // for sciter and unilink
+    // 用于 sciter 和 unilink
     #[cfg(feature = "hwcodec")]
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     {
@@ -4247,12 +4247,12 @@ async fn do_sync_cpu_usage() {
     log::info!("{:?} used to sync cpu usage", start.elapsed());
 }
 
-/// Handle latency test.
+/// 处理延迟测试。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `t` - The latency test message.
-/// * `peer` - The peer.
+/// * `t` - 延迟测试消息。
+/// * `peer` - 对端。
 pub async fn handle_test_delay(t: TestDelay, peer: &mut Stream) {
     if !t.from_client {
         let mut msg_out = Message::new();
@@ -4261,11 +4261,11 @@ pub async fn handle_test_delay(t: TestDelay, peer: &mut Stream) {
     }
 }
 
-/// Whether is track pad scrolling.
+/// 是否是触控板滚动。
 #[inline]
 #[cfg(all(target_os = "macos", not(feature = "flutter")))]
 fn check_scroll_on_mac(mask: i32, x: i32, y: i32) -> bool {
-    // flutter version we set mask type bit to 4 when track pad scrolling.
+    // 在 flutter 版本中，触控板滚动时我们把 mask 的 type 位设为 4。
     if mask & 7 == crate::input::MOUSE_TYPE_TRACKPAD {
         return true;
     }
@@ -4278,28 +4278,28 @@ fn check_scroll_on_mac(mask: i32, x: i32, y: i32) -> bool {
     } else if y == 1 {
         btn != 0x78 && btn != 0x780000
     } else if x != 0 {
-        // No mouse support horizontal scrolling.
+        // 鼠标不支持水平滚动。
         true
     } else {
         false
     }
 }
 
-/// Send mouse data.
+/// 发送鼠标数据。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `mask` - Mouse event.
+/// * `mask` - 鼠标事件。
 ///     * mask = buttons << 3 | type
-///     * type, 1: down, 2: up, 3: wheel, 4: trackpad
-///     * buttons, 1: left, 2: right, 4: middle
-/// * `x` - X coordinate.
-/// * `y` - Y coordinate.
-/// * `alt` - Whether the alt key is pressed.
-/// * `ctrl` - Whether the ctrl key is pressed.
-/// * `shift` - Whether the shift key is pressed.
-/// * `command` - Whether the command key is pressed.
-/// * `interface` - The interface for sending data.
+///     * type，1: 按下，2: 抬起，3: 滚轮，4: 触控板
+///     * buttons，1: 左键，2: 右键，4: 中键
+/// * `x` - X 坐标。
+/// * `y` - Y 坐标。
+/// * `alt` - alt 键是否按下。
+/// * `ctrl` - ctrl 键是否按下。
+/// * `shift` - shift 键是否按下。
+/// * `command` - command 键是否按下。
+/// * `interface` - 用于发送数据的接口。
 #[inline]
 pub fn send_mouse(
     mask: i32,
@@ -4368,12 +4368,12 @@ pub fn send_pointer_device_event(
     interface.send(Data::Message(msg_out));
 }
 
-/// Activate OS by sending mouse movement.
+/// 通过发送鼠标移动来激活操作系统。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `interface` - The interface for sending data.
-/// * `send_left_click` - Whether to send a click event.
+/// * `interface` - 用于发送数据的接口。
+/// * `send_left_click` - 是否发送点击事件。
 fn activate_os(interface: &impl Interface, send_left_click: bool) {
     let left_down = MOUSE_BUTTON_LEFT << 3 | MOUSE_TYPE_DOWN;
     let left_up = MOUSE_BUTTON_LEFT << 3 | MOUSE_TYPE_UP;
@@ -4394,7 +4394,7 @@ fn activate_os(interface: &impl Interface, send_left_click: bool) {
     send_mouse(click_up, 0, 0, false, false, false, false, interface);
     /*
     let mut key_event = KeyEvent::new();
-    // do not use Esc, which has problem with Linux
+    // 不要使用 Esc，它在 Linux 上有问题
     key_event.set_control_key(ControlKey::RightArrow);
     key_event.press = true;
     let mut msg_out = Message::new();
@@ -4403,30 +4403,30 @@ fn activate_os(interface: &impl Interface, send_left_click: bool) {
     */
 }
 
-/// Input the OS's password.
+/// 输入操作系统的密码。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `p` - The password.
-/// * `activate` - Whether to activate OS.
-/// * `interface` - The interface for sending data.
+/// * `p` - 密码。
+/// * `activate` - 是否激活操作系统。
+/// * `interface` - 用于发送数据的接口。
 pub fn input_os_password(p: String, activate: bool, interface: impl Interface) {
     std::thread::spawn(move || {
         _input_os_password(p, activate, interface);
     });
 }
 
-/// Input the OS's password.
+/// 输入操作系统的密码。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `p` - The password.
-/// * `activate` - Whether to activate OS.
-/// * `interface` - The interface for sending data.
+/// * `p` - 密码。
+/// * `activate` - 是否激活操作系统。
+/// * `interface` - 用于发送数据的接口。
 fn _input_os_password(p: String, activate: bool, interface: impl Interface) {
     let input_password = !p.is_empty();
     if activate {
-        // Click event is used to bring up the password input box.
+        // 点击事件用于唤起密码输入框。
         activate_os(&interface, input_password);
         std::thread::sleep(Duration::from_millis(1200));
     }
@@ -4445,9 +4445,9 @@ fn _input_os_password(p: String, activate: bool, interface: impl Interface) {
     interface.send(Data::Message(msg_out));
 }
 
-/// Auto Login. A peer that can check for its logon or lock screen gets the password and types it
-/// itself, only if it is there right then. Keys typed from here land in whatever has focus if the
-/// screen is not locked by the time they arrive.
+/// 自动登录。能检测自身登录或锁屏状态的对端会拿到密码并自行
+/// 输入，前提是此刻确实存在锁屏。如果在按键送达前屏幕还没锁定，
+/// 这些按键就会落到当前获得焦点的窗口上。
 pub fn auto_login(p: String, pi: &PeerInfo, interface: impl Interface) {
     if !is_peer_handling_os_login(pi) {
         input_os_password(p, true, interface);
@@ -4465,7 +4465,7 @@ pub fn auto_login(p: String, pi: &PeerInfo, interface: impl Interface) {
     });
 }
 
-/// Windows and macOS peers from the 1.5.1 release handle `os_login`.
+/// 1.5.1 版本起的 Windows 和 macOS 对端支持 `os_login`。
 fn is_peer_handling_os_login(pi: &PeerInfo) -> bool {
     (pi.platform == crate::common::PLATFORM_WINDOWS || pi.platform == crate::common::PLATFORM_MACOS)
         && hbb_common::get_version_number(&pi.version) >= hbb_common::get_version_number("1.5.1")
@@ -4499,8 +4499,8 @@ lazy_static::lazy_static! {
     };
 }
 
-/// Handle login error.
-/// Return true if the password is wrong, return false if there's an actual error.
+/// 处理登录错误。
+/// 密码错误时返回 true，存在真正的错误时返回 false。
 pub fn handle_login_error(
     lc: Arc<RwLock<LoginConfigHandler>>,
     err: &str,
@@ -4546,8 +4546,8 @@ pub fn handle_login_error(
     }
 }
 
-// "Switch sides" requires the incoming-only client to connect back to its
-// controlling peer; verify the local pending uuid before opening the connection.
+// “切换双方”要求仅接收的客户端反向连接到它的
+// 控制端对端；在建立连接之前先校验本地的待定 uuid。
 #[cfg(feature = "flutter")]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 async fn is_switch_sides_back(conn_type: ConnType, interface: &impl Interface) -> bool {
@@ -4624,15 +4624,15 @@ async fn request_local_switch_sides_uuid(
     }
 }
 
-/// Handle hash message sent by peer.
-/// Hash will be used for login.
+/// 处理对端发来的 hash 消息。
+/// Hash 将用于登录。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `lc` - Login config.
-/// * `hash` - Hash sent by peer.
-/// * `interface` - [`Interface`] for sending data.
-/// * `peer` - [`Stream`] for communicating with peer.
+/// * `lc` - 登录配置。
+/// * `hash` - 对端发来的 Hash。
+/// * `interface` - 用于发送数据的 [`Interface`]。
+/// * `peer` - 用于与对端通信的 [`Stream`]。
 pub async fn handle_hash(
     lc: Arc<RwLock<LoginConfigHandler>>,
     password_preset: &str,
@@ -4641,7 +4641,7 @@ pub async fn handle_hash(
     peer: &mut Stream,
 ) -> bool {
     lc.write().unwrap().hash = hash.clone();
-    // Take care of password application order
+    // 注意密码的应用顺序
 
     // switch_uuid
     #[cfg(feature = "flutter")]
@@ -4667,8 +4667,8 @@ pub async fn handle_hash(
                 }
             }
         }
-        // Incoming-only may connect out solely for a verified switch-back;
-        // never fall through to password login, including on repeated hashes.
+        // 仅接收的一方可能只是为了验证后的切回而主动连出；
+        // 绝不能因此落入密码登录流程，即使收到重复的 hash 也不行。
         if config::is_incoming_only() {
             interface.msgbox("error", "Connection Error", "Incoming only mode", "");
             let mut misc = Misc::new();
@@ -4681,9 +4681,9 @@ pub async fn handle_hash(
             return false;
         }
     }
-    // last password
+    // 上一次的密码
     let mut password = lc.read().unwrap().password.clone();
-    // preset password
+    // 预设密码
     if password.is_empty() {
         if !password_preset.is_empty() {
             let mut hasher = Sha256::new();
@@ -4694,8 +4694,8 @@ pub async fn handle_hash(
             lc.write().unwrap().password_source = Default::default();
         }
     }
-    // shared password
-    // Currently it's used only when click shared ab peer card
+    // 共享密码
+    // 目前它只在点击共享 ab 对端卡片时使用
     let shared_password = lc.write().unwrap().shared_password.take();
     if let Some(shared_password) = shared_password {
         if !shared_password.is_empty() {
@@ -4707,14 +4707,14 @@ pub async fn handle_hash(
             lc.write().unwrap().password_source = PasswordSource::SharedAb(shared_password);
         }
     }
-    // peer config password
+    // 对端配置中的密码
     if password.is_empty() {
         password = lc.read().unwrap().config.password.clone();
         if !password.is_empty() {
             lc.write().unwrap().password_source = Default::default();
         }
     }
-    // personal ab password
+    // 个人 ab 密码
     if password.is_empty() {
         try_get_password_from_personal_ab(lc.clone(), &mut password);
     }
@@ -4746,7 +4746,7 @@ pub async fn handle_hash(
     }
 
     let password = if password.is_empty() {
-        // login without password, the remote side can click accept
+        // 无密码登录，远端可以点击接受
         interface.msgbox("input-password", "Password Required", "", "");
         Vec::new()
     } else {
@@ -4776,7 +4776,7 @@ fn try_get_password_from_personal_ab(lc: Arc<RwLock<LoginConfigHandler>>, passwo
                 if let Ok(hash_password) = base64::decode(p.hash.clone(), base64::Variant::Original)
                 {
                     if !hash_password.is_empty() {
-                        *password = hash_password.clone();
+                        * password = hash_password.clone();
                         lc.write().unwrap().password_source =
                             PasswordSource::PersonalAb(hash_password);
                     }
@@ -4786,15 +4786,15 @@ fn try_get_password_from_personal_ab(lc: Arc<RwLock<LoginConfigHandler>>, passwo
     }
 }
 
-/// Send login message to peer.
+/// 向对端发送登录消息。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `lc` - Login config.
-/// * `os_username` - OS username.
-/// * `os_password` - OS password.
-/// * `password` - Password.
-/// * `peer` - [`Stream`] for communicating with peer.
+/// * `lc` - 登录配置。
+/// * `os_username` - 操作系统用户名。
+/// * `os_password` - 操作系统密码。
+/// * `password` - 密码。
+/// * `peer` - 用于与对端通信的 [`Stream`]。
 async fn send_login(
     lc: Arc<RwLock<LoginConfigHandler>>,
     os_username: String,
@@ -4809,16 +4809,16 @@ async fn send_login(
     allow_err!(peer.send(&msg_out).await);
 }
 
-/// Handle login request made from ui.
+/// 处理来自 ui 的登录请求。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `lc` - Login config.
-/// * `os_username` - OS username.
-/// * `os_password` - OS password.
-/// * `password` - Password.
-/// * `remember` - Whether to remember password.
-/// * `peer` - [`Stream`] for communicating with peer.
+/// * `lc` - 登录配置。
+/// * `os_username` - 操作系统用户名。
+/// * `os_password` - 操作系统密码。
+/// * `password` - 密码。
+/// * `remember` - 是否记住密码。
+/// * `peer` - 用于与对端通信的 [`Stream`]。
 pub async fn handle_login_from_ui(
     lc: Arc<RwLock<LoginConfigHandler>>,
     os_username: String,
@@ -4874,10 +4874,10 @@ async fn send_switch_login_request(
     allow_err!(peer.send(&msg_out).await);
 }
 
-/// Interface for client to send data and commands.
+/// 客户端用来发送数据和命令的接口。
 #[async_trait]
 pub trait Interface: Send + Clone + 'static + Sized {
-    /// Send message data to remote peer.
+    /// 向远端对端发送消息数据。
     fn send(&self, data: Data);
     fn msgbox(&self, msgtype: &str, title: &str, text: &str, link: &str);
     fn handle_login_error(&self, err: &str) -> bool;
@@ -4941,22 +4941,22 @@ pub trait Interface: Send + Clone + 'static + Sized {
         };
         if is_restarting {
             log::info!("Restart remote device, suppress connection error: {err}");
-            // Flutter treats this as a reconnect control event. The text is kept
-            // for legacy UI and existing translation reuse.
+            // flutter 把它当作一个重连控制事件。这里保留该文本
+            // 是为了兼容旧版 UI 以及复用已有的翻译。
             self.msgbox("restarting", "Restarting remote device", "Connection in progress. Please wait.", "");
             return;
         }
 
         let mut relay_hint = false;
         let mut relay_hint_type = "relay-hint";
-        // force relay
+        // 强制中继
         let errno = errno::errno().0;
         log::error!("Connection closed: {err}({errno})");
         if direct == Some(true)
             && ((cfg!(windows) && (errno == 10054 || err.contains("10054")))
                 || (!cfg!(windows) && (errno == 104 || err.contains("104")))
                 || (!err.contains("Failed") && err.contains("deadline")))
-        // deadline: https://github.com/rustdesk/rustdesk-server-pro/discussions/325, most likely comes from secure tcp timeout
+        // 截止时间：https://github.com/rustdesk/rustdesk-server-pro/discussions/325，多半来自安全 TCP 超时
         {
             relay_hint = true;
             if !received {
@@ -4973,7 +4973,7 @@ pub trait Interface: Send + Clone + 'static + Sized {
     }
 }
 
-/// Data used by the client interface.
+/// 客户端接口使用的数据。
 #[derive(Clone)]
 pub enum Data {
     Close,
@@ -5030,7 +5030,7 @@ pub async fn confirm_insecure_connection(
     false
 }
 
-/// Keycode for key events.
+/// 按键事件的键码。
 #[derive(Clone, Debug)]
 pub enum Key {
     ControlKey(ControlKey),
@@ -5162,13 +5162,13 @@ lazy_static::lazy_static! {
     ].iter().cloned().collect();
 }
 
-/// Check if the given message is an error and can be retried.
+/// 检查给定消息是否是可重试的错误。
 ///
-/// # Arguments
+/// # 参数
 ///
-/// * `msgtype` - The message type.
-/// * `title` - The title of the message.
-/// * `text` - The text of the message.
+/// * `msgtype` - 消息类型。
+/// * `title` - 消息标题。
+/// * `text` - 消息正文。
 #[inline]
 pub fn check_if_retry(msgtype: &str, title: &str, text: &str, retry_for_relay: bool) -> bool {
     msgtype == "error"
@@ -5342,14 +5342,14 @@ pub mod peer_online {
             }
         };
         // TODO: Use long connections to avoid socket creation
-        // If we use a Arc<Mutex<Option<FramedStream>>> to hold and reuse the previous socket,
-        // we may face the following error:
-        // An established connection was aborted by the software in your host machine. (os error 10053)
+        // 如果我们用 Arc<Mutex<Option<FramedStream>>> 持有并复用上一个套接字，
+        // 可能会遇到下面这个错误：
+        // 已建立的连接被主机上的软件中止。（os error 10053）
         if let Err(e) = socket.send(&msg_out).await {
             log::debug!("Failed to send peers online states query, {e}");
             return Ok((vec![], ids.clone()));
         }
-        // Retry for 2 times to get the online response
+        // 重试 2 次以获取在线响应
         for _ in 0..2 {
             if let Some(msg_in) =
                 crate::get_next_nonkeyexchange_msg(&mut socket, Some(timeout.as_millis() as _))
@@ -5358,8 +5358,8 @@ pub mod peer_online {
                 match msg_in.union {
                     Some(rendezvous_message::Union::OnlineResponse(online_response)) => {
                         let states = online_response.states;
-                        // One bit per ID, rounded up to whole bytes:
-                        // 0 IDs -> 0 bytes; 1..=8 -> 1; 9..=16 -> 2; 17..=24 -> 3.
+                        // 每个 ID 一位，向上取整到整字节：
+                        // 0 个 ID -> 0 字节；1..=8 -> 1；9..=16 -> 2；17..=24 -> 3。
                         let required_len = ids.len().div_ceil(u8::BITS as usize);
                         if states.len() < required_len {
                             bail!(
@@ -5370,7 +5370,7 @@ pub mod peer_online {
                         let mut onlines = Vec::new();
                         let mut offlines = Vec::new();
                         for i in 0..ids.len() {
-                            // bytes index from left to right
+                            // 字节索引从左到右
                             let bit_value = 0x01 << (7 - i % 8);
                             if (states[i / 8] & bit_value) == bit_value {
                                 onlines.push(ids[i].clone());
@@ -5381,7 +5381,7 @@ pub mod peer_online {
                         return Ok((onlines, offlines));
                     }
                     _ => {
-                        // ignore
+                        // 忽略
                     }
                 }
             } else {
@@ -5418,22 +5418,22 @@ async fn test_udp_uat(
     udp_port: Arc<Mutex<u16>>,
     mut stop_udp_rx: oneshot::Receiver<()>,
 ) -> ResultType<()> {
-    // The punch port must come only from the rendezvous server's TestNatResponse, which
-    // observes THIS socket's public mapping. A STUN probe binds a different socket and reports
-    // a different NAT mapping, so racing it here could advertise a port the peer can never
-    // reach (and, on symmetric NAT, silently poison the whole UDP punch).
+    // 打洞端口必须只来自 rendezvous 服务器的 TestNatResponse，它
+    // 观察的是这个套接字自己的公网映射。而 STUN 探测绑定的是另一个套接字，报告的
+    // 是另一个 NAT 映射，所以在这里与它竞速可能会公布一个对端永远
+    // 无法到达的端口（在对称 NAT 下还会悄无声息地毁掉整个 UDP 打洞）。
     let start = Instant::now();
     let mut msg_out = RendezvousMessage::new();
     msg_out.set_test_nat_request(TestNatRequest {
         ..Default::default()
     });
-    // Adaptive retry strategy that works within TCP RTT constraints
-    // Start with aggressive sending, then back off
+    // 在 TCP RTT 约束内可行的自适应重试策略
+    // 一开始积极发送，然后逐步退避
     let mut retry_interval = Duration::from_millis(20); // Start fast
     const MAX_INTERVAL: Duration = Duration::from_millis(200);
     let mut packets_sent = 0;
 
-    // Send initial burst to improve reliability
+    // 先发送一轮突发数据以提高可靠性
     let data = msg_out.write_to_bytes()?;
     for _ in 0..2 {
         if let Err(e) = udp_socket.send_to(&data, server_addr).await {
@@ -5452,18 +5452,18 @@ async fn test_udp_uat(
                 break;
             }
             _ = hbb_common::sleep(retry_interval.as_secs_f32()) => {
-                // Adaptive retry: send fewer packets as time goes on
+                // 自适应重试：随着时间推移发送更少的包
                 let elapsed = last_send_time.elapsed();
 
                 if elapsed >= retry_interval {
-                    // Send single packet (not double) to reduce network load
+                    // 发送单个包（而不是两个）以降低网络负载
                     if let Err(e) = udp_socket.send_to(&data, server_addr).await {
                         log::warn!("Failed to send UDP NAT test retry packet: {}", e);
                     } else {
                         packets_sent += 1;
                     }
 
-                    // Exponentially increase interval to reduce network pressure
+                    // 指数式拉长间隔以减轻网络压力
                     retry_interval = std::cmp::min(
                         Duration::from_millis((retry_interval.as_millis() as f64 * 1.5) as u64),
                         MAX_INTERVAL
@@ -5477,7 +5477,7 @@ async fn test_udp_uat(
                         match RendezvousMessage::parse_from_bytes(&buf[0..n]) {
                             Ok(msg_in) => {
                                 if let Some(rendezvous_message::Union::TestNatResponse(response)) = msg_in.union {
-                                    *udp_port.lock().unwrap() = response.port as u16;
+                                    * udp_port.lock().unwrap() = response.port as u16;
                                     break;
                                 }
                             }
@@ -5487,8 +5487,8 @@ async fn test_udp_uat(
                         }
                     }
                     Err(e) => {
-                        // Same ICMP-driven errors as punch_udp sees. Without a pause this arm
-                        // re-arms recv immediately and spins the loop at CPU speed.
+                        // 与 punch_udp 会遇到的同类 ICMP 触发的错误。没有这个暂停，本分支
+                        // 会立刻重新武装 recv，让循环以 CPU 速度空转。
                         if let Some(n) = UDP_UAT_ERR_LOG.due() {
                             log::warn!("UDP NAT test socket error x{n}, last: {e}");
                         }
@@ -5561,8 +5561,8 @@ mod webrtc_race_tests {
 
     const NOT_P2P: fn(&&'static str) -> bool = |_| false;
 
-    // A direct result must win even when it lands first — the LAN ordering, where ICE beats the
-    // relay's TCP connect. Parking it as if it were a relay commits the relay on arrival.
+    // 直连结果即使最先到达也必须胜出——局域网场景下 ICE 的建立比中继
+    // 的 TCP 连接更快。把它当作中继暂存，会在它到达时直接提交中继。
     #[tokio::test]
     async fn direct_result_wins_even_when_it_arrives_first() {
         let got = race_transports_prefer_webrtc(
@@ -5589,8 +5589,8 @@ mod webrtc_race_tests {
         assert_eq!(got, "webrtc");
     }
 
-    // The preferred branch runs a whole punch attempt, so it can itself end in a relay. That must
-    // not preempt a direct punch still in flight on the fallback branch.
+    // preferred 分支运行的是一次完整的打洞尝试，所以它自身也可能以中继收场。这
+    // 不能抢先于回退分支上仍在进行中的直连打洞。
     #[tokio::test]
     async fn relay_from_preferred_branch_does_not_preempt_a_direct_fallback() {
         let got = race_transports_prefer_webrtc(
@@ -5604,7 +5604,7 @@ mod webrtc_race_tests {
         assert_eq!(got, "direct");
     }
 
-    // ...but it is still committed once nothing direct can arrive.
+    // ……但一旦不可能再有直连到达，它仍然会被提交。
     #[tokio::test]
     async fn relay_from_preferred_branch_committed_when_fallback_fails() {
         let got = race_transports_prefer_webrtc(
@@ -5633,8 +5633,8 @@ mod webrtc_race_tests {
         assert!(start.elapsed() < Duration::from_secs(5));
     }
 
-    // WebRTC fails first (others still racing), then a relay arrives with a direct attempt still
-    // unfinished behind it. The relay must not be committed while that direct attempt can win.
+    // WebRTC 先失败（其他分支仍在竞速），随后中继到达，而此时仍有一个直连尝试
+    // 在它后面未完成。只要那个直连尝试还有可能胜出，就不能提交中继。
     #[tokio::test]
     async fn relay_does_not_preempt_unfinished_direct_after_webrtc_fails() {
         let got = race_transports_prefer_webrtc(
@@ -5719,8 +5719,8 @@ mod webrtc_race_tests {
         assert!(start.elapsed() < Duration::from_secs(5));
     }
 
-    // Both legs get the same rendezvous refusal; the UI needs the text verbatim, e.g. the
-    // offline auto-retry matches it whole. Either leg may fail last.
+    // 两个分支拿到的是同样的 rendezvous 拒绝信息；UI 需要原文，比如
+    // 离线自动重试是整段匹配的。任何一个分支都可能是最后失败的那个。
     #[tokio::test]
     async fn same_failure_on_both_legs_reported_once() {
         for (webrtc_ms, fallback_ms) in [(10, 20), (20, 10)] {
@@ -5747,8 +5747,8 @@ mod kx_tests {
 
     const PEER_ID: &str = "123456789";
 
-    /// What the stand-in controlled peer saw: the version the controller picked, and whether the
-    /// controller's first application message decrypted.
+    /// 替身被控端看到的内容：控制端选择的版本，以及控制端发出的
+    /// 第一条应用消息是否解密成功。
     struct Seen {
         picked: u32,
         decrypted: bool,
@@ -5770,10 +5770,10 @@ mod kx_tests {
         }
     }
 
-    /// A stand-in controlled peer on loopback. It advertises `advertised` in its signed identity
-    /// and runs the key under `run`, or under the version the controller picked when `run` is
-    /// `None`, then sends one message and reads one. Returns the host, its identity as the
-    /// rendezvous server would sign it, and what it saw.
+    /// 一个运行在回环地址上的替身被控端。它在签名的身份中公布 `advertised`
+    /// 并以 `run` 运行该密钥；当 `run` 为
+    /// `None` 时则使用控制端所选的版本，然后发送一条消息并读取一条。返回主机、它按
+    /// rendezvous 服务器的方式签署后的身份，以及它看到的内容。
     async fn controlled_stub(
         advertised: u32,
         run: Option<u32>,
@@ -5836,8 +5836,8 @@ mod kx_tests {
         (host, signed_id_pk, rx)
     }
 
-    /// The controller's handshake against the stub, then one application message each way.
-    /// Returns what the stub saw and whether the stub's message decrypted on this side.
+    /// 控制端与这个桩的握手，然后双向各一条应用消息。
+    /// 返回桩看到的内容，以及桩的消息在这一侧是否解密成功。
     async fn handshake(advertised: u32, run: Option<u32>) -> (Seen, bool) {
         let (rs_pk, rs_sk) = sign::gen_keypair();
         let (host, signed_id_pk, seen) = controlled_stub(advertised, run, rs_sk).await;
@@ -5868,8 +5868,8 @@ mod kx_tests {
 
     #[tokio::test]
     async fn test_a_pick_lowered_in_transit_decrypts_nothing() {
-        // The controlled side takes 0 from a controller without versions, so a lowered pick is
-        // caught by the keys disagreeing on the first application message, not before.
+        // 没有版本信息的控制端在受控端那里会被当作 0，因此一个被降低的选择
+        // 要靠双方密钥在第一条应用消息上不一致才能发现，而不是更早。
         let (seen, decrypted) = handshake(KX_VERSION_LATEST, Some(0)).await;
         assert_eq!(seen.picked, 1);
         assert!(!seen.decrypted && !decrypted);

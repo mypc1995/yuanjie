@@ -1,21 +1,21 @@
 // flutter/lib/desktop/pages/desktop_keyboard_shortcuts_page.dart
 //
-// Desktop shell for the Keyboard Shortcuts configuration page. Users land
-// here from the General settings tab. The page exposes:
-//   * A top-level enable/disable toggle (mirrors the General-tab toggle —
-//     same JSON key, same semantics).
-//   * A grouped, scrollable list of actions, each with a current binding and
-//     edit / clear icons.
-//   * An AppBar "Reset to defaults" action with a confirmation dialog.
+// 键盘快捷键配置页面的桌面端外壳。用户从
+// General 设置选项卡进入本页。本页提供：
+//   * 一个顶层的启用/禁用开关（与 General 选项卡中的开关一致——
+//     同一个 JSON key，语义相同）。
+//   * 一个分组的、可滚动的操作列表，每项包含当前绑定以及
+//     编辑 / 清除图标。
+//   * 一个 AppBar "恢复默认" 操作，带确认对话框。
 //
-// All edits write back to LocalConfig under [kShortcutLocalConfigKey] in the
-// canonical {enabled, bindings:[{action,mods,key}]} shape that the Rust and
-// Web matchers consume.
+// 所有修改都会在 [kShortcutLocalConfigKey] 下写回 LocalConfig，采用
+// 规范的 {enabled, bindings:[{action,mods,key}]} 结构，供 Rust 与
+// Web matcher 使用。
 //
-// The body — group definitions, JSON I/O, conflict-replace flow,
-// recording-dialog round-trip — lives in
-// `common/widgets/keyboard_shortcuts/page_body.dart` and is shared with the
-// mobile shell at `mobile/pages/mobile_keyboard_shortcuts_page.dart`.
+// 主体——分组定义、JSON 读写、冲突替换流程、
+// 录制对话框的来回流程——位于
+// `common/widgets/keyboard_shortcuts/page_body.dart`，并与
+// `mobile/pages/mobile_keyboard_shortcuts_page.dart` 的移动端外壳共享。
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -55,10 +55,10 @@ class _DesktopKeyboardShortcutsPageState
       body: KeyboardShortcutsPageBody(
         key: _bodyKey,
         compact: true,
-        // Desktop's General settings tab already exposes the Enable +
-        // Pass-through checkboxes (it's the only entry point to this page),
-        // so we hide the duplicates here. Mobile shells keep the default
-        // (true) because their entry tile doesn't carry the toggles.
+        // 桌面端的 General 设置选项卡已经提供了 Enable +
+        // Pass-through 复选框（它是进入本页的唯一入口），
+        // 因此这里隐藏重复项。移动端外壳保持默认值
+        // （true），因为它们的入口磁贴不包含这些开关。
         showMasterToggles: false,
       ),
     );

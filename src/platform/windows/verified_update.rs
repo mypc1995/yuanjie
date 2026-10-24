@@ -44,7 +44,7 @@ pub fn update_to_verified(file: &str, expected_sha256: &str, expected_size: u64)
             return Err(err);
         }
     } else {
-        // Clean up any residual staging directory from previous custom client.
+        // 清理上一个自定义客户端遗留的暂存目录。
         allow_err!(remove_custom_client_staging_dir(&custom_client_staging_dir));
     }
 
@@ -99,8 +99,8 @@ fn verified_msi_install_commands(msi: &Path, quiet: bool) -> ResultType<String> 
         ERROR_SUCCESS, ERROR_SUCCESS_REBOOT_INITIATED, ERROR_SUCCESS_REBOOT_REQUIRED,
     };
 
-    // The input is already verified and protected, including its parent path.
-    // Execute the copy from the protected runner to exclude adjacent untrusted files.
+    // 输入文件（包括其父路径）已经过验证并受到保护。
+    // 从受保护的运行器执行复制，以排除相邻的不可信文件。
     let source = path_for_cmd_environment(msi)?;
     let quiet_args = if quiet { " /qn LAUNCH_TRAY_APP=N" } else { "" };
     let app_name = crate::get_app_name();
@@ -174,7 +174,7 @@ pub fn schedule_current_verified_update_file_cleanup() -> ResultType<()> {
 }
 
 fn should_schedule_verified_update_cleanup(path: &Path) -> bool {
-    // UAC may run under another account whose TEMP directory differs from the caller's.
+    // UAC 可能在另一个账户下运行，其 TEMP 目录与调用方的不同。
     path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| name.starts_with(VERIFIED_UPDATE_FILE_PREFIX) && name.ends_with(".exe"))

@@ -26,7 +26,7 @@ struct WindowState {
     window: Arc<Window>,
     logical_size: LogicalSize<f64>,
     outer_position: PhysicalPosition<i32>,
-    // A simple workaround to the (logical) cursor position.
+    // 针对（逻辑）光标位置的一个简单变通办法。
     display_origin: (f64, f64),
 }
 
@@ -68,10 +68,10 @@ fn create_windows(event_loop: &EventLoop<(String, CustomEvent)>) -> ResultType<V
         .into_iter()
         .map(|display| (display.name(), display.origin()))
         .collect();
-    // We can't use `crate::server::display_service::try_get_displays()` here.
-    // Because the `display` returned by `crate::server::display_service::try_get_displays()`:
-    // 1. `display.origin()` is the logic position.
-    // 2. `display.width()` and `display.height()` are the physical size.
+    // 这里不能使用 `crate::server::display_service::try_get_displays()`。
+    // 因为 `crate::server::display_service::try_get_displays()` 返回的 `display`：
+    // 1. `display.origin()` 是逻辑位置。
+    // 2. `display.width()` 和 `display.height()` 是物理尺寸。
     for monitor in event_loop.available_monitors() {
         let Some(origin) = map_display_origins.get(&monitor.native_id().to_string()) else {
             // unreachable!
@@ -236,7 +236,7 @@ pub(super) fn create_event_loop() -> ResultType<()> {
     let mut map_cursor_text: HashMap<(String, u32), CoreGraphicsTextLayout> = HashMap::new();
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
+        * control_flow = ControlFlow::Poll;
 
         match event {
             Event::NewEvents(StartCause::Init) => {
@@ -248,7 +248,7 @@ pub(super) fn create_event_loop() -> ResultType<()> {
             }
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
-                    *control_flow = ControlFlow::Exit;
+                    * control_flow = ControlFlow::Exit;
                 }
                 _ => {}
             },
@@ -313,7 +313,7 @@ pub(super) fn create_event_loop() -> ResultType<()> {
                     }
                 }
                 CustomEvent::Exit => {
-                    *control_flow = ControlFlow::Exit;
+                    * control_flow = ControlFlow::Exit;
                 }
                 _ => {}
             },

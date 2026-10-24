@@ -135,7 +135,7 @@ class ServerModel with ChangeNotifier {
     _serverId = IDTextEditingController(text: _emptyIdShow);
 
     /*
-    // initital _hideCm at startup
+    // 启动时初始化 _hideCm
     final verificationMethod =
         bind.mainGetOptionSync(key: kOptionVerificationMethod);
     final approveMode = bind.mainGetOptionSync(key: kOptionApproveMode);
@@ -165,7 +165,7 @@ class ServerModel with ChangeNotifier {
           if (_clients.isEmpty) {
             hideCmWindow();
             if (_zeroClientLengthCounter++ == 12) {
-              // 6 second
+              // 6 秒
               windowManager.close();
             }
           } else {
@@ -189,16 +189,16 @@ class ServerModel with ChangeNotifier {
       });
     }
 
-    // Initial keyboard status is off on mobile
+    // 移动端初始键盘状态为关闭
     if (isMobile) {
       bind.mainSetOption(key: kOptionEnableKeyboard, value: 'N');
     }
   }
 
-  /// 1. check android permission
-  /// 2. check config
-  /// audio true by default (if permission on) (false default < Android 10)
-  /// file true by default (if permission on)
+  /// 1. 检查 Android 权限
+  /// 2. 检查配置
+  /// audio 默认开启（需已授予权限）（Android 10 以下默认关闭）
+  /// file 默认开启（需已授予权限）
   checkAndroidPermission() async {
     // audio
     if (androidVersion < 30 ||
@@ -210,8 +210,8 @@ class ServerModel with ChangeNotifier {
       _audioOk = audioOption != 'N';
     }
 
-    // Android file transfer is confined to app-specific storage. Files enter
-    // and leave the workspace through Android's system document picker.
+    // Android 的文件传输限定在应用专属存储中。文件通过 Android 的系统文档选择器进入
+    // 并离开该工作区。
     final fileOption = await bind.mainGetOption(key: kOptionEnableFileTransfer);
     _fileOk = fileOption != 'N';
 
@@ -338,8 +338,8 @@ class ServerModel with ChangeNotifier {
       bind.mainSetOption(key: kOptionEnableKeyboard, value: 'N');
     } else {
       if (parent.target != null) {
-        /// the result of toggle-on depends on user actions in the settings page.
-        /// handle result, see [ServerModel.changeStatue]
+        /// 开启的结果取决于用户在设置页面的操作。
+        /// 处理结果，参见 [ServerModel.changeStatue]
         showInputWarnAlert(parent.target!);
       }
     }
@@ -373,7 +373,7 @@ class ServerModel with ChangeNotifier {
     return res;
   }
 
-  /// Toggle the screen sharing service.
+  /// 切换屏幕共享服务。
   toggleService() async {
     if (_isStart) {
       final res = await parent.target?.dialogManager
@@ -428,13 +428,13 @@ class ServerModel with ChangeNotifier {
     }
   }
 
-  /// Start the screen sharing service.
+  /// 启动屏幕共享服务。
   Future<void> startService() async {
     _isStart = true;
     notifyListeners();
     parent.target?.ffiModel.updateEventListener(parent.target!.sessionId, "");
     await parent.target?.invokeMethod("init_service");
-    // ugly is here, because for desktop, below is useless
+    // 这里比较丑陋，因为对桌面端来说下面的逻辑没用
     await bind.mainStartService();
     updateClientState();
     if (isAndroid) {
@@ -442,14 +442,14 @@ class ServerModel with ChangeNotifier {
     }
   }
 
-  /// Stop the screen sharing service.
+  /// 停止屏幕共享服务。
   Future<void> stopService() async {
     _isStart = false;
     closeAll();
     await parent.target?.invokeMethod("stop_service");
     await bind.mainStopService();
     notifyListeners();
-    // for androidUpdatekeepScreenOn only
+    // 仅用于 androidUpdatekeepScreenOn
     WakelockManager.disable(_wakelockKey);
   }
 
@@ -549,7 +549,7 @@ class ServerModel with ChangeNotifier {
         _clients.add(client);
       }
       _addTab(client);
-      // remove disconnected
+      // 移除已断开的连接
       final index_disconnected = _clients
           .indexWhere((c) => c.disconnected && c.peerId == client.peerId);
       if (index_disconnected >= 0) {
@@ -578,7 +578,7 @@ class ServerModel with ChangeNotifier {
     Future.delayed(Duration.zero, () async {
       if (!hideCm) windowOnTop(null);
     });
-    // Only do the hidden task when on Desktop.
+    // 仅在桌面端执行隐藏任务。
     if (client.authorized && isDesktop) {
       cmHiddenTimer = Timer(const Duration(seconds: 3), () {
         if (!hideCm) windowManager.minimize();
@@ -720,9 +720,9 @@ class ServerModel with ChangeNotifier {
     }
   }
 
-  /// `byOperator` false means the CM's window went away rather than a person asking for the
-  /// peers to go. The sessions end either way; only the close reason differs, and with it
-  /// whether the peer is allowed to reconnect. See `ipc::Data::CmWindowClosed`.
+  /// `byOperator` 为 false 表示 CM 的窗口消失了，而不是有人要求
+  /// 对端离开。无论哪种情况会话都会结束；区别仅在于关闭原因，并随之影响
+  /// 对端是否允许重连。参见 `ipc::Data::CmWindowClosed`。
   Future<void> closeAll({bool byOperator = true}) async {
     await Future.wait(_clients.map((client) => byOperator
         ? bind.cmCloseConnection(connId: client.id)
@@ -755,7 +755,7 @@ class ServerModel with ChangeNotifier {
           if (isAndroid) {
             showVoiceCallDialog(client);
           } else {
-            // Has incoming phone call, let's set the window on top.
+            // 有来电，把窗口置顶。
             Future.delayed(Duration.zero, () {
               windowOnTop(null);
             });

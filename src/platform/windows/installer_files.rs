@@ -24,8 +24,8 @@ use windows::{
     },
 };
 
-// Stage data before elevation instead of relaunching a verifier from a portable
-// directory whose executable or DLLs could be replaced while UAC is pending.
+// 在提权之前暂存数据，而不是从便携
+// 目录重新启动验证程序——在 UAC 挂起期间，其可执行文件或 DLL 可能被替换。
 pub(super) struct ProtectedInstallFile {
     path: PathBuf,
     cleanup_handle: Option<Owned<HANDLE>>,
@@ -62,7 +62,7 @@ impl ProtectedInstallFile {
             duplicate_cleanup_handle(&file)
         })();
         let cleanup_handle = result.map_err(|error| {
-            // The initial handle can remove an incomplete file without reopening its protected path.
+            // 初始句柄可以在不重新打开其受保护路径的情况下删除不完整的文件。
             if let Err(cleanup_error) = delete_staged_file(HANDLE(file.as_raw_handle())) {
                 log::warn!(
                     "Failed to remove incomplete installer file {}: {cleanup_error}",
@@ -82,15 +82,15 @@ impl ProtectedInstallFile {
     }
 
     pub(super) fn release(&mut self) {
-        // cmd.exe cannot read/copy these files while a DELETE handle is open.
-        // The handoff gate keeps it waiting until every staged handle is closed.
+        // 在 DELETE 句柄打开期间，cmd.exe 无法读取/复制这些文件。
+        // 交接门控会让它一直等待，直到所有暂存句柄都关闭。
         drop(self.cleanup_handle.take());
     }
 }
 
 impl Drop for ProtectedInstallFile {
     fn drop(&mut self) {
-        // Cancellation cannot reopen the protected path with DELETE permission.
+        // 取消操作无法以 DELETE 权限重新打开受保护的路径。
         let result = match &self.cleanup_handle {
             Some(handle) => delete_staged_file(**handle),
             None => match fs::remove_file(&self.path) {
@@ -109,8 +109,8 @@ impl Drop for ProtectedInstallFile {
 
 fn create_protected_file(path: &Path) -> ResultType<File> {
     let mut descriptor = PSECURITY_DESCRIPTOR::default();
-    // Restrict OWNER RIGHTS at creation so the unelevated creator cannot reopen
-    // the file for writing or grant itself that permission after staging.
+    // 在创建时限制 OWNER RIGHTS，使未提权的创建者无法重新打开
+    // 该文件进行写入，也无法在暂存后给自己授予该权限。
     unsafe {
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
             w!("D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FRFX;;;OW)"),
@@ -151,7 +151,7 @@ fn create_protected_file(path: &Path) -> ResultType<File> {
 
 fn duplicate_cleanup_handle(file: &File) -> ResultType<Owned<HANDLE>> {
     let mut handle = HANDLE::default();
-    // Retain deletion capability, not a writable handle, while waiting for UAC.
+    // 等待 UAC 时保留删除能力，而不是可写句柄。
     unsafe {
         let process = GetCurrentProcess();
         DuplicateHandle(
@@ -212,7 +212,7 @@ mod tests {
         fs::create_dir(&root).unwrap();
         let path = root.join("package.tmp");
         let file = ProtectedInstallFile::new(&path, b"cancelled update").unwrap();
-        // Omit DELETE_CHILD as in Windows Temp, but retain fixture ACL control.
+        // 像 Windows Temp 那样省略 DELETE_CHILD，但保留对 ACL 的控制。
         set_parent_acl(&root, w!("D:P(A;;0x1600af;;;OW)"));
         unsafe {
             let token = ordinary_owner_token();
@@ -310,7 +310,7 @@ mod tests {
         unsafe {
             AccessCheck(
                 descriptor,
-                *token,
+                * token,
                 winapi::um::winnt::MAXIMUM_ALLOWED,
                 &mapping,
                 Some(&mut privileges),
@@ -354,7 +354,7 @@ mod tests {
         let mut restricted = HANDLE::default();
         unsafe {
             CreateRestrictedToken(
-                *original,
+                * original,
                 DISABLE_MAX_PRIVILEGE,
                 Some(&disabled),
                 None,

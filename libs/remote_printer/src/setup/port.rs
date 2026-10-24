@@ -24,10 +24,10 @@ fn enum_printer_port(
 ) -> BOOL {
     unsafe {
         // https://learn.microsoft.com/en-us/windows/win32/printdocs/enumports
-        // This is a blocking or synchronous function and might not return immediately.
-        // How quickly this function returns depends on run-time factors
-        // such as network status, print server configuration, and printer driver implementation factors that are difficult to predict when writing an application.
-        // Calling this function from a thread that manages interaction with the user interface could make the application appear to be unresponsive.
+        // 这是一个阻塞或同步函数，可能不会立即返回。
+        // 该函数返回的快慢取决于运行时的各种因素，
+        // 例如网络状态、打印服务器配置，以及编写应用程序时难以预测的打印机驱动实现方面的因素。
+        // 在管理用户界面交互的线程中调用此函数，可能会让应用程序看起来没有响应。
         EnumPortsW(
             null_mut(),
             level,

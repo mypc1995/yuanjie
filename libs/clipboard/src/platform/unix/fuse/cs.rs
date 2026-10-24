@@ -1,22 +1,22 @@
-//! fuse server implement
-//! we use fuse to provide file readers, warping data transfer to file interfaces
+//! fuse 服务端实现
+//! 我们使用 fuse 提供文件读取器，把数据传输转接到文件接口上
 //!
-//! # Name encoding
+//! # 名称编码
 //!
-//! There are different collection of characters forbidden in file names on different platforms:
+//! 不同平台对文件名中禁止使用的字符集合各不相同：
 //! - windows: `\/:*?"<>|`
 //! - macos: `:/`
 //! - linux: `/`
 //!
-//! what makes it troublesome is windows also used '\' as path separator.
+//! 麻烦之处在于 Windows 还把 '\' 用作路径分隔符。
 //!
-//! For now, we transfer all file names with windows separators, UTF-16 encoded.
-//! *Need a way to transfer file names with '\' safely*.
-//! Maybe we can use URL encoded file names and '/' separators as a new standard, while keep the support to old schemes.
+//! 目前我们传输的所有文件名都使用 Windows 分隔符，并以 UTF-16 编码。
+//! *需要一种能安全传输含 '\' 文件名的方式*。
+//! 或许我们可以采用 URL 编码的文件名和 '/' 分隔符作为新标准，同时保留对旧方案的兼容。
 //!
-//! # Note
-//! - all files on FS should be read only, and mark the owner to be the current user
-//! - any write operations, hard links, and symbolic links on the FS should be denied
+//! # 注意
+//! - FS 上的所有文件都应为只读，并把属主标记为当前用户
+//! - FS 上的任何写操作、硬链接和符号链接都应被拒绝
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -42,7 +42,7 @@ use crate::{
     send_data, ClipboardFile, CliprdrError,
 };
 
-/// fuse server ready retry max times
+/// fuse 服务端就绪，最多重试若干次
 const READ_RETRY: i32 = 3;
 
 impl From<FileType> for fuser::FileType {
@@ -55,8 +55,8 @@ impl From<FileType> for fuser::FileType {
     }
 }
 
-/// fuse client
-/// this is a proxy to the fuse server
+/// fuse 客户端
+/// 这是到 fuse 服务端的代理
 #[derive(Debug)]
 pub struct FuseClient {
     server: Arc<Mutex<FuseServer>>,
@@ -163,22 +163,22 @@ impl fuser::Filesystem for FuseClient {
     }
 }
 
-/// fuse server
-/// provides a read-only file system
+/// fuse 服务端
+/// 提供一个只读文件系统
 #[derive(Debug)]
 pub(crate) struct FuseServer {
     generation: AtomicU64,
     files: Vec<FuseNode>,
-    // file handle counter
+    // 文件句柄计数器
     file_handle_counter: AtomicU64,
-    // timeout
+    // 超时
     timeout: Duration,
-    // file read reply channel
+    // 文件读取应答通道
     rx: Receiver<ClipboardFile>,
 }
 
 impl FuseServer {
-    /// create a new fuse server
+    /// 创建一个新的 fuse 服务端
     pub fn new(timeout: Duration) -> (Self, Sender<ClipboardFile>) {
         let (tx, rx) = std::sync::mpsc::channel();
         (
@@ -214,7 +214,7 @@ impl fuser::Filesystem for FuseServer {
         _config: &mut fuser::KernelConfig,
     ) -> Result<(), libc::c_int> {
         if self.files.is_empty() {
-            // create a root file
+            // 创建一个根文件
             let root = FuseNode::new_root();
             self.files.push(root);
         }
@@ -266,7 +266,7 @@ impl fuser::Filesystem for FuseServer {
                 return;
             }
         }
-        // error
+        // 错误
         reply.error(libc::ENOENT);
         log::debug!("fuse: child not found");
     }
@@ -289,7 +289,7 @@ impl fuser::Filesystem for FuseServer {
             log::error!("fuse: opendir: entry is not a directory");
             return;
         }
-        // in gc, deny open
+        // 在 gc 中拒绝 open
         if entry.marked() {
             log::error!("fuse: opendir: entry is in gc");
             reply.error(libc::EBUSY);
@@ -390,14 +390,14 @@ impl fuser::Filesystem for FuseServer {
             return;
         };
 
-        // todo: support link file
+        // 待办：支持链接文件
         if entry.attributes.kind != FileType::File {
             reply.error(libc::ENFILE);
             log::error!("fuse: open: entry is not a file");
             return;
         }
 
-        // check gc
+        // 检查 gc
         if entry.marked() {
             reply.error(libc::EBUSY);
             log::error!("fuse: open: entry is in gc");
@@ -409,7 +409,7 @@ impl fuser::Filesystem for FuseServer {
         reply.opened(fh, 0);
     }
 
-    // todo: implement retry
+    // 待办：实现重试
     fn read(
         &mut self,
         _req: &fuser::Request<'_>,
@@ -510,7 +510,7 @@ impl fuser::Filesystem for FuseServer {
 }
 
 impl FuseServer {
-    // get files and directory path right in root of FUSE fs
+    // 在 FUSE 文件系统的根中正确获取文件和目录路径
     pub fn list_root(&self) -> Vec<PathBuf> {
         let files = &self.files;
         let children = &files[0].children;
@@ -522,7 +522,7 @@ impl FuseServer {
         paths
     }
 
-    /// allocate a new file descriptor
+    /// 分配一个新的文件描述符
     fn alloc_fd(&self) -> u64 {
         self.file_handle_counter.fetch_add(1, Ordering::Relaxed)
     }
@@ -535,8 +535,8 @@ impl FuseServer {
     ) -> Result<Vec<u8>, std::io::Error> {
         let request_stream_id = rand::random();
         let cb_requested = unsafe {
-            // convert `size` from u32 to i32
-            // yet with same bit representation
+            // 把 `size` 从 u32 转换为 i32
+            // 但保持相同的位表示
             std::mem::transmute::<u32, i32>(size)
         };
 
@@ -560,7 +560,7 @@ impl FuseServer {
 
         let mut retry_times = 0;
 
-        // to-do: more tests needed
+        // 待办：需要更多测试
         loop {
             let reply = self.rx.recv_timeout(self.timeout).map_err(|e| {
                 log::error!("failed to receive file list from channel: {:?}", e);
@@ -605,31 +605,31 @@ impl FuseServer {
         }
     }
 }
-/// a node in the FUSE file tree
+/// FUSE 文件树中的一个节点
 #[derive(Debug)]
 struct FuseNode {
-    /// connection id
+    /// 连接 id
     pub conn_id: i32,
 
-    /// id of the peer's file list this node came from
+    /// 该节点所属的对端文件列表 id
     pub clip_data_id: i32,
 
-    /// file index in peer's file list
+    /// 在对端文件列表中的文件索引
     /// NOTE:
-    /// it is NOT the same as inode, this is the index in the file list
+    /// 它与 inode 不同，这是文件列表中的索引
     pub index: usize,
 
-    /// parent inode
+    /// 父 inode
     pub parent: Option<u64>,
 
-    /// file name
+    /// 文件名
     pub name: String,
-    /// file attributes
+    /// 文件属性
     pub attributes: InodeAttributes,
-    /// children inodes
+    /// 子节点 inode
     pub children: Vec<Inode>,
 
-    /// marked gc
+    /// 已标记 gc
     pub file_handlers: FileHandles,
 }
 
@@ -685,23 +685,23 @@ impl FuseNode {
         self.file_handlers.have_handler(fh)
     }
 
-    /// add a child inode
+    /// 添加一个子 inode
     fn add_child(&mut self, inode: Inode) {
         self.children.push(inode);
     }
 
-    /// calculate the file tree from a pre-ordered file list
-    /// ## implement detail:
-    /// - a new root entry will be prepended to the list
-    /// - all file names will be trimed to the last component
+    /// 根据先序排列的文件列表计算文件树
+    /// ## 实现细节：
+    /// - 列表前面会插入一个新的根条目
+    /// - 所有文件名都会被裁剪到最后一个路径分量
     pub fn build_tree(files: Vec<FileDescription>) -> Result<Vec<Self>, CliprdrError> {
-        // capacity set to file count + 1 (root)
+        // 容量设为文件数 + 1（根）
         let mut tree_list = Vec::with_capacity(files.len() + 1);
         let root = Self::new_root();
         tree_list.push(root);
 
-        // build the tree first
-        // root map, name -> inode
+        // 先构建树
+        // 根映射，name -> inode
         let mut sub_root_map = HashMap::new();
         sub_root_map.insert(Path::new("/").to_path_buf(), FUSE_ROOT_ID);
         sub_root_map.insert(Path::new("").to_path_buf(), FUSE_ROOT_ID);
@@ -713,7 +713,7 @@ impl FuseNode {
             let parent_inode = match name.parent() {
                 Some(parent) => sub_root_map.get(parent).copied().unwrap_or(FUSE_ROOT_ID),
                 None => {
-                    // parent should be root
+                    // 父节点应为根
                     FUSE_ROOT_ID
                 }
             };
@@ -750,8 +750,8 @@ impl FuseNode {
 pub struct InodeAttributes {
     inode: Inode,
     size: u64,
-    // file reference meta
-    // should be the only mutable field in this struct
+    // 文件引用元数据
+    // 应当是该结构体中唯一可变的字段
     last_accessed: std::time::SystemTime,
     last_modified: std::time::SystemTime,
     last_metadata_changed: std::time::SystemTime,
@@ -759,7 +759,7 @@ pub struct InodeAttributes {
     kind: FileType,
     perm: u16,
 
-    // not implemented
+    // 未实现
     _xattrs: BTreeMap<Vec<u8>, Vec<u8>>,
 }
 
@@ -819,17 +819,17 @@ impl From<&InodeAttributes> for fuser::FileAttr {
             crtime: value.creation_time,
             kind: value.kind.into(),
 
-            // read only
+            // 只读
             perm: value.perm,
 
             nlink: 1,
-            // set to current user
+            // 设为当前用户
             uid: unsafe { libc::getuid() },
-            // set to current user
+            // 设为当前用户
             gid: unsafe { libc::getgid() },
             rdev: 0,
             blksize: BLOCK_SIZE,
-            // todo: support macos flags
+            // 待办：支持 macos 标志位
             flags: 0,
         }
     }
@@ -846,11 +846,11 @@ impl FileHandles {
     pub fn new() -> Self {
         Self {
             waiter: Condvar::new(),
-            // the vector in handlers is sorted, from small to big
-            // prove:
-            // - later allocated handler will be bigger than previous ones
-            // - new handlers will append to the end of the vector
-            // - dropping old handlers won't affect the ordering
+            // handlers 中的 vector 已按从小到大排序
+            // 证明：
+            // - 后分配的 handler 会比之前的更大
+            // - 新的 handler 会追加到 vector 末尾
+            // - 丢弃旧的 handler 不会影响排序
             handlers: Mutex::new(Vec::new()),
             gc: AtomicBool::new(false),
         }
@@ -890,7 +890,7 @@ impl FileHandles {
 mod fuse_test {
     use super::*;
 
-    // todo: more tests needed!
+    // 待办：需要更多测试！
     fn desc_gen(name: &str, kind: FileType) -> FileDescription {
         FileDescription {
             conn_id: 0,

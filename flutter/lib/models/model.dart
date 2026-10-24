@@ -53,14 +53,14 @@ import 'package:flutter_hbb/native/custom_cursor.dart'
 typedef HandleMsgBox = Function(Map<String, dynamic> evt, String id);
 typedef ReconnectHandle = Function(OverlayDialogManager, SessionID, bool);
 final _constSessionId = Uuid().v4obj();
-// Empirical restart reconnect cadence: keep the last frame briefly and retry quickly.
+// 经验性的重启重连节奏：短暂保留最后一帧并快速重试。
 const _restartReconnectSilentDelaySecs = 5;
 
 class CachedPeerData {
   Map<String, dynamic> updatePrivacyMode = {};
   Map<String, dynamic> peerInfo = {};
-  // No shapes: the core keeps them for the session, and the window a tab moves to asks it
-  // for the one in use.
+  // 没有形状：核心会为该会话保存它们，而标签页移动到的窗口会向它请求
+  // 正在使用的那一个。
   Map<String, dynamic> lastCursorId = {};
   Map<String, bool> permissions = {};
 
@@ -218,20 +218,20 @@ class FfiModel with ChangeNotifier {
   }
 
   updatePermission(Map<String, dynamic> evt, String id) {
-    // Track previous keyboard permission to detect revocation.
+    // 跟踪上一次的键盘权限，以检测权限被撤销。
     final hadKeyboardPerm = _permissions['keyboard'] != false;
 
     evt.forEach((k, v) {
       if (k == 'name' || k.isEmpty) return;
       _permissions[k] = v == 'true';
     });
-    // Only inited at remote page
+    // 仅在远端页面初始化
     if (parent.target?.connType == ConnType.defaultConn) {
       KeyboardEnabledState.find(id).value = _permissions['keyboard'] != false;
     }
 
-    // If keyboard permission was revoked while relative mouse mode is active,
-    // forcefully disable relative mouse mode to prevent the user from being trapped.
+    // 如果相对鼠标模式处于活动状态时键盘权限被撤销，
+    // 就强制禁用相对鼠标模式，避免用户被困住。
     final hasKeyboardPerm = _permissions['keyboard'] != false;
     if (hadKeyboardPerm && !hasKeyboardPerm) {
       final inputModel = parent.target?.inputModel;
@@ -327,7 +327,7 @@ class FfiModel with ChangeNotifier {
     }
   }
 
-  // todo: why called by two position
+  // 待办：为什么会被两个位置调用
   StreamEventHandler startEventListener(SessionID sessionId, String peerId) {
     return (evt) async {
       var name = evt['name'];
@@ -348,7 +348,7 @@ class FfiModel with ChangeNotifier {
             evt['direct'] == 'true', evt['stream_type'] ?? '');
         resetRestartReconnectState();
       } else if (name == 'switch_display') {
-        // switch display is kept for backward compatibility
+        // switch display 保留是为了向后兼容
         handleSwitchDisplay(evt, sessionId, peerId);
       } else if (name == 'cursor_id') {
         updateLastCursorId(evt);
@@ -377,8 +377,8 @@ class FfiModel with ChangeNotifier {
         bool? refresh =
             await parent.target?.fileModel.jobController.jobDone(evt);
         if (refresh == true) {
-          // many job done for delete directory
-          // todo: refresh may not work when confirm delete local directory
+          // 删除目录时已完成许多任务
+          // 待办：确认删除本地目录时刷新可能不生效
           parent.target?.fileModel.refreshAll();
         }
       } else if (name == 'job_error') {
@@ -411,20 +411,20 @@ class FfiModel with ChangeNotifier {
       } else if (name == 'portable_service_running') {
         _handlePortableServiceRunning(peerId, evt);
       } else if (name == 'on_url_scheme_received') {
-        // currently comes from "_url" ipc of mac and dbus of linux
+        // 目前来自 mac 的 "_url" ipc 和 linux 的 dbus
         onUrlSchemeReceived(evt);
       } else if (name == 'on_voice_call_waiting') {
-        // Waiting for the response from the peer.
+        // 正在等待对端的响应。
         parent.target?.chatModel.onVoiceCallWaiting();
       } else if (name == 'on_voice_call_started') {
-        // Voice call is connected.
+        // 语音通话已连接。
         parent.target?.chatModel.onVoiceCallStarted();
       } else if (name == 'on_voice_call_closed') {
-        // Voice call is closed with reason.
+        // 语音通话已关闭并附带原因。
         final reason = evt['reason'].toString();
         parent.target?.chatModel.onVoiceCallClosed(reason);
       } else if (name == 'on_voice_call_incoming') {
-        // Voice call is requested by the peer.
+        // 对端请求了语音通话。
         parent.target?.chatModel.onVoiceCallIncoming();
       } else if (name == 'update_voice_call_state') {
         parent.target?.serverModel.updateVoiceCallState(evt);
@@ -468,7 +468,7 @@ class FfiModel with ChangeNotifier {
       } else if (name == 'screenshot') {
         _handleScreenshot(evt, sessionId, peerId);
       } else if (name == 'exit_relative_mouse_mode') {
-        // Handle exit shortcut from rdev grab loop (Ctrl+Alt on Win/Linux, Cmd+G on macOS)
+        // 处理来自 rdev 抓取循环的退出快捷键（Win/Linux 上是 Ctrl+Alt，macOS 上是 Cmd+G）
         parent.target?.inputModel.exitRelativeMouseModeWithKeyRelease();
       } else if (name == kShortcutEventName) {
         final action = evt['action'];
@@ -762,7 +762,7 @@ class FfiModel with ChangeNotifier {
     }
   }
 
-  /// Bind the event listener to receive events from the Rust core.
+  /// 绑定事件监听器以接收来自 Rust 核心的事件。
   updateEventListener(SessionID sessionId, String peerId) {
     platformFFI.setEventCallback(startEventListener(sessionId, peerId));
   }
@@ -796,15 +796,15 @@ class FfiModel with ChangeNotifier {
             updateCursorPos: updateCursorPos);
       }
       _rect = newRect;
-      // Await updateViewStyle to ensure view geometry is fully updated before
-      // updating pointer lock center. This prevents stale center calculations.
+      // await updateViewStyle，确保在
+      // 更新指针锁定中心之前视图几何已完全更新。这可以避免使用过期的中心计算结果。
       await parent.target?.canvasModel
           .updateViewStyle(refreshMousePos: updateCursorPos);
       _updateSessionWidthHeight(sessionId);
 
-      // Keep pointer lock center in sync when using relative mouse mode.
-      // Note: updatePointerLockCenter is async-safe (handles errors internally),
-      // so we fire-and-forget here.
+      // 使用相对鼠标模式时保持指针锁定中心同步。
+      // 注意：updatePointerLockCenter 是异步安全的（内部会处理错误），
+      // 所以这里发出即忘即可。
       final inputModel = parent.target?.inputModel;
       if (inputModel != null && inputModel.relativeMouseMode.value) {
         inputModel.updatePointerLockCenter();
@@ -827,8 +827,8 @@ class FfiModel with ChangeNotifier {
       if (!_pi.isSupportMultiUiSession) {
         _pi.currentDisplay = display;
       }
-      // If `isSupportMultiUiSession` is true, the switch display message should not be used to update current display.
-      // It is only used to update the display info.
+      // 如果 `isSupportMultiUiSession` 为 true，就不应该用 switch display 消息来更新当前显示器。
+      // 它只用于更新显示器信息。
     }
 
     var newDisplay = Display();
@@ -884,7 +884,7 @@ class FfiModel with ChangeNotifier {
         type, title, text, dialogManager, sessionId, peerId, sessions);
   }
 
-  /// Handle the message box event based on [evt] and [id].
+  /// 根据 [evt] 和 [id] 处理消息框事件。
   handleMsgBox(Map<String, dynamic> evt, SessionID sessionId, String peerId) {
     if (parent.target == null) return;
     final dialogManager = parent.target!.dialogManager;
@@ -893,9 +893,9 @@ class FfiModel with ChangeNotifier {
     final text = evt['text'];
     final link = evt['link'];
 
-    // The peer-gone detector reconnects under `restarting-show` rather than an error title, so
-    // it needs naming here too. By its own title, not the type: an explicitly restarted remote
-    // device reaches the same type from a path this change does not touch.
+    // 对端消失的检测器是在 `restarting-show` 下重连，而不是以错误标题，所以
+    // 这里也需要给它命名。按它自己的标题，而不是按类型：明确重启过的远端
+    // 设备会通过本次改动未涉及的路径到达同样的类型。
     if (isAndroid &&
         _androidDocumentPickerActive &&
         (title == 'Connection Error' ||
@@ -904,9 +904,9 @@ class FfiModel with ChangeNotifier {
       return;
     }
 
-    // Disable relative mouse mode on any error-type message to ensure cursor is released.
-    // This includes connection errors, session-ending messages, elevation errors, etc.
-    // Safety: releasing pointer lock on errors prevents the user from being stuck.
+    // 对任何错误类型的消息都禁用相对鼠标模式，以确保光标被释放。
+    // 这包括连接错误、会话结束消息、提权错误等。
+    // 安全性：在出错时释放指针锁定，可以避免用户被卡住。
     if (title == 'Connection Error' ||
         type == 'error' ||
         type == 'restarting' ||
@@ -927,16 +927,16 @@ class FfiModel with ChangeNotifier {
       enterUserLoginAndPasswordDialog(
           sessionId, dialogManager, 'terminal-admin-login-tip');
     } else if (type == 'restarting') {
-      // Treat restart messages as reconnect control events. Rust still sends
-      // title/text for legacy UI and translation reuse; Flutter keeps the last
-      // frame briefly, then shows the Connecting overlay.
+      // 把重启消息当作重连控制事件处理。Rust 仍然会发送
+      // title/text 以便旧版界面和翻译复用；Flutter 会短暂保留最后一帧，
+      // 然后显示 Connecting 浮层。
       if (_restartReconnectDelayTimer == null) {
         parent.target?.inputModel.setRelativeMouseMode(false);
         _cancelPendingMonitorRestore();
         bind.sessionReconnect(sessionId: sessionId, forceRelay: false);
         clearPermissions();
-        // Retry once more after the silent window so restart reconnect attempts
-        // are spaced by the empirical short cadence instead of only updating UI.
+        // 在静默窗口之后再重试一次，让重启重连的尝试
+        // 按经验上的短节奏间隔开，而不是只更新界面。
         _restartReconnectDelayTimer =
             Timer(Duration(seconds: _restartReconnectSilentDelaySecs), () {
           _restartReconnectDelayTimer = null;
@@ -997,8 +997,8 @@ class FfiModel with ChangeNotifier {
     reconnect(parent.target!.dialogManager, sessionId, false);
   }
 
-  /// Auto-retry check for "Remote desktop is offline" error.
-  /// returns true to auto-retry, false otherwise.
+  /// 针对 "Remote desktop is offline" 错误的自动重试判断。
+  /// 返回 true 表示自动重试，否则返回 false。
   bool shouldAutoRetryOnOffline(
     String type,
     String title,
@@ -1008,14 +1008,14 @@ class FfiModel with ChangeNotifier {
         title == 'Connection Error' &&
         text == 'Remote desktop is offline' &&
         _pi.isSet.isTrue) {
-      // Auto retry for ~30s (server's peer offline threshold) when controlled peer's account changes
-      // (e.g., signout, switch user, login into OS) causes temporary offline via websocket/tcp connection.
-      // The actual wait may exceed 30s (e.g., 20s elapsed + 16s next retry = 36s), which is acceptable
-      // since the controlled side reconnects quickly after account changes.
-      // Uses time-based check instead of _reconnects count because user can manually retry.
+      // 当被控端账号发生变化时，在约 30 秒内自动重试（服务器判定对端离线的阈值）
+      // （例如注销、切换用户、登录操作系统）会通过 websocket/tcp 连接造成临时离线。
+      // 实际等待时间可能超过 30 秒（例如已过 20 秒 + 下次重试 16 秒 = 36 秒），这是可以接受的
+      // 因为账号变化后被控端会很快重新连接。
+      // 使用基于时间的判断而不是 _reconnects 计数，因为用户可以手动重试。
       // https://github.com/rustdesk/rustdesk/discussions/14048
       if (_offlineReconnectStartTime == null) {
-        // First offline, record time and start retry
+        // 首次离线，记录时间并开始重试
         _offlineReconnectStartTime = DateTime.now();
         return true;
       } else {
@@ -1060,7 +1060,7 @@ class FfiModel with ChangeNotifier {
     }
   }
 
-  /// Show a message box with [type], [title] and [text].
+  /// 显示带有 [type]、[title] 和 [text] 的消息框。
   showMsgBox(SessionID sessionId, String type, String title, String text,
       String link, bool hasRetry, OverlayDialogManager dialogManager,
       {bool? hasCancel}) async {
@@ -1115,7 +1115,7 @@ class FfiModel with ChangeNotifier {
 
   void reconnect(OverlayDialogManager dialogManager, SessionID sessionId,
       bool forceRelay) {
-    // Disable relative mouse mode before reconnecting to ensure cursor is released.
+    // 在重连前禁用相对鼠标模式，以确保光标被释放。
     parent.target?.inputModel.setRelativeMouseMode(false);
     _cancelPendingMonitorRestore();
     bind.sessionReconnect(sessionId: sessionId, forceRelay: forceRelay);
@@ -1214,9 +1214,9 @@ class FfiModel with ChangeNotifier {
       String link,
       bool hasRetry,
       OverlayDialogManager dialogManager) {
-    // There are display changes on the remote side,
-    // which will cause some messages to refresh the canvas and dismiss dialogs.
-    // So we add a delay here to ensure the dialog is displayed.
+    // 远端发生了显示器变化，
+    // 这会导致某些消息刷新画布并关闭对话框。
+    // 所以这里加一点延迟，确保对话框能够显示出来。
     Future.delayed(Duration(milliseconds: 3000), () {
       showMsgBox(sessionId, type, title, text, link, hasRetry, dialogManager);
     });
@@ -1337,31 +1337,31 @@ class FfiModel with ChangeNotifier {
     }
   }
 
-  /// Handle the peer info event based on [evt].
+  /// 根据 [evt] 处理设备信息事件。
   handlePeerInfo(Map<String, dynamic> evt, String peerId, bool isCache) async {
     parent.target?.chatModel.voiceCallStatus.value = VoiceCallStatus.notStarted;
 
     _queryAuditGuid(peerId);
 
-    // Map clone is required here, otherwise "evt" may be changed by other threads through the reference.
-    // Because this function is asynchronous, there's an "await" in this function.
+    // 这里必须克隆 Map，否则 "evt" 可能会被其他线程通过引用修改。
+    // 因为该函数是异步的，里面有一个 "await"。
     cachedPeerData.peerInfo = {...evt};
-    // Do not cache resolutions, because a new display connection have different resolutions.
+    // 不要缓存分辨率，因为新的显示器连接可能有不同的分辨率。
     cachedPeerData.peerInfo.remove('resolutions');
 
-    // Recent peer is updated by handle_peer_info(ui_session_interface.rs) --> handle_peer_info(client.rs) --> save_config(client.rs)
+    // 最近使用的设备由 handle_peer_info(ui_session_interface.rs) --> handle_peer_info(client.rs) --> save_config(client.rs) 更新
     bind.mainLoadRecentPeers();
 
     parent.target?.dialogManager.dismissAll();
     _pi.version = evt['version'];
-    // Note: Relative mouse mode is NOT auto-enabled on connect.
-    // Users must manually enable it via toolbar or keyboard shortcut (Ctrl+Alt+Shift+M).
+    // 注意：连接时不会自动启用相对鼠标模式。
+    // 用户必须通过工具栏或键盘快捷键（Ctrl+Alt+Shift+M）手动启用。
     //
-    // For desktop/webDesktop, keyboard mode initialization is handled later by
-    // checkDesktopKeyboardMode() which may change the mode if not supported,
-    // followed by updateKeyboardMode() to sync InputModel.keyboardMode.
-    // For mobile, updateKeyboardMode() is currently a no-op (only executes on desktop/web),
-    // but we call it here for consistency and future-proofing.
+    // 对于桌面端/webDesktop，键盘模式的初始化稍后由
+    // checkDesktopKeyboardMode() 处理，如果当前模式不受支持它可能会改变模式，
+    // 随后由 updateKeyboardMode() 同步 InputModel.keyboardMode。
+    // 对于移动端，updateKeyboardMode() 目前是空操作（只在桌面端/web 上执行），
+    // 但这里仍然调用它，以保持一致性并为将来做准备。
     if (isMobile) {
       parent.target?.inputModel.updateKeyboardMode();
     }
@@ -1392,12 +1392,12 @@ class FfiModel with ChangeNotifier {
     if (isPeerAndroid) {
       _touchMode = true;
     } else {
-      // `kOptionTouchMode` is originally peer option, but it is moved to local option later.
-      // We check local option first, if not set, then check peer option.
-      // Because if local option is not empty:
-      // 1. User has set the touch mode explicitly.
-      // 2. The advanced option (custom client) is set.
-      //    Then we choose to use the local option.
+      // `kOptionTouchMode` 原本是对端选项，但后来被移到了本地选项。
+      // 我们先检查本地选项，如果没设置，再检查对端选项。
+      // 因为如果本地选项不为空：
+      // 1. 用户显式设置了触摸模式。
+      // 2. 高级选项（自定义客户端）已设置。
+      //    那么我们就选择使用本地选项。
       final optLocal = bind.mainGetLocalOption(key: kOptionTouchMode);
       if (optLocal != '') {
         _touchMode = optLocal == 'Y';
@@ -1413,7 +1413,7 @@ class FfiModel with ChangeNotifier {
     if (connType == ConnType.fileTransfer) {
       parent.target?.fileModel.onReady();
     } else if (connType == ConnType.terminal) {
-      // Call onReady on all registered terminal models
+      // 对所有已注册的终端模型调用 onReady
       final models = parent.target?._terminalModels.values ?? [];
       for (final model in models) {
         model.onReady();
@@ -1428,12 +1428,12 @@ class FfiModel with ChangeNotifier {
       _pi.displays.value = newDisplays;
       _pi.displaysCount.value = _pi.displays.length;
       if (_pi.currentDisplay < _pi.displays.length) {
-        // now replaced to _updateCurDisplay
+        // 现在已改为 _updateCurDisplay
         updateCurDisplay(sessionId);
       }
-      // After reconnecting, restore the last selected monitor once the canvas is ready.
-      // Switching earlier can offset the view if the monitor sizes differ.
-      // New monitor windows keep their selection in currentDisplay.
+      // 重连后，等画布就绪再恢复上次选择的显示器。
+      // 如果显示器尺寸不同，提前切换会导致视图偏移。
+      // 新的显示器窗口在 currentDisplay 中保留各自的选择。
       final last = lastUserDisplay ?? _pi.currentDisplay;
       pendingMonitorRestore = (!isCache &&
               last != currentDisplay &&
@@ -1444,7 +1444,7 @@ class FfiModel with ChangeNotifier {
                   (last >= 0 && last < _pi.displays.length)))
           ? last
           : null;
-      // Fallback if the first image event never reaches this tab (multi-UI).
+      // 如果第一个图像事件始终没有到达该标签页（多 UI）时的回退处理。
       _pendingRestoreTimer?.cancel();
       if (pendingMonitorRestore != null) {
         _pendingRestoreTimer = Timer(const Duration(milliseconds: 1500),
@@ -1487,9 +1487,9 @@ class FfiModel with ChangeNotifier {
     stateGlobal.resetLastResolutionGroupValues(peerId);
 
     if (isDesktop || isWebDesktop) {
-      // checkDesktopKeyboardMode may change the keyboard mode if the current
-      // mode is not supported. Re-sync InputModel.keyboardMode afterwards.
-      // Note: updateKeyboardMode() is a no-op on mobile (early-returns).
+      // 如果当前键盘模式不受支持，checkDesktopKeyboardMode 可能会改变键盘模式。
+      // 之后重新同步 InputModel.keyboardMode。
+      // 注意：updateKeyboardMode() 在移动端是空操作（提前返回）。
       await checkDesktopKeyboardMode();
       await parent.target?.inputModel.updateKeyboardMode();
     }
@@ -1503,8 +1503,8 @@ class FfiModel with ChangeNotifier {
 
   checkDesktopKeyboardMode() async {
     if (isInputSourceFlutter) {
-      // Local side, flutter keyboard input source
-      // Currently only map mode is supported, legacy mode is used for compatibility.
+      // 本地端，flutter 键盘输入源
+      // 目前只支持 map 模式，legacy 模式用于兼容。
       for (final mode in [kKeyMapMode, kKeyLegacyMode]) {
         if (bind.sessionIsKeyboardModeSupported(
             sessionId: sessionId, mode: mode)) {
@@ -1521,7 +1521,7 @@ class FfiModel with ChangeNotifier {
         }
       }
 
-      // If current keyboard mode is not supported, change to another one.
+      // 如果当前键盘模式不受支持，就切换到另一个。
       for (final mode in [kKeyMapMode, kKeyTranslateMode, kKeyLegacyMode]) {
         if (bind.sessionIsKeyboardModeSupported(
             sessionId: sessionId, mode: mode)) {
@@ -1548,12 +1548,12 @@ class FfiModel with ChangeNotifier {
       return;
     }
 
-    // to-do: peer currentDisplay is the primary display, but the primary display may not be the first display.
-    // local primary display also may not be the first display.
+    // 待办：对端的 currentDisplay 是主显示器，但主显示器未必是第一块显示器。
+    // 本地的主显示器同样未必是第一块。
     //
-    // 0 is assumed to be the primary display here, for now.
+    // 目前这里假定 0 是主显示器。
 
-    // move to the first display and set fullscreen
+    // 移动到第一块显示器并设为全屏
     bind.sessionSwitchDisplay(
       isDesktop: isDesktop,
       sessionId: sessionId,
@@ -1596,11 +1596,11 @@ class FfiModel with ChangeNotifier {
       final resolutionsObj = json.decode(resolutions as String);
       late List<dynamic> dynamicArray;
       if (resolutionsObj is Map) {
-        // The web version
+        // web 版本
         dynamicArray = (resolutionsObj as Map<String, dynamic>)['resolutions']
             as List<dynamic>;
       } else {
-        // The rust version
+        // rust 版本
         dynamicArray = resolutionsObj as List<dynamic>;
       }
       List<Resolution> arr = List.empty(growable: true);
@@ -1648,7 +1648,7 @@ class FfiModel with ChangeNotifier {
   }
 
   updateLastCursorId(Map<String, dynamic> evt) {
-    // int.parse(evt['id']) may cause FormatException
+    // int.parse(evt['id']) 可能导致 FormatException
     // Unhandled Exception: FormatException: Positive input exceeds the limit of integer 18446744071749110741
     parent.target?.cursorModel.id = evt['id'];
   }
@@ -1658,17 +1658,17 @@ class FfiModel with ChangeNotifier {
     parent.target?.cursorModel.updateCursorId(evt);
   }
 
-  /// A shape arriving is the shape in use, as a cursor_id is.
+  /// 到达的形状就是正在使用的形状，就像 cursor_id 一样。
   handleCursorData(String id, int hotx, int hoty, int width, int height,
       Uint8List colors) async {
-    // The replay selects this last, whatever the order the shapes are replayed in.
+    // 无论形状以什么顺序重放，重放时最后选中的都是这个。
     cachedPeerData.lastCursorId = {'id': id};
     parent.target?.cursorModel.id = id;
     await parent.target?.cursorModel
         .updateCursorData(id, hotx, hoty, width, height, colors);
   }
 
-  /// Handle the peer info synchronization event based on [evt].
+  /// 根据 [evt] 处理设备信息同步事件。
   handleSyncPeerInfo(
       Map<String, dynamic> evt, SessionID sessionId, String peerId) async {
     if (evt['displays'] != null) {
@@ -1683,14 +1683,14 @@ class FfiModel with ChangeNotifier {
 
       if (_pi.currentDisplay == kAllDisplayValue) {
         updateCurDisplay(sessionId);
-        // to-do: What if the displays are changed?
+        // 待办：如果显示器发生变化怎么办？
       } else {
         if (_pi.currentDisplay >= 0 &&
             _pi.currentDisplay < _pi.displays.length) {
           updateCurDisplay(sessionId);
         } else {
           if (_pi.displays.isNotEmpty) {
-            // Notify to switch display
+            // 通知切换显示器
             msgBox(sessionId, 'custom-nook-nocancel-hasclose-info', 'Prompt',
                 'display_is_plugged_out_msg', '', parent.target!.dialogManager);
             final isPeerPrimaryDisplayValid =
@@ -1705,8 +1705,8 @@ class FfiModel with ChangeNotifier {
             );
 
             if (_pi.isSupportMultiUiSession) {
-              // If the peer supports multi-ui-session, no switch display message will be send back.
-              // We need to update the display manually.
+              // 如果对端支持 multi-ui-session，就不会回传 switch display 消息。
+              // 我们需要手动更新显示器。
               switchToNewDisplay(newDisplay, sessionId, peerId);
             }
           } else {
@@ -1775,10 +1775,10 @@ class FfiModel with ChangeNotifier {
     notifyListeners();
   }
 
-  // Directly switch to the new display without waiting for the response.
+  // 不等待响应，直接切换到新显示器。
   switchToNewDisplay(int display, SessionID sessionId, String peerId,
       {bool updateCursorPos = false}) {
-    // no need to wait for the response
+    // 无需等待响应
     pi.currentDisplay = display;
     updateCurDisplay(sessionId, updateCursorPos: updateCursorPos);
     try {
@@ -1807,7 +1807,7 @@ class FfiModel with ChangeNotifier {
       if (isOn) {
         var privacyModeImpl = await bind.sessionGetOption(
             sessionId: sessionId, arg: 'privacy-mode-impl-key');
-        // For compatibility, version < 1.2.4, the default value is 'privacy_mode_impl_mag'.
+        // 为了兼容版本 < 1.2.4，默认值为 'privacy_mode_impl_mag'。
         final initDefaultPrivacyMode = 'privacy_mode_impl_mag';
         PrivacyModeState.find(peerId).value =
             privacyModeImpl ?? initDefaultPrivacyMode;
@@ -1821,9 +1821,9 @@ class FfiModel with ChangeNotifier {
 
   void setViewOnly(String id, bool value) {
     if (versionCmp(_pi.version, '1.2.0') < 0) return;
-    // tmp fix for https://github.com/rustdesk/rustdesk/pull/3706#issuecomment-1481242389
-    // because below rx not used in mobile version, so not initialized, below code will cause crash
-    // current our flutter code quality is fucking shit now. !!!!!!!!!!!!!!!!
+    // 针对 https://github.com/rustdesk/rustdesk/pull/3706#issuecomment-1481242389 的临时修复
+    // 因为下面的 rx 在移动端版本中未被使用，所以没有初始化，下面的代码会导致崩溃
+    // 目前我们的 flutter 代码质量简直烂透了。!!!!!!!!!!!!!!!!
     try {
       if (value) {
         ShowRemoteCursorState.find(id).value = value;
@@ -1942,7 +1942,7 @@ class ImageModel with ChangeNotifier {
   bool _webDecodingRgba = false;
   final List<Uint8List> _webRgbaList = List.empty(growable: true);
   webOnRgba(int display, Uint8List rgba) async {
-    // deep copy needed, otherwise "instantiateCodec failed: TypeError: Cannot perform Construct on a detached ArrayBuffer"
+    // 需要深拷贝，否则会报 "instantiateCodec failed: TypeError: Cannot perform Construct on a detached ArrayBuffer"
     _webRgbaList.add(Uint8List.fromList(rgba));
     if (_webDecodingRgba) {
       return;
@@ -1969,7 +1969,7 @@ class ImageModel with ChangeNotifier {
     platformFFI.nextRgba(sessionId, display);
   }
 
-  // web only: image already created from a decoded WebCodecs frame
+  // 仅 web：图像已经从解码后的 WebCodecs 帧创建好了
   Future<void> onImage(
       int display, ui.Image image, bool Function() isCurrentSession) async {
     await update(image, isCurrentSession: isCurrentSession);
@@ -2019,7 +2019,7 @@ class ImageModel with ChangeNotifier {
     return true;
   }
 
-  // mobile only
+  // 仅移动端
   double get maxScale {
     if (_image == null) return 1.5;
     final size = parent.target!.canvasModel.getSize();
@@ -2028,7 +2028,7 @@ class ImageModel with ChangeNotifier {
     return max(1.5, max(xscale, yscale));
   }
 
-  // mobile only
+  // 仅移动端
   double get minScale {
     if (_image == null) return 1.5;
     final size = parent.target!.canvasModel.getSize();
@@ -2175,7 +2175,7 @@ class ViewStyle {
         s = s1 < s2 ? s1 : s2;
       }
     } else if (style == kRemoteViewStyleCustom) {
-      // Custom scale is session-scoped and applied in CanvasModel.updateViewStyle()
+      // 自定义缩放是会话级别的，在 CanvasModel.updateViewStyle() 中应用
     }
     return s;
   }
@@ -2236,35 +2236,35 @@ class EdgeScrollFallbackState {
 }
 
 class CanvasModel with ChangeNotifier {
-  // image offset of canvas
+  // 画布的图像偏移
   double _x = 0;
-  // image offset of canvas
+  // 画布的图像偏移
   double _y = 0;
-  // image scale
+  // 图像缩放
   double _scale = 1.0;
   bool _locked = false;
   double _devicePixelRatio = 1.0;
   Size _size = Size.zero;
-  // the tabbar over the image
+  // 位于图像上方的标签栏
   // double tabBarHeight = 0.0;
-  // the window border's width
+  // 窗口边框的宽度
   // double windowBorderWidth = 0.0;
-  // remote id
+  // 远端 ID
   String id = '';
   late final SessionID sessionId;
-  // scroll offset x percent
+  // 滚动偏移 x 百分比
   double _scrollX = 0.0;
-  // scroll offset y percent
+  // 滚动偏移 y 百分比
   double _scrollY = 0.0;
   ScrollStyle _scrollStyle = ScrollStyle.scrollauto;
-  // edge scroll mode: trigger scrolling when the cursor is close to the edge of the view
+  // 边缘滚动模式：当光标靠近视图边缘时触发滚动
   int _edgeScrollEdgeThickness = 100;
-  // tracks whether edge scroll should be active, prevents spurious
-  // scrolling when the cursor enters the view from outside
+  // 跟踪边缘滚动是否应处于活动状态，避免在光标从外部进入视图时出现
+  // 多余的滚动
   EdgeScrollState _edgeScrollState = EdgeScrollState.inactive;
-  // fallback strategy for when Bump Mouse isn't available
+  // Bump Mouse 不可用时的回退策略
   late EdgeScrollFallbackState _edgeScrollFallbackState;
-  // to avoid hammering a non-functional Bump Mouse
+  // 以免不断调用无用的 Bump Mouse
   bool _bumpMouseIsWorking = true;
   ViewStyle _lastViewStyle = ViewStyle.defaultViewStyle();
 
@@ -2273,8 +2273,8 @@ class CanvasModel with ChangeNotifier {
   Offset? _offsetBeforeMobileSoftKeyboard;
   double? _scaleBeforeMobileSoftKeyboard;
 
-  // `isMobileCanvasChanged` is used to avoid canvas reset when changing the input method
-  // after showing the soft keyboard.
+  // `isMobileCanvasChanged` 用于避免画布被重置，
+  // 即在显示软键盘之后切换输入法时。
   bool isMobileCanvasChanged = false;
 
   final ScrollController _horizontal = ScrollController();
@@ -2338,41 +2338,41 @@ class CanvasModel with ChangeNotifier {
   Size getSize() {
     final mediaData = MediaQueryData.fromView(ui.window);
     final size = mediaData.size;
-    // If minimized, w or h may be negative here.
+    // 如果已最小化，这里的 w 或 h 可能为负数。
     double w = size.width - leftToEdge - rightToEdge;
     double h = size.height - topToEdge - bottomToEdge;
     if (isMobile) {
-      // Account for horizontal safe area insets on both orientations.
+      // 在两种方向下都考虑水平方向的安全区内边距。
       w = w - mediaData.padding.left - mediaData.padding.right;
-      // Vertically, subtract the bottom keyboard inset (viewInsets.bottom) and any
-      // bottom overlay (e.g. key-help tools) so the canvas is not covered.
+      // 在垂直方向上，减去底部键盘内边距 (viewInsets.bottom) 以及任何
+      // 底部浮层（例如按键帮助工具），以免画布被遮挡。
       h = h -
           mediaData.viewInsets.bottom -
           (parent.target?.cursorModel.keyHelpToolsRectToAdjustCanvas?.bottom ??
               0);
-      // Orientation-specific handling:
-      //  - Portrait: additionally subtract top padding (e.g. status bar / notch)
-      //  - Landscape: does not subtract mediaData.padding.top/bottom (home indicator auto-hides)
+      // 按方向分别处理：
+      //  - 竖屏：额外减去顶部内边距（例如状态栏 / 刘海）
+      //  - 横屏：不减去 mediaData.padding.top/bottom（home indicator 会自动隐藏）
       final isPortrait = size.height > size.width;
       if (isPortrait) {
-        // In portrait mode, subtract the top safe-area padding (e.g. status bar / notch)
-        // so the remote image is not truncated, while keeping the bottom inset to avoid
-        // introducing unnecessary blank space around the canvas.
+        // 在竖屏模式下，减去顶部安全区内边距（例如状态栏 / 刘海）
+        // 以免远端图像被截断，同时保留底部内边距以避免
+        // 在画布周围引入不必要的空白。
         //
-        // iOS -> Android, portrait, adjust mode:
-        // h = h (no padding subtracted): top and bottom are truncated
-        //   https://github.com/user-attachments/assets/30ed4559-c27e-432b-847f-8fec23c9f998
-        // h = h - top - bottom: extra blank spaces appear
-        //   https://github.com/user-attachments/assets/12a98817-3b4e-43aa-be0f-4b03cf364b7e
-        // h = h - top (current): works fine
-        //   https://github.com/user-attachments/assets/95f047f2-7f47-4a36-8113-5023989a0c81
+        // iOS -> Android，竖屏，adjust 模式：
+        // h = h（不减去内边距）：上下都会被截断
+        // https://github.com/user-attachments/assets/30ed4559-c27e-432b-847f-8fec23c9f998
+        // h = h - top - bottom：会出现额外的空白
+        // https://github.com/user-attachments/assets/12a98817-3b4e-43aa-be0f-4b03cf364b7e
+        // h = h - top（当前做法）：效果良好
+        // https://github.com/user-attachments/assets/95f047f2-7f47-4a36-8113-5023989a0c81
         h = h - mediaData.padding.top;
       }
     }
     return Size(w < 0 ? 0 : w, h < 0 ? 0 : h);
   }
 
-  // mobile only
+  // 仅移动端
   double getAdjustY() {
     final bottom =
         parent.target?.cursorModel.keyHelpToolsRectToAdjustCanvas?.bottom ?? 0;
@@ -2397,12 +2397,12 @@ class CanvasModel with ChangeNotifier {
       displayWidth: displayWidth,
       displayHeight: displayHeight,
     );
-    // If only the Custom scale percent changed, proceed to update even if
-    // the basic ViewStyle fields are equal.
-    // In Custom scale mode, the scale percent can change independently of the other
-    // ViewStyle fields and is not captured by the equality check. Therefore, we must
-    // allow updates to proceed when style == kRemoteViewStyleCustom, even if the
-    // rest of the ViewStyle fields are unchanged.
+    // 如果只有 Custom scale 百分比发生了变化，即使
+    // 基本的 ViewStyle 字段相同，也继续更新。
+    // 在 Custom scale 模式下，缩放百分比可以独立于其他
+    // ViewStyle 字段变化，并且不会被相等性检查捕获。因此，我们必须
+    // 在 style == kRemoteViewStyleCustom 时允许更新继续进行，即使
+    // ViewStyle 的其余字段没有变化。
     if (_lastViewStyle == viewStyle &&
         _devicePixelRatio == ui.window.devicePixelRatio &&
         style != kRemoteViewStyleCustom) {
@@ -2414,7 +2414,7 @@ class CanvasModel with ChangeNotifier {
     _lastViewStyle = viewStyle;
     _scale = viewStyle.scale;
 
-    // Apply custom scale percent when in Custom mode
+    // 在 Custom 模式下应用自定义缩放百分比
     if (style == kRemoteViewStyleCustom) {
       try {
         _scale = await getSessionCustomScale(sessionId);
@@ -2465,7 +2465,7 @@ class CanvasModel with ChangeNotifier {
     _resetScroll();
 
     Future.delayed(duration, () async {
-      // Layout updates scroll extents and detaches scrollbars no longer needed.
+      // 布局会更新滚动范围，并卸载不再需要的滚动条。
       await SchedulerBinding.instance.endOfFrame;
       updateScrollPercent();
     });
@@ -2478,7 +2478,7 @@ class CanvasModel with ChangeNotifier {
         style != null ? ScrollStyle.fromString(style) : ScrollStyle.scrollauto;
 
     if (_scrollStyle != ScrollStyle.scrollauto) {
-      // Scrollbar and Scroll Edge share controllers and retain their positions.
+      // 滚动条和 Scroll Edge 共享 controller，并保留各自的位置。
       updateScrollPercent();
     }
 
@@ -2538,9 +2538,9 @@ class CanvasModel with ChangeNotifier {
 
   void updateLocalCursor(double x, double y) {
     if (parent.target?.ffiModel.viewOnly == true) return;
-    // If keyboard is not permitted, do not move cursor when mouse is moving.
+    // 如果没有键盘权限，鼠标移动时不要移动光标。
     if (parent.target != null && parent.target!.ffiModel.keyboard) {
-      // Draw cursor if is not desktop.
+      // 如果不是桌面端，则绘制光标。
       if (!(isDesktop || isWebDesktop)) {
         parent.target!.cursorModel.moveLocal(x, y);
       } else {
@@ -2558,7 +2558,7 @@ class CanvasModel with ChangeNotifier {
       return;
     }
 
-    // On mobile platforms, move the canvas with the cursor.
+    // 在移动平台上，让画布跟随光标移动。
     final dw = getDisplayWidth() * _scale;
     final dh = getDisplayHeight() * _scale;
     var dxOffset = 0;
@@ -2621,11 +2621,11 @@ class CanvasModel with ChangeNotifier {
     }
 
     if (_edgeScrollState == EdgeScrollState.armed) {
-      // Edge scroll is armed to become active once the cursor
-      // is observed within the rectangle interior to the
-      // edge scroll regions. If the user has just moved the
-      // cursor in from outside of the window, edge scrolling
-      // doesn't happen yet.
+      // 一旦观察到光标
+      // 位于边缘滚动区域矩形的内部，边缘滚动就会
+      // 被激活。如果用户刚刚把
+      // 光标从窗口外部移进来，边缘滚动
+      // 还不会发生。
       final clientArea = Rect.fromLTWH(0, 0, size.width, size.height);
 
       final innerZone = clientArea.deflate(_edgeScrollEdgeThickness.toDouble());
@@ -2633,7 +2633,7 @@ class CanvasModel with ChangeNotifier {
       if (innerZone.contains(Offset(x, y))) {
         _edgeScrollState = EdgeScrollState.active;
       } else {
-        // Not yet.
+        // 尚未。
         return;
       }
     }
@@ -2664,8 +2664,8 @@ class CanvasModel with ChangeNotifier {
     } else {
       var bumpAmount = -encroachment;
 
-      // Round away from 0: this ensures that the mouse will be bumped clear of
-      // whichever edge scroll zone(s) it is in
+      // 向远离 0 的方向取整：这可以确保鼠标被推离
+      // 它所在的任何一个边缘滚动区域
       bumpAmount.x += bumpAmount.x.sign * 0.5;
       bumpAmount.y += bumpAmount.y.sign * 0.5;
 
@@ -2677,12 +2677,12 @@ class CanvasModel with ChangeNotifier {
       if (bumpMouseSucceeded) {
         performEdgeScroll(encroachment);
       } else {
-        // If we can't BumpMouse, then we switch to slower scrolling with autorepeat
+        // 如果无法使用 BumpMouse，就切换到带自动重复的较慢滚动
 
-        // Don't keep hammering BumpMouse if it's not working.
+        // 如果 BumpMouse 不起作用，就不要一直调用它。
         _bumpMouseIsWorking = false;
 
-        // Keep scrolling as long as the user is overtop of an edge.
+        // 只要用户还停留在某个边缘上方，就继续滚动。
         _edgeScrollFallbackState.setEncroachment(encroachment);
         _edgeScrollFallbackState.start();
       }
@@ -2732,7 +2732,7 @@ class CanvasModel with ChangeNotifier {
     notifyListeners();
   }
 
-  // mobile only
+  // 仅移动端
   updateScale(double v, Offset focalPoint) {
     if (parent.target?.imageModel.image == null) return;
     final s = _scale;
@@ -2754,7 +2754,7 @@ class CanvasModel with ChangeNotifier {
     notifyListeners();
   }
 
-  // For reset canvas to the last view style
+  // 用于把画布重置为上一次的视图样式
   reset() {
     _scale = _lastViewStyle.scale;
     _devicePixelRatio = ui.window.devicePixelRatio;
@@ -2829,12 +2829,12 @@ class CanvasModel with ChangeNotifier {
     });
   }
 
-  // mobile only
-  // Move the canvas to make the cursor visible(center) on the screen.
+  // 仅移动端
+  // 移动画布，让光标在屏幕上可见（居中）。
   void _moveToCenterCursor() {
     Rect? imageRect = parent.target?.ffiModel.rect;
     if (imageRect == null) {
-      // unreachable
+      // 不可达
       return;
     }
     final maxX = 0.0;
@@ -2847,20 +2847,20 @@ class CanvasModel with ChangeNotifier {
     if (minX < 0) {
       _x = min(max(offsetToCenter.dx, minX), maxX);
     } else {
-      // _size.width > (imageRect.right, imageRect.left) * _scale, we should not change _x
+      // _size.width > (imageRect.right, imageRect.left) * _scale 时，不应改变 _x
     }
     if (minY < 0) {
       _y = min(max(offsetToCenter.dy, minY), maxY);
     } else {
-      // _size.height > (imageRect.bottom - imageRect.top) * _scale, , we should not change _y
+      // _size.height > (imageRect.bottom - imageRect.top) * _scale 时，不应改变 _y
     }
   }
 }
 
-// data for cursor
+// 光标数据
 class CursorData {
-  // At most 1 MiB of RGBA, including Linux's square cursor padding: twice the largest
-  // accessibility cursor, beyond which a cursor is shown smaller rather than larger.
+  // 最多 1 MiB 的 RGBA，包含 Linux 方形光标的填充：最大无障碍光标的两倍
+  // 无障碍光标，超过这个值时光标会显示得更小而不是更大。
   static const _maxRasterSize = 512;
 
   final String peerId;
@@ -2883,7 +2883,7 @@ class CursorData {
 
   img2.Image get image => _image!;
 
-  /// False for a shape not in use; only the shape in use keeps pixels, for a new raster.
+  /// 对于未在使用的形状为 false；只有正在使用的形状保留像素，用于生成新的位图。
   bool get hasPixels => _image != null;
 
   void releasePixels() {
@@ -2911,7 +2911,7 @@ class CursorData {
 
   double _limitScale(double requestedScale) {
     final valid = requestedScale.isFinite && requestedScale > 0;
-    // Invalid requests retain the last valid raster and hotspot.
+    // 无效的请求会保留上一次有效的位图和热点。
     final limitedScale = valid
         ? min(requestedScale, _maxRasterSize / max(width, height))
         : scale;
@@ -2928,7 +2928,7 @@ class CursorData {
   double _checkUpdateScale(double scale) {
     scale = _limitScale(scale);
     if (scale != 1.0) {
-      // A thin cursor must not grow just to make its short edge reach the minimum.
+      // 细长的光标不应仅仅为了让短边达到最小值而被放大。
       scale = max(scale, kMinCursorSize / max(width, height));
     }
 
@@ -2936,8 +2936,8 @@ class CursorData {
     final targetHeight = (height * scale).ceil();
     if ((_rasterWidth != targetWidth || _rasterHeight != targetHeight) &&
         !hasPixels) {
-      // Nothing to make this raster from; buildCursorOfCache asks for the pixels unless its
-      // native cursor was made before.
+      // 没有可用于生成该位图的内容；buildCursorOfCache 会索取像素，除非它的
+      // 原生光标之前已经创建过。
       data = null;
       return scale;
     }
@@ -2981,8 +2981,8 @@ class CursorData {
         img2.Image.fromResized(image, width: targetWidth, height: targetHeight);
     final dx = image.width / targetWidth;
     final dy = image.height / targetHeight;
-    // Use the average filter's sample area, but weight RGB by alpha so
-    // transparent pixels do not darken visible edges in the straight-alpha PNG.
+    // 使用均值滤波器的采样区域，但按 alpha 对 RGB 加权，这样
+    // 在直通 alpha 的 PNG 中，透明像素就不会让可见边缘变暗。
     for (final pixel in resized) {
       final x = (pixel.x * dx).toInt();
       final y = (pixel.y * dy).toInt();
@@ -3011,8 +3011,8 @@ class CursorData {
 
   String updateGetKey(double scale) {
     scale = _checkUpdateScale(scale);
-    // The raster asked for, not the one made last: a shape without pixels keeps the native
-    // cursors of every raster it was shown at.
+    // 是请求的位图，而不是上一次创建的：没有像素的形状会保留原生
+    // 光标，以及它显示过的每个位图对应的原生光标。
     return '${peerId}_${id}_${_doubleToInt(width * scale)}_${_doubleToInt(height * scale)}_${(width * scale).ceil()}_${(height * scale).ceil()}';
   }
 }
@@ -3055,14 +3055,14 @@ class PredefinedCursor {
   init() {
     _image2 = img2.decodePng(base64Decode(png));
     if (_image2 != null) {
-      // The png type of forbidden cursor image is `PngColorType.indexed`.
+      // 禁止显示的光标图像的 png 类型为 `PngColorType.indexed`。
       if (id == kPreForbiddenCursorId) {
         _image2 = _image2!.convert(format: img2.Format.uint8, numChannels: 4);
       }
 
       () async {
         final defaultImg = _image2!;
-        // This function is called only one time, no need to care about the performance.
+        // 该函数只会被调用一次，无需考虑性能。
         Uint8List data = defaultImg.getBytes(order: img2.ChannelOrder.rgba);
         _image?.dispose();
         _image = await img.decodeImageFromPixels(
@@ -3104,8 +3104,8 @@ class CursorModel with ChangeNotifier {
   final _cacheKeys = <String>{};
   double _x = -10000;
   double _y = -10000;
-  // int.parse(evt['id']) may cause FormatException
-  // So we use String here.
+  // int.parse(evt['id']) 可能导致 FormatException
+  // 所以这里使用 String。
   String _id = "-1";
   double _hotx = 0;
   double _hoty = 0;
@@ -3120,15 +3120,15 @@ class CursorModel with ChangeNotifier {
   String peerId = '';
   WeakReference<FFI> parent;
 
-  // Only for mobile, touch mode
-  // To block touch event above the KeyHelpTools
+  // 仅用于移动端的触摸模式
+  // 用于屏蔽 KeyHelpTools 上方的触摸事件
   //
-  // A better way is to not listen events from the KeyHelpTools.
-  // But we're now using a Container(child: Stack(...)) to wrap the KeyHelpTools,
-  // and the listener is on the Container.
+  // 更好的做法是不监听来自 KeyHelpTools 的事件。
+  // 但我们现在用 Container(child: Stack(...)) 包裹 KeyHelpTools，
+  // 而监听器挂在 Container 上。
   Rect? _keyHelpToolsRect;
-  // `lastIsBlocked` is only used in common/widgets/remote_input.dart -> _RawTouchGestureDetectorRegionState -> onDoubleTap()
-  // Because onDoubleTap() doesn't have the `event` parameter, we can't get the touch event's position.
+  // `lastIsBlocked` 只在 common/widgets/remote_input.dart -> _RawTouchGestureDetectorRegionState -> onDoubleTap() 中使用
+  // 因为 onDoubleTap() 没有 `event` 参数，我们无法获取触摸事件的位置。
   bool _lastIsBlocked = false;
   bool _lastKeyboardIsVisible = false;
 
@@ -3136,17 +3136,17 @@ class CursorModel with ChangeNotifier {
 
   Rect? get keyHelpToolsRectToAdjustCanvas =>
       _lastKeyboardIsVisible ? _keyHelpToolsRect : null;
-  // The blocked rect is used to block the pointer/touch events in the remote page.
+  // 被屏蔽的矩形用于在远端页面中屏蔽指针/触摸事件。
   final List<Rect> _blockedRects = [];
-  // Used in shouldBlock().
-  // _blockEvents is a flag to block pointer/touch events on the remote image.
-  // It is set to true to prevent accidental touch events in the following scenarios:
-  //   1. In floating mouse mode, when the scroll circle is shown.
-  //   2. In floating mouse widgets mode, when the left/right buttons are moving.
-  //   3. In floating mouse widgets mode, when using the virtual joystick.
-  // When _blockEvents is true, all pointer/touch events are blocked regardless of the contents of _blockedRects.
-  // _blockedRects contains specific rectangular regions where events are blocked; these are checked when _blockEvents is false.
-  // In summary: _blockEvents acts as a global block, while _blockedRects provides fine-grained blocking.
+  // 在 shouldBlock() 中使用。
+  // _blockEvents 是一个标志，用于屏蔽远端图像上的指针/触摸事件。
+  // 在以下场景中把它设为 true 以防止误触事件：
+  //   1. 在浮动鼠标模式下，显示滚动圆圈时。
+  //   2. 在浮动鼠标组件模式下，移动左键/右键按钮时。
+  //   3. 在浮动鼠标组件模式下，使用虚拟摇杆时。
+  // 当 _blockEvents 为 true 时，无论 _blockedRects 的内容如何，所有指针/触摸事件都会被屏蔽。
+  // _blockedRects 包含需要屏蔽事件的具体矩形区域；当 _blockEvents 为 false 时会检查这些区域。
+  // 总结：_blockEvents 相当于全局屏蔽，而 _blockedRects 提供细粒度的屏蔽。
   bool _blockEvents = false;
   List<Rect> get blockedRects => List.unmodifiable(_blockedRects);
 
@@ -3157,9 +3157,9 @@ class CursorModel with ChangeNotifier {
     if (rect == null) {
       _lastIsBlocked = false;
     } else {
-      // Block the touch event is safe here.
-      // `lastIsBlocked` is only used in onDoubleTap() to block the touch event from the KeyHelpTools.
-      // `lastIsBlocked` will be set when the cursor is moving or touch somewhere else.
+      // 在这里屏蔽触摸事件是安全的。
+      // `lastIsBlocked` 只在 onDoubleTap() 中使用，用于屏蔽来自 KeyHelpTools 的触摸事件。
+      // 当光标移动或触摸到其他位置时，会设置 `lastIsBlocked`。
       _lastIsBlocked = true;
     }
     if (isMobile && _lastKeyboardIsVisible != keyboardIsVisible) {
@@ -3184,9 +3184,9 @@ class CursorModel with ChangeNotifier {
 
   get lastIsBlocked => _lastIsBlocked;
 
-  /// The image of the shape in use, or the one shown before until it is back: a switch falls
-  /// back to the default cursor only for a shape the core cannot give. Asks the core for the
-  /// shape in use when it was let go.
+  /// 正在使用的形状的图像，或在其回来之前显示的上一个图像：切换会
+  /// 只有对核心无法提供的形状才会回退到默认光标。它会向核心请求
+  /// 松开时正在使用的那个形状。
   ui.Image? get image {
     if (_images[_id] == null && _cacheMap.containsKey(_id)) {
       restorePixels(_id);
@@ -3225,8 +3225,8 @@ class CursorModel with ChangeNotifier {
   }
 
   CursorModel(this.parent) {
-    // Made now, not when first drawn: nothing draws again when their decode lands, so the first
-    // build that needs one would show the shape before in its place.
+    // 现在才创建，而不是首次绘制时创建：解码完成后不会再重绘，所以第一次
+    // 需要它的构建会先显示之前的形状来占位。
     preDefaultCursor.cache;
     preForbiddenCursor.cache;
   }
@@ -3234,8 +3234,8 @@ class CursorModel with ChangeNotifier {
   Set<String> get cachedKeys => _cacheKeys;
   addKey(String key) => _cacheKeys.add(key);
 
-  // remote physical display coordinate
-  // For update pan (mobile), onOneFingerPanStart, onOneFingerPanUpdate, onHoldDragUpdate
+  // 远端物理显示器坐标
+  // 用于 update pan（移动端）、onOneFingerPanStart、onOneFingerPanUpdate、onHoldDragUpdate
   Rect getVisibleRect() {
     final size = parent.target?.canvasModel.getSize() ??
         MediaQueryData.fromView(ui.window).size;
@@ -3248,10 +3248,10 @@ class CursorModel with ChangeNotifier {
   }
 
   Offset getCanvasOffsetToCenterCursor() {
-    // Cursor should be at the center of the visible rect.
+    // 光标应位于可见矩形的中心。
     // _x = rect.left + rect.width / 2
     // _y = rect.right + rect.height / 2
-    // See `getVisibleRect()`
+    // 参见 `getVisibleRect()`
     // _x = _displayOriginX - xoffset / scale + size.width / scale * 0.5;
     // _y = _displayOriginY - yoffset / scale + size.height / scale * 0.5;
     final size = parent.target?.canvasModel.getSize() ??
@@ -3263,7 +3263,7 @@ class CursorModel with ChangeNotifier {
 
   get scale => parent.target?.canvasModel.scale ?? 1.0;
 
-  // mobile Soft keyboard, block touch event from the KeyHelpTools
+  // 移动端软键盘，屏蔽来自 KeyHelpTools 的触摸事件
   shouldBlock(double x, double y) {
     if (_blockEvents) {
       return true;
@@ -3275,7 +3275,7 @@ class CursorModel with ChangeNotifier {
       }
     }
 
-    // For help tools rectangle, only block touch event when in touch mode.
+    // 对于帮助工具矩形，只在触摸模式下屏蔽触摸事件。
     if (!(parent.target?.ffiModel.touchMode ?? false)) {
       return false;
     }
@@ -3286,7 +3286,7 @@ class CursorModel with ChangeNotifier {
     return false;
   }
 
-  // For touch mode
+  // 用于触摸模式
   Future<bool> move(double x, double y) async {
     if (shouldBlock(x, y)) {
       _lastIsBlocked = true;
@@ -3423,7 +3423,7 @@ class CursorModel with ChangeNotifier {
     Point<double>? newPos;
     final rect = parent.target?.ffiModel.rect;
     if (rect == null) {
-      // unreachable
+      // 不可达
       return;
     }
     newPos = InputModel.getPointInRemoteRect(
@@ -3482,7 +3482,7 @@ class CursorModel with ChangeNotifier {
     if (!isMoved) {
       final rect = parent.target?.ffiModel.rect;
       if (rect == null) {
-        // unreachable
+        // 不可达
         return;
       }
 
@@ -3528,8 +3528,8 @@ class CursorModel with ChangeNotifier {
     _images.clear();
   }
 
-  /// Its image is kept with the ones used last, see [_imageLimit]; a shape that does not decode
-  /// is marked as one the core cannot give.
+  /// 它的图像与最近使用的那些图像一起保留，参见 [_imageLimit]；无法解码的形状
+  /// 会被标记为核心无法提供的形状。
   Future<void> updateCursorData(String id, int hotxInt, int hotyInt, int width,
       int height, Uint8List rgba) async {
     final generation = _generation;
@@ -3539,13 +3539,13 @@ class CursorModel with ChangeNotifier {
     final image = await img.decodeImageFromPixels(
         rgba, width, height, ui.PixelFormat.rgba8888);
     if (image == null) {
-      // It did not decode; painting must not ask for it on every frame.
+      // 它没有解码成功；绘制时不能每帧都去索取它。
       _markUnavailable(generation, id);
       return;
     }
     if (!await _updateCache(
         generation, rgba, image, id, hotx, hoty, width, height)) {
-      // Not kept, or the session was cleared while it decoded.
+      // 没有保留，或者在它解码期间会话被清除了。
       image.dispose();
       _markUnavailable(generation, id);
       return;
@@ -3557,8 +3557,8 @@ class CursorModel with ChangeNotifier {
       old.item1.dispose();
     }
 
-    // Update last cursor data.
-    // Do not use the previous `image` and `id`, because `_id` may be changed.
+    // 更新上一次的光标数据。
+    // 不要使用上一次的 `image` 和 `id`，因为 `_id` 可能已经改变。
     _updateCurData();
     final cache = _cacheMap[id];
     if (id != _id && cache != null) _switchedAway(cache);
@@ -3593,7 +3593,7 @@ class CursorModel with ChangeNotifier {
       if (isDesktop &&
           (parent.target?.ffiModel.isPeerLinux == true ||
               parent.target?.ffiModel.isPeerWindows == true)) {
-        // PNG decoding supplies straight alpha for Linux/Windows cursor resizing.
+        // PNG 解码为 Linux/Windows 光标缩放提供直通 alpha。
         final decoded = img2.decodePng(data);
         if (decoded == null) {
           debugPrint('Unable to decode cursor $id PNG for resizing');
@@ -3628,36 +3628,36 @@ class CursorModel with ChangeNotifier {
 
   final _restoring = <String>{};
 
-  // Tabs in a window share its engine's native cursors, predefined ones included.
+  // 同一窗口内的标签页共享该引擎的原生光标，包括预定义的那些。
   static int _nextKeyScope = 0;
   final int _keyScope = _nextKeyScope++;
 
   String nativeKey(CursorData cache, double scale) {
     final key = '${_keyScope}_${cache.updateGetKey(scale)}';
-    // A native cursor at another raster does not hold the pixels this one is made from.
+    // 另一个位图对应的原生光标并不持有构成当前光标的像素。
     if (!_cacheKeys.contains(key)) _nativeIds.remove(cache.id);
     return key;
   }
 
-  // Native cursors stay for the session, one per raster of each shape, and only [clear]
-  // deletes them, as before; unlike the painted images they have no LRU, for now. A delete
-  // frees nothing on Windows: the engine's `deleteCustomCursor/windows` releases the HCURSOR
-  // with `DeleteObject`, which does not take a cursor. Measured on Windows with 500 cursors
-  // made by `CreateIconIndirect`, as the engine makes them: `DeleteObject` failed all 500 and
-  // left 500 USER objects alive, while `DestroyCursor` or `DestroyIcon` freed all 500. Each
-  // delete leaks its handle until the process exits, and making the cursor again for a raster
-  // or a shape shown once more leaks another, so an LRU would leak more than keeping them.
+  // 原生光标在整个会话期间保留，每个形状的每个位图一个，而且只有 [clear]
+  // 会删除它们，与之前一样；与绘制的图像不同，它们目前没有 LRU。一次删除
+  // 在 Windows 上什么也不会释放：引擎的 `deleteCustomCursor/windows` 只是用
+  // `DeleteObject` 释放 HCURSOR，而 `DeleteObject` 并不能处理光标。在 Windows 上用 500 个光标实测，
+  // 像引擎那样由 `CreateIconIndirect` 创建：`DeleteObject` 对全部 500 个都失败，
+  // 留下 500 个 USER 对象未释放，而 `DestroyCursor` 或 `DestroyIcon` 释放了全部 500 个。每次
+  // 删除都会泄漏其句柄直到进程退出，而为某个位图再次创建光标
+  // 或再次显示某个形状又会泄漏一个，所以 LRU 泄漏得比一直保留还多。
   //
-  // Fixing the engine is not cheap. x64 runs our fork, rustdesk/engine, on Flutter 3.24; the
-  // fix is one more patch to rebuild, publish, and carry across every Flutter upgrade. arm64
-  // runs the stock engine of a newer Flutter, which has the same code: fixing it means
-  // porting the fork to that version and building and publishing an arm64 engine as well, or
-  // an upstream fix and waiting for it to reach stable. Once both engines destroy cursors, an
-  // LRU like the painted images' can come back. Content ids keep the count to the shapes the
-  // peer really shows, a few dozen to a couple of hundred.
+  // 修复引擎的代价不低。x64 在 Flutter 3.24 上运行我们的分支 rustdesk/engine；
+  // 这个修复意味着再多一个需要重新构建、发布并在每次 Flutter 升级时同步的补丁。arm64
+  // 运行的是更新版本 Flutter 的官方引擎，代码是一样的：修复它意味着
+  // 把分支移植到那个版本，并且还要构建和发布 arm64 引擎，或者
+  // 推动上游修复并等待它进入稳定版。一旦两个引擎都能销毁光标，就可以
+  // 恢复像绘制图像那样的 LRU。内容 id 让数量只限于对端真正显示的形状，
+  // 也就几十到几百个。
 
-  /// The shape in use keeps its pixels, so a new raster is made from them at once; the others
-  /// keep none once their native cursor holds them.
+  /// 正在使用的形状保留其像素，因此新的位图立即由它们生成；其他形状
+  /// 一旦原生光标持有它们，就不再保留像素。
   void registered(CursorData cache, String key) {
     _nativeIds.add(cache.id);
     _awaitingNative.remove(cache.id);
@@ -3666,15 +3666,15 @@ class CursorModel with ChangeNotifier {
     }
   }
 
-  // The shapes a native cursor holds, and those keeping their pixels until one does, oldest
-  // first: one decoded after the peer moved on must still get a native cursor when shown
-  // again, rather than be decoded again every time it comes back.
+  // 原生光标持有的形状，以及那些在获得原生光标之前保留像素的形状，最旧的
+  // 排在最前：在对端已经切换之后才解码的形状，在再次显示时仍必须获得原生光标，
+  // 而不是每次回来都重新解码。
   final _nativeIds = <String>{};
   final _awaitingNative = <String>{};
 
   void _switchedAway(CursorData cache) {
     _awaitingNative.remove(cache.id);
-    // Mobile only paints the cursor, from its image.
+    // 移动端只根据图像绘制光标。
     if (isMobile || _nativeIds.contains(cache.id)) {
       cache.releasePixels();
       return;
@@ -3687,21 +3687,21 @@ class CursorModel with ChangeNotifier {
     }
   }
 
-  /// The peer's shapes used last that keep a painted image, and the most that keep their pixels
-  /// waiting for a native cursor; the core rebuilds the others. An animated cursor is a shape per
-  /// frame, 18 for the Windows busy cursor and 23 for KDE's, and a cycle longer than this limit
-  /// would rebuild every frame.
+  /// 对端最近使用且保留绘制图像的形状，以及保留像素等待原生光标的最多个，
+  /// 核心会重建其他的。动画光标每一帧都是一个形状，
+  /// Windows 的忙碌光标是 18 个，KDE 的是 23 个，而比这个上限更长的循环
+  /// 会导致每帧都重建。
   static const kRecentShapes = 64;
 
-  /// The native cursor of the shape shown last, shown on while the shape in use is made.
+  /// 上一次显示的形状对应的原生光标，在正在使用的形状生成期间保持显示。
   String? shownKey;
 
   void shown(CursorData cache, String key) {
-    // The forbidden cursor shows only while input is off; it is no stand-in for a shape.
+    // 禁止显示的光标只在输入关闭时显示；它并不是某个形状的替身。
     if (cache.id != kPreForbiddenCursorId) shownKey = key;
   }
 
-  /// Whether the desktop paints the peer's cursor over the remote image.
+  /// 桌面端是否把对端的光标绘制在远端图像之上。
   @protected
   bool get showsRemoteCursor {
     final tag = ShowRemoteCursorState.tag(parent.target?.id ?? '');
@@ -3709,11 +3709,11 @@ class CursorModel with ChangeNotifier {
         Get.find<RxBool>(tag: tag).value;
   }
 
-  // Painted images kept: mobile always paints the cursor, a desktop only when it shows the
-  // remote cursor, and otherwise the native cursors show the shapes.
+  // 保留绘制图像：移动端总是绘制光标，桌面端只在显示
+  // 远端光标时才绘制，否则由原生光标显示形状。
   int get _imageLimit => isMobile || showsRemoteCursor ? kRecentShapes : 1;
 
-  // `_images` is in order of use. The image painted is kept, whoever's it is.
+  // `_images` 按使用顺序排列。被绘制的图像会保留，无论它属于谁。
   void _evictImages() {
     var excess = _images.length - _imageLimit;
     _images.removeWhere((id, shape) {
@@ -3726,7 +3726,7 @@ class CursorModel with ChangeNotifier {
     });
   }
 
-  /// The core keeps every shape the peer sent, compressed; see `Session::cursor_shapes`.
+  /// 核心会保存对端发送的每个形状（压缩后）；参见 `Session::cursor_shapes`。
   @protected
   Future<CursorShape?> fetchCursorShape(String id) {
     final ffi = parent.target;
@@ -3734,22 +3734,22 @@ class CursorModel with ChangeNotifier {
     return bind.sessionGetCursorShape(sessionId: ffi.sessionId, id: id);
   }
 
-  // The shape the core could not give, not asked for again while it is the one in use. One
-  // is enough: only the shape in use is asked for on every frame, and the peer's ids must not
-  // accumulate here.
+  // 核心无法提供的形状，在它正在使用时不会再次被索取。一个就够，
+  // 因为只有正在使用的形状才会每帧被索取，而且对端的 id 不能
+  // 在这里堆积。
   String? _unavailable;
-  // Counts session clears, so that a decode finishing after one keeps nothing.
+  // 统计会话清理次数，以便在清理之后才完成的解码不会保留任何东西。
   int _generation = 0;
 
-  /// Decodes the shape in use again from the core, for a raster its native cursor lacks, for
-  /// painting it, or for a window a tab moved to.
+  /// 再次从核心解码正在使用的形状，用于其原生光标缺少的位图，用于
+  /// 绘制它，或用于标签页移动到的窗口。
   void restorePixels(String id) {
     if (id != _id || _unavailable == id || !_restoring.add(id)) return;
     final generation = _generation;
     () async {
       try {
-        // A throw becomes an error the await hands over later, not during the build that may
-        // have asked: a failure tells the listeners.
+        // 抛出的异常会变成稍后由 await 交出的错误，而不是在可能
+        // 发起请求的那次构建中发生：失败会通知监听器。
         final shape = await Future.sync(() => fetchCursorShape(id));
         if (generation != _generation) {
           return;
@@ -3757,7 +3757,7 @@ class CursorModel with ChangeNotifier {
           _markUnavailable(generation, id);
           debugPrint('Cursor $id is not kept by the core');
         } else {
-          // Decoded even if the peer moved on: an animation comes back to it.
+          // 即使对端已经切换也会解码：动画光标会回到它。
           await updateCursorData(id, shape.hotx, shape.hoty, shape.width,
               shape.height, shape.colors);
         }
@@ -3779,8 +3779,8 @@ class CursorModel with ChangeNotifier {
   bool _updateCurData() {
     final previous = _cache;
     final cache = _cacheMap[_id];
-    // A shape not decoded yet leaves the one shown before in place until it is; one the core
-    // cannot give leaves none, so the default cursor shows, as for a shape never sent.
+    // 尚未解码的形状会先让之前显示的形状留在原位，直到它解码完成；核心
+    // 无法提供的形状则不留下任何内容，于是显示默认光标，就像从未发送过的形状一样。
     if (cache != null || _unavailable == _id) _cache = cache;
     if (previous != null && !identical(previous, _cache)) {
       _switchedAway(previous);
@@ -3796,7 +3796,7 @@ class CursorModel with ChangeNotifier {
     }
     _evictImages();
     try {
-      // may throw exception, because the listener maybe already dispose
+      // 可能会抛出异常，因为监听器可能已经被 dispose
       notifyListeners();
     } catch (e) {
       debugPrint('WARNING: updateCursorId $_id, without notifyListeners(). $e');
@@ -3810,7 +3810,7 @@ class CursorModel with ChangeNotifier {
     }
   }
 
-  /// Update the cursor position.
+  /// 更新光标位置。
   updateCursorPosition(Map<String, dynamic> evt, String id) async {
     if (!isConnIn2Secs()) {
       gotMouseControl = false;
@@ -3908,9 +3908,9 @@ class QualityMonitorModel with ChangeNotifier {
   bool get show => _show;
   QualityMonitorData get data => _data;
 
-  // Only a WebRTC session on the web names its transport here: web has no
-  // session tab to show it on (the desktop tab's tooltip already does), and
-  // WebRTC is the one path that can be direct or TURN.
+  // 只有 web 上的 WebRTC 会话会在这里标注其传输方式：web 没有
+  // 会话标签页可以展示它（桌面端标签页的提示已经做到了），而且
+  // WebRTC 是唯一可能走直连或 TURN 的路径。
   String? get webrtcTransport {
     if (!isWeb) return null;
     final ffiModel = parent.target?.ffiModel;
@@ -4016,7 +4016,7 @@ class ElevationModel with ChangeNotifier {
   onPortableServiceRunning(bool running) => _running = running;
 }
 
-// The index values of `ConnType` are same as rust protobuf.
+// `ConnType` 的索引值与 rust protobuf 相同。
 enum ConnType {
   defaultConn,
   fileTransfer,
@@ -4026,14 +4026,14 @@ enum ConnType {
   terminal
 }
 
-/// Flutter state manager and data communication with the Rust core.
+/// Flutter 的状态管理器以及与 Rust 核心的数据通信。
 class FFI {
   var id = '';
   var version = '';
   var connType = ConnType.defaultConn;
   var closed = false;
 
-  /// dialogManager use late to ensure init after main page binding [globalKey]
+  /// dialogManager 使用 late，以确保在主页面绑定 [globalKey] 之后才初始化
   late final dialogManager = OverlayDialogManager();
 
   late final SessionID sessionId;
@@ -4059,10 +4059,10 @@ class FFI {
   late final Peers favoritePeersModel; // global
   late final Peers lanPeersModel; // global
 
-  // Terminal model registry for multiple terminals
+  // 多终端的终端模型注册表
   final Map<int, TerminalModel> _terminalModels = {};
 
-  // Getter for terminal models
+  // 终端模型的 Getter
   Map<int, TerminalModel> get terminalModels => _terminalModels;
 
   FFI(SessionID? sId) {
@@ -4097,7 +4097,7 @@ class FFI {
         name: PeersModelName.lan, loadEvent: LoadEvent.lan, getInitPeers: null);
   }
 
-  /// Mobile reuse FFI
+  /// 移动端复用 FFI
   void mobileReset() {
     ffiModel.resetRestartReconnectState();
     ffiModel.waitForFirstImage.value = true;
@@ -4107,7 +4107,7 @@ class FFI {
     ffiModel.waitForImageTimer = null;
   }
 
-  /// Start with the given [id]. Only transfer file if [isFileTransfer], only view camera if [isViewCamera], only port forward if [isPortForward].
+  /// 用给定的 [id] 启动。仅当 [isFileTransfer] 时传输文件，仅当 [isViewCamera] 时查看摄像头，仅当 [isPortForward] 时做端口转发。
   void start(
     String id, {
     bool isFileTransfer = false,
@@ -4151,8 +4151,8 @@ class FFI {
     }
 
     final isNewPeer = tabWindowId == null;
-    // If tabWindowId != null, this session is a "tab -> window" one.
-    // Else this session is a new one.
+    // 如果 tabWindowId != null，该会话就是 "tab -> window" 的那种。
+    // 否则该会话是一个新的会话。
     if (isNewPeer) {
       // ignore: unused_local_variable
       final addRes = bind.sessionAddSync(
@@ -4200,15 +4200,15 @@ class FFI {
       inputModel.updateTrackpadSpeed();
     }
 
-    // CAUTION: `sessionStart()` and `sessionStartWithDisplays()` are an async functions.
-    // Though the stream is returned immediately, the stream may not be ready.
-    // Any operations that depend on the stream should be carefully handled.
+    // 注意：`sessionStart()` 和 `sessionStartWithDisplays()` 是异步函数。
+    // 虽然流是立即返回的，但它可能还没准备好。
+    // 任何依赖该流的操作都应谨慎处理。
     late final Stream<EventToUI> stream;
     if (isNewPeer || display == null || displays == null) {
       stream = bind.sessionStart(sessionId: sessionId, id: id);
     } else {
-      // We have to put displays in `sessionStart()` to make sure the stream is ready
-      // and then the displays' capturing requests can be sent.
+      // 必须把显示器放进 `sessionStart()`，以确保流已准备好，
+      // 这样才能发送显示器的采集请求。
       stream = bind.sessionStartWithDisplays(
           sessionId: sessionId, id: id, displays: Int32List.fromList(displays));
     }
@@ -4237,18 +4237,18 @@ class FFI {
     imageModel.updateUserTextureRender();
     final hasGpuTextureRender = bind.mainHasGpuTextureRender();
     final SimpleWrapper<bool> isToNewWindowNotified = SimpleWrapper(false);
-    // Preserved for the rgba data.
+    // 为 rgba 数据保留。
     stream.listen((message) {
       if (closed) return;
       if (tabWindowId != null && !isToNewWindowNotified.value) {
-        // Session is read to be moved to a new window.
-        // Get the cached data and handle the cached data.
+        // 会话被读取以移动到新窗口。
+        // 获取缓存数据并处理该缓存数据。
         Future.delayed(Duration.zero, () async {
           final args = jsonEncode({'id': id, 'close': display == null});
           final cachedData = await DesktopMultiWindow.invokeMethod(
               tabWindowId, kWindowEventGetCachedSessionData, args);
           if (cachedData == null) {
-            // unreachable
+            // 不可达
             debugPrint('Unreachable, the cached data is empty.');
             return;
           }
@@ -4284,7 +4284,7 @@ class FFI {
           }
         } else if (message is EventToUI_Rgba) {
           final display = message.field0;
-          // Fetch the image buffer from rust codes.
+          // 从 rust 代码获取图像缓冲区。
           final sz = platformFFI.getRgbaSize(sessionId, display);
           if (sz == 0) {
             platformFFI.nextRgba(sessionId, display);
@@ -4314,7 +4314,7 @@ class FFI {
         }
       }();
     });
-    // every instance will bind a stream
+    // 每个实例都会绑定一个流
     this.id = id;
   }
 
@@ -4346,7 +4346,7 @@ class FFI {
     final restore = ffiModel.pendingMonitorRestore;
     ffiModel._cancelPendingMonitorRestore();
     if (restore == null || closed) return;
-    // The display list may have changed since the restore was queued.
+    // 自恢复操作入队以来，显示器列表可能已经发生变化。
     final displays = ffiModel.pi.displays;
     if ((restore == kAllDisplayValue && displays.isNotEmpty) ||
         (restore >= 0 && restore < displays.length)) {
@@ -4355,7 +4355,7 @@ class FFI {
     }
   }
 
-  /// Login with [password], choose if the client should [remember] it.
+  /// 用 [password] 登录，选择客户端是否要 [remember] 它。
   void login(String osUsername, String osPassword, SessionID sessionId,
       String password, bool remember) {
     bind.sessionLogin(
@@ -4371,14 +4371,14 @@ class FFI {
         sessionId: sessionId, code: code, trustThisDevice: trustThisDevice);
   }
 
-  /// Close the remote session.
+  /// 关闭远端会话。
   Future<void> close({bool closeSession = true}) async {
     closed = true;
     if (isWeb) {
       platformFFI.clearVideoFrameCallback();
     }
     chatModel.close();
-    // Close all terminal models
+    // 关闭所有终端模型
     for (final model in _terminalModels.values) {
       model.dispose();
     }
@@ -4400,7 +4400,7 @@ class FFI {
     ffiModel.clear();
     canvasModel.clear();
     inputModel.resetModifiers();
-    // Dispose relative mouse mode resources to ensure cursor is restored
+    // 释放相对鼠标模式的资源，以确保光标被恢复
     inputModel.disposeRelativeMouseMode();
     inputModel.disposeSideButtonTracking();
     if (closeSession) {
@@ -4423,7 +4423,7 @@ class FFI {
     return await platformFFI.invokeMethodWithResult<T>(method, arguments);
   }
 
-  // Terminal model management
+  // 终端模型管理
   void registerTerminalModel(int terminalId, TerminalModel model) {
     debugPrint('[FFI] Registering terminal model for terminal $terminalId');
     _terminalModels[terminalId] = model;
@@ -4437,7 +4437,7 @@ class FFI {
   void routeTerminalResponse(Map<String, dynamic> evt) {
     final int terminalId = TerminalModel.getTerminalIdFromEvt(evt);
 
-    // Route to specific terminal model if it exists
+    // 如果存在特定的终端模型，则路由到它
     final model = _terminalModels[terminalId];
     if (model != null) {
       model.handleTerminalResponse(evt);

@@ -3,7 +3,7 @@ import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/desktop/pages/port_forward_tab_page.dart';
 import 'package:provider/provider.dart';
 
-/// multi-tab file port forward screen
+/// 多标签页的端口转发界面
 class DesktopPortForwardScreen extends StatelessWidget {
   final Map<String, dynamic> params;
 

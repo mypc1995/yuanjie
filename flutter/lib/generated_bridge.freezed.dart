@@ -1,5 +1,5 @@
 // coverage:ignore-file
-// GENERATED CODE - DO NOT MODIFY BY HAND
+// 自动生成的代码 - 请勿手动修改
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -90,8 +90,8 @@ class _$EventToUICopyWithImpl<$Res, $Val extends EventToUI>
   // ignore: unused_field
   final $Res Function($Val) _then;
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
 }
 
 /// @nodoc
@@ -111,8 +111,8 @@ class __$$EventToUI_EventImplCopyWithImpl<$Res>
       _$EventToUI_EventImpl _value, $Res Function(_$EventToUI_EventImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -151,8 +151,8 @@ class _$EventToUI_EventImpl implements EventToUI_Event {
   @override
   int get hashCode => Object.hash(runtimeType, field0);
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   @pragma('vm:prefer-inline')
@@ -246,8 +246,8 @@ abstract class EventToUI_Event implements EventToUI {
 
   String get field0;
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$EventToUI_EventImplCopyWith<_$EventToUI_EventImpl> get copyWith =>
       throw _privateConstructorUsedError;
@@ -270,8 +270,8 @@ class __$$EventToUI_RgbaImplCopyWithImpl<$Res>
       _$EventToUI_RgbaImpl _value, $Res Function(_$EventToUI_RgbaImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -310,8 +310,8 @@ class _$EventToUI_RgbaImpl implements EventToUI_Rgba {
   @override
   int get hashCode => Object.hash(runtimeType, field0);
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   @pragma('vm:prefer-inline')
@@ -405,8 +405,8 @@ abstract class EventToUI_Rgba implements EventToUI {
 
   int get field0;
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$EventToUI_RgbaImplCopyWith<_$EventToUI_RgbaImpl> get copyWith =>
       throw _privateConstructorUsedError;
@@ -429,8 +429,8 @@ class __$$EventToUI_TextureImplCopyWithImpl<$Res>
       $Res Function(_$EventToUI_TextureImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -477,8 +477,8 @@ class _$EventToUI_TextureImpl implements EventToUI_Texture {
   @override
   int get hashCode => Object.hash(runtimeType, field0, field1);
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   @pragma('vm:prefer-inline')
@@ -574,8 +574,8 @@ abstract class EventToUI_Texture implements EventToUI {
   int get field0;
   bool get field1;
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$EventToUI_TextureImplCopyWith<_$EventToUI_TextureImpl> get copyWith =>
       throw _privateConstructorUsedError;
@@ -599,8 +599,8 @@ class __$$EventToUI_CursorImplCopyWithImpl<$Res>
       $Res Function(_$EventToUI_CursorImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -686,8 +686,8 @@ class _$EventToUI_CursorImpl implements EventToUI_Cursor {
   int get hashCode => Object.hash(runtimeType, id, hotx, hoty, width, height,
       const DeepCollectionEquality().hash(colors));
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   @pragma('vm:prefer-inline')
@@ -792,8 +792,8 @@ abstract class EventToUI_Cursor implements EventToUI {
   int get height;
   Uint8List get colors;
 
-  /// Create a copy of EventToUI
-  /// with the given fields replaced by the non-null parameter values.
+  /// 创建 EventToUI 的副本
+  /// 并将指定字段替换为对应的非空参数值。
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$EventToUI_CursorImplCopyWith<_$EventToUI_CursorImpl> get copyWith =>
       throw _privateConstructorUsedError;

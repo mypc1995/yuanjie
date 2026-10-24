@@ -156,8 +156,8 @@ fn read_dir_recursive(
 ) -> ResultType<Vec<FileEntry>> {
     let mut files = Vec::new();
     if path.is_dir() {
-        // to-do: symbol link handling, cp the link rather than the content
-        // to-do: file mode, for unix
+        // 待办：符号链接处理，复制链接本身而不是其内容
+        // 待办：文件权限位，用于 unix
         let fd = read_dir(path, include_hidden)?;
         for entry in fd.entries.iter() {
             match entry.entry_type.enum_value() {
@@ -219,8 +219,8 @@ fn read_empty_dirs_recursive(
 ) -> ResultType<Vec<FileDirectory>> {
     let mut dirs = Vec::new();
     if path.is_dir() {
-        // to-do: symbol link handling, cp the link rather than the content
-        // to-do: file mode, for unix
+        // 待办：符号链接处理，复制链接本身而不是其内容
+        // 待办：文件权限位，用于 unix
         let fd = read_dir(path, include_hidden)?;
         if fd.entries.is_empty() {
             dirs.push(fd);
@@ -417,7 +417,7 @@ pub struct TransferJob {
     transferred: u64,
     enable_overwrite_detection: bool,
     file_confirmed: bool,
-    // indicating the last file is skipped
+    // 表示最后一个文件被跳过
     file_skipped: bool,
     file_is_waiting: bool,
     default_overwrite_strategy: Option<bool>,
@@ -499,8 +499,8 @@ pub fn validate_file_name_no_traversal(name: &str) -> ResultType<()> {
 }
 
 fn validate_transfer_file_names(files: &[FileEntry]) -> ResultType<()> {
-    // Single-file transfer may use an empty relative name, because
-    // the destination file path is carried by transfer metadata.
+    // 单文件传输可能使用空的相对路径名，因为
+    // 目标文件路径由传输元数据携带。
     if files.len() == 1 && files.first().map_or(false, |f| f.name.is_empty()) {
         return Ok(());
     }
@@ -533,18 +533,18 @@ fn validate_no_symlink_components(base: &PathBuf, name: &str) -> ResultType<()> 
         match component {
             std::path::Component::Normal(seg) => {
                 current.push(seg);
-                // Best-effort guard: path-based checks are inherently TOCTOU-prone
-                // if local filesystem state changes between validation and write.
+                // 尽力而为的保护：基于路径的检查天然存在 TOCTOU 风险，
+                // 因为本地文件系统状态可能在校验与写入之间发生变化。
                 match std::fs::symlink_metadata(&current) {
                     Ok(meta) => {
-                        // This is inherent to filesystem-based checks and acknowledged as a limitation.
-                        // For true protection, you'd need openat(2) / O_NOFOLLOW at write time.
+                        // 这是基于文件系统的检查固有的问题，已被认定为一种局限。
+                        // 要获得真正的保护，需要在写入时使用 openat(2) / O_NOFOLLOW。
                         if meta.file_type().is_symlink() {
                             bail!("symlink path component is not allowed");
                         }
                     }
                     Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                        // Component does not exist yet, continue best-effort validation.
+                        // 该路径分量尚不存在，继续尽力而为的校验。
                     }
                     Err(err) => {
                         bail!(
@@ -564,7 +564,7 @@ fn validate_no_symlink_components(base: &PathBuf, name: &str) -> ResultType<()> 
     Ok(())
 }
 
-/// Validate an untrusted relative file name and existing path components before joining it.
+/// 在拼接之前校验不可信的相对文件名以及已存在的路径分量。
 pub fn join_validated_path(base: &PathBuf, name: &str) -> ResultType<PathBuf> {
     validate_file_name_no_traversal(name)?;
     validate_no_symlink_components(base, name)?;
@@ -811,9 +811,9 @@ impl TransferJob {
                     } else {
                         let path = join_validated_path(p, &entry.name)?;
                         // NOTE: We intentionally keep path-based validation + regular file open here.
-                        // This still has a known TOCTOU window for symlink races, but avoids a large
-                        // cross-platform rewrite for now.
-                        // Revisit with descriptor/handle-based no-follow open in future hardening.
+                        // 这仍然存在符号链接竞态导致的已知 TOCTOU 窗口，但避免了大规模
+                        // 跨平台重写，暂时如此。
+                        // 在未来的加固中改用基于描述符/句柄的 no-follow 打开方式重新审视。
                         if let Some(pp) = path.parent() {
                             std::fs::create_dir_all(pp).ok();
                         }
@@ -869,14 +869,14 @@ impl TransferJob {
         }
     }
 
-    /// Open the data stream for the current file.
-    /// Returns Ok(true) if job is done, Ok(false) otherwise.
+    /// 为当前文件打开数据流。
+    /// 任务完成时返回 Ok(true)，否则返回 Ok(false)。
     async fn open_data_stream(&mut self) -> ResultType<bool> {
         let file_num = self.file_num as usize;
         match &mut self.data_source {
             DataSource::FilePath(p) => {
                 if file_num >= self.files.len() {
-                    // job done
+                    // 任务已完成
                     self.data_stream.take();
                     return Ok(true);
                 };
@@ -887,8 +887,8 @@ impl TransferJob {
                             self.file_confirmed = false;
                             self.file_is_waiting = false;
                         }
-                        // On open error, behave the same as validation failure: advance
-                        // to next file and return the error.
+                        // 打开出错时的行为与校验失败一致：前进到
+                        // 下一个文件并返回该错误。
                         Err(err) => {
                             self.file_num += 1;
                             self.file_confirmed = false;
@@ -909,7 +909,7 @@ impl TransferJob {
         Ok(false)
     }
 
-    /// Get current file's digest (last_modified, file_size) for overwrite detection.
+    /// 获取当前文件的摘要（last_modified、file_size）用于覆盖检测。
     async fn get_current_digest(&self) -> ResultType<(u64, u64)> {
         let meta = match self.data_stream.as_ref().ok_or(anyhow!("file is None"))? {
             DataStream::FileStream(file) => file.metadata().await?,
@@ -937,15 +937,15 @@ impl TransferJob {
         Ok(())
     }
 
-    /// Initialize data stream for CM (Connection Manager) scenario.
-    /// Returns digest info (last_modified, file_size) if overwrite detection is enabled,
-    /// so caller can send it via IPC instead of network stream.
-    /// Returns Ok(None) if job is done or already initialized.
+    /// 为 CM（连接管理器）场景初始化数据流。
+    /// 如果启用了覆盖检测，则返回摘要信息（last_modified、file_size），
+    /// 以便调用方通过 IPC 而非网络数据流发送它。
+    /// 如果任务已完成或已经初始化，则返回 Ok(None)。
     pub async fn init_data_stream_for_cm(&mut self) -> ResultType<Option<(u64, u64)>> {
         if self.open_data_stream().await? {
             return Ok(None);
         }
-        // For overwrite detection, return digest info instead of sending via stream
+        // 对于覆盖检测，返回摘要信息，而不是通过数据流发送
         if self.r#type == JobType::Generic
             && self.enable_overwrite_detection
             && !self.file_confirmed()
@@ -1039,7 +1039,7 @@ impl TransferJob {
         }))
     }
 
-    // Only for generic job and file stream
+    // 仅适用于通用任务和文件数据流
     async fn send_current_digest(&mut self, stream: &mut Stream) -> ResultType<()> {
         let (last_modified, file_size) = self.get_current_digest().await?;
         let mut msg = Message::new();
@@ -1091,32 +1091,32 @@ impl TransferJob {
         self.file_confirmed
     }
 
-    /// Indicating whether the last file is skipped
+    /// 表示最后一个文件是否被跳过
     #[inline]
     pub fn file_skipped(&self) -> bool {
         self.file_skipped
     }
 
-    /// Indicating whether the whole task is skipped
+    /// 表示整个任务是否被跳过
     #[inline]
     pub fn job_skipped(&self) -> bool {
         self.file_skipped() && self.files.len() == 1
     }
 
-    /// Check whether the job is completed after `read` returns `None`
-    /// This is a helper function which gives additional lifecycle when the job reads `None`.
-    /// If returns `true`, it means we can delete the job automatically. `False` otherwise.
+    /// 在 `read` 返回 `None` 之后检查任务是否已完成
+    /// 这是一个辅助函数，在任务读到 `None` 时提供额外的生命周期处理。
+    /// 返回 `true` 表示可以自动删除该任务，否则返回 `False`。
     ///
     /// [`Note`]
-    /// Conditions:
-    /// 1. Files are not waiting for confirmation by peers.
+    /// 条件：
+    /// 1. 文件没有在等待对端确认。
     #[inline]
     pub fn job_completed(&self) -> bool {
-        // has no error, Condition 2
+        // 没有错误，满足条件 2
         !self.enable_overwrite_detection || (!self.file_confirmed && !self.file_is_waiting)
     }
 
-    /// Get job error message, useful for getting status when job had finished
+    /// 获取任务的错误信息，在任务已结束时可用于获取状态
     pub fn job_error(&self) -> Option<String> {
         if self.job_skipped() {
             return Some("skipped".to_string());
@@ -1148,9 +1148,9 @@ impl TransferJob {
             let digest_path = format!("{}.digest", &file_path);
 
             let mut f = if Path::new(&download_path).exists() && Path::new(&digest_path).exists() {
-                // If both download and digest files exist, seek (writer) to the offset
+                // 如果下载文件和摘要文件都存在，则将（写端）定位到该偏移量
                 // NOTE: same as write path: best-effort symlink validation happened earlier,
-                // but this reopen remains TOCTOU-prone by design for now.
+                // 但这种重新打开方式按设计目前仍存在 TOCTOU 风险。
                 match OpenOptions::new()
                     .create(true)
                     .write(true)
@@ -1164,7 +1164,7 @@ impl TransferJob {
                     }
                 }
             } else if Path::new(&file_path).exists() {
-                // If `file_path` exists, seek (reader) to the offset
+                // 如果 `file_path` 存在，则将（读端）定位到该偏移量
                 match File::open(&file_path).await {
                     Ok(f) => f,
                     Err(e) => {
@@ -1191,17 +1191,17 @@ impl TransferJob {
     pub async fn confirm(&mut self, r: &FileTransferSendConfirmRequest) -> bool {
         if self.is_download() {
             self.confirm_download(r);
-            // Open receiver resume streams in write() so validation errors reach the caller.
+            // 在 write() 中打开接收端的续传数据流，使校验错误能传达到调用方。
             if matches!(r.union, Some(file_transfer_send_confirm_request::Union::OffsetBlk(offset)) if offset > 0) {
                 return true;
             }
         }
         if self.file_num() != r.file_num {
-            // This branch will always be hit if:
-            // 1. `confirm()` is called in `ui_cm_interface.rs`
-            // 2. Not resuming
+            // 在以下情况下总会走到该分支：
+            // 1. 在 `ui_cm_interface.rs` 中调用了 `confirm()`
+            // 2. 不是在续传
             //
-            // It is ok. Because `confirm()` in `ui_cm_interface.rs` is only used for resuming.
+            // 没问题。因为 `ui_cm_interface.rs` 中的 `confirm()` 只用于续传。
             log::info!("file num truncated, ignoring");
         } else {
             match r.union {
@@ -1214,7 +1214,7 @@ impl TransferJob {
                 }
                 Some(file_transfer_send_confirm_request::Union::OffsetBlk(offset)) => {
                     self.set_file_confirmed(true);
-                    // If offset is greater than 0, we need to seek to the offset
+                    // 如果偏移量大于 0，就需要定位到该偏移量
                     if offset > 0 {
                         self.set_stream_offset(r.file_num as usize, offset as u64)
                             .await;
@@ -1410,11 +1410,11 @@ pub async fn handle_read_jobs(
                         None => stream.send(&new_done(job.id(), job.file_num())).await?,
                     }
                 } else {
-                    // waiting confirmation.
+                    // 等待确认。
                 }
             }
         }
-        // Break to handle jobs one by one.
+        // 跳出循环，逐个处理任务。
         break;
     }
     for id in finished {
@@ -1497,16 +1497,16 @@ pub fn is_write_need_confirmation(
     let digest_file = format!("{}.digest", file_path);
     let download_file = format!("{}.download", file_path);
     if is_resume && Path::new(&digest_file).exists() && Path::new(&download_file).exists() {
-        // If the digest file exists, it means the file was transferred before.
-        // We can use the digest file to check whether the file is the same.
+        // 如果摘要文件存在，说明该文件之前已经传输过。
+        // 可以用摘要文件检查是否还是同一个文件。
         if let Ok(content) = std::fs::read_to_string(digest_file) {
             if let Ok(local_digest) = serde_json::from_str::<FileDigest>(&content) {
                 let is_identical = local_digest.modified == digest.last_modified
                     && local_digest.size == digest.file_size;
                 if is_identical {
                     if let Ok(download_metadata) = std::fs::metadata(download_file) {
-                        // Get the file size of the local file
-                        // Only send confirmation if the file is not empty.
+                        // 获取本地文件的大小
+                        // 只有文件非空时才发送确认。
                         let transferred_size = download_metadata.len();
                         if transferred_size > 0 {
                             return Ok(DigestCheckResult::NeedConfirm(FileTransferDigest {
@@ -1530,9 +1530,9 @@ pub fn is_write_need_confirmation(
         let modified_time = metadata.modified()?;
         let remote_mt = Duration::from_secs(digest.last_modified);
         let local_mt = modified_time.duration_since(UNIX_EPOCH)?;
-        // [Note]
-        // We decide to give the decision whether to override the existing file to users,
-        // which obey the behavior of the file manager in our system.
+        // [注意]
+        // 我们决定把是否覆盖已有文件的决定权交给用户，
+        // 这与系统中文件管理器的行为保持一致。
         let mut is_identical = false;
         if remote_mt == local_mt && digest.file_size == metadata.len() {
             is_identical = true;
@@ -1546,7 +1546,7 @@ pub fn is_write_need_confirmation(
             ..Default::default()
         }))
     } else {
-        // If the file does not exist, or the digest file and download file do not exist, we return NoSuchFile.
+        // 如果文件不存在，或摘要文件与下载文件都不存在，则返回 NoSuchFile。
         Ok(DigestCheckResult::NoSuchFile)
     }
 }

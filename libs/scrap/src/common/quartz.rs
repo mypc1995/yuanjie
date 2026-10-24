@@ -22,7 +22,7 @@ impl Capturer {
             Default::default(),
             move |inner| {
                 if let Ok(mut f) = f.lock() {
-                    *f = Some(inner);
+                    * f = Some(inner);
                 }
             },
         )

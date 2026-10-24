@@ -55,9 +55,9 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
   static const IconData selectedIcon = Icons.terminal;
   static const IconData unselectedIcon = Icons.terminal_outlined;
   int _nextTerminalId = 1;
-  // Lightweight idempotency guard for async close operations
+  // 用于异步关闭操作的轻量级幂等保护
   final Set<String> _closingTabs = {};
-  // When true, all session cleanup should persist (window-level close in progress)
+  // 为 true 时，所有会话清理都应保留（窗口级关闭正在进行）
   bool _windowClosing = false;
   CancelFunc? _terminalClipboardNoticeCancel;
   final _terminalClipboardNotice =
@@ -281,19 +281,19 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
     cancel();
   }
 
-  /// Unified tab close handler for all close paths (button, shortcut, programmatic).
-  /// Shows audit dialog, cleans up session if not persistent, then removes the UI tab.
+  /// 统一处理所有关闭路径（按钮、快捷键、程序调用）的标签页关闭。
+  /// 显示审计对话框，若非持久模式则清理会话，然后移除 UI 标签页。
   Future<void> _closeTab(String tabKey) async {
-    // Idempotency guard: skip if already closing this tab
+    // 幂等保护：若该标签页已在关闭中则跳过
     if (_closingTabs.contains(tabKey)) return;
     _closingTabs.add(tabKey);
 
     try {
-      // Snapshot peerTabCount BEFORE any await to avoid race with concurrent
-      // _closeAllTabs clearing tabController (which would make the live count
-      // drop to 0 and incorrectly trigger session persistence).
-      // Note: the snapshot may become stale if other individual tabs are closed
-      // during the audit dialog, but this is an acceptable trade-off.
+      // 在任何 await 之前对 peerTabCount 取快照，以避免与并发的
+      // _closeAllTabs 清空 tabController（这会使实际计数
+      // 降为 0 并错误触发会话保留）。
+      // 注意：如果在此期间有其他单个标签页被关闭，快照可能过期
+      // （在审计对话框期间），但这是可以接受的取舍。
       int? snapshotPeerTabCount;
       final parsed = _parseTabKey(tabKey);
       if (parsed != null) {
@@ -311,15 +311,15 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
         return;
       }
 
-      // Close terminal session if not in persistent mode.
-      // Wrapped separately so session cleanup failure never blocks UI tab removal.
+      // 如果不在持久模式下，则关闭终端会话。
+      // 单独包裹，确保会话清理失败不会阻塞 UI 标签页的移除。
       try {
         await _closeTerminalSessionIfNeeded(tabKey,
             peerTabCount: snapshotPeerTabCount);
       } catch (e) {
         debugPrint('[TerminalTabPage] Session cleanup failed for $tabKey: $e');
       }
-      // Always close the tab from UI, regardless of session cleanup result
+      // 无论会话清理结果如何，都从 UI 关闭该标签页
       tabController.closeBy(tabKey);
     } catch (e) {
       debugPrint('[TerminalTabPage] Error closing tab $tabKey: $e');
@@ -328,21 +328,21 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
     }
   }
 
-  /// Close all tabs with session cleanup.
-  /// Used for window-level close operations (onDestroy, handleWindowCloseButton).
-  /// UI tabs are removed immediately; session cleanup runs in parallel with a
-  /// bounded timeout so window close is not blocked indefinitely.
+  /// 关闭所有标签页并清理会话。
+  /// 用于窗口级关闭操作（onDestroy、handleWindowCloseButton）。
+  /// UI 标签页立即移除；会话清理并行执行，并带有
+  /// 有界超时，以免窗口关闭被无限期阻塞。
   Future<void> _closeAllTabs() async {
     _windowClosing = true;
     final tabKeys = tabController.state.value.tabs.map((t) => t.key).toList();
-    // Remove all UI tabs immediately (same instant behavior as the old tabController.clear())
-    // Keep the cleanup target lookup below synchronous before its first await:
-    // it relies on the current frame still retaining each TerminalPage's FFI/model.
+    // 立即移除所有 UI 标签页（与旧的 tabController.clear() 行为完全一致）
+    // 保持下面的清理目标查找在首次 await 之前是同步的：
+    // 它依赖当前帧仍保留每个 TerminalPage 的 FFI/model。
     _terminalClipboardNotice.clear();
     _terminalClipboardNoticeCancel?.call();
     tabController.clear();
-    // Run session cleanup in parallel with bounded timeout (closeTerminal() has internal 3s timeout).
-    // Skip tabs already being closed by a concurrent _closeTab() to avoid duplicate FFI calls.
+    // 并行执行会话清理并设有界超时（closeTerminal() 内部有 3 秒超时）。
+    // 跳过已被并发 _closeTab() 关闭中的标签页，避免重复调用 FFI。
     final futures = tabKeys
         .where((tabKey) => !_closingTabs.contains(tabKey))
         .map((tabKey) async {
@@ -364,20 +364,20 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
     }
   }
 
-  /// Close the terminal session on server side based on persistent mode.
+  /// 根据持久模式决定是否在服务端关闭终端会话。
   ///
-  /// [persistAll] controls behavior when persistent mode is enabled:
-  /// - `true` (window close): persist all sessions, don't close any.
-  /// - `false` (tab close): only persist the last session for the peer,
-  ///   close others so only the most recent disconnected session survives.
+  /// 持久模式启用时，[persistAll] 控制行为：
+  /// - `true`（窗口关闭）：保留所有会话，不关闭任何一个。
+  /// - `false`（标签页关闭）：只保留该 peer 最后一个会话，
+  ///   关闭其余会话，使只有最近断开的会话得以保留。
   ///
-  /// Note: if [_windowClosing] is true, persistAll is forced to true so that
-  /// in-flight _closeTab() calls don't accidentally close sessions that the
-  /// window-close flow intends to preserve.
+  /// 注意：如果 [_windowClosing] 为 true，则 persistAll 被强制设为 true，以便
+  /// 正在进行的 _closeTab() 调用不会误关掉那些
+  /// 窗口关闭流程打算保留的会话。
   Future<void> _closeTerminalSessionIfNeeded(String tabKey,
       {bool persistAll = false, int? peerTabCount}) async {
-    // If window close is in progress, override to persist all sessions
-    // even if this call originated from an individual tab close.
+    // 如果窗口关闭正在进行，则覆盖为保留所有会话
+    // 即使本次调用源自单个标签页关闭。
     if (_windowClosing) {
       persistAll = true;
     }
@@ -395,33 +395,33 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
 
     if (isPersistent) {
       if (persistAll) {
-        // Window close: persist all sessions
+        // 窗口关闭：保留所有会话
         return;
       }
-      // Tab close: only persist if this is the last tab for this peer.
-      // Use the snapshot value if provided (avoids race with concurrent tab removal).
+      // 标签页关闭：仅当这是该 peer 的最后一个标签页时才保留。
+      // 如果提供了快照值则使用它（避免与并发的标签页移除竞争）。
       final effectivePeerTabCount = peerTabCount ??
           tabController.state.value.tabs.where((t) {
             final p = _parseTabKey(t.key);
             return p != null && p.$1 == peerId;
           }).length;
       if (effectivePeerTabCount <= 1) {
-        // Last tab for this peer — persist the session
+        // 该 peer 的最后一个标签页 —— 保留会话
         return;
       }
-      // Not the last tab — fall through to close the session
+      // 不是最后一个标签页 —— 继续执行以关闭会话
     }
 
     final terminalModel = ffi.terminalModels[terminalId];
     if (terminalModel != null) {
-      // closeTerminal() has internal 3s timeout, no need for external timeout
+      // closeTerminal() 内部有 3 秒超时，无需外部超时
       await terminalModel.closeTerminal();
     }
   }
 
-  /// Parse tabKey (format: "peerId_terminalId") into its components.
-  /// Note: peerId may contain underscores, so we use lastIndexOf('_').
-  /// Returns null if tabKey format is invalid.
+  /// 将 tabKey（格式："peerId_terminalId"）解析为各组成部分。
+  /// 注意：peerId 可能包含下划线，因此使用 lastIndexOf('_')。
+  /// 若 tabKey 格式无效则返回 null。
   (String peerId, int terminalId)? _parseTabKey(String tabKey) {
     final lastUnderscore = tabKey.lastIndexOf('_');
     if (lastUnderscore <= 0) {
@@ -442,7 +442,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
     final List<MenuEntryBase<String>> menu = [];
     const EdgeInsets padding = EdgeInsets.only(left: 8.0, right: 5.0);
 
-    // New tab menu item
+    // 新建标签页菜单项
     menu.add(MenuEntryButton<String>(
       childBuilder: (TextStyle? style) => Text(
         translate('New tab'),
@@ -451,7 +451,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
       proc: () {
         _addNewTerminal(peerId);
         cancelFunc();
-        // Also try to close any BotToast overlays
+        // 同时尝试关闭所有 BotToast 浮层
         BotToast.cleanAll();
       },
       padding: padding,
@@ -498,7 +498,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
   void initState() {
     super.initState();
 
-    // Add keyboard shortcut handler
+    // 添加键盘快捷键处理器
     HardwareKeyboard.instance.addHandler(_handleKeyEvent);
 
     rustDeskWinManager.setMethodHandler((call, fromWindowId) async {
@@ -508,7 +508,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
         final args = jsonDecode(call.arguments);
         final id = args['id'];
         windowOnTop(windowId());
-        // Allow multiple terminals for the same connection
+        // 允许同一连接使用多个终端
         final terminalId = args['terminalId'] ?? _nextTerminalId++;
         tabController.add(_createTerminalTab(
           peerId: id,
@@ -521,7 +521,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
       } else if (call.method == kWindowEventRestoreTerminalSessions) {
         _restoreSessions(call.arguments);
       } else if (call.method == "onDestroy") {
-        // Clean up sessions before window destruction (bounded wait)
+        // 窗口销毁前清理会话（有界等待）
         await _closeAllTabs();
       } else if (call.method == kWindowActionRebuild) {
         reloadCurrentWindow();
@@ -532,7 +532,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
         final currentTab = tabController.state.value.selectedTabInfo;
         assert(call.arguments is String,
             "Expected String arguments for kWindowEventActiveSession, got ${call.arguments.runtimeType}");
-        // Use lastIndexOf to handle peerIds containing underscores
+        // 使用 lastIndexOf 处理含下划线的 peerId
         final lastUnderscore = currentTab.key.lastIndexOf('_');
         if (lastUnderscore > 0 &&
             currentTab.key.substring(0, lastUnderscore) == call.arguments) {
@@ -594,44 +594,44 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
         continue;
       }
       _addNewTerminal(peerId, terminalId: terminalId);
-      // A delay is required to ensure the UI has sufficient time to update
-      // before adding the next terminal. Without this delay, `_TerminalPageState::dispose()`
-      // may be called prematurely while the tab widget is still in the tab controller.
-      // This behavior is likely due to a race condition between the UI rendering lifecycle
-      // and the addition of new tabs. Attempts to use `_TerminalPageState::addPostFrameCallback()`
-      // to wait for the previous page to be ready were unsuccessful, as the observed call sequence is:
-      // `initState() 2 -> dispose() 2 -> postFrameCallback() 2`, followed by `initState() 3`.
-      // The `Future.delayed` approach mitigates this issue by introducing a buffer period,
-      // allowing the UI to stabilize before proceeding.
+      // 需要一段延迟，以确保 UI 有充足时间更新
+      // 然后再添加下一个终端。没有这段延迟，`_TerminalPageState::dispose()`
+      // 可能会在标签页组件仍留在标签页控制器中时被提前调用。
+      // 这种行为很可能源于 UI 渲染生命周期
+      // 与添加新标签页之间的竞争。尝试使用 `_TerminalPageState::addPostFrameCallback()`
+      // 等待上一页就绪的做法没有奏效，因为观察到的调用顺序是：
+      // `initState() 2 -> dispose() 2 -> postFrameCallback() 2`，随后是 `initState() 3`。
+      // `Future.delayed` 方案通过引入一段缓冲时间来缓解该问题，
+      // 让 UI 先稳定下来再继续。
       await Future.delayed(const Duration(milliseconds: 300));
     }
   }
 
   bool _handleKeyEvent(KeyEvent event) {
     if (event is KeyDownEvent) {
-      // Use Cmd+T on macOS, Ctrl+Shift+T on other platforms
+      // macOS 上使用 Cmd+T，其他平台使用 Ctrl+Shift+T
       if (event.logicalKey == LogicalKeyboardKey.keyT) {
         if (isMacOS &&
             HardwareKeyboard.instance.isMetaPressed &&
             !HardwareKeyboard.instance.isShiftPressed) {
-          // macOS: Cmd+T (standard for new tab)
+          // macOS：Cmd+T（新建标签页的标准快捷键）
           _addNewTerminalForCurrentPeer();
           return true;
         } else if (!isMacOS &&
             HardwareKeyboard.instance.isControlPressed &&
             HardwareKeyboard.instance.isShiftPressed) {
-          // Other platforms: Ctrl+Shift+T (to avoid conflict with Ctrl+T in terminal)
+          // 其他平台：Ctrl+Shift+T（避免与终端中的 Ctrl+T 冲突）
           _addNewTerminalForCurrentPeer();
           return true;
         }
       }
 
-      // Use Cmd+W on macOS, Ctrl+Shift+W on other platforms
+      // macOS 上使用 Cmd+W，其他平台使用 Ctrl+Shift+W
       if (event.logicalKey == LogicalKeyboardKey.keyW) {
         if (isMacOS &&
             HardwareKeyboard.instance.isMetaPressed &&
             !HardwareKeyboard.instance.isShiftPressed) {
-          // macOS: Cmd+W (standard for close tab)
+          // macOS：Cmd+W（关闭标签页的标准快捷键）
           final currentTab = tabController.state.value.selectedTabInfo;
           if (tabController.state.value.tabs.length > 1) {
             _closeTab(currentTab.key);
@@ -640,7 +640,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
         } else if (!isMacOS &&
             HardwareKeyboard.instance.isControlPressed &&
             HardwareKeyboard.instance.isShiftPressed) {
-          // Other platforms: Ctrl+Shift+W (to avoid conflict with Ctrl+W word delete)
+          // 其他平台：Ctrl+Shift+W（避免与 Ctrl+W 的按词删除冲突）
           final currentTab = tabController.state.value.selectedTabInfo;
           if (tabController.state.value.tabs.length > 1) {
             _closeTab(currentTab.key);
@@ -649,17 +649,17 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
         }
       }
 
-      // Use Alt+Left/Right for tab navigation (avoids conflicts)
+      // 使用 Alt+Left/Right 进行标签页导航（避免冲突）
       if (HardwareKeyboard.instance.isAltPressed) {
         if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          // Previous tab
+          // 上一个标签页
           final currentIndex = tabController.state.value.selected;
           if (currentIndex > 0) {
             tabController.jumpTo(currentIndex - 1);
           }
           return true;
         } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-          // Next tab
+          // 下一个标签页
           final currentIndex = tabController.state.value.selected;
           if (currentIndex < tabController.length - 1) {
             tabController.jumpTo(currentIndex + 1);
@@ -668,7 +668,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
         }
       }
 
-      // Check for Cmd/Ctrl + Number (switch to specific tab)
+      // 检查 Cmd/Ctrl + 数字（切换到指定标签页）
       final numberKeys = [
         LogicalKeyboardKey.digit1,
         LogicalKeyboardKey.digit2,
@@ -696,7 +696,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
   }
 
   void _addNewTerminal(String peerId, {int? terminalId}) {
-    // Find first tab for this peer to get connection parameters
+    // 找到该 peer 的第一个标签页以获取连接参数
     final firstTab = tabController.state.value.tabs.firstWhere(
       (tab) {
         final last = tab.key.lastIndexOf('_');

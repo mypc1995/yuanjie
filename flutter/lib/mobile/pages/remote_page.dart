@@ -28,14 +28,14 @@ import '../widgets/custom_scale_widget.dart';
 
 final initText = '1' * 1024;
 
-// Workaround for Android (default input method, Microsoft SwiftKey keyboard) when using physical keyboard.
-// When connecting a physical keyboard, `KeyEvent.physicalKey.usbHidUsage` are wrong is using Microsoft SwiftKey keyboard.
+// 在 Android 上使用物理键盘时的变通方案（默认输入法 Microsoft SwiftKey 键盘）。
+// 连接物理键盘时，使用 Microsoft SwiftKey 键盘会导致 `KeyEvent.physicalKey.usbHidUsage` 取值错误。
 // https://github.com/flutter/flutter/issues/159384
 // https://github.com/flutter/flutter/issues/159383
 void _disableAndroidSoftKeyboard({bool? isKeyboardVisible}) {
   if (isAndroid) {
     if (isKeyboardVisible != true) {
-      // `enable_soft_keyboard` will be set to `true` when clicking the keyboard icon, in `openKeyboard()`.
+      // 点击键盘图标时会在 `openKeyboard()` 中把 `enable_soft_keyboard` 设为 `true`。
       gFFI.invokeMethod("enable_soft_keyboard", false);
     }
   }
@@ -44,8 +44,8 @@ void _disableAndroidSoftKeyboard({bool? isKeyboardVisible}) {
 bool handleMobileLocalKeyEvent(KeyEvent event,
     {required bool remoteFocused, required InputModel inputModel}) {
   if (event is KeyUpEvent && inputModel.isViewOnly) {
-    // View-only skips normal modifier cleanup; stale physical keys would
-    // otherwise look like touch selections in the input helper.
+    // 仅查看模式会跳过常规的修饰键清理；残留的物理按键会
+    // 否则在输入助手中看起来像是触摸选择。
     inputModel.handleKeyUpEventModifiers(event);
   }
   if (!remoteFocused &&
@@ -60,8 +60,8 @@ bool handleMobileLocalKeyEvent(KeyEvent event,
         PhysicalKeyboardKey.metaLeft,
         PhysicalKeyboardKey.metaRight,
       ].contains(event.physicalKey)) {
-    // Local UI may consume key-ups while the remote input path still owns
-    // the modifiers pressed before focus moved.
+    // 本地界面可能消耗掉 key-up 事件，而远端输入路径仍持有
+    // 焦点移动前按下的修饰键。
     inputModel.handleKeyEvent(event);
   }
   return false;
@@ -150,15 +150,15 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       }
       _disableAndroidSoftKeyboard(
           isKeyboardVisible: keyboardVisibilityController.isVisible);
-      // Seed shortcut action callbacks once the session is ready, so that
-      // global keyboard shortcuts work even if the user never opens the
-      // toolbar menu. The returned list is intentionally discarded — the
-      // side effect of registering callbacks (inside toolbarControls) is
-      // what we want here.
+      // 会话就绪后初始化快捷键动作回调，这样
+      // 即使用户从不打开
+      // 工具栏菜单，全局快捷键也能工作。返回的列表被有意丢弃——
+      // 注册回调（在 toolbarControls 内部）这一副作用
+      // 才是我们在这里想要的。
       if (mounted) {
         toolbarControls(context, widget.id, gFFI);
-        // Mobile has no DesktopTabController, so tab-switch shortcuts will
-        // log a no-handler debug line if a user binds one.
+        // 移动端没有 DesktopTabController，因此切换标签页的快捷键会
+        // 在用户绑定该快捷键时记录一条无处理器的调试日志。
         registerSessionShortcutActions(gFFI);
         _registerMobileChatShortcut();
         registerToolbarShortcuts(context, widget.id, gFFI);
@@ -168,9 +168,9 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
 
     inputModel.keyboardInputAllowed = true;
 
-    // Wayland sessions may use clipboard-based text input on the controlled side.
-    // Require explicit user confirmation before allowing soft-keyboard and
-    // clipboard-assisted text input. Physical keyboard events are not gated here.
+    // Wayland 会话在被控端可能使用基于剪贴板的文本输入。
+    // 在允许软键盘和
+    // 剪贴板辅助的文本输入之前，需要用户明确确认。物理键盘事件不在此处做限制。
     _waylandKeyboardGateWorker = ever(gFFI.ffiModel.pi.isSet, (bool isSet) {
       if (isSet) {
         _initWaylandKeyboardGateIfNeeded();
@@ -185,13 +185,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   Future<void> dispose() async {
     HardwareKeyboard.instance.removeHandler(_handleLocalKeyEvent);
     WidgetsBinding.instance.removeObserver(this);
-    // Close the session up-front. `gFFI.close()` below only calls `sessionClose`
-    // after several awaits (canvas save, image update, the `enable_soft_keyboard`
-    // platform call), so if the app is backgrounded while this page is disposing,
-    // dispose can be suspended before reaching it and the connection is never torn
-    // down. The reconnect then re-attaches to the leaked session and is stuck on
-    // "Connecting...". Dispatching it here makes teardown happen synchronously on
-    // pop; the `sessionClose` in `gFFI.close()` becomes a no-op once removed.
+    // 提前关闭会话。下面的 `gFFI.close()` 只有在
+    // 多次 await（画布保存、图像更新、`enable_soft_keyboard`
+    // 平台调用）之后才会调用 `sessionClose`，因此如果在本页面销毁过程中应用进入后台，
+    // dispose 可能在到达那里之前被挂起，连接将永远不会被
+    // 断开。之后重连会重新连接到泄漏的会话上，卡在
+    // "Connecting..."。在这里派发它可以让拆除操作在出栈时同步发生，
+    // 移除后 `gFFI.close()` 中的 `sessionClose` 就变成空操作。
     unawaited(bind.sessionClose(sessionId: sessionId));
     // https://github.com/flutter/flutter/issues/64935
     super.dispose();
@@ -214,9 +214,9 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     WakelockManager.disable(_uniqueKey);
     await keyboardSubscription.cancel();
     removeSharedStates(widget.id);
-    // `on_voice_call_closed` should be called when the connection is ended.
-    // The inner logic of `on_voice_call_closed` will check if the voice call is active.
-    // Only one client is considered here for now.
+    // 连接结束时应该调用 `on_voice_call_closed`。
+    // `on_voice_call_closed` 的内部逻辑会检查语音通话是否处于活动状态。
+    // 目前这里只考虑一个客户端。
     gFFI.chatModel.onVoiceCallClosed("End connection");
   }
 
@@ -227,8 +227,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     }
   }
 
-  // For client side
-  // When swithing from other app to this app, try to sync clipboard.
+  // 用于客户端一侧
+  // 从其他应用切换到本应用时，尝试同步剪贴板。
   void trySyncClipboard() {
     gFFI.invokeMethod("try_sync_clipboard");
   }
@@ -259,7 +259,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
 
     inputModel.keyboardInputAllowed = false;
 
-    // Ensure soft keyboard is not active before user confirms.
+    // 在用户确认之前确保软键盘未激活。
     _showEdit = false;
     gFFI.invokeMethod("enable_soft_keyboard", false);
     _mobileFocusNode.unfocus();
@@ -267,13 +267,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     setState(() {});
   }
 
-  // to-do: It should be better to use transparent color instead of the bgColor.
-  // But for now, the transparent color will cause the canvas to be white.
-  // I'm sure that the white color is caused by the Overlay widget in BlockableOverlay.
-  // But I don't know why and how to fix it.
+  // 待办：使用透明色而不是 bgColor 会更好。
+  // 但目前透明色会导致画布变成白色。
+  // 我确信白色是由 BlockableOverlay 中的 Overlay 组件造成的。
+  // 但我不知道原因以及如何修复。
   Widget emptyOverlay(Color bgColor) => BlockableOverlay(
-        /// the Overlay key will be set with _blockableOverlayState in BlockableOverlay
-        /// see override build() in [BlockableOverlay]
+        /// Overlay 的 key 将在 BlockableOverlay 中用 _blockableOverlayState 设置
+        /// 参见 [BlockableOverlay] 中的 override build()
         state: _blockableOverlayState,
         underlying: Container(
           color: bgColor,
@@ -283,15 +283,15 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   void onSoftKeyboardChanged(bool visible) {
     if (!visible) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
-      // [pi.version.isNotEmpty] -> check ready or not, avoid login without soft-keyboard
+      // [pi.version.isNotEmpty] -> 检查是否就绪，避免在没有软键盘的情况下登录
       if (gFFI.chatModel.chatWindowOverlayEntry == null &&
           gFFI.ffiModel.pi.version.isNotEmpty) {
         gFFI.invokeMethod("enable_soft_keyboard", false);
       }
 
-      // Workaround for iOS: physical keyboard input fails after virtual keyboard is hidden
+      // iOS 的变通方案：虚拟键盘隐藏后物理键盘输入失效
       // https://github.com/flutter/flutter/issues/39900
-      // https://github.com/rustdesk/rustdesk/discussions/11843#discussioncomment-13499698 - Virtual keyboard issue
+      // https://github.com/rustdesk/rustdesk/discussions/11843#discussioncomment-13499698 - 虚拟键盘问题
       if (isIOS) {
         _iosKeyboardWorkaroundTimer?.cancel();
         _iosKeyboardWorkaroundTimer = Timer(Duration(milliseconds: 100), () {
@@ -313,7 +313,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         _mobileFocusNode.requestFocus();
       });
     }
-    // update for Scaffold
+    // 为 Scaffold 做更新
     setState(() {});
   }
 
@@ -328,7 +328,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     var subNewValue = newValue.substring(j + 1);
     var subOldValue = oldValue.substring(j + 1);
 
-    // get common prefix of subNewValue and subOldValue
+    // 获取 subNewValue 与 subOldValue 的公共前缀
     var common = 0;
     for (;
         common < subOldValue.length &&
@@ -336,15 +336,15 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
             subNewValue[common] == subOldValue[common];
         ++common) {}
 
-    // get newStr from subNewValue
+    // 从 subNewValue 得到 newStr
     var newStr = "";
     if (subNewValue.length > common) {
       newStr = subNewValue.substring(common);
     }
 
-    // Set the value to the old value and early return if is still composing. (1 && 2)
-    // 1. The composing range is valid
-    // 2. The new string is shorter than the composing range.
+    // 如果仍在组合输入中，则把值设为旧值并提前返回。(1 && 2)
+    // 1. 组合输入范围有效
+    // 2. 新字符串比组合输入范围更短。
     if (_textController.value.isComposingRangeValid) {
       final composingLength = _textController.value.composing.end -
           _textController.value.composing.start;
@@ -354,12 +354,12 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       }
     }
 
-    // Delete the different part in the old value.
+    // 删除旧值中不同的部分。
     for (i = 0; i < subOldValue.length - common; ++i) {
       inputModel.inputKey('VK_BACK');
     }
 
-    // Input the new string.
+    // 输入新的字符串。
     if (newStr.length > 1) {
       bind.sessionInputString(sessionId: sessionId, value: newStr);
     } else {
@@ -374,13 +374,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         newValue.isNotEmpty &&
         oldValue[0] == '1' &&
         newValue[0] != '1') {
-      // clipboard
+      // 剪贴板
       oldValue = '';
     }
-    // This length-only diff assumes the IME appends at the end. If an IME
-    // leaves the caret inside paired punctuation, later insertions can replay
-    // the closing symbol: "()" -> "(a)" sends ")" instead of "a". This is a
-    // client text-diff issue, independent of the host keyboard layout.
+    // 这个只比较长度的差异算法假定输入法是在末尾追加。如果输入法
+    // 把光标留在成对标点中间，后续输入可能会重复
+    // 闭合符号："()" -> "(a)" 会发送 ")" 而不是 "a"。这是
+    // 客户端的文本差异问题，与主机的键盘布局无关。
     if (newValue.length == oldValue.length) {
       // ?
     } else if (newValue.length < oldValue.length) {
@@ -400,7 +400,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                 content == '《》' ||
                 content == '（）' ||
                 content == '【】')) {
-          // can not only input content[0], because when input ], [ are also auo insert, which cause ] never be input
+          // 不能只输入 content[0]，因为输入 ] 时 [ 也会被自动插入，导致 ] 始终无法输入
           bind.sessionInputString(sessionId: sessionId, value: content);
           _openKeyboardUnlocked();
           return;
@@ -412,7 +412,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     }
   }
 
-  // handle mobile virtual keyboard
+  // 处理移动端虚拟键盘
   void handleSoftKeyboardInput(String newValue) {
     if (!inputModel.keyboardInputAllowed) {
       return;
@@ -461,14 +461,14 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   void _openKeyboardUnlocked() {
     inputModel.keyboardInputAllowed = true;
     gFFI.invokeMethod("enable_soft_keyboard", true);
-    // destroy first, so that our _value trick can work
+    // 先销毁，这样我们的 _value 小技巧才能生效
     _value = initText;
     _textController.text = _value;
     setState(() => _showEdit = false);
     _timer?.cancel();
     _timer = Timer(kMobileDelaySoftKeyboard, () {
-      // show now, and sleep a while to requestFocus to
-      // make sure edit ready, so that keyboard won't show/hide/show/hide happen
+      // 现在显示，并稍作等待后调用 requestFocus，以
+      // 确保编辑框已就绪，从而避免键盘反复显示/隐藏
       setState(() => _showEdit = true);
       _timer?.cancel();
       _timer = Timer(kMobileDelaySoftKeyboardFocus, () {
@@ -497,7 +497,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         return false;
       },
       child: Scaffold(
-          // workaround for https://github.com/rustdesk/rustdesk/issues/3131
+          // 针对 https://github.com/rustdesk/rustdesk/issues/3131 的变通方案
           floatingActionButtonLocation: keyboardIsVisible
               ? FABLocation(FloatingActionButtonLocation.endFloat, 0, -35)
               : null,
@@ -588,8 +588,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     return RawPointerMouseRegion(
       cursor: ffiModel.keyboard ? SystemMouseCursors.none : MouseCursor.defer,
       inputModel: inputModel,
-      // Disable RawKeyFocusScope before the connecting is established.
-      // The "Delete" key on the soft keyboard may be grabbed when inputting the password dialog.
+      // 在连接建立之前禁用 RawKeyFocusScope。
+      // 在密码对话框中输入时，软键盘上的 "Delete" 键可能被抢占。
       child: gFFI.ffiModel.pi.isSet.isTrue
           ? RawKeyFocusScope(
               focusNode: _physicalFocusNode,
@@ -730,8 +730,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                   : TextFormField(
                       textInputAction: TextInputAction.newline,
                       autocorrect: false,
-                      // Flutter 3.16.9 Android.
-                      // `enableSuggestions` causes secure keyboard to be shown.
+                      // Flutter 3.16.9 Android。
+                      // `enableSuggestions` 会导致显示安全键盘。
                       // https://github.com/flutter/flutter/issues/139143
                       // https://github.com/flutter/flutter/issues/146540
                       // enableSuggestions: false,
@@ -739,16 +739,16 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                       focusNode: _mobileFocusNode,
                       maxLines: null,
                       controller: _textController,
-                      // trick way to make backspace work always
+                      // 让退格键始终生效的小技巧
                       keyboardType: TextInputType.multiline,
-                      // `onChanged` may be called depending on the input method if this widget is wrapped in
+                      // 如果该组件被包裹在
                       // `Focus(onKeyEvent: ..., child: ...)`
-                      // For `Backspace` button in the soft keyboard:
-                      // en/fr input method:
-                      //      1. The button will not trigger `onKeyEvent` if the text field is not empty.
-                      //      2. The button will trigger `onKeyEvent` if the text field is empty.
-                      // ko/zh/ja input method: the button will trigger `onKeyEvent`
-                      //                     and the event will not popup if `KeyEventResult.handled` is returned.
+                      // 对于软键盘上的 `Backspace` 按钮：
+                      // en/fr 输入法：
+                      // 1. 如果文本框非空，该按钮不会触发 `onKeyEvent`。
+                      // 2. 如果文本框为空，该按钮会触发 `onKeyEvent`。
+                      // ko/zh/ja 输入法：该按钮会触发 `onKeyEvent`
+                      // 并且如果返回 `KeyEventResult.handled`，事件就不会弹出。
                       onChanged: handleSoftKeyboardInput,
                     ).workaroundFreezeLinuxMint(),
             ),
@@ -939,7 +939,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     });
   }
 
-  /// aka changeTouchMode
+  /// 即 changeTouchMode
   BottomAppBar getGestureHelp() {
     return BottomAppBar(
         child: SingleChildScrollView(
@@ -957,7 +957,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
             )));
   }
 
-  // * Currently mobile does not enable map mode
+  // * 目前移动端未启用 map 模式
   // void changePhysicalKeyboardInputMode() async {
   //   var current = await bind.sessionGetKeyboardMode(id: widget.id) ?? "legacy";
   //   gFFI.dialogManager.show((setState, close) {
@@ -981,7 +981,7 @@ class KeyHelpTools extends StatefulWidget {
   final bool keyboardIsVisible;
   final bool showGestureHelp;
 
-  /// need to show by external request, etc [keyboardIsVisible] or [changeTouchMode]
+  /// 需要通过外部请求来显示，例如 [keyboardIsVisible] 或 [changeTouchMode]
   bool get requestShow => keyboardIsVisible || showGestureHelp;
 
   KeyHelpTools(
@@ -1006,9 +1006,9 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
         style: TextButton.styleFrom(
           minimumSize: Size(0, 0),
           padding: EdgeInsets.symmetric(vertical: 10, horizontal: 9.75),
-          //adds padding inside the button
+          // 在按钮内部添加内边距
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          //limits the touch area to the button area
+          // 把触摸区域限制在按钮范围内
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(5.0),
           ),
@@ -1038,7 +1038,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
   @override
   Widget build(BuildContext context) {
     final keyboard = HardwareKeyboard.instance;
-    // Keep touch selections visible without physical modifiers opening the bar.
+    // 在没有物理修饰键弹出工具栏的情况下，保持触摸选择可见。
     final hasTouchModifier = (inputModel.ctrl && !keyboard.isControlPressed) ||
         (inputModel.alt && !keyboard.isAltPressed) ||
         (inputModel.shift && !keyboard.isShiftPressed) ||
@@ -1134,7 +1134,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('PgDn', () {
         inputModel.inputKey('VK_NEXT');
       }),
-      // to-do: support PrtScr on Mac
+      // 待办：支持 Mac 上的 PrtScr
       if (isWin || isLinux)
         wrap('PrtScr', () {
           inputModel.inputKey('VK_SNAPSHOT');
@@ -1148,7 +1148,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
           inputModel.inputKey('VK_PAUSE');
         }),
       if (isWin || isLinux)
-        // Maybe it's better to call it "Menu"
+        // 也许叫 "Menu" 更合适
         // https://en.wikipedia.org/wiki/Menu_key
         wrap('Menu', () {
           inputModel.inputKey('Apps');
@@ -1180,7 +1180,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       }),
     ];
     final space = size.width > 320 ? 4.0 : 2.0;
-    // 500 ms is long enough for this widget to be built!
+    // 500 毫秒足够让这个组件构建完成！
     Future.delayed(Duration(milliseconds: 500), () {
       _updateRect();
     });
@@ -1293,9 +1293,9 @@ void showOptions(
     final isDarkTheme = MyTheme.currentThemeMode() == ThemeMode.dark;
     final numColorSelected = Colors.white;
     final numColorUnselected = isDarkTheme ? Colors.grey : Colors.black87;
-    // We can't use `Theme.of(context).primaryColor` here, the color is:
-    // - light theme: 0xff2196f3 (Colors.blue)
-    // - dark theme: 0xff212121 (the canvas color?)
+    // 这里不能用 `Theme.of(context).primaryColor`，因为颜色是：
+    // - 浅色主题：0xff2196f3 (Colors.blue)
+    // - 深色主题：0xff212121（画布颜色？）
     final numBgSelected =
         Theme.of(context).colorScheme.primary.withOpacity(0.6);
     for (var i = 0; i < pi.displays.length; ++i) {
@@ -1376,7 +1376,7 @@ void showOptions(
                     if (v != null) viewStyle.value = v;
                   }
                 : null)),
-      // Show custom scale controls when custom view style is selected
+      // 选中自定义视图样式时显示自定义缩放控件
       Obx(() => viewStyle.value == kRemoteViewStyleCustom
           ? MobileCustomScaleControls(ffi: gFFI)
           : const SizedBox.shrink()),

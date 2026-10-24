@@ -33,7 +33,7 @@ pub struct CapturerGDI {
 
 impl CapturerGDI {
     pub fn new(name: &[u16], width: i32, height: i32) -> Result<Self, Box<dyn std::error::Error>> {
-        /* or Enumerate monitors with EnumDisplayMonitors,
+        /* 或用 EnumDisplayMonitors 枚举显示器，
         https://stackoverflow.com/questions/34987695/how-can-i-get-an-hmonitor-handle-from-a-display-device-name
             #[no_mangle]
             pub extern "C" fn callback(m: HMONITOR, dc: HDC, rect: LPRECT, lp: LPARAM) -> BOOL {}
@@ -56,7 +56,7 @@ impl CapturerGDI {
                 return Err("Failed to create dc from monitor name".into());
             }
 
-            // Create a Windows Bitmap, and copy the bits into it
+            // 创建一个 Windows Bitmap，并把位复制进去
             let dc = CreateCompatibleDC(screen_dc);
             if dc.is_null() {
                 DeleteDC(screen_dc);
@@ -132,7 +132,7 @@ impl CapturerGDI {
                 }],
             };
 
-            // copy bits into Vec
+            // 把位复制到 Vec 中
             let res = GetDIBits(
                 self.dc,
                 self.bmp,

@@ -51,8 +51,8 @@ pub(in crate::platform::windows) fn path() -> ResultType<PathBuf> {
 pub(super) fn create(path: &Path) -> ResultType<()> {
     let wide_path = wide_string(path_for_cmd_environment(path)?);
     let mut descriptor = PSECURITY_DESCRIPTOR::default();
-    // OWNER RIGHTS removes the ordinary creator's implicit WRITE_DAC permission.
-    // The owner can inspect the ACL, but only Administrators/SYSTEM can modify contents.
+    // OWNER RIGHTS 去除了普通创建者隐含的 WRITE_DAC 权限。
+    // 所有者可以查看 ACL，但只有 Administrators/SYSTEM 能修改内容。
     // https://learn.microsoft.com/windows-server/identity/ad-ds/manage/understand-special-identities-groups#owner-rights
     unsafe {
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
@@ -104,8 +104,8 @@ mod tests {
     fn protected_directory_enforces_creator_permissions() {
         let elevated =
             super::super::super::is_elevated(None).expect("creator elevation should be available");
-        // The user-owned parent allows cleanup through DELETE_CHILD. AccessCheck
-        // below checks the child's DACL, not that separate parent permission.
+        // 用户所有的父目录通过 DELETE_CHILD 允许清理。下面的 AccessCheck
+        // 检查的是子项的 DACL，而不是那个单独的父目录权限。
         let directory = std::env::temp_dir().join(format!(
             "rustdesk_installer_acl_{}",
             uuid::Uuid::new_v4().simple()
@@ -156,7 +156,7 @@ mod tests {
         unsafe {
             AccessCheck(
                 descriptor,
-                *token,
+                * token,
                 MAXIMUM_ALLOWED,
                 &mapping,
                 Some(&mut privileges),

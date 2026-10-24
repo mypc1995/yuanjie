@@ -22,10 +22,10 @@ import 'package:uuid/uuid.dart';
 final List<StreamSubscription<MouseEvent>> mouseListeners = [];
 final List<StreamSubscription<KeyboardEvent>> keyListeners = [];
 
-// WebCodecs VideoFrames handed over from js/src/webcodecs.js arrive as plain
-// interop objects (the package language version predates extension types).
-// This side owns each frame and must close it quickly: hardware decoders
-// stall once their small output frame pool is exhausted.
+// 从 js/src/webcodecs.js 传过来的 WebCodecs VideoFrames 是以普通的
+// 互操作对象形式到达的（该包的 language 版本早于 extension type）。
+// 这一侧拥有每个帧，必须快速关闭它：硬件解码器
+// 一旦其较小的输出帧池耗尽就会卡住。
 int _videoFrameWidth(JSObject frame) =>
     frame.getProperty<JSNumber>('displayWidth'.toJS).toDartInt;
 int _videoFrameHeight(JSObject frame) =>
@@ -190,7 +190,7 @@ class PlatformFFI {
     };
   }
 
-  // The web core calls this with a shape's pixels as bytes, as it calls onRgba for a frame.
+  // Web 核心会像对帧调用 onRgba 一样，用字节形式传入图形各通道的像素调用此方法。
   void setCursorDataCallback(
       void Function(String, int, int, int, int, Uint8List) fun) {
     context["onCursorData"] = (String id, int hotx, int hoty, int width,
@@ -203,10 +203,10 @@ class PlatformFFI {
 
   late final WebVideoFrameQueue<JSObject, ui.Image> _videoFrameQueue;
 
-  // Zero-readback video path: the JS decoder hands decoded VideoFrames here
-  // (checking typeof window.onVideoFrame before every frame), and the engine
-  // imports them GPU-to-GPU via createImageBitmap. Unregistering the JS global
-  // reverts the JS side to the RGBA readback path.
+  // 零回读视频路径：JS 解码器把解码后的 VideoFrames 传到这里
+  // （每帧之前都会检查 typeof window.onVideoFrame），引擎
+  // 通过 createImageBitmap 在 GPU 之间直接导入它们。注销该 JS 全局变量
+  // 会让 JS 侧退回 RGBA 回读路径。
   void setVideoFrameCallback(
       Future<void> Function(int, ui.Image, bool Function()) fun) {
     _videoFrameQueue.beginSession(fun);
@@ -268,7 +268,7 @@ class PlatformFFI {
     return null;
   }
 
-  // just for compilation
+  // 仅为编译通过而存在
   void syncAndroidServiceAppDirConfigPath() {}
 
   void setFullscreenCallback(void Function(bool) fun) {

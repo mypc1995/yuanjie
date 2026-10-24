@@ -34,7 +34,7 @@ lazy_static::lazy_static! {
 
 /// SciterHandler
 /// * element
-/// * close_state  for file path when close
+/// * close_state  关闭时用于文件路径
 #[derive(Clone, Default)]
 pub struct SciterHandler {
     element: Arc<Mutex<Option<Element>>>,
@@ -105,7 +105,7 @@ impl SciterHandler {
                         value.set_item(k, impls);
                     }
                     _ => {
-                        // ignore for now
+                        // 暂时忽略
                     }
                 }
             }
@@ -125,7 +125,7 @@ impl InvokeUiSession for SciterHandler {
         let mut colors: Vec<u8> = cd.colors.into();
         if colors.iter().filter(|x| **x != 0).next().is_none() {
             log::info!("Fix transparent");
-            // somehow all 0 images shows black rect, here is a workaround
+            // 全 0 的图像不知为何会显示成黑色矩形，这里有个变通办法
             colors[3] = 1;
         }
         let mut png = Vec::new();
@@ -148,9 +148,9 @@ impl InvokeUiSession for SciterHandler {
         let scale = if scale <= 0.0 { 1.0 } else { scale };
         self.call("setDisplay", &make_args!(x, y, w, h, cursor_embedded, scale));
         // https://sciter.com/forums/topic/color_spaceiyuv-crash
-        // Nothing spectacular in decoder – done on CPU side.
-        // So if you can do BGRA translation on your side – the better.
-        // BGRA is used as internal image format so it will not require additional transformations.
+        // 解码器里没什么花哨的东西 —— 在 CPU 侧完成。
+        // 所以如果你能在自己那一侧完成 BGRA 转换 —— 那更好。
+        // BGRA 被用作内部图像格式，因此不需要额外的格式转换。
         VIDEO.lock().unwrap().as_mut().map(|v| {
             v.stop_streaming().ok();
             let ok = v.start_streaming((w, h), COLOR_SPACE::Rgb32, None);
@@ -323,7 +323,7 @@ impl InvokeUiSession for SciterHandler {
     }
 
     fn set_platform_additions(&self, _data: &str) {
-        // Ignore for sciter version.
+        // 在 sciter 版本中忽略。
     }
 
     fn set_current_display(&self, _disp_idx: i32) {
@@ -394,7 +394,7 @@ impl InvokeUiSession for SciterHandler {
         self.call("onVoiceCallIncoming", &make_args!());
     }
 
-    /// RGBA is directly rendered by [on_rgba]. No need to store the rgba for the sciter ui.
+    /// RGBA 由 [on_rgba] 直接渲染。 sciter ui 无需保存 rgba。
     fn get_rgba(&self, _display: usize) -> *const u8 {
         std::ptr::null()
     }
@@ -414,8 +414,8 @@ impl InvokeUiSession for SciterHandler {
     }
 
     fn handle_terminal_response(&self, _response: TerminalResponse) {
-        // Terminal support is not implemented for Sciter UI
-        // This is a stub implementation to satisfy the trait requirements
+        // Sciter UI 尚未实现终端支持
+        // 这只是一个桩实现，用来满足 trait 的要求
     }
 }
 
@@ -440,11 +440,11 @@ impl sciter::EventHandler for SciterSession {
     }
 
     fn attached(&mut self, root: HELEMENT) {
-        *self.element.lock().unwrap() = Some(Element::from(root));
+        * self.element.lock().unwrap() = Some(Element::from(root));
     }
 
     fn detached(&mut self, _root: HELEMENT) {
-        *self.element.lock().unwrap() = None;
+        * self.element.lock().unwrap() = None;
         self.sender.write().unwrap().take().map(|sender| {
             sender.send(Data::Close).ok();
         });
@@ -473,7 +473,7 @@ impl sciter::EventHandler for SciterSession {
                     }
                     let site = AssetPtr::adopt(ptr as *mut video_destination);
                     log::debug!("[video] start video");
-                    *VIDEO.lock().unwrap() = Some(site);
+                    * VIDEO.lock().unwrap() = Some(site);
                     self.reconnect(false);
                 }
             }
@@ -760,7 +760,7 @@ impl SciterSession {
     fn get_key_event(&self, down_or_up: i32, name: &str, code: i32) -> Option<KeyEvent> {
         let mut key_event = KeyEvent::new();
         if down_or_up == 2 {
-            /* windows send both keyup/keydown and keychar, so here we avoid keychar
+            /* windows 会同时发送 keyup/keydown 和 keychar，因此这里避免使用 keychar
                for <= 0xFF, best practice should only avoid those not on keyboard, but
                for now, we have no way to test, so avoid <= 0xFF totally
             */

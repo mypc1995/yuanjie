@@ -120,8 +120,8 @@ pub fn timeout<T: std::future::Future>(ms: u64, future: T) -> tokio::time::Timeo
 
 pub type ResultType<F, E = anyhow::Error> = anyhow::Result<F, E>;
 
-/// Certain router and firewalls scan the packet and if they
-/// find an IP address belonging to their pool that they use to do the NAT mapping/translation, so here we mangle the ip address
+/// 某些路由器和防火墙会扫描数据包，如果它们
+/// 发现属于自己地址池的 IP 地址并用其做 NAT 映射/转换，因此这里我们对 ip 地址做了变形处理
 
 pub struct AddrMangle();
 
@@ -141,7 +141,7 @@ pub fn try_into_v4(addr: SocketAddr) -> SocketAddr {
 
 impl AddrMangle {
     pub fn encode(addr: SocketAddr) -> Vec<u8> {
-        // not work with [:1]:<port>
+        // 对 [:1]:<port> 不适用
         let addr = try_into_v4(addr);
         match addr {
             SocketAddr::V4(addr_v4) => {
@@ -237,7 +237,7 @@ pub fn gen_version() {
             break;
         }
     }
-    // generate build date
+    // 生成构建日期
     let build_date = format!("{}", chrono::Local::now().format("%Y-%m-%d %H:%M"));
     file.write_all(
         format!("#[allow(dead_code)]\npub const BUILD_DATE: &str = \"{build_date}\";\n").as_bytes(),
@@ -260,15 +260,15 @@ pub fn is_valid_custom_id(id: &str) -> bool {
         .is_match(id)
 }
 
-// Support 1.1.10-1, the number after - is a patch version.
+// 支持 1.1.10-1，- 之后的数字是补丁版本号。
 pub fn get_version_number(v: &str) -> i64 {
     let mut versions = v.split('-');
 
     let mut n = 0;
 
-    // The first part is the version number.
-    // 1.1.10 -> 1001100, 1.2.3 -> 1001030, multiple the last number by 10
-    // to leave space for patch version.
+    // 第一部分是版本号。
+    // 1.1.10 -> 1001100, 1.2.3 -> 1001030，把最后一个数字乘以 10
+    // 以给补丁版本留出空间。
     if let Some(v) = versions.next() {
         let mut last = 0;
         for x in v.split('.') {
@@ -283,7 +283,7 @@ pub fn get_version_number(v: &str) -> i64 {
         n += v.parse::<i64>().unwrap_or(0);
     }
 
-    // Ignore the rest
+    // 忽略其余部分
 
     n
 }
@@ -312,26 +312,26 @@ pub fn get_exe_time() -> SystemTime {
     })
 }
 
-/// Known cases where machine_uid::get() may fail:
-/// - Windows shutdown: "The media is write protected. (os error 19)"
-/// - macOS (hard to reproduce, reproduced at login screen): "No matching IOPlatformUUID in `ioreg -rd1 -c IOPlatformExpertDevice` command"
+/// machine_uid::get() 可能失败的已知情况：
+/// - Windows 关机："The media is write protected. (os error 19)"
+/// - macOS（难以复现，在登录界面可复现）："No matching IOPlatformUUID in `ioreg -rd1 -c IOPlatformExpertDevice` command"
 pub fn get_uuid() -> Vec<u8> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         static CACHED_MACHINE_UID: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
-        // Throttle only applies to the fallback machine_uid::get() log below, not the Once::call_once retry logs.
+        // 节流仅适用于下面回退的 machine_uid::get() 日志，而不适用于 Once::call_once 的重试日志。
         static LOG_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-        // Only macOS needs retry logic here because:
-        // - macOS: in testing, only one failure occurred when reading at 50ms intervals, so retry helps
-        // - Windows: failures during shutdown are persistent, retrying is pointless
+        // 这里只有 macOS 需要重试逻辑，因为：
+        // - macOS：测试中以 50ms 间隔读取时只出现过一次失败，所以重试是有帮助的
+        // - Windows：关机期间的失败是持续性的，重试没有意义
         #[cfg(target_os = "macos")]
         {
             static INIT: std::sync::Once = std::sync::Once::new();
             INIT.call_once(|| {
-                // Keep in sync with upstream handling:
+                // 与上游的处理方式保持同步：
                 // https://github.com/rustdesk/rustdesk/blob/85db6779828349b23ca3eba91cc7cd36c5337797/src/common.rs#L822
                 let username = whoami::username().trim_end_matches('\0').to_owned();
                 let max_retries = if username == "root" { 16 } else { 8 };
@@ -412,9 +412,9 @@ pub fn is_ip_str(id: &str) -> bool {
 
 #[inline]
 pub fn is_domain_port_str(id: &str) -> bool {
-    // modified regex for RFC1123 hostname. check https://stackoverflow.com/a/106223 for original version for hostname.
-    // according to [TLD List](https://data.iana.org/TLD/tlds-alpha-by-domain.txt) version 2023011700,
-    // there is no digits in TLD, and length is 2~63.
+    // 针对 RFC1123 主机名修改过的正则表达式。主机名的原始版本见 https://stackoverflow.com/a/106223。
+    // 根据 [TLD List](https://data.iana.org/TLD/tlds-alpha-by-domain.txt) 版本 2023011700，
+    // TLD 中不含数字，长度为 2~63。
     if let Ok(reg) = regex::Regex::new(
         r"(?i)^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z-]{0,61}[a-z]:\d{1,5}$",
     ) {
@@ -429,11 +429,11 @@ pub fn init_log(_is_async: bool, _name: &str) -> Option<flexi_logger::LoggerHand
     #[allow(unused_mut)]
     let mut logger_holder: Option<flexi_logger::LoggerHandle> = None;
     INIT.call_once(|| {
-        // webrtc-rs reports the racing design's normal outcome at warn: cancelling the transport
-        // that lost closes every gathered candidate one line at a time, and trickle means the
-        // agent always checks before it holds a pair. Both read as faults beside a connection
-        // that succeeded. agent_gather keeps its warn level - a STUN server it could not reach
-        // is the one upstream signal that explains a session which never connected.
+        // webrtc-rs 在 warn 级别上报竞态设计的正常结果：正在取消 transport
+        // 失败的一方会逐行关闭每个已收集的 candidate，而 trickle 意味着
+        // agent 总是先检查再持有候选对。两者在连接
+        // 成功旁边都像是故障。agent_gather 保持 warn 级别——它连不上的 STUN 服务器
+        // 正是解释那个从未连上的会话的上游信号。
         #[cfg(debug_assertions)]
         {
             use env_logger::*;
@@ -442,7 +442,7 @@ pub fn init_log(_is_async: bool, _name: &str) -> Option<flexi_logger::LoggerHand
         #[cfg(not(debug_assertions))]
         {
             // https://docs.rs/flexi_logger/latest/flexi_logger/error_info/index.html#write
-            // though async logger more efficient, but it also causes more problems, disable it for now
+            // 虽然异步日志器更高效，但它也带来了更多问题，暂时将其禁用
             let mut path = config::Config::log_path();
             #[cfg(target_os = "android")]
             if !config::Config::get_home().exists() {
@@ -462,18 +462,18 @@ pub fn init_log(_is_async: bool, _name: &str) -> Option<flexi_logger::LoggerHand
                     })
                     .format(opt_format)
                     .rotate(
-                        // Size as well as age: rotating only daily lets one day's file grow
-                        // without limit, so whoever can drive a hot log site — a peer sending
-                        // malformed packets, a socket erroring in a retry loop — decides how
-                        // much disk this uses. Bounding it here covers every call site at once.
+                        // 同时限制大小和时长：仅按天轮转会让某一天的文件不断增长
+                        // 且不受限制，因此任何能制造热点日志的对端——比如发送
+                        // 畸形数据包、在重试循环中不断报错的 socket——都能决定
+                        // 这会占用多少磁盘。在这里设限可以一次性覆盖所有调用点。
                         Criterion::AgeOrSize(Age::Day, 16 * 1024 * 1024),
                         Naming::Timestamps,
-                        // 90 files is ~90 days for any machine that stays under the
-                        // size criterion — i.e. every ordinary install, on every platform this
-                        // ships to. Raising it to protect the flood case would have bought little
-                        // (a count cannot outrun a flood; only the rate limits at the log sites
-                        // can) at the price of multiplying steady-state retention and disk for
-                        // everyone.
+                        // 对于任何保持在
+                        // 大小标准以内的机器——也就是本软件发布到的每个平台上的每个普通安装——90 个文件约等于 90 天。
+                        // 把它调高以应对洪泛情况带来的收益很小
+                        // （文件数量永远跑不赢洪泛；只有日志点上的速率限制
+                        // 能起作用），代价是让所有人的常驻保留时间和磁盘占用成倍增加
+                        // 。
                         Cleanup::KeepLogFiles(90),
                     )
                     .start()
@@ -616,8 +616,8 @@ mod test {
         assert!(!is_domain_port_str("a.b.c:123456"));
         assert!(!is_domain_port_str("---:12"));
         assert!(!is_domain_port_str(".:12"));
-        // todo: should we also check for these edge cases?
-        // out-of-range port
+        // 待办：我们是否也应该检查这些边界情况？
+        // 端口超出范围
         assert!(is_domain_port_str("test.com:0"));
         assert!(is_domain_port_str("test.com:98989"));
     }

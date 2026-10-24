@@ -76,35 +76,35 @@ use crate::virtual_display_manager;
 pub type Sender = mpsc::UnboundedSender<(Instant, Arc<Message>)>;
 
 const FAILURE_IDX_ID_WHITELIST: usize = 2;
-// How long a rejection counts, so also how long a blocked address stays blocked. Longer
-// throttles enumeration harder; shorter limits collateral on whitelisted neighbours.
+// 拒绝记录的时长，也就是被封禁地址保持封禁的时长。越长
+// 对枚举的限流越严格；越短则对白名单邻居的附带影响越小。
 const ID_WHITELIST_FAILURE_DECAY_MINUTES: i32 = 10;
 
-/// A connection not authorized within this long of starting is closed, however alive it
-/// keeps itself: a wrong password, a pending 2FA, an accept prompt or an admin-terminal
-/// credential prompt still unanswered. The controller reconnects on its own and the prompt
-/// comes back. A connection that says nothing at all goes at the 30 s idle timeout already.
+/// 连接开始后若在这段时间内未完成授权就会被关闭，无论它当时
+/// 看起来多么活跃：密码错误、2FA 待处理、接受提示或管理员终端
+/// 凭据提示仍未响应。控制端会自行重连，提示也会
+/// 再次出现。完全没有任何通信的连接，在 30 秒空闲超时时就已被断开。
 const LOGIN_GRACE: Duration = Duration::from_secs(180);
-/// Connections between accept and authorization, across every transport: the resource bound.
-/// At this many a further arrival is refused and the oldest is told to go, one at a time.
+/// 从接入到授权之间的连接数，跨所有传输方式统计：这是资源上限。
+/// 达到该数量后，新的连接将被拒绝，最老的连接会被通知退出，每次只退一个。
 const MAX_UNAUTHORIZED_CONNS: usize = 64;
-/// Of those, how many one address may hold at once: a quarter of the room. A fairness cap
-/// against the cheapest flood, one host with one address, not a security boundary: any pool
-/// of addresses passes it, and the bound above is what holds. Meaningful only while the
-/// address is the controller's own, which punch and relay messages carry today.
+/// 其中单个地址可同时占用的数量：房间容量的四分之一。这是一个公平性上限，
+/// 用来抵御最廉价的洪泛——单台主机单地址；它不是安全边界：任何地址池
+/// 都能绕过它，真正起作用的是上面的那个上限。只有当
+/// 地址就是控制端自身地址时才有意义，而目前的打洞与转发消息里带的正是它。
 const MAX_UNAUTHORIZED_CONNS_PER_ADDR: usize = 16;
-/// The largest message a connection may send before it authorizes. Until then a peer sends only
-/// a public key, a login request, a test delay and a close reason, none of which carries an
-/// unbounded field - a server hands the login request's avatar out as a URL, and only a custom
-/// client that inlines an image into the avatar option instead reaches this. Sized to the read
-/// buffer tungstenite allocates per WebSocket connection regardless, so there the cap costs
-/// nothing beyond a floor already paid; with MAX_UNAUTHORIZED_CONNS it holds them to 8 MiB in
-/// all, against the 1 GiB a single one could make us hold before.
+/// 连接在完成授权前可发送的最大消息大小。在此之前对端只能发送
+/// 公钥、登录请求、测试延迟和关闭原因，其中都不含
+/// 无界字段——服务器会把登录请求中的头像以 URL 形式给出，只有自定义
+/// 客户端把图片内嵌到头像选项里时才会达到这个量级。按每条 WebSocket 连接
+/// tungstenite 无条件分配的读缓冲区大小来定，因此这个上限在那里
+/// 并不会带来额外开销，那只是本来就已付出的下限；配合 MAX_UNAUTHORIZED_CONNS 可将总量限制在 8 MiB，
+/// 而此前单个连接就可能让我们占用 1 GiB。
 pub const MAX_UNAUTHORIZED_MESSAGE: usize = 128 * 1024;
 
-/// A place among the unauthorized connections, taken before the identity handshake and given
-/// back on drop: at authorization, or when the connection ends first. The count of live
-/// guards is the bound; an evicted one is told to go and keeps its place until it has.
+/// 在未授权连接中占用的一个位置，在身份握手之前取得，并在
+/// 连接结束时归还：授权成功时归还，或连接先结束的时候归还。存活
+/// 守卫的数量就是上限；被挤出的连接会被通知退出，在退出之前仍占着位置。
 pub struct UnauthorizedID {
     id: i32,
     shared: Arc<UnauthorizedShared>,
@@ -115,11 +115,11 @@ struct UnauthorizedShared {
     notify: hbb_common::tokio::sync::Notify,
 }
 
-/// Admit a connection from `ip` among the unauthorized ones. `None` when that address already
-/// holds its share, or when the global limit is reached: then the oldest connection is told to
-/// go, unless one is on its way out already, and this one is refused rather than let in on a
-/// place that is still occupied. At most one connection is ever on its way out, so a burst of
-/// refused arrivals clears no more room than a single one. The controller retries on its own.
+/// 在未授权连接中接纳来自 `ip` 的连接。返回 `None` 的情况是该地址已经
+/// 占满自己的份额，或达到全局上限：此时最老的连接会被通知
+/// 退出（除非已经有一个正在退出），而这个连接会被拒绝，而不是借用一个
+/// 仍被占用的位置进入。同时最多只有一个连接处于退出过程中，因此一串
+/// 被拒绝的请求腾出的空间不会超过一个。控制端会自行重试。
 pub fn admit_unauthorized(id: i32, ip: IpAddr) -> Option<UnauthorizedID> {
     let mut conns = UNAUTHORIZED_CONNS.lock().unwrap();
     if conns.iter().filter(|(_, held, _)| *held == ip).count() >= MAX_UNAUTHORIZED_CONNS_PER_ADDR {
@@ -142,12 +142,12 @@ pub fn admit_unauthorized(id: i32, ip: IpAddr) -> Option<UnauthorizedID> {
 }
 
 impl UnauthorizedID {
-    /// Whether this connection was told to go to make room for a newer one.
+    /// 该连接是否已被通知退出，以便给更新的连接腾出位置。
     pub fn is_evicted(&self) -> bool {
         self.shared.evicted.load(Ordering::Acquire)
     }
 
-    /// Resolves once this connection is told to go; at once if it already was.
+    /// 在该连接被通知退出时 resolve；如果已经被通知过则立即返回。
     pub async fn evicted(&self) {
         if self.is_evicted() {
             return;
@@ -165,8 +165,8 @@ impl Drop for UnauthorizedID {
     }
 }
 
-/// Resolves when the connection holding `unauthorized` is evicted; never once it has
-/// authorized and given its place back.
+/// 在持有 `unauthorized` 的连接被挤出时 resolve；在它已经
+/// 完成授权并拿回位置之后则永不返回。
 async fn unauthorized_evicted(unauthorized: &Option<UnauthorizedID>) {
     match unauthorized {
         Some(u) => u.evicted().await,
@@ -174,8 +174,8 @@ async fn unauthorized_evicted(unauthorized: &Option<UnauthorizedID>) {
     }
 }
 
-/// Resolves at the login deadline of a connection started at `started`; never once it has
-/// authorized.
+/// 在以 `started` 开始的连接的登录截止时间到达时 resolve；在它已经
+/// 完成授权之后则永不返回。
 async fn login_deadline(authorized: bool, started: Instant) {
     if authorized {
         return std::future::pending().await;
@@ -184,11 +184,11 @@ async fn login_deadline(authorized: bool, started: Instant) {
 }
 
 lazy_static::lazy_static! {
-    // Connections between accept and authorization, oldest first; see admit_unauthorized.
+    // 从接入到授权之间的连接，按最老的排在前面；参见 admit_unauthorized。
     static ref UNAUTHORIZED_CONNS: Mutex<Vec<(i32, IpAddr, Arc<UnauthorizedShared>)>> = Default::default();
-    // [0] password, [1] 2FA, [2] ID whitelist.
-    // Bucket 2 is separate so its rejections do not touch the password / 2FA budgets. It is
-    // decayed in `check_id_whitelist` and cleared on auth, never on a bare id match.
+    // [0] 密码，[1] 2FA，[2] ID 白名单。
+    // 第 2 个桶是独立的，因此它的拒绝不会占用密码 / 2FA 的配额。它会
+    // 在 `check_id_whitelist` 中衰减，并在认证通过时清空，仅凭 id 匹配则不会清空。
     static ref LOGIN_FAILURES: [Arc::<Mutex<HashMap<String, (i32, i32, i32)>>>; 3] = Default::default();
     static ref SESSIONS: Arc::<Mutex<HashMap<SessionKey, Session>>> = Default::default();
     static ref ALIVE_CONNS: Arc::<Mutex<Vec<i32>>> = Default::default();
@@ -216,7 +216,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    // Avoid data-dependent early exits.
+    // 避免依赖数据的提前退出。
     let mut x: u8 = 0;
     for i in 0..a.len() {
         x |= a[i] ^ b[i];
@@ -370,7 +370,7 @@ pub struct Connection {
     port_forward_address: String,
     tx_to_cm: mpsc::UnboundedSender<ipc::Data>,
     authorized: bool,
-    // The place among the unauthorized connections; given back at authorization.
+    // 在未授权连接中占用的位置；授权时归还。
     unauthorized_id: Option<UnauthorizedID>,
     require_2fa: Option<totp_rs::TOTP>,
     awaiting_2fa: bool,
@@ -387,32 +387,32 @@ pub struct Connection {
     network_delay: u32,
     lock_after_session_end: bool,
     show_remote_cursor: bool,
-    // by peer
+    // 由对端
     ip: String,
-    // by peer
+    // 由对端
     disable_keyboard: bool,
-    // by peer
+    // 由对端
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     show_my_cursor: bool,
-    // by peer
+    // 由对端
     disable_clipboard: bool,
-    // by peer
+    // 由对端
     disable_audio: bool,
-    // by peer
+    // 由对端
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     enable_file_transfer: bool,
-    // by peer
+    // 由对端
     audio_sender: Option<MediaSender>,
-    // audio by the remote peer/client
+    // 音频由远端对端/客户端
     tx_input: std_mpsc::Sender<MessageInput>,
-    // handle input messages
+    // 处理输入消息
     video_ack_required: bool,
     server_audit_conn: String,
     server_audit_file: String,
     controlled_context: Option<ControlledContext>,
     lr: LoginRequest,
-    // Authentication retries may update credentials, but not the requested session scope.
-    // A digest, so no peer-controlled strings are retained.
+    // 认证重试可以更新凭据，但不能改变所请求的会话范围。
+    // 只保留摘要，因此不会留存由对端控制的字符串。
     login_scope: Option<[u8; 32]>,
     peer_argb: u32,
     session_last_recv_time: Option<Arc<Mutex<Instant>>>,
@@ -442,23 +442,23 @@ pub struct Connection {
     multi_ui_session: bool,
     tx_from_authed: mpsc::UnboundedSender<ipc::Data>,
     printer_data: Vec<(Instant, String, Vec<u8>)>,
-    // For post requests that need to be sent sequentially.
-    // eg. post_conn_audit
+    // 用于需要顺序发送的 post 请求。
+    // 例如 post_conn_audit
     tx_post_seq: mpsc::UnboundedSender<(String, Value)>,
     conn_audit_primary_auth: ConnAuditPrimaryAuth,
     conn_audit_two_factor: ConnAuditTwoFactor,
-    // Tracks read job IDs delegated to CM process.
-    // When a read job is delegated to CM (via FS::ReadFile), the job id is added here.
-    // Used to filter stale responses (FileBlockFromCM, FileReadDone, etc.) for
-    // cancelled or unknown jobs.
+    // 跟踪委托给 CM 进程的读取任务 ID。
+    // 当读取任务被委托给 CM（通过 FS::ReadFile）时，任务 id 会记录到这里。
+    // 用于过滤掉过期响应（FileBlockFromCM、FileReadDone 等）
+    // 以及已取消或未知任务的响应。
     cm_read_job_ids: HashSet<i32>,
     terminal_service_id: String,
     terminal_persistent: bool,
-    // Used to avoid too many repeated scope violation warnings.
+    // 用于避免重复出现过多越权警告。
     scope_violation_messages: HashSet<&'static str>,
-    // The user token must be set when terminal is enabled.
-    // 0 indicates SYSTEM user
-    // other values indicate current user
+    // 启用终端时必须设置用户令牌。
+    // 0 表示 SYSTEM 用户
+    // 其他值表示当前用户
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     terminal_user_token: Option<TerminalUserToken>,
     terminal_generic_service: Option<Box<GenericService>>,
@@ -478,7 +478,7 @@ impl Subscriber for ConnInner {
 
     #[inline]
     fn send(&mut self, msg: Arc<Message>) {
-        // Send SwitchDisplay on the same channel as VideoFrame to avoid send order problems.
+        // 在与 VideoFrame 相同的通道上发送 SwitchDisplay，以避免发送顺序问题。
         let tx_by_video = match &msg.union {
             Some(message::Union::VideoFrame(_)) => true,
             Some(message::Union::Misc(misc)) => match &misc.union {
@@ -506,15 +506,15 @@ const SEND_TIMEOUT_VIDEO: u64 = 12_000;
 const SEND_TIMEOUT_OTHER: u64 = SEND_TIMEOUT_VIDEO * 10;
 const SESSION_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Whether the DRM backend can serve a Wayland login screen here.
+/// DRM 后端在此能否提供 Wayland 登录界面。
 ///
-/// A cold cache probes off-thread; admission still requires a definitive `Available` verdict.
+/// 缓存未命中时会在线程外探测；准入仍需要一个明确的 `Available` 结论。
 #[cfg(all(target_os = "linux", feature = "drm"))]
 fn drm_can_serve_login_screen() -> bool {
     super::drm_capturer::availability_cached() == super::drm_capturer::Availability::Available
 }
 
-/// Without the feature nothing can capture a Wayland greeter, so the refusal stands.
+/// 没有该特性就无法捕获 Wayland 欢迎界面，因此拒绝的结论成立。
 #[cfg(all(target_os = "linux", not(feature = "drm")))]
 fn drm_can_serve_login_screen() -> bool {
     false
@@ -533,7 +533,7 @@ impl Connection {
             control_permissions,
             controlled_context,
         } = meta;
-        // Android is not supported yet, so we always set control_permissions to None.
+        // 目前尚不支持 Android，因此总是把 control_permissions 设为 None。
         #[cfg(target_os = "android")]
         let control_permissions = None;
         let _raii_id = raii::ConnectionID::new(id);
@@ -546,7 +546,7 @@ impl Connection {
             ..Default::default()
         };
         let (tx_from_cm_holder, mut rx_from_cm) = mpsc::unbounded_channel::<ipc::Data>();
-        // holding tx_from_cm_holder to avoid cpu burning of rx_from_cm.recv when all sender closed
+        // 持有 tx_from_cm_holder，避免所有发送端都关闭后 rx_from_cm.recv 空转耗 CPU
         let tx_from_cm = tx_from_cm_holder.clone();
         let (tx_to_cm, rx_to_cm) = mpsc::unbounded_channel::<ipc::Data>();
         let (tx, mut rx) = mpsc::unbounded_channel::<(Instant, Arc<Message>)>();
@@ -569,8 +569,8 @@ impl Connection {
             },
             require_2fa: crate::auth_2fa::get_2fa(None),
             awaiting_2fa: false,
-            // Defer display enumeration until login succeeds. Monitor login replaces this
-            // with the primary index returned with the refreshed display snapshot.
+            // 把显示器枚举推迟到登录成功之后。监视器登录会替换这里的
+            // 为随刷新后的显示器快照一起返回的主显示器索引。
             display_idx: 0,
             stream,
             server,
@@ -590,7 +590,7 @@ impl Connection {
             keyboard: Self::permission(keys::OPTION_ENABLE_KEYBOARD, &control_permissions),
             clipboard: Self::permission(keys::OPTION_ENABLE_CLIPBOARD, &control_permissions),
             audio: Self::permission(keys::OPTION_ENABLE_AUDIO, &control_permissions),
-            // to-do: make sure is the option correct here
+            // 待办：确认这里的选项是否正确
             file: Self::permission(keys::OPTION_ENABLE_FILE_TRANSFER, &control_permissions),
             restart: Self::permission(keys::OPTION_ENABLE_REMOTE_RESTART, &control_permissions),
             recording: Self::permission(keys::OPTION_ENABLE_RECORD_SESSION, &control_permissions),
@@ -662,7 +662,7 @@ impl Connection {
         let addr = hbb_common::try_into_v4(addr);
         if !conn.on_open(addr).await {
             conn.closed = true;
-            // sleep to ensure msg got received.
+            // sleep 以确保消息已收到。
             sleep(1.).await;
             return;
         }
@@ -701,8 +701,8 @@ impl Connection {
         let mut last_recv_time = Instant::now();
         let started = Instant::now();
 
-        // The connection type is not known until the login request arrives;
-        // `on_message` picks the type-specific timeout then.
+        // 在登录请求到达之前无法确定连接类型；
+        // 届时由 `on_message` 选择对应类型的超时时间。
         conn.stream.set_send_timeout(SEND_TIMEOUT_VIDEO);
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -733,11 +733,11 @@ impl Connection {
 
         loop {
             tokio::select! {
-                // biased; // video has higher priority // causing test_delay_timer failed while transferring big file
+                // biased; // 视频优先级更高 // 导致传输大文件时 test_delay_timer 失败
 
-                // Both end an unauthorized connection at once, not on the next timer tick:
-                // told to go to make room, or past the grace for its authorization. Neither
-                // fires once the connection has authorized.
+                // 两者都会立即结束未授权连接，而不是等到下一次定时器触发：
+                // 被通知退出以腾出位置，或超过其授权的宽限期。两者都不会
+                // 在连接完成授权后触发。
                 _ = unauthorized_evicted(&conn.unauthorized_id) => {
                     conn.on_close("Timeout", true).await;
                     break;
@@ -765,11 +765,11 @@ impl Connection {
                             conn.on_close("connection manager", true).await;
                             break;
                         }
-                        // The connection manager's window went away rather than a person
-                        // disconnecting this peer. End the session exactly as above, but do not
-                        // send the manual close reason: it is the one thing that stops the peer
-                        // from retrying, and on a logout the retry is the whole point - it is
-                        // what puts the peer back on the login screen a moment later.
+                        // 是连接管理器的窗口消失了，而不是有人
+                        // 断开了这个对端。完全按上面那样结束会话，但不要
+                        // 发送手动关闭原因：只有它才能阻止对端
+                        // 重试，而在注销场景下重试正是全部意义所在——它
+                        // 正是让对端片刻后重新回到登录界面的原因。
                         #[cfg(target_os = "linux")]
                         ipc::Data::CmWindowClosed => {
                             conn.chat_unanswered = false; // seen
@@ -779,7 +779,7 @@ impl Connection {
                         }
                         ipc::Data::CmErr(e) => {
                             if e != "expected" {
-                                // cm closed before connection
+                                // CM 在连接之前已关闭
                                 conn.on_close(&format!("connection manager error: {}", e), false).await;
                                 break;
                             }
@@ -865,10 +865,10 @@ impl Connection {
                                 conn.block_input = enabled;
                                 conn.send_permission(Permission::BlockInput, enabled).await;
                             } else if &name == "privacy_mode" {
-                                // Keep permission state and runtime state consistent:
-                                // when revoking the permission, try to leave privacy mode first.
-                                // Otherwise we could end up in an inconsistent state where
-                                // permission looks disabled while privacy mode is still active.
+                                // 保持权限状态与运行时状态一致：
+                                // 撤销权限时，先尝试退出隐私模式。
+                                // 否则可能陷入不一致的状态：
+                                // 权限看起来已禁用，但隐私模式仍然处于激活状态。
                                 if !enabled && privacy_mode::is_in_privacy_mode() {
                                     if let Some(conn_id) = privacy_mode::get_privacy_mode_conn_id() {
                                         if conn_id == conn.inner.id() {
@@ -890,8 +890,8 @@ impl Connection {
                                                         impl_key,
                                                     );
                                                     conn.send(msg_out).await;
-                                                    // Turn-off failed, so revert CM's optimistic toggle
-                                                    // and keep the previous permission value.
+                                                    // 关闭失败，因此要回滚 CM 的乐观切换
+                                                    // 并保留之前的权限值。
                                                     conn.send_to_cm(ipc::Data::SwitchPermission {
                                                         name: "privacy_mode".to_owned(),
                                                         enabled: conn.privacy_mode,
@@ -914,7 +914,7 @@ impl Connection {
                             if !conn.is_remote() {
                                 continue;
                             }
-                            // The CM can send MonitorReady before this connection is authorized.
+                            // CM 可能会在本连接完成授权之前就发送 MonitorReady。
                             if !conn.authorized {
                                 log::debug!("Discarding file clipboard message before authorization");
                                 continue;
@@ -980,7 +980,7 @@ impl Connection {
                         ipc::Data::CloseVoiceCall(_reason) => {
                             log::debug!("Close the voice call from the ipc.");
                             conn.close_voice_call().await;
-                            // Notify the peer that we closed the voice call.
+                            // 通知对端我们已关闭语音通话。
                             let msg = new_voice_call_request(false);
                             conn.send(msg).await;
                         }
@@ -1033,7 +1033,7 @@ impl Connection {
                                     }
                                     if conn.port_forward_socket.is_some() && conn.authorized {
                                         log::info!("Port forward, last_test_delay is none: {}", conn.last_test_delay.is_none());
-                                        // Avoid TestDelay reply injection into rdp data stream
+                                        // 避免把 TestDelay 的回复注入到 rdp 数据流中
                                         if conn.last_test_delay.is_none() {
                                             break;
                                         }
@@ -1184,7 +1184,7 @@ impl Connection {
                         conn.on_close("Timeout", true).await;
                         break;
                     }
-                    // The control end will jump out of the loop after receiving LoginResponse and will not reply to the TestDelay
+                    // 控制端在收到 LoginResponse 后会跳出循环，不会回复 TestDelay
                     if conn.last_test_delay.is_none() && !(conn.port_forward_socket.is_some() && conn.authorized) {
                         conn.last_test_delay = Some(Instant::now());
                         let mut msg_out = Message::new();
@@ -1269,7 +1269,7 @@ impl Connection {
                         );
                     }
                     MessageInput::Key((mut msg, press)) => {
-                        // Set the press state to false, use `down` only in `handle_key()`.
+                        // 把按下状态设为 false，`down` 只在 `handle_key()` 中使用。
                         msg.press = false;
                         if press {
                             msg.down = true;
@@ -1346,9 +1346,9 @@ impl Connection {
                             ipc::Data::Close => {
                                 bail!("Close requested from connection manager");
                             }
-                            // Same end as above: a tunnel must not outlive the window either.
-                            // Only the reason differs, and a port forward carries none - the
-                            // peer sees the tunnel drop and decides for itself.
+                            // 与上面一样结束：隧道也不能比窗口活得更久。
+                            // 只是原因不同，而端口转发不携带原因——
+                            // 对端看到隧道断开后自行决定。
                             #[cfg(target_os = "linux")]
                             ipc::Data::CmWindowClosed => {
                                 bail!("Connection manager window closed");
@@ -1383,7 +1383,7 @@ impl Connection {
                     }
                     Ok(conns) = hbbs_rx.recv() => {
                         if conns.contains(&self.inner.id) {
-                            // todo: check reconnect
+                            // 待办：检查重连
                             bail!("Closed manually by the web console");
                         }
                     }
@@ -1453,9 +1453,9 @@ impl Connection {
         if id_whitelist.is_empty() {
             return true;
         }
-        // Limit before matching, or a match returning early would never touch the counter and
-        // leave enumeration unthrottled. Not cleared here: `my_id` is self-reported, so that
-        // would let anyone holding one allowed id reset the budget between probes.
+        // 在匹配之前就做限制，否则提前返回的匹配永远不会触及计数器，
+        // 枚举就得不到限流。这里不做清零：`my_id` 是自行上报的，那样
+        // 任何持有某个被允许 id 的人都能在两次探测之间重置配额。
         self.decay_id_whitelist_failures();
         let (failure, res) = self.check_failure(FAILURE_IDX_ID_WHITELIST).await;
         if !res {
@@ -1474,7 +1474,7 @@ impl Connection {
         false
     }
 
-    // What `check_failure` consults: the source address, plus shared IPv6 prefixes.
+    // `check_failure` 查询的内容：来源地址，以及共享的 IPv6 前缀。
     fn failure_keys(&self) -> Vec<String> {
         let mut keys = vec![self.ip.clone()];
         if let Some((p64, p56, p48)) = self.get_ipv6_prefixes() {
@@ -1483,7 +1483,7 @@ impl Connection {
         keys
     }
 
-    // Only this connection's own keys, so it stays O(1) instead of scanning the map.
+    // 只包含该连接自己的键，因此保持 O(1)，无需扫描整个 map。
     fn decay_id_whitelist_failures(&self) {
         decay_stale_failures(
             &mut LOGIN_FAILURES[FAILURE_IDX_ID_WHITELIST].lock().unwrap(),
@@ -1493,8 +1493,8 @@ impl Connection {
         );
     }
 
-    // Not `update_failure(.., true, ..)`: it no-ops when the peer's own address has no entry,
-    // normal on IPv6, leaving the shared prefixes that are what actually block it.
+    // 不是 `update_failure(.., true, ..)`：当对端自身地址没有条目时它是空操作，
+    // 这在 IPv6 上很常见，于是真正起拦截作用的是那些共享前缀。
     fn clear_id_whitelist_failures(&self) {
         clear_failures(
             &mut LOGIN_FAILURES[FAILURE_IDX_ID_WHITELIST].lock().unwrap(),
@@ -1565,7 +1565,7 @@ impl Connection {
         v["uuid"] = json!(crate::encode64(hbb_common::get_uuid()));
         v["conn_id"] = json!(self.inner.id);
         v["session_id"] = json!(self.lr.session_id);
-        // Unique per record; the api server dedups retried posts by it.
+        // 每条记录唯一；api 服务器据此对重试的 post 请求去重。
         v["nonce"] = json!(uuid::Uuid::new_v4().to_string());
         allow_err!(self.tx_post_seq.send((url, v)));
     }
@@ -1667,26 +1667,26 @@ impl Connection {
     }
 
     async fn post_audit_async(url: String, v: Value) -> ResultType<String> {
-        // Audit records are compliance evidence; retry transport errors and
-        // 5xx (e.g. a reverse proxy answering while the api server restarts)
-        // so transient failures don't silently drop them. A 4xx is a
-        // deterministic rejection and fails immediately.
+        // 审计记录是合规证据；对传输错误以及
+        // 5xx（例如 api 服务器重启期间反向代理给出的响应）
+        // 进行重试，以免瞬时失败悄悄丢失它们。4xx 则是
+        // 确定性的拒绝，立即失败。
         //
-        // The delays, not the attempt count, are what cover the case this exists
-        // for: a proxy answering 502 during a restart fails fast, so without them
-        // every attempt lands within a few seconds and none outlives the restart.
+        // 起关键作用的是这些延迟，而不是尝试次数，它们覆盖了这个机制存在的
+        // 场景：重启期间代理返回 502 会快速失败，因此若没有这些延迟，
+        // 每次尝试都集中在几秒内完成，没有一次能比重启活得更久。
         //
-        // The window is bounded on the other side: the api server only remembers a
-        // record's nonce for five minutes, so a retry arriving after that expired
-        // would be stored a second time. Counting attempts cannot bound it - one
-        // attempt is already up to 84s (post_request_ retries the TLS handshake up
-        // to four times at 12s each, then the TCP-proxy fallback adds 36s), and a
-        // suspend between attempts stretches the wall clock without limit. So stop
-        // by elapsed time instead, early enough that the last attempt still lands
-        // inside the server's window.
+        // 这个窗口在另一侧也是有界的：api 服务器只记住一条
+        // 记录的 nonce 五分钟，因此在那之后到达的重试
+        // 会被二次存储。用尝试次数无法限制它——单次
+        // 尝试最长已达 84 秒（post_request_ 最多重试 TLS 握手
+        // 四次，每次 12 秒，之后 TCP 代理回退再增加 36 秒），而
+        // 两次尝试之间的挂起会无限拉长实际耗时。所以应改为
+        // 按已用时间来停止，并且要足够早，让最后一次尝试仍然落在
+        // 服务器的窗口之内。
         const RETRY_DEADLINE: Duration = Duration::from_secs(120);
-        // One delay per retry, so the attempt count follows from the table and the
-        // two cannot drift apart.
+        // 每次重试对应一个延迟，因此尝试次数可由表推导，两者
+        // 不会脱节。
         const RETRY_BACKOFF_SECS: [u64; 2] = [10, 30];
         const ATTEMPTS: usize = RETRY_BACKOFF_SECS.len() + 1;
         let body = v.to_string();
@@ -1698,15 +1698,15 @@ impl Connection {
                 match crate::post_request_with_status(url.clone(), body.clone(), "").await {
                     Ok((status, text)) => {
                         if (200..300).contains(&status) {
-                            // Success is an empty body. hbbs reports handler
-                            // failures (e.g. a db write error) as 200 with an
-                            // {"error": ...} body - retryable: the server
-                            // releases the record's nonce when its write fails,
-                            // so trying again is what stores the record. Any
-                            // other nonempty body did not come from the audit
-                            // handler (a proxy interposing a 2xx maintenance
-                            // page, a malformed error) and must not be mistaken
-                            // for storage, so it is retried rather than dropped.
+                            // 成功时响应体为空。hbbs 把处理器
+                            // 失败（例如数据库写入错误）报告为 200，响应体为
+                            // {"error": ...}——可重试：服务器
+                            // 在写入失败时会释放该记录的 nonce，
+                            // 因此再次尝试才会把记录存下来。任何
+                            // 其他非空响应体都不是来自审计
+                            // 处理器（可能是代理插入的 2xx 维护
+                            // 页面、格式错误的错误信息），不能被误认为
+                            // 已存储，因此要重试而不是丢弃。
                             if text.trim().is_empty() {
                                 return Ok(text);
                             }
@@ -1722,10 +1722,10 @@ impl Connection {
                             (true, format!("{}: {}", label, brief))
                         } else {
                             let brief: String = text.chars().take(128).collect();
-                            // 408 and 429 are the transient 4xx: the request timed
-                            // out upstream, or a proxy is shedding load. Every other
-                            // 4xx is a deterministic rejection and retrying it would
-                            // only delay the log line.
+                            // 408 和 429 属于瞬时性的 4xx：请求已
+                            // 在上游超时，或代理正在卸载负载。其他所有
+                            // 4xx 都是确定性的拒绝，重试只会
+                            // 推迟这条日志。
                             let transient = status >= 500 || status == 408 || status == 429;
                             (transient, format!("status {}: {}", status, brief))
                         }
@@ -1749,10 +1749,10 @@ impl Connection {
                 ATTEMPTS,
                 err
             );
-            // In range by construction: the guard above returns at ATTEMPTS.
+            // 按构造必然在范围内：上面的守卫会在 ATTEMPTS 处返回。
             time::sleep(Duration::from_secs(RETRY_BACKOFF_SECS[attempt - 1])).await;
-            // Re-checked after the delay so no attempt starts past the deadline;
-            // the check above alone would let one begin up to a backoff later.
+            // 延迟之后重新检查，确保没有哪次尝试在截止时间之后才开始；
+            // 只靠上面的检查会让某次尝试最多晚一个退避时间才开始。
             if started.elapsed() >= RETRY_DEADLINE {
                 log::error!(
                     "Audit post dropped (attempt {}/{}, deadline passed during backoff): {}",
@@ -1804,8 +1804,8 @@ impl Connection {
         };
         if pf.multiplex {
             crate::port_forward_mux::cap_packet_size(&mut self.stream);
-            // `inner.tx` is set for the connection's whole life; `None` here is
-            // unreachable, and refusing the login is the only honest answer.
+            // `inner.tx` 在该连接的整个生命周期内都有效；这里出现 `None` 是
+            // 不可能的，拒绝该登录是唯一诚实的做法。
             self.port_forward_mux = self.inner.tx.clone().map(|tx| {
                 super::port_forward_mux::PortForwardMux::new(tx, self.port_forward_address.clone())
             });
@@ -1846,8 +1846,8 @@ impl Connection {
         }
     }
 
-    // Returns whether this connection should be kept alive.
-    // `true` does not necessarily mean authorization succeeded (e.g. REQUIRE_2FA case).
+    // 返回该连接是否应保持存活。
+    // `true` 不一定代表授权成功（例如 REQUIRE_2FA 的情况）。
     async fn send_logon_response_and_keep_alive(&mut self) -> bool {
         if self.authorized {
             return true;
@@ -1882,28 +1882,28 @@ impl Connection {
             });
             self.awaiting_2fa = true;
             self.send_login_error(crate::client::REQUIRE_2FA).await;
-            // Keep the connection alive so the client can continue with 2FA.
+            // 保持连接存活，让客户端可以继续完成 2FA。
             return true;
         }
         self.awaiting_2fa = false;
         if let Some(keep_alive) = self.prepare_terminal_login_for_authorization().await {
             return keep_alive;
         }
-        // Lifted here rather than below with the rest of authorization: a multiplexed tunnel
-        // narrows it again for its own framing (`port_forward_mux::cap_packet_size`), so that
-        // call has to come after this one, not before.
+        // 在这里提升，而不是在下面与其余授权一起提升：多路复用隧道
+        // 会为自己的分帧再次收窄它（`port_forward_mux::cap_packet_size`），因此
+        // 该调用必须放在这次调用之后，而不是之前。
         self.stream.set_max_packet_length(usize::MAX);
         if !self.connect_port_forward_if_needed().await {
             return false;
         }
         self.authorized = true;
         self.unauthorized_id = None;
-        // One-time means gone once it has let a peer in, not once that peer
-        // leaves. This session's later logins come in on the password the
-        // session remembers, so they are not affected.
+        // 一次性是指一旦放进来一个对端就作废，而不是那个对端
+        // 离开时作废。本次会话之后进来的登录使用的是会话记住的
+        // 密码，因此不受影响。
         password::update_temporary_password();
-        // Releases the budget `check_id_whitelist` charges against this address: only a peer
-        // that got this far proved more than a self-reported id.
+        // 释放 `check_id_whitelist` 记在这个地址上的配额：只有走到这一步的对端
+        // 才证明了自己不只是自行上报的 id。
         self.clear_id_whitelist_failures();
         let (conn_type, auth_conn_type) = if self.file_transfer.is_some() {
             (1, AuthConnType::FileTransfer)
@@ -2039,7 +2039,7 @@ impl Connection {
             if !crate::platform::linux::is_x11_for_drm() {
                 super::drm_capturer::settle_unknown_availability().await;
             }
-            // Refuse only while nothing can capture a Wayland greeter: the DRM path can.
+            // 只在没有任何手段能捕获 Wayland 欢迎界面时才拒绝：DRM 路径可以。
             if crate::platform::linux::is_login_screen_wayland() && !drm_can_serve_login_screen() {
                 msg = crate::client::LOGIN_SCREEN_WAYLAND.to_owned()
             } else {
@@ -2074,7 +2074,7 @@ impl Connection {
                 username = "".to_owned();
             }
         }
-        // Terminal feature is supported on desktop only
+        // 终端功能仅桌面端支持
         #[allow(unused_mut)]
         let mut terminal = cfg!(not(any(target_os = "android", target_os = "ios")));
         #[cfg(target_os = "windows")]
@@ -2139,13 +2139,13 @@ impl Connection {
                     res.set_error(format!("{}", err));
                 }
                 Ok((displays, primary_display_idx)) => {
-                    // For compatibility with old versions, we need to send the displays to the peer.
-                    // But the displays may be updated later, before creating the video capturer.
+                    // 为了兼容旧版本，需要把显示器信息发给对端。
+                    // 但显示器信息之后还可能更新，会在创建视频采集器之前发生。
                     #[cfg(target_os = "macos")]
                     {
                         self.retina.set_displays(&displays);
                     }
-                    // A separate primary lookup here could race with display hot-plug.
+                    // 这里单独查找主显示器可能会与显示器热插拔产生竞态。
                     self.display_idx = primary_display_idx;
                     pi.displays = displays;
                     pi.current_display = self.display_idx as _;
@@ -2166,7 +2166,7 @@ impl Connection {
 
                     #[cfg(target_os = "linux")]
                     {
-                        // use rdp_input when uinput is not available in wayland. Ex: flatpak
+                        // 在 wayland 下没有 uinput 时使用 rdp_input。例如：flatpak
                         if input_service::wayland_use_rdp_input() {
                             let _ = setup_rdp_input().await;
                         }
@@ -2293,7 +2293,7 @@ impl Connection {
                     ..Default::default()
                 })
                 .into();
-                *wait_session_id_confirm = true;
+                * wait_session_id_confirm = true;
             }
         }
     }
@@ -2305,12 +2305,12 @@ impl Connection {
             "allow-remove-wallpaper",
             &Config::get_option("allow-remove-wallpaper"),
         ) {
-            // multi connections set once
+            // 多连接只设置一次
             let mut wallpaper = WALLPAPER_REMOVER.lock().unwrap();
             if wallpaper.is_none() {
                 match crate::platform::WallPaperRemover::new() {
                     Ok(remover) => {
-                        *wallpaper = Some(remover);
+                        * wallpaper = Some(remover);
                     }
                     Err(e) => {
                         log::info!("create wallpaper remover failed: {:?}", e);
@@ -2458,16 +2458,16 @@ impl Connection {
     #[inline]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn input_key(&self, msg: KeyEvent, press: bool) {
-        // to-do: if is the legacy mode, and the key is function key "LockScreen".
-        // Switch to the primary display.
+        // 待办：如果是旧模式，且按键是功能键 "LockScreen"。
+        // 切换到主显示器。
         self.tx_input.send(MessageInput::Key((msg, press))).ok();
     }
 
-    // Auto Login: the password and Return the client would otherwise type itself, typed only if a
-    // check right before finds the logon or lock screen.
+    // 自动登录：客户端本会自行输入的密码和回车，只在
+    // 紧邻其前的检查发现登录或锁屏界面时才输入。
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     async fn type_auto_login_password(&self, password: String) {
-        // A peer can send this at any rate, hence the throttled logs.
+        // 对端可以以任意频率发送，因此日志做了限流。
         let at_logon_screen = tokio::task::spawn_blocking(crate::platform::is_logon_screen)
             .await
             .unwrap_or_else(|e| {
@@ -2502,10 +2502,10 @@ impl Connection {
         let mut hasher2 = Sha256::new();
         hasher2.update(h1);
         hasher2.update(self.hash.challenge.as_bytes());
-        // A normal `==` on slices may short-circuit on the first mismatch, which can leak how many leading
-        // bytes matched via timing. In typical remote scenarios this is difficult to exploit due to network
-        // jitter, changing challenges, and login attempt throttling, but a constant-time comparison here is
-        // low-cost defensive programming.
+        // 对切片做普通的 `==` 可能在第一处不匹配时就短路，从而泄露有多少前导
+        // 字节通过耗时匹配上了。在典型的远程场景中，由于网络
+        // 抖动、变化的挑战值以及登录尝试限流，这很难被利用，但在这里做常数时间比较仍是
+        // 低成本的防御性编程。
         constant_time_eq(&hasher2.finalize()[..], &self.lr.password[..])
     }
 
@@ -2526,13 +2526,13 @@ impl Connection {
             return false;
         }
 
-        // Use strict decode success to detect hashed storage.
-        // If decode fails, treat as legacy plaintext storage for compatibility.
+        // 用严格解码成功来判断是否为哈希存储。
+        // 若解码失败，为兼容起见按旧的明文存储处理。
         if let Some(h1) = decode_permanent_password_h1_from_storage(storage) {
             return self.verify_h1(&h1[..]);
         }
 
-        // Legacy plaintext storage path.
+        // 旧的明文存储路径。
         self.validate_password_plain(storage)
     }
 
@@ -2546,11 +2546,11 @@ impl Connection {
         self.verify_h1(&h1[..])
     }
 
-    // This is coarse brute-force protection for the current temporary password value.
-    // We only care whether the active temporary password itself was presented correctly,
-    // not whether later authorization steps succeed. A successful temporary-password
-    // match clears this state immediately, and the counter also resets whenever the
-    // temporary password changes or is rotated.
+    // 这是针对当前临时密码值的粗粒度暴力破解防护。
+    // 我们只关心当前有效的临时密码本身是否被正确提交，
+    // 而不关心后续授权步骤是否成功。临时密码匹配成功
+    // 会立即清除该状态，计数器也会在临时密码
+    // 发生变化或轮换时重置。
     fn check_update_temporary_password(&self, temporary_password_success: bool) {
         const MAX_CONSECUTIVE_FAILURES: i32 = 10;
         #[derive(Default)]
@@ -2618,8 +2618,8 @@ impl Connection {
                     log::info!("Permanent password accepted via logon-screen fallback");
                 }
             };
-            // Strictly check storage usability before auth so malformed encrypted/hash storage
-            // cannot fall back to being accepted as legacy plaintext.
+            // 在认证前严格检查存储是否可用，避免格式错误的加密/哈希存储
+            // 被当作旧的明文而通过。
             let (local_storage, local_salt) =
                 Config::get_local_permanent_password_storage_and_salt();
             if !local_storage.is_empty() {
@@ -2654,7 +2654,7 @@ impl Connection {
             .unwrap()
             .get(&self.session_key())
             .map(|s| s.to_owned());
-        // last_recv_time is a mutex variable shared with connection, can be updated lively.
+        // last_recv_time 是与 connection 共享的互斥锁变量，可以被实时更新。
         if let Some(session) = session {
             if !self.lr.password.is_empty()
                 && (tfa && session.tfa
@@ -2751,18 +2751,18 @@ impl Connection {
         self.terminal_persistent = false;
     }
 
-    // Approval and whitelist decisions must stay bound to the same controller identity and
-    // session scope across authentication retries.
+    // 批准与白名单决策必须始终绑定到同一个控制端身份和
+    // 同一会话范围，跨越所有认证重试。
     fn login_scope_digest(lr: &LoginRequest) -> [u8; 32] {
         let mut hasher = Sha256::new();
-        // Length-prefixed so adjacent fields cannot alias.
+        // 带长度前缀，避免相邻字段混叠。
         let mut push = |bytes: &[u8]| {
             hasher.update((bytes.len() as u64).to_le_bytes());
             hasher.update(bytes);
         };
         push(lr.my_id.as_bytes());
-        // Payloads are destructured exhaustively: a new field fails to compile until it is
-        // either latched here or deliberately ignored.
+        // 对载荷做穷尽解构：新增字段会编译失败，直到它被
+        // 在此锁定，或被显式忽略。
         match lr.union.as_ref() {
             Some(login_request::Union::FileTransfer(ft)) => {
                 let FileTransfer {
@@ -2798,13 +2798,13 @@ impl Connection {
                 push(&port.to_le_bytes());
                 push(&[*multiplex as u8]);
             }
-            // Variants this build does not know execute as remote, so they latch as remote.
+            // 此构建不认识的变体会按 remote 执行，因此锁定为 remote。
             None | Some(_) => push(b"remote"),
         }
         hasher.finalize().into()
     }
 
-    // Logging only; security decisions compare digests.
+    // 仅用于日志；安全决策比较的是摘要。
     fn login_scope_kind(lr: &LoginRequest) -> &'static str {
         match lr.union.as_ref() {
             Some(login_request::Union::FileTransfer(_)) => "file_transfer",
@@ -2819,7 +2819,7 @@ impl Connection {
         let requested = Self::login_scope_digest(lr);
         match self.login_scope {
             Some(initial) if initial != requested => {
-                // self.lr still holds the first accepted request, whose scope is the latched one.
+                // self.lr 仍然保存着第一个被接受的请求，其范围就是锁定的那一个。
                 log::warn!(
                     "Rejected login scope change: conn_id={}, initial={}, requested={}",
                     self.inner.id(),
@@ -2868,7 +2868,7 @@ impl Connection {
                 let tx_from_cm_clone = p.tx_from_cm.clone();
                 if let Err(err) = start_ipc(p.rx_to_cm, p.tx_from_cm).await {
                     log::warn!("ipc to connection manager exit: {}", err);
-                    // https://github.com/rustdesk/rustdesk-server-pro/discussions/382#discussioncomment-10525725, cm may start failed
+                    // https://github.com/rustdesk/rustdesk-server-pro/discussions/382#discussioncomment-10525725, cm 可能启动失败
                     #[cfg(windows)]
                     if !crate::platform::is_prelogin()
                         && !err.to_string().contains(crate::platform::EXPLORER_EXE)
@@ -2889,7 +2889,7 @@ impl Connection {
 
     async fn on_message(&mut self, msg: Message) -> bool {
         if let Some(message::Union::Misc(misc)) = &msg.union {
-            // Move the CloseReason forward, as this message needs to be received when unauthorized, especially for kcp.
+            // 把 CloseReason 提前，因为这条消息需要在未授权时也能被收到，尤其是对 kcp 而言。
             if let Some(misc::Union::CloseReason(s)) = &misc.union {
                 log::info!("receive close reason: {}", s);
                 self.on_close("Peer close", true).await;
@@ -2905,7 +2905,7 @@ impl Connection {
                 return self.handle_authorized_scope_violation(message).await;
             }
         }
-        // After handling CloseReason messages, proceed to process other message types
+        // 处理完 CloseReason 消息后，继续处理其他消息类型
         if let Some(message::Union::LoginRequest(lr)) = msg.union {
             if !self.check_login_scope(&lr).await {
                 return false;
@@ -3015,8 +3015,8 @@ impl Connection {
             }
 
             // https://github.com/rustdesk/rustdesk-server-pro/discussions/646
-            // `is_logon` is used to check login with `OPTION_ALLOW_LOGON_SCREEN_PASSWORD` == "Y".
-            // `is_logon_ui()` is a fallback for logon UI detection on Windows.
+            // `is_logon` 用于在 `OPTION_ALLOW_LOGON_SCREEN_PASSWORD` == "Y" 时检查登录。
+            // `is_logon_ui()` 是 Windows 上检测登录界面的备用手段。
             #[cfg(target_os = "windows")]
             let is_logon = || {
                 crate::platform::is_prelogin() || crate::platform::is_locked() || {
@@ -3090,8 +3090,8 @@ impl Connection {
                 }
             }
         } else if let Some(message::Union::Auth2fa(tfa)) = msg.union {
-            // A 2FA response may arrive after click authorization has completed.
-            // Ignore it unless this connection is still waiting for the response.
+            // 2FA 响应可能在点击授权完成之后才到达。
+            // 除非该连接仍在等待该响应，否则忽略它。
             if !self.awaiting_2fa {
                 return true;
             }
@@ -3167,8 +3167,8 @@ impl Connection {
                             }
                             self.reset_session_scope_for_login();
                             self.handle_login_request_without_validation(&lr).await;
-                            // Switching sides authorizes without a password, so it must not bypass
-                            // the whitelist, which can be a locked policy pushed by the server.
+                            // 切换双方无需密码即可授权，因此不能绕过
+                            // 白名单，因为白名单可能是服务器下发的锁定策略。
                             if !self.check_id_whitelist().await {
                                 return false;
                             }
@@ -3356,9 +3356,9 @@ impl Connection {
                         }
                         .filter(crate::keyboard::is_modifier);
 
-                        // handle all down as press
-                        // fix unexpected repeating key on remote linux, seems also fix abnormal alt/shift, which
-                        // make sure all key are released
+                        // 把所有 down 都当作按下处理
+                        // 修复远端 linux 上按键意外重复的问题，似乎也修复了 alt/shift 异常，而它
+                        // 要确保所有按键都已释放
                         // https://github.com/rustdesk/rustdesk/issues/6793
                         let is_press = if cfg!(target_os = "linux") {
                             (me.press || me.down) && !(crate::is_modifier(&me) || key.is_some())
@@ -3401,8 +3401,8 @@ impl Connection {
                     if self.should_handle_text_clipboard_message() && self.clipboard_enabled() {
                         #[cfg(not(any(target_os = "android", target_os = "ios")))]
                         update_clipboard(vec![cb], ClipboardSide::Host);
-                        // ios as the controlled side is actually not supported for now.
-                        // The following code is only used to preserve the logic of handling text clipboard on mobile.
+                        // 目前实际上还不支持 ios 作为被控端。
+                        // 以下代码仅用于保留移动端处理文本剪贴板的逻辑。
                         #[cfg(target_os = "ios")]
                         {
                             let content = if cb.compress {
@@ -3449,7 +3449,7 @@ impl Connection {
                     } else if is_file_data_request(&clip)
                         && crate::get_builtin_option(keys::OPTION_ONE_WAY_FILE_TRANSFER) == "Y"
                     {
-                        // One-way file transfer: never serve this side's clipboard files to the peer.
+                        // 单向文件传输：绝不把本端的剪贴板文件提供给对端。
                     } else if let Some(clip) = msg_2_clip(clip) {
                         #[cfg(target_os = "windows")]
                         {
@@ -3555,12 +3555,12 @@ impl Connection {
                                 return true;
                             }
                         }
-                        // Android is scoped-storage only: reject any peer supplied path that
-                        // escapes the app workspace before it reaches the filesystem.
+                        // Android 仅支持作用域存储：对任何在到达文件系统之前就
+                        // 逃出应用工作区的对端提供的路径予以拒绝。
                         #[cfg(target_os = "android")]
                         {
-                            // (path, job id, allow empty) of the peer supplied path this action
-                            // operates on.
+                            // （路径、任务 id、允许为空），指该操作所针对的对端提供路径的
+                            // 这些字段。
                             let checked: Option<(&str, i32, bool)> = match &fa.union {
                                 Some(file_action::Union::ReadEmptyDirs(rd)) => {
                                     Some((rd.path.as_str(), -1, false))
@@ -3572,7 +3572,7 @@ impl Connection {
                                     Some((f.path.as_str(), f.id, false))
                                 }
                                 Some(file_action::Union::Send(s)) => {
-                                    // Printer jobs read from memory, `path` is only a lookup key.
+                                    // 打印任务从内存读取，`path` 只是查找键。
                                     if JobType::from_proto(s.file_type) == JobType::Generic {
                                         Some((s.path.as_str(), s.id, false))
                                     } else {
@@ -3670,7 +3670,7 @@ impl Connection {
                                 }
                             }
                             Some(file_action::Union::Send(s)) => {
-                                // server to client
+                                // 服务器到客户端
                                 let id = s.id;
                                 let path = s.path.clone();
                                 let job_type = JobType::from_proto(s.file_type);
@@ -3680,7 +3680,7 @@ impl Connection {
                                             get_version_number(&self.lr.version),
                                         );
                                         if crate::common::need_fs_cm_send_files() {
-                                            // Delegate file reading to CM on Windows
+                                            // 在 Windows 上把文件读取委托给 CM
                                             self.cm_read_job_ids.insert(id);
                                             self.send_fs(ipc::FS::ReadFile {
                                                 path,
@@ -3691,7 +3691,7 @@ impl Connection {
                                                 overwrite_detection: od,
                                             });
                                         } else {
-                                            // Handle file reading in Connection on non-Windows
+                                            // 在非 Windows 平台上由 Connection 处理文件读取
                                             let data_source =
                                                 fs::DataSource::FilePath(PathBuf::from(&path));
                                             self.create_and_start_read_job(
@@ -3717,7 +3717,7 @@ impl Connection {
                                             let data_source = fs::DataSource::MemoryCursor(
                                                 std::io::Cursor::new(data),
                                             );
-                                            // Printer jobs don't need file count limit check
+                                            // 打印任务不需要检查文件数量上限
                                             self.create_and_start_read_job(
                                                 id,
                                                 job_type,
@@ -3730,7 +3730,7 @@ impl Connection {
                                             )
                                             .await;
                                         } else {
-                                            // Ignore this message if the printer data is not found
+                                            // 如果找不到打印数据，则忽略此消息
                                             return true;
                                         }
                                     }
@@ -3738,9 +3738,9 @@ impl Connection {
                                 self.file_transferred = true;
                             }
                             Some(file_action::Union::Receive(r)) => {
-                                // client to server
-                                // note: 1.1.10 introduced identical file detection, which breaks original logic of send/recv files
-                                // whenever got send/recv request, check peer version to ensure old version of rustdesk
+                                // 客户端到服务器
+                                // 注意：1.1.10 引入了相同文件检测，这破坏了原有的文件收发逻辑，
+                                // 因此每次收到发送/接收请求时都要检查对端版本，确保老版本 rustdesk
                                 let od = can_enable_overwrite_detection(get_version_number(
                                     &self.lr.version,
                                 ));
@@ -3816,7 +3816,7 @@ impl Connection {
                                 if let Some(job) = fs::get_job(r.id, &mut self.read_jobs) {
                                     job.confirm(&r).await;
                                 } else if self.cm_read_job_ids.contains(&r.id) {
-                                    // Forward to CM for CM-read jobs
+                                    // 对于由 CM 读取的任务，转发给 CM
                                     self.send_fs(ipc::FS::SendConfirmForRead {
                                         id: r.id,
                                         file_num: r.file_num,
@@ -3918,8 +3918,8 @@ impl Connection {
                     Some(misc::Union::RefreshVideo(r)) => {
                         if self.should_handle_render_broadcast_message() {
                             if r {
-                                // Refresh all videos.
-                                // Compatibility with old versions and sciter(remote).
+                                // 刷新所有视频。
+                                // 兼容旧版本以及 sciter(remote)。
                                 self.refresh_video_display(None);
                             }
                             self.update_auto_disconnect_timer();
@@ -3940,7 +3940,7 @@ impl Connection {
                     Some(misc::Union::RestartRemoteDevice(_)) => {
                         #[cfg(not(any(target_os = "android", target_os = "ios")))]
                         if self.restart {
-                            // force_reboot, not work on linux vm and macos 14
+                            // force_reboot，在 linux 虚拟机和 macos 14 上不工作
                             #[cfg(any(target_os = "linux", target_os = "windows"))]
                             match system_shutdown::force_reboot() {
                                 Ok(_) => log::info!("Restart by the peer"),
@@ -3969,7 +3969,7 @@ impl Connection {
                     },
                     Some(misc::Union::AudioFormat(format)) => {
                         if !self.disable_audio {
-                            // Drop the audio sender previously.
+                            // 丢弃之前的音频发送端。
                             drop(std::mem::replace(&mut self.audio_sender, None));
                             self.audio_sender = Some(start_audio_thread());
                             self.audio_sender
@@ -4055,7 +4055,7 @@ impl Connection {
                             self.send(msg_out).await;
                         }
                     }
-                    // Only to a connection the cursor service would send the shape to.
+                    // 只发给出光标服务会发送形状的那个连接。
                     #[cfg(not(any(target_os = "android", target_os = "ios")))]
                     Some(misc::Union::RequestCursorData(id)) => {
                         if self.is_remote()
@@ -4085,7 +4085,7 @@ impl Connection {
                             NonZeroI64::new(request.req_timestamp)
                                 .unwrap_or(NonZeroI64::new(get_time()).unwrap()),
                         );
-                        // Notify the connection manager.
+                        // 通知连接管理器。
                         self.send_to_cm(Data::VoiceCallIncoming);
                     } else {
                         self.close_voice_call().await;
@@ -4128,15 +4128,15 @@ impl Connection {
         None
     }
 
-    // Try to fill user token for terminal connection.
-    // If username is empty, use the user token of the current session.
-    // If username is not empty, try to logon and check if the user is an administrator.
-    //    If the user is an administrator, use the user token of current process (SYSTEM).
-    //    If the user is not an administrator, return an error message.
-    // Note: Only local and domain users are supported, Microsoft account (online account) not supported for now.
+    // 尝试为终端连接填充用户令牌。
+    // 如果用户名为空，使用当前会话的用户令牌。
+    // 如果用户名不为空，尝试登录并检查该用户是否为管理员。
+    //    如果该用户是管理员，使用当前进程的用户令牌（SYSTEM）。
+    //    如果该用户不是管理员，返回错误信息。
+    // 注意：仅支持本地用户和域用户，微软账户（在线账户）目前尚不支持。
     #[cfg(target_os = "windows")]
     fn fill_terminal_user_token(&mut self, username: &str, password: &str) -> Option<&'static str> {
-        // No need to check if the password is empty.
+        // 无需检查密码是否为空。
         if !username.is_empty() {
             return self.handle_administrator_check(username, password);
         }
@@ -4236,7 +4236,7 @@ impl Connection {
 
         let normalized_username = self.lr.os_login.username.trim().to_owned();
         let auth_mode = if should_use_terminal_os_login_scope(self.terminal, &normalized_username) {
-            // Check failure state
+            // 检查失败状态
             let failure_scope = FailureScope::TerminalOsLogin;
             let (failure, res) = self.check_failure_with_scope(0, failure_scope).await;
             if !res {
@@ -4246,8 +4246,8 @@ impl Connection {
                     self.inner.id(),
                     failure_scope
                 );
-                // Terminal OS login is sensitive. Close this connection instead of keeping it
-                // alive for retries on the same socket after a rate-limit block.
+                // 终端 OS 登录属于敏感操作。直接关闭该连接，而不是让它
+                // 在被限流封禁后还能在同一 socket 上重试。
                 return Some(false);
             }
             TerminalAuthorizationMode::OsLogin {
@@ -4269,7 +4269,7 @@ impl Connection {
         let terminal_login_error = {
             #[cfg(target_os = "windows")]
             {
-                // Concurrency gate for terminal OS login with credentials, to prevent brute-force attacks.
+                // 带凭据的终端 OS 登录并发闸门，用于防止暴力破解攻击。
                 let _os_login_concurrency_guard = if is_terminal_os_login {
                     let guard = try_acquire_os_credential_login_gate();
                     if guard.is_err() {
@@ -4340,7 +4340,7 @@ impl Connection {
                         is_user,
                         has_service_token
                     );
-                    // No need to translate the following message, because it is in an abnormal case.
+                    // 无需翻译下面的消息，因为它处于异常情况。
                     self.send_login_error("Terminal service user mismatch detected.")
                         .await;
                     sleep(1.).await;
@@ -4359,10 +4359,10 @@ impl Connection {
         None
     }
 
-    // Try to parse connection IP as IPv6 address, returning /64, /56, and /48 prefixes.
-    // Parsing an IPv4 address just returns None.
-    // note: we specifically don't use hbb_common::is_ipv6_str to avoid divergence issues
-    // between its regex and the system std::net::Ipv6Addr implementation.
+    // 尝试把连接的 IP 解析为 IPv6 地址，返回 /64、/56 和 /48 前缀。
+    // 解析 IPv4 地址只会返回 None。
+    // 注意：我们特意不使用 hbb_common::is_ipv6_str，以避免出现分歧问题
+    // ——即它的正则实现与系统 std::net::Ipv6Addr 实现之间的差异。
     fn get_ipv6_prefixes(&self) -> Option<(String, String, String)> {
         fn mask_u128(addr: u128, prefix: u8) -> u128 {
             let mask = if prefix == 0 || prefix > 128 {
@@ -4372,7 +4372,7 @@ impl Connection {
             };
             addr & mask
         }
-        // eliminate zone-ids like "fe80::1%eth0"
+        // 去掉 "fe80::1%eth0" 这样的区域标识（zone-id）
         let ip_only = self.ip.split('%').next().unwrap_or(&self.ip).trim();
         let ip = Ipv6Addr::from_str(ip_only).ok()?;
 
@@ -4431,7 +4431,7 @@ impl Connection {
             }
             return;
         }
-        // Bump the prefixes, fetching existing values
+        // 提升前缀，读取已有值
         if let Some((p64, p56, p48)) = self.get_ipv6_prefixes() {
             let mut m = map_mutex.lock().unwrap();
             for key in [p64, p56, p48] {
@@ -4441,7 +4441,7 @@ impl Connection {
             let current_ip = m.get(&self.ip).copied().unwrap_or((0, 0, 0));
             m.insert(self.ip.clone(), Self::bump_failure_entry(current_ip, time));
         } else {
-            // Re-read the full IP bucket in case another failed attempt updated it.
+            // 重新读取完整的 IP 桶，以防其他失败尝试更新过它。
             let mut m = map_mutex.lock().unwrap();
             let current_ip = m.get(&self.ip).copied().unwrap_or((0, 0, 0));
             m.insert(self.ip.clone(), Self::bump_failure_entry(current_ip, time));
@@ -4508,11 +4508,11 @@ impl Connection {
                     decision.login_error.as_deref().unwrap_or("")
                 );
                 if let Some(login_error) = decision.login_error {
-                    // Rare branch and currently temporary response copy; translation can be added later if needed.
+                    // 很少走的分支，目前是临时的响应副本；如需要以后可以再加翻译。
                     self.send_login_error(login_error).await;
                 }
                 if let Some(audit) = decision.audit {
-                    // For OS blocked/backoff events, we currently emit one alarm report per blocked attempt.
+                    // 对于 OS 封禁/退避事件，目前每次被封禁的尝试都会产生一条告警上报。
                     // TODO: Add unified cumulative/aggregation fields across alarm producers.
                     self.post_alarm_audit(
                         audit,
@@ -4528,7 +4528,7 @@ impl Connection {
             return (((0, 0, 0), time), res);
         }
 
-        // IPv6 addresses are cheap to make so we check prefix/netblock as well
+        // IPv6 地址很容易伪造，因此也检查前缀/网段封禁
         if let Some((p64, p56, p48)) = self.get_ipv6_prefixes() {
             if let Some(res) = self.check_failure_ipv6_prefix(i, time, &p64, 64, 60).await {
                 return res;
@@ -4541,7 +4541,7 @@ impl Connection {
             }
         }
 
-        // checks IPv6 and IPv4 direct addresses
+        // 检查 IPv6 与 IPv4 的直连地址
         let failure = LOGIN_FAILURES[i]
             .lock()
             .unwrap()
@@ -4609,10 +4609,10 @@ impl Connection {
                 }
             }
 
-            // Send display changed message.
-            // 1. For compatibility with old versions ( < 1.2.4 ).
-            // 2. Sciter version.
-            // 3. Update `SupportedResolutions`.
+            // 发送显示器变更消息。
+            // 1. 为了兼容旧版本（ < 1.2.4 ）。
+            // 2. sciter 版本。
+            // 3. 更新 `SupportedResolutions`。
             if let Some(msg_out) =
                 video_service::make_display_changed_msg(self.display_idx, None, self.video_source())
             {
@@ -4639,7 +4639,7 @@ impl Connection {
     fn switch_display_to(&mut self, display_idx: usize, server: Arc<RwLock<Server>>) -> bool {
         let source_count = Self::video_source_count(self.video_source());
         if display_idx >= source_count {
-            // Do not remap an explicit switch: its resolution belongs to the requested source.
+            // 不要重新映射显式切换：其分辨率属于所请求的源。
             log::warn!(
                 "Ignore switch to invalid {:?} index {}, available source count: {}",
                 self.video_source(),
@@ -4659,8 +4659,8 @@ impl Connection {
                 display_idx,
             )));
         }
-        // For versions greater than 1.2.4, a `CaptureDisplays` message will be sent immediately.
-        // Unnecessary capturers will be removed then.
+        // 对于高于 1.2.4 的版本，会立即发送 `CaptureDisplays` 消息。
+        // 届时多余的采集器会被移除。
         if !crate::common::is_support_multi_ui_session(&self.lr.version) {
             lock.subscribe(&old_service_name, self.inner.clone(), false);
         }
@@ -4694,7 +4694,7 @@ impl Connection {
     async fn capture_displays(&mut self, add: &[usize], sub: &[usize], set: &[usize]) {
         let video_source = self.video_source();
         let source_count = Self::video_source_count(video_source);
-        // Only add/set can create services; sub only narrows existing subscriptions.
+        // 只有 add/set 能创建服务；sub 只会收窄已有的订阅。
         let valid_add = add
             .iter()
             .copied()
@@ -4720,7 +4720,7 @@ impl Connection {
                 source_count
             );
         }
-        // Passing an invalid sub request as an empty exclude list would unsubscribe all services.
+        // 把无效的 sub 请求当作空的排除列表传入，会取消所有服务的订阅。
         if (!add.is_empty() && valid_add.is_empty())
             || (add.is_empty() && !sub.is_empty() && valid_sub.is_empty())
             || (add.is_empty() && sub.is_empty() && !set.is_empty() && valid_set.is_empty())
@@ -4895,7 +4895,7 @@ impl Connection {
 
     pub async fn close_voice_call(&mut self) {
         crate::audio_service::set_voice_call_input_device(None, true);
-        // Notify the connection manager that the voice call has been closed.
+        // 通知连接管理器语音通话已关闭。
         self.send_to_cm(Data::CloseVoiceCall("".to_owned()));
         self.voice_calling = false;
         if self.is_authed_view_camera_conn() {
@@ -5056,7 +5056,7 @@ impl Connection {
                 }
             }
         }
-        // For compatibility with old versions ( < 1.2.4 ).
+        // 为了兼容旧版本（ < 1.2.4 ）。
         if hbb_common::get_version_number(&self.lr.version)
             < hbb_common::get_version_number("1.2.4")
         {
@@ -5219,9 +5219,9 @@ impl Connection {
                 Some(Err(e)) => {
                     log::error!("Failed to turn on privacy mode. {}", e);
                     if privacy_mode::is_in_privacy_mode() {
-                        // Use this connection's ID so a failed request cannot disable another
-                        // connection's privacy mode: INVALID_PRIVACY_MODE_CONN_ID would bypass
-                        // the ownership check (see `check_off_conn_id`).
+                        // 使用该连接的 ID，这样失败的请求就无法禁用另一个
+                        // 连接的隐私模式：INVALID_PRIVACY_MODE_CONN_ID 会绕过
+                        // 归属检查（参见 `check_off_conn_id`）。
                         let _ = Self::turn_off_privacy_to_msg(self.inner.id, String::new());
                     }
                     crate::common::make_privacy_mode_msg_with_details(
@@ -5244,7 +5244,7 @@ impl Connection {
         let msg_out = if !privacy_mode::is_privacy_mode_supported() {
             crate::common::make_privacy_mode_msg_with_details(
                 back_notification::PrivacyModeState::PrvNotSupported,
-                // This error message is used for magnifier. It is ok to use it here.
+                // 这条错误信息用于 magnifier，这里用它没问题。
                 "Unsupported. 1 Multi-screen is not supported. 2 Please confirm the license is activated.".to_string(),
                 impl_key,
             )
@@ -5291,15 +5291,15 @@ impl Connection {
             return;
         }
         self.closed = true;
-        // If voice A,B -> C, and A,B has voice call
-        // B disconnects, C will reset the voice call input.
+        // 如果语音 A,B -> C，且 A,B 之间有语音通话
+        // B 断开连接，C 将重置语音通话输入。
         //
-        // It may be acceptable, because it's not a common case,
-        // and it's immediately known when the input device changes.
-        // C can change the input device manually in cm interface.
+        // 这或许可以接受，因为不是常见情况，
+        // 而且输入设备一有变化就能立刻知晓。
+        // C 可以在 cm 界面中手动切换输入设备。
         //
-        // We can add a (Vec<conn_id>, input device) to avoid this.
-        // But it's not necessary now and we have to consider two audio services(client, server).
+        // 我们可以加上 (Vec<conn_id>, 输入设备) 来避免这种情况。
+        // 但目前没必要，而且还要考虑两个音频服务（客户端、服务器）。
         crate::audio_service::set_voice_call_input_device(None, true);
         log::info!("#{} Connection closed: {}", self.inner.id(), reason);
         if lock
@@ -5325,7 +5325,7 @@ impl Connection {
         }
     }
 
-    // The `reason` should be consistent with `check_if_retry` if not empty
+    // 如果 `reason` 不为空，应与 `check_if_retry` 保持一致
     async fn send_close_reason_no_retry(&mut self, reason: &str) {
         let mut misc = Misc::new();
         if reason.is_empty() {
@@ -5346,7 +5346,7 @@ impl Connection {
         _include_hidden: bool,
         result: Result<Vec<u8>, String>,
     ) {
-        // Check if this response is still expected (not stale/cancelled)
+        // 检查该响应是否仍是预期的（未过期/未取消）
         if !self.cm_read_job_ids.contains(&id) {
             log::warn!(
                 "Received ReadJobInitResult for unknown or stale job id={}, ignoring",
@@ -5361,7 +5361,7 @@ impl Connection {
                 self.send(fs::new_error(id, error, 0)).await;
             }
             Ok(dir_bytes) => {
-                // Deserialize FileDirectory from protobuf bytes
+                // 从 protobuf 字节反序列化 FileDirectory
                 let dir = match FileDirectory::parse_from_bytes(&dir_bytes) {
                     Ok(d) => d,
                     Err(e) => {
@@ -5376,11 +5376,11 @@ impl Connection {
                 let path_str = dir.path.clone();
                 let file_entries: Vec<FileEntry> = dir.entries.into();
 
-                // Send file directory to client
+                // 把文件目录发送给客户端
                 self.send(fs::new_dir(id, path_str.clone(), file_entries.clone()))
                     .await;
 
-                // Post audit for file transfer
+                // 为文件传输上报审计
                 self.post_file_audit(
                     FileAuditType::RemoteSend,
                     &path_str,
@@ -5388,7 +5388,7 @@ impl Connection {
                     json!({}),
                 );
 
-                // CM will handle the actual file reading and send blocks via IPC
+                // CM 会处理实际的文件读取，并通过 IPC 发送数据块
                 self.file_transferred = true;
             }
         }
@@ -5401,7 +5401,7 @@ impl Connection {
         data: bytes::Bytes,
         compressed: bool,
     ) {
-        // Check if the job is still valid (not cancelled)
+        // 检查任务是否仍然有效（未取消）
         if !self.cm_read_job_ids.contains(&id) {
             log::debug!(
                 "Dropping file block for cancelled/unknown job id={}, file_num={}",
@@ -5411,7 +5411,7 @@ impl Connection {
             return;
         }
 
-        // Forward file block to client
+        // 把文件块转发给客户端
         let mut block = FileTransferBlock::new();
         block.id = id;
         block.file_num = file_num;
@@ -5426,7 +5426,7 @@ impl Connection {
     }
 
     async fn handle_file_read_done(&mut self, id: i32, file_num: i32) {
-        // Drop stale completions for cancelled/unknown jobs
+        // 丢弃已取消/未知任务的过期完成消息
         if !self.cm_read_job_ids.remove(&id) {
             log::debug!(
                 "Dropping FileReadDone for cancelled/unknown job id={}, file_num={}",
@@ -5436,7 +5436,7 @@ impl Connection {
             return;
         }
 
-        // Forward done message to client
+        // 把完成消息转发给客户端
         let mut done = FileTransferDone::new();
         done.id = id;
         done.file_num = file_num;
@@ -5449,7 +5449,7 @@ impl Connection {
     }
 
     async fn handle_file_read_error(&mut self, id: i32, file_num: i32, err: String) {
-        // Drop stale errors for cancelled/unknown jobs
+        // 丢弃已取消/未知任务的过期错误
         if !self.cm_read_job_ids.remove(&id) {
             log::debug!(
                 "Dropping FileReadError for cancelled/unknown job id={}, file_num={}",
@@ -5459,7 +5459,7 @@ impl Connection {
             return;
         }
 
-        // Forward error to client
+        // 把错误转发给客户端
         self.send(fs::new_error(id, err, file_num)).await;
     }
 
@@ -5471,7 +5471,7 @@ impl Connection {
         file_size: u64,
         is_resume: bool,
     ) {
-        // Check if the job is still valid (not cancelled)
+        // 检查任务是否仍然有效（未取消）
         if !self.cm_read_job_ids.contains(&id) {
             log::debug!(
                 "Dropping digest for cancelled/unknown job id={}, file_num={}",
@@ -5481,7 +5481,7 @@ impl Connection {
             return;
         }
 
-        // Forward digest to client for overwrite detection
+        // 把摘要转发给客户端用于检测覆盖
         let mut digest = FileTransferDigest::new();
         digest.id = id;
         digest.file_num = file_num;
@@ -5530,7 +5530,7 @@ impl Connection {
                 self.send(fs::new_error(id, err, -1)).await;
             }
             Ok(bytes) => {
-                // Deserialize FileDirectory from protobuf bytes and send as FileResponse
+                // 从 protobuf 字节反序列化 FileDirectory 并作为 FileResponse 发送
                 match FileDirectory::parse_from_bytes(&bytes) {
                     Ok(fd) => {
                         let mut msg = Message::new();
@@ -5568,19 +5568,19 @@ impl Connection {
         });
     }
 
-    /// Create a new read job and start processing it (Connection-side).
+    /// 创建一个新的读取任务并开始处理（Connection 端）。
     ///
-    /// This is a generic Connection-side read job creation helper used for:
-    /// - Generic file transfers on non-Windows platforms
-    /// - Printer jobs on all platforms (including Windows)
+    /// 这是一个通用的 Connection 端读取任务创建辅助函数，用于：
+    /// - 非 Windows 平台上的通用文件传输
+    /// - 所有平台（包括 Windows）上的打印任务
     ///
-    /// On Windows, generic file reads are delegated to CM via `start_read_job()` in
-    /// `src/ui_cm_interface.rs` for elevated access. Printer jobs bypass this delegation
-    /// since they read from in-memory data (`MemoryCursor`), not the filesystem.
+    /// 在 Windows 上，通用文件读取通过 `start_read_job()` 委托给 CM，该函数位于
+    /// `src/ui_cm_interface.rs` 中，用以获得提权访问。打印任务不走这条委托路径，
+    /// 因为它们读取的是内存中的数据（`MemoryCursor`），而不是文件系统。
     ///
-    /// Both Connection-side and CM-side implementations use `TransferJob::new_read()`
-    /// with similar parameters. When modifying job creation logic, ensure both paths
-    /// stay in sync.
+    /// Connection 端和 CM 端的实现都使用 `TransferJob::new_read()`
+    /// 并使用类似的参数。修改任务创建逻辑时，确保两条路径
+    /// 保持同步。
     async fn create_and_start_read_job(
         &mut self,
         id: i32,
@@ -5849,7 +5849,7 @@ impl Connection {
             return;
         };
         let Some(conn_type) = self.authed_conn_type() else {
-            // Unreachable, but just in case, we drop the options if the connection type is unknown.
+            // 虽然不可达，但以防万一，连接类型未知时我们丢弃这些选项。
             log::warn!(
                 "Dropping scoped login options because authorized connection type is unknown"
             );
@@ -5906,9 +5906,9 @@ impl Connection {
         if Self::is_connection_housekeeping_message(msg) {
             return None;
         }
-        // Legacy clients can broadcast render-refresh messages to all opened sessions.
-        // Clipboard messages may also be broadcast to FileTransfer/Terminal sessions while
-        // the client still considers text clipboard sync required, and handlers ignore them.
+        // 旧客户端可以把渲染刷新消息广播到所有已打开的会话。
+        // 在客户端仍认为需要文本剪贴板同步时，剪贴板消息也可能被广播到 FileTransfer/Terminal 会话，
+        // 而相应的处理器会忽略它们。
         let noop_compat = match conn_type {
             AuthConnType::FileTransfer | AuthConnType::Terminal => {
                 Self::is_render_broadcast_noop_compat_message(msg)
@@ -6029,8 +6029,8 @@ impl Connection {
         match msg.union.as_ref() {
             Some(message::Union::ScreenshotRequest(_)) => true,
             Some(message::Union::Misc(misc)) => Self::is_view_camera_scoped_misc(misc),
-            // Legacy clients may send auto-login input during view-camera connect.
-            // The handlers intentionally ignore these messages for view-camera sessions.
+            // 旧客户端可能在 view-camera 连接过程中发送自动登录输入。
+            // 处理器会有意忽略 view-camera 会话中的这类消息。
             Some(message::Union::MouseEvent(_))
             | Some(message::Union::PointerDeviceEvent(_))
             | Some(message::Union::KeyEvent(_)) => true,
@@ -6051,8 +6051,8 @@ impl Connection {
             | Some(misc::Union::ChatMessage(_))
             | Some(misc::Union::AudioFormat(_))
             | Some(misc::Union::ClientRecordStatus(_))
-            // Though these messages are not expected in normal view-camera sessions,
-            // keep them allowed to avoid breaking existing clients that may send them.
+            // 尽管在正常的 view-camera 会话中不应出现这类消息，
+            // 仍保持允许，以免破坏可能发送它们的现有客户端。
             | Some(misc::Union::MessageQuery(_))
             | Some(misc::Union::TogglePrivacyMode(_))
             | Some(misc::Union::ToggleVirtualDisplay(_))
@@ -6069,8 +6069,8 @@ impl Connection {
         Self::scoped_view_camera_option(option).1.is_none()
     }
 
-    // Keep these OptionMessage field lists in sync with message.proto and update_options().
-    // New fields must be classified here before limited session types can receive them.
+    // 保持这些 OptionMessage 字段列表与 message.proto 和 update_options() 同步。
+    // 新字段必须先在这里分类，限定类型的会话才能接收它们。
     fn scoped_view_camera_option(
         option: &OptionMessage,
     ) -> (Option<OptionMessage>, Option<&'static str>) {
@@ -6198,15 +6198,15 @@ impl Connection {
             stop, is_stopping_allowed, file_transfer_enabled);
         if !stop {
             use base::config::keys::OPTION_ONE_WAY_FILE_TRANSFER;
-            // Note: Code will not reach here if `crate::get_builtin_option(OPTION_ONE_WAY_FILE_TRANSFER) == "Y"` is true.
-            // Because `file-clipboard` service will not be subscribed.
-            // But we still check it here to keep the same logic to windows version in `ui_cm_interface.rs`.
+            // 注意：如果 `crate::get_builtin_option(OPTION_ONE_WAY_FILE_TRANSFER) == "Y"` 为真，代码不会走到这里。
+            // 因为 `file-clipboard` 服务不会被订阅。
+            // 但我们仍在这里检查，以保持与 `ui_cm_interface.rs` 中 Windows 版本相同的逻辑。
             if clip.is_beginning_message()
                 && crate::get_builtin_option(OPTION_ONE_WAY_FILE_TRANSFER) == "Y"
             {
-                // If one way file transfer is enabled, don't send clipboard file to client
+                // 如果启用了单向文件传输，就不要把剪贴板文件发送给客户端
             } else {
-                // Maybe we should end the connection, because copy&paste files causes everything to wait.
+                // 或许应该结束该连接，因为复制粘贴文件会让一切都等待。
                 allow_err!(
                     self.stream
                         .send(&crate::clipboard_file::clip_2_msg(clip))
@@ -6224,7 +6224,7 @@ impl Connection {
 
     #[cfg(all(target_os = "windows", feature = "flutter"))]
     async fn send_printer_request(&mut self, data: Vec<u8>) {
-        // This path is only used to identify the printer job.
+        // 这条路径仅用于标识打印任务。
         let path = format!("RustDesk://FsJob//Printer/{}", get_time());
 
         let msg = fs::new_send(0, fs::JobType::Printer, path.clone(), 1, false);
@@ -6258,7 +6258,7 @@ impl Connection {
     async fn init_terminal_service(&mut self) {
         debug_assert!(self.terminal_user_token.is_some());
         let Some(user_token) = self.terminal_user_token.clone() else {
-            // unreachable, but keep it for safety
+            // 不可达，但保留以确保安全
             log::error!("Terminal user token is not set.");
             return;
         };
@@ -6278,7 +6278,7 @@ impl Connection {
     async fn handle_terminal_action(&mut self, action: TerminalAction) -> ResultType<()> {
         debug_assert!(self.terminal_user_token.is_some());
         let Some(user_token) = self.terminal_user_token.clone() else {
-            // unreacheable, but keep it for safety
+            // 不可达，但保留以确保安全
             bail!("Terminal user token is not set.");
         };
         let mut proxy = terminal_service::TerminalServiceProxy::new(
@@ -6294,7 +6294,7 @@ impl Connection {
                 self.send(msg_out).await;
             }
             Ok(None) => {
-                // No response needed
+                // 无需响应
             }
             Err(err) => {
                 let mut response = TerminalResponse::new();
@@ -6348,10 +6348,10 @@ pub fn has_pending_switch_sides_uuid(id: &str, uuid: &uuid::Uuid) -> bool {
 pub fn claim_pending_switch_sides_uuid(id: &str, uuid: &uuid::Uuid) -> bool {
     let mut uuids = PENDING_SWITCH_SIDES_UUID.lock().unwrap();
     uuids.retain(|_, (instant, _, _)| instant.elapsed() < SWITCH_SIDES_UUID_TTL);
-    // Keep claimed entries until expiry so replaying a request cannot launch another connection.
+    // 把已占用的条目保留到过期，这样重放请求就无法再发起一个连接。
     if let Some((_, stored_uuid, claimed)) = uuids.get_mut(id) {
         if stored_uuid == uuid && !*claimed {
-            *claimed = true;
+            * claimed = true;
             return true;
         }
     }
@@ -6359,8 +6359,8 @@ pub fn claim_pending_switch_sides_uuid(id: &str, uuid: &uuid::Uuid) -> bool {
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-// IPC bootstrap summary:
-// - Start CM when missing, then bridge bidirectional messages between this task and CM IPC.
+// IPC 引导流程小结：
+// - 在缺失时启动 CM，然后在本任务与 CM IPC 之间桥接双向消息。
 async fn start_ipc(
     mut rx_to_cm: mpsc::UnboundedReceiver<ipc::Data>,
     tx_from_cm: mpsc::UnboundedSender<ipc::Data>,
@@ -6440,13 +6440,13 @@ async fn start_ipc(
                                 let data = ipc::Data::ClickTime(ct);
                                 stream.send(&data).await?;
                             }
-                            // FileBlockFromCM: data is always sent separately via send_raw.
-                            // The data field has #[serde(skip)], so it's empty after deserialization.
-                            // Read the raw data bytes following this message.
+                            // FileBlockFromCM：数据总是通过 send_raw 单独发送。
+                            // data 字段带有 #[serde(skip)]，因此反序列化后为空。
+                            // 读取紧随这条消息之后的原始数据字节。
                             //
-                            // Note: Empty data (for empty files) is correctly handled. BytesCodec with
-                            // raw=false adds a length prefix, so next_raw() returns empty BytesMut for
-                            // zero-length frames. This mirrors the WriteBlock pattern below.
+                            // 注意：空数据（对应空文件）已被正确处理。raw=false 的 BytesCodec 会
+                            // 加上长度前缀，因此对于零长度帧，next_raw() 返回空的 BytesMut。
+                            // 这与下面的 WriteBlock 模式一致。
                             ipc::Data::FileBlockFromCM { id, file_num, data: _, compressed, conn_id } => {
                                 let raw_data = stream.next_raw().await?;
                                 tx_from_cm.send(ipc::Data::FileBlockFromCM {
@@ -6487,7 +6487,7 @@ async fn start_ipc(
     }
 }
 
-// in case screen is sleep and blank, here to activate it
+// 以防屏幕已休眠并黑屏，这里用来唤醒它
 fn try_activate_screen() {
     #[cfg(windows)]
     std::thread::spawn(|| {
@@ -6634,7 +6634,7 @@ impl FileRemoveLogControl {
 }
 
 fn start_wakelock_thread() -> std::sync::mpsc::Sender<(usize, usize)> {
-    // Check if we should keep awake during incoming sessions
+    // 检查在有会话接入时是否应保持唤醒
     use crate::platform::{get_wakelock, WakeLock};
     let (tx, rx) = std::sync::mpsc::channel::<(usize, usize)>();
     std::thread::spawn(move || {
@@ -6646,7 +6646,7 @@ fn start_wakelock_thread() -> std::sync::mpsc::Sender<(usize, usize)> {
                     let keep_awake = config::Config::get_bool_option(
                         keys::OPTION_KEEP_AWAKE_DURING_INCOMING_SESSIONS,
                     );
-                    *WAKELOCK_KEEP_AWAKE_OPTION.lock().unwrap() = Some(keep_awake);
+                    * WAKELOCK_KEEP_AWAKE_OPTION.lock().unwrap() = Some(keep_awake);
                     if conn_count == 0 || !keep_awake {
                         if wakelock.is_some() {
                             wakelock = None;
@@ -6740,10 +6740,10 @@ impl Drop for Connection {
 
 extern "C" fn connection_shutdown_hook() {
     // https://stackoverflow.com/questions/35980148/why-does-an-atexit-handler-panic-when-it-accesses-stdout
-    // Please make sure there is no print in the call stack
+    // 请确保调用栈里没有 print
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     {
-        *WALLPAPER_REMOVER.lock().unwrap() = None;
+        * WALLPAPER_REMOVER.lock().unwrap() = None;
     }
 }
 
@@ -6763,8 +6763,8 @@ impl Retina {
     #[inline]
     fn on_mouse_event(&mut self, e: &mut MouseEvent, current: usize) {
         let evt_type = e.mask & crate::input::MOUSE_TYPE_MASK;
-        // Delta-based events do not contain absolute coordinates.
-        // Avoid applying Retina coordinate scaling to them.
+        // 基于增量的事件不包含绝对坐标。
+        // 避免对它们套用 Retina 坐标缩放。
         if evt_type == crate::input::MOUSE_TYPE_WHEEL
             || evt_type == crate::input::MOUSE_TYPE_TRACKPAD
             || evt_type == crate::input::MOUSE_TYPE_MOVE_RELATIVE
@@ -6804,8 +6804,8 @@ impl Retina {
     }
 }
 
-/// Get control permission state from CONTROL_PERMISSIONS_ARRAY.
-/// Returns: Some(false) if any disable, Some(true) if any enable (and no disable), None if not set.
+/// 从 CONTROL_PERMISSIONS_ARRAY 获取控制权限状态。
+/// 返回：只要有一个是 disable 就返回 Some(false)，只要有一个是 enable（且没有 disable）就返回 Some(true)，未设置则返回 None。
 pub fn get_control_permission_state(
     permission: hbb_common::rendezvous_proto::control_permissions::Permission,
     disable_if_has_disabled: bool,
@@ -6848,9 +6848,9 @@ pub struct AuthedConn {
 }
 
 mod raii {
-    // ALIVE_CONNS: all connections, including unauthorized connections
-    // AUTHED_CONNS: all authorized connections
-    // CONTROL_PERMISSIONS_ARRAY: all non-None control permissions
+    // ALIVE_CONNS：所有连接，包括未授权连接
+    // AUTHED_CONNS：所有已授权连接
+    // CONTROL_PERMISSIONS_ARRAY：所有非 None 的控制权限
 
     use super::*;
     pub struct ConnectionID(i32);
@@ -6876,10 +6876,10 @@ mod raii {
             c.conn_id > id && c.conn_type == AuthConnType::Remote && &c.session_key == key
         }
 
-        /// Whether a newer remote control connection of this session has replaced this one. A
-        /// controlling peer whose link dies reconnects while the connection it left behind runs
-        /// on here until its own timeout; locking for that one would lock a session that has
-        /// already resumed on its replacement.
+        /// 本次会话中更新的远程控制连接是否已取代该连接。当
+        /// 控制方的链路断开后重连，而它留下的那个连接仍在
+        /// 这里运行直到自身超时；为那一个加锁会锁住一个已经
+        /// 在其替代连接上恢复的会话。
         pub fn session_reconnected(id: i32, key: &SessionKey) -> bool {
             let conns = AUTHED_CONNS.lock().unwrap();
             conns
@@ -6956,16 +6956,16 @@ mod raii {
             let mut lock = SESSIONS.lock().unwrap();
             let contains = lock.contains_key(&key);
             if contains {
-                // No two remote connections with the same session key, just for ensure.
+                // 同一个会话键不应有两个远程连接，这里只是做个保证。
                 let is_remote = AUTHED_CONNS
                     .lock()
                     .unwrap()
                     .iter()
                     .any(|c| c.conn_id == conn_id && c.conn_type == AuthConnType::Remote);
-                // If there are 2 connections with the same peer_id and session_id, a remote connection and a file transfer or port forward connection,
-                // If any of the connections is closed allowing retry, this will not be called;
-                // If the file transfer/port forward connection is closed with no retry, the session should be kept for remote control menu action;
-                // If the remote connection is closed with no retry, keep the session is not reasonable in case there is a retry button in the remote side, and ignore network fluctuations.
+                // 如果存在两个 peer_id 和 session_id 相同的连接，即一个远程连接和一个文件传输或端口转发连接，
+                // 如果其中任一连接关闭时允许重试，就不会走到这里；
+                // 如果文件传输/端口转发连接关闭时不允许重试，则应保留会话以支持远程控制菜单操作；
+                // 如果远程连接关闭时不允许重试，那么保留会话并不合理，因为远端可能有重试按钮，也会忽略网络波动的影响。
                 let another_remote = AUTHED_CONNS.lock().unwrap().iter().any(|c| {
                     c.conn_id != conn_id
                         && c.session_key == key
@@ -6975,7 +6975,7 @@ mod raii {
                     lock.remove(&key);
                     log::info!("remove session");
                 } else {
-                    // Keep the session if there is another remote connection with same peer_id and session_id.
+                    // 如果还有一个 peer_id 和 session_id 相同的远程连接，则保留会话。
                     log::info!("skip remove session");
                 }
             }
@@ -7038,7 +7038,7 @@ mod raii {
                     .unwrap()
                     .on_connection_close(self.0);
             }
-            // Clear per-connection state to avoid stale behavior if conn ids are reused.
+            // 清除按连接保存的状态，避免 conn id 被复用时出现过期行为。
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             clear_relative_mouse_active(self.0);
             AUTHED_CONNS.lock().unwrap().retain(|c| c.conn_id != self.0);
@@ -7051,7 +7051,7 @@ mod raii {
             if remote_count == 0 {
                 #[cfg(any(target_os = "windows", target_os = "linux"))]
                 {
-                    *WALLPAPER_REMOVER.lock().unwrap() = None;
+                    * WALLPAPER_REMOVER.lock().unwrap() = None;
                 }
                 #[cfg(not(any(target_os = "android", target_os = "ios")))]
                 display_service::restore_resolutions();
@@ -7100,12 +7100,12 @@ mod raii {
     }
 }
 
-// An empty whitelist allows everyone.
+// 空白名单允许所有人。
 //
-// A peer connecting across servers reports `<its id>@<its own server>` (see
-// `create_login_msg`), so the bare id is matched as well. That suffix is self-asserted and
-// unsigned, so matching only the full form would reject the honest cross-server peer while
-// an attacker just reports the bare id: it can produce false rejects but no true ones.
+// 跨服务器连接的对端会上报 `<its id>@<its own server>`（参见
+// `create_login_msg`），因此裸 id 也会被匹配。该后缀是自行声明的，
+// 没有签名，因此只匹配完整形式会拒绝诚实的跨服务器对端，而
+// 攻击者只需上报裸 id：这样可能产生误拒，但不会漏放。
 fn id_whitelist_allows(id_whitelist: &[String], my_id: &str) -> bool {
     if id_whitelist.is_empty() {
         return true;
@@ -7116,8 +7116,8 @@ fn id_whitelist_allows(id_whitelist: &[String], my_id: &str) -> bool {
         .any(|x| wildcard_match(x, my_id) || wildcard_match(x, bare_id))
 }
 
-// Drop `keys` whose last failure (`.0`, in minutes) is at least `window` old. A backwards
-// clock gives a negative age and keeps the entry, so it never widens access.
+// 丢弃最后一次失败（`.0`，单位为分钟）距今至少 `window` 的 `keys`。时钟回拨
+// 会得到负的年龄，从而保留该条目，因此绝不会放宽访问。
 fn decay_stale_failures(
     failures: &mut HashMap<String, (i32, i32, i32)>,
     keys: &[String],
@@ -7134,16 +7134,16 @@ fn decay_stale_failures(
     }
 }
 
-// Unconditionally forget `keys`, unlike `update_failure`'s remove path which requires the
-// per-address entry to exist.
+// 无条件遗忘 `keys`，不同于 `update_failure` 的移除路径——后者要求
+// 对应的按地址条目存在。
 fn clear_failures(failures: &mut HashMap<String, (i32, i32, i32)>, keys: &[String]) {
     for key in keys {
         failures.remove(key);
     }
 }
 
-// Simple glob matching for the ID whitelist: '*' matches any sequence of characters
-// (including the empty one), '?' matches exactly one character. Case-insensitive.
+// ID 白名单的简单通配匹配：'*' 匹配任意长度的字符序列
+// （包括空序列），'?' 恰好匹配一个字符。不区分大小写。
 fn wildcard_match(pattern: &str, text: &str) -> bool {
     let p: Vec<char> = pattern.trim().to_lowercase().chars().collect();
     let t: Vec<char> = text.trim().to_lowercase().chars().collect();
@@ -7175,8 +7175,8 @@ mod test {
     #[allow(unused)]
     use super::*;
 
-    // The registry is process-global and the harness runs tests in parallel threads, so every
-    // test that admits connections holds this first; a poisoned lock is still a lock.
+    // 该注册表是进程级的，而测试框架并行运行各个测试，因此每个
+    // 会接纳连接的测试都先持有它；中毒的锁依然是锁。
     static UNAUTHORIZED_TESTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn unauthorized_count() -> usize {
@@ -7202,8 +7202,8 @@ mod test {
         assert!(admit_unauthorized(1_000_102, a).is_some());
     }
 
-    /// A loopback TCP connection as create_tcp_connection sees it, and the controller's end,
-    /// which never speaks: the connection stalls in the identity handshake.
+    /// 一个像 create_tcp_connection 所看到的那样的回环 TCP 连接，以及控制端那一侧，
+    /// 它从不说话：连接会卡在身份握手中。
     async fn stalled_incoming() -> (Stream, Stream, SocketAddr) {
         let listener = hbb_common::tcp::new_listener("127.0.0.1:0", false)
             .await
@@ -7217,9 +7217,9 @@ mod test {
         (served, controller, addr)
     }
 
-    // Live connections, not bookkeeping: with the limit reached by connections stalled in the
-    // handshake, one more arrival is refused and the oldest handshake is ended at once, not on
-    // a timer tick, so the live count never exceeds the limit and a place opens only then.
+    // 统计的是存活连接，而不是账面记录：当上限被卡在
+    // 握手中的连接占满时，新的连接会被拒绝，最老的握手会立即结束，而不是等到
+    // 定时器触发时才结束，因此存活数永远不超过上限，空位也只在那时才释放。
     #[tokio::test]
     async fn test_unauthorized_limit_bounds_live_handshakes() {
         let _serial = UNAUTHORIZED_TESTS.lock().unwrap_or_else(|e| e.into_inner());
@@ -7229,7 +7229,7 @@ mod test {
         for i in 0..MAX_UNAUTHORIZED_CONNS {
             let (served, controller, _) = stalled_incoming().await;
             controllers.push(controller);
-            // Each from an address of its own, so only the global limit is in play.
+            // 每个连接来自各自不同的地址，因此只有全局上限起作用。
             let addr: SocketAddr = format!("192.0.2.{}:1", i + 1).parse().unwrap();
             let server = server.clone();
             handshakes.push(tokio::spawn(async move {
@@ -7278,9 +7278,9 @@ mod test {
         assert_eq!(unauthorized_count(), 0, "no handshake outlives the test");
     }
 
-    // The cap is on before the identity handshake reads. A header declaring one byte over it,
-    // written to the wire as the codec would read it, ends the handshake on the header alone -
-    // the payload is neither waited for nor read - and releases the place the connection held.
+    // 这个上限在身份握手读取之前就已生效。一个声明超出它一个字节的头部，
+    // 按编解码器的读取方式写到线路上后，仅凭头部就会结束握手——
+    // 既不等待也不读取载荷——并释放该连接占用的位置。
     #[tokio::test]
     async fn test_unauthorized_frame_is_refused_on_its_header() {
         use hbb_common::tokio::io::AsyncWriteExt;
@@ -7348,7 +7348,7 @@ mod test {
         let first = port_forward("localhost");
         let scope = |lr: &LoginRequest| Connection::login_scope_digest(lr);
 
-        // A retry may carry new credentials, profile data, options, and unknown fields.
+        // 重试可能携带新的凭据、配置数据、选项和未知字段。
         let mut retry = port_forward("localhost");
         retry.password = "secret".into();
         retry.hwid = "hwid".into();
@@ -7365,7 +7365,7 @@ mod test {
             .add_varint(9999, 1);
         assert_eq!(scope(&first), scope(&retry));
 
-        // It may not change the controller identity, move the target, or switch type.
+        // 它不能更改控制端身份、移动目标或切换类型。
         let mut rotated_id = first.clone();
         rotated_id.my_id = "rotated-id".to_owned();
         assert_ne!(scope(&first), scope(&rotated_id));
@@ -7388,14 +7388,14 @@ mod test {
 
     #[test]
     fn test_wildcard_match() {
-        // Exact match.
+        // 精确匹配。
         assert!(wildcard_match("123456789", "123456789"));
         assert!(!wildcard_match("123456789", "123456780"));
         assert!(!wildcard_match("12345678", "123456789"));
         assert!(!wildcard_match("123456789", "12345678"));
-        // Case-insensitive.
+        // 不区分大小写。
         assert!(wildcard_match("MyCustomId", "mycustomid"));
-        // '*' matches any sequence.
+        // '*' 匹配任意序列。
         assert!(wildcard_match("*", "123456789"));
         assert!(wildcard_match("*", ""));
         assert!(wildcard_match("*", "*abc"));
@@ -7408,12 +7408,12 @@ mod test {
         assert!(wildcard_match("1*4*9", "123456789"));
         assert!(!wildcard_match("1*4*9", "123456780"));
         assert!(wildcard_match("*456*", "123456789"));
-        // '?' matches exactly one character.
+        // '?' 恰好匹配一个字符。
         assert!(wildcard_match("12345678?", "123456789"));
         assert!(!wildcard_match("123456789?", "123456789"));
         assert!(wildcard_match("???456???", "123456789"));
         assert!(wildcard_match("1?3*7?9", "123456789"));
-        // Whitespace around entries is ignored.
+        // 忽略条目两端的空白字符。
         assert!(wildcard_match(" 123456789 ", "123456789"));
     }
 
@@ -7421,30 +7421,30 @@ mod test {
     fn test_id_whitelist_allows() {
         let list = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
 
-        // An empty whitelist allows everyone.
+        // 空白名单允许所有人。
         assert!(id_whitelist_allows(&[], "123456789"));
 
-        // Same server: the peer reports a bare id.
+        // 同一服务器：对端上报裸 id。
         assert!(id_whitelist_allows(&list(&["123456789"]), "123456789"));
         assert!(!id_whitelist_allows(&list(&["123456789"]), "987654321"));
 
-        // Cross server: the peer appends its own server, which must not reject it.
+        // 跨服务器：对端会附加自己的服务器，不能因此拒绝它。
         assert!(id_whitelist_allows(
             &list(&["123456789"]),
             "123456789@example.com:21116"
         ));
-        // Cross server from web, whose server is a WebSocket URI.
+        // 来自 web 的跨服务器，其服务器是一个 WebSocket URI。
         assert!(id_whitelist_allows(
             &list(&["123456789"]),
             "123456789@wss://example.com:21118/ws/id"
         ));
-        // A different id is still rejected, suffix or not.
+        // 不同的 id 仍会被拒绝，无论是否带后缀。
         assert!(!id_whitelist_allows(
             &list(&["123456789"]),
             "987654321@example.com:21116"
         ));
 
-        // An entry pinned to one server keeps matching that exact form.
+        // 固定到某个服务器的条目仍然只匹配那种确切形式。
         assert!(id_whitelist_allows(
             &list(&["123456789@example.com:21116"]),
             "123456789@example.com:21116"
@@ -7453,13 +7453,13 @@ mod test {
             &list(&["123456789@example.com:21116"]),
             "123456789@other.com:21116"
         ));
-        // ... and no longer matches the bare id, which is the point of pinning.
+        // ……也不再匹配裸 id，这正是固定的意义所在。
         assert!(!id_whitelist_allows(
             &list(&["123456789@example.com:21116"]),
             "123456789"
         ));
 
-        // Wildcards keep working on both forms.
+        // 通配符对两种形式都仍然有效。
         assert!(id_whitelist_allows(&list(&["abc*"]), "abcdef"));
         assert!(id_whitelist_allows(
             &list(&["abc*"]),
@@ -7470,7 +7470,7 @@ mod test {
             "123456789@example.com:21116"
         ));
 
-        // Any entry of the list is enough.
+        // 列表中任意一条匹配即可。
         assert!(id_whitelist_allows(
             &list(&["111111111", "123456789", "222222222"]),
             "123456789@example.com:21116"
@@ -7814,17 +7814,17 @@ mod test {
         let remote = AuthConnType::Remote;
 
         assert!(replaced_by(&conn(3, remote, mine.clone()), 2, &mine));
-        // An older one, and itself: of connections ending at once only the last still locks.
+        // 较早的那个，以及它自己：在同时结束的连接中，只有最后一个仍然持有锁。
         assert!(!replaced_by(&conn(1, remote, mine.clone()), 2, &mine));
         assert!(!replaced_by(&conn(2, remote, mine.clone()), 2, &mine));
-        // A kind that keeps no screen in use.
+        // 一种不会占用任何屏幕的类型。
         assert!(!replaced_by(
             &conn(3, AuthConnType::Terminal, mine.clone()),
             2,
             &mine
         ));
-        // Another session of this peer, and another peer on the same session id: `SessionKey`
-        // is all three fields, and either of those is someone else's screen to lock.
+        // 该对端的另一个会话，以及同一会话 id 上的另一个对端：`SessionKey`
+        // 由这三个字段组成，而上述任意一种情况都是别人的屏幕，不应加锁。
         assert!(!replaced_by(&conn(3, remote, key(8, "peer")), 2, &mine));
         assert!(!replaced_by(&conn(3, remote, key(7, "other")), 2, &mine));
     }

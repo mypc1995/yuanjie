@@ -11,8 +11,8 @@ use std::sync::Mutex;
 
 #[cfg(windows)]
 lazy_static::lazy_static! {
-    // If device is uninstalled though "Device Manager" Window.
-    // RustDesk is unable to handle device any more...
+    // 可以通过“Device Manager”窗口卸载设备。
+    // RustDesk 将无法再处理该设备……
     static ref H_SW_DEVICE: Mutex<u64> = Mutex::new(0);
 }
 
@@ -29,7 +29,7 @@ pub fn download_driver() -> ResultType<()> {
     #[cfg(target_os = "linux")]
     let _download_url = "";
 
-    // process download and report progress
+    // 处理下载并上报进度
 
     Ok(())
 }
@@ -56,7 +56,7 @@ pub fn install_update_driver(_reboot_required: &mut bool) -> ResultType<()> {
     #[cfg(windows)]
     unsafe {
         {
-            // Device must be created before install driver.
+            // 必须先创建设备，然后才能安装驱动。
             // https://github.com/fufesou/RustDeskIddDriver/issues/1
             if let Err(e) = create_device() {
                 bail!("{}", e);
@@ -76,7 +76,7 @@ pub fn install_update_driver(_reboot_required: &mut bool) -> ResultType<()> {
             {
                 bail!("{}", win10::get_last_msg()?);
             }
-            *_reboot_required = reboot_required_tmp == win10::idd::TRUE;
+            * _reboot_required = reboot_required_tmp == win10::idd::TRUE;
         }
     }
 
@@ -102,7 +102,7 @@ pub fn uninstall_driver(_reboot_required: &mut bool) -> ResultType<()> {
             {
                 bail!("{}", win10::get_last_msg()?);
             }
-            *_reboot_required = reboot_required_tmp == win10::idd::TRUE;
+            * _reboot_required = reboot_required_tmp == win10::idd::TRUE;
         }
     }
 
@@ -129,7 +129,7 @@ pub fn create_device() -> ResultType<()> {
         if win10::idd::DeviceCreate(&mut h_sw_device) == win10::idd::FALSE {
             bail!("{}", win10::get_last_msg()?);
         } else {
-            *lock_device = h_sw_device as u64;
+            * lock_device = h_sw_device as u64;
         }
     }
     Ok(())
@@ -140,7 +140,7 @@ pub fn close_device() {
     #[cfg(windows)]
     unsafe {
         win10::idd::DeviceClose(*H_SW_DEVICE.lock().unwrap() as win10::idd::HSWDEVICE);
-        *H_SW_DEVICE.lock().unwrap() = 0;
+        * H_SW_DEVICE.lock().unwrap() = 0;
     }
 }
 

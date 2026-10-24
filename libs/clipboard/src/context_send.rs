@@ -39,7 +39,7 @@ impl ContextSend {
             match crate::create_cliprdr_context(true, false, CLIPBOARD_RESPONSE_WAIT_TIMEOUT_SECS) {
                 Ok(context) => {
                     log::info!("clipboard context for file transfer created.");
-                    *lock = Some(context)
+                    * lock = Some(context)
                 }
                 Err(err) => {
                     log::error!(
@@ -49,12 +49,12 @@ impl ContextSend {
                 }
             }
         } else if let Some(_clp) = lock.take() {
-            *lock = None;
+            * lock = None;
             log::info!("clipboard context for file transfer destroyed.");
         }
     }
 
-    /// make sure the clipboard context is enabled.
+    /// 确保剪贴板上下文已启用。
     pub fn make_sure_enabled() -> ResultType<()> {
         let mut lock = CONTEXT_SEND.lock().unwrap();
         if lock.is_some() {
@@ -62,7 +62,7 @@ impl ContextSend {
         }
 
         let ctx = crate::create_cliprdr_context(true, false, CLIPBOARD_RESPONSE_WAIT_TIMEOUT_SECS)?;
-        *lock = Some(ctx);
+        * lock = Some(ctx);
         log::info!("clipboard context for file transfer recreated.");
         Ok(())
     }

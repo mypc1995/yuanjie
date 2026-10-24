@@ -10,14 +10,14 @@ pub const NAME: &'static str = "remote-printer";
 
 const LIB_NAME_PRINTER_DRIVER_ADAPTER: &str = "printer_driver_adapter";
 
-// Return 0 if success, otherwise return error code.
+// 成功时返回 0，否则返回错误码。
 pub type Init = fn(tag_name: *const i8) -> i32;
 pub type Uninit = fn();
-// dur_mills: Get the file generated in the last `dur_mills` milliseconds.
-// data: The raw prn data, xps format.
-// data_len: The length of the raw prn data.
+// dur_mills：获取最近 `dur_mills` 毫秒内生成的文件。
+// data：原始 prn 数据，xps 格式。
+// data_len：原始 prn 数据的长度。
 pub type GetPrnData = fn(dur_mills: u32, data: *mut *mut i8, data_len: *mut u32);
-// Free the prn data allocated by GetPrnData().
+// 释放由 GetPrnData() 分配的 prn 数据。
 pub type FreePrnData = fn(data: *mut i8);
 
 macro_rules! make_lib_wrapper {

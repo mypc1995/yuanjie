@@ -1,4 +1,4 @@
-//! Keyboard shortcuts for triggering session actions locally.
+//! 在本地触发会话动作的键盘快捷键。
 
 use std::sync::{Arc, RwLock};
 
@@ -11,10 +11,10 @@ lazy_static::lazy_static! {
     static ref CACHE: RwLock<Arc<Bindings>> = RwLock::new(Arc::new(Bindings::default()));
 }
 
-/// Registry of all valid action ids that may appear in `Binding.action`.
-/// Source-of-truth lives on the Flutter side (`flutter/lib/consts.dart`,
-/// `kShortcutAction*`); these mirror that vocabulary so Rust code can reach
-/// for them without re-stringifying.
+/// 可能出现在 `Binding.action` 中的所有有效 action id 的登记表。
+/// 真实来源在 Flutter 侧（`flutter/lib/consts.dart`，
+/// `kShortcutAction*`）；这些常量与之对应，好让 Rust 代码无需重新拼字符串就能
+/// 取到它们。
 #[allow(dead_code)]
 pub mod action_id {
     pub const SEND_CTRL_ALT_DEL: &str    = "send_ctrl_alt_del";
@@ -94,10 +94,10 @@ pub struct Binding {
 pub struct Bindings {
     #[serde(default)]
     pub enabled: bool,
-    /// Persistent companion to `enabled`: when true, the matcher returns early
-    /// and every keystroke flows through to the remote (i.e. all bindings are
-    /// suspended). Stored alongside `enabled` and `bindings` so a single
-    /// reload refreshes both flags.
+    /// 与 `enabled` 配套的持久化标志：为 true 时，匹配器会提前返回，
+    /// 每一次按键都会直通远端（即所有绑定都被
+    /// 挂起”）。它与 `enabled` 和 `bindings` 一起存放，这样一次
+    /// 重载就能刷新这两个标志。
     #[serde(default)]
     pub pass_through: bool,
     #[serde(default)]
@@ -106,8 +106,8 @@ pub struct Bindings {
 
 pub fn default_bindings() -> Vec<Binding> {
     let prefix = || vec![Modifier::Primary, Modifier::Alt, Modifier::Shift];
-    // Defaults align with AnyDesk's M/S/I/C/Delete/Arrow/Digit conventions
-    // where applicable; "P" for screenshot also matches AnyDesk.
+    // 默认值在适用处与 AnyDesk 的 M/S/I/C/Delete/Arrow/Digit 约定保持一致，
+    // 截图用 "P" 也与 AnyDesk 一致。
     vec![
         Binding { action: action_id::SEND_CTRL_ALT_DEL.into(),         mods: prefix(), key: "delete".into() },
         Binding { action: action_id::TOGGLE_FULLSCREEN.into(),         mods: prefix(), key: "enter".into() },
@@ -121,17 +121,17 @@ pub fn default_bindings() -> Vec<Binding> {
     ]
 }
 
-/// Match a normalized (key, modifiers) pair against the given bindings.
-/// Returns the matched action ID, or None when the matcher is off
-/// (`enabled == false`), suspended (`pass_through == true`), or no binding
-/// fires for this combo.
+/// 把归一化的（按键、修饰键）对与给定的绑定做匹配。
+/// 返回匹配到的 action ID；当匹配器关闭
+/// （`enabled == false`）、挂起（`pass_through == true`），或者没有绑定
+/// 在该组合上触发时返回 None。
 ///
-/// Defense-in-depth: bindings with an empty modifier list are skipped here
-/// even though the recording dialog refuses to save them. A hand-edited
-/// config (or a future writer-side bug) that lets an empty-mods binding
-/// through would otherwise turn that key's every press into a swallowed
-/// shortcut, breaking normal typing in the remote session — a much worse
-/// failure than the binding simply not firing.
+/// 纵深防御：修饰键列表为空的绑定会在这里被跳过，
+/// 尽管录制对话框本来就会拒绝保存它们。一个手工编辑过的
+/// 配置（或者将来写入端的 bug）如果让一个空修饰键的绑定
+/// 通过，就会把该键的每次按下都变成被吞掉的
+/// 快捷键，破坏远端会话中的正常输入——这比
+/// 该绑定干脆不触发要糟糕得多。
 pub fn match_normalized<'a>(key: &str, mods: &[Modifier], b: &'a Bindings) -> Option<&'a str> {
     if !b.enabled || b.pass_through {
         return None;
@@ -148,8 +148,8 @@ pub fn match_normalized<'a>(key: &str, mods: &[Modifier], b: &'a Bindings) -> Op
 }
 
 pub fn normalize_modifiers(alt: bool, ctrl: bool, shift: bool, command: bool) -> Vec<Modifier> {
-    // iOS shares Apple's keyboard semantics with macOS — recording dialog
-    // already treats iOS as `_isMac`, so the matcher must too.
+    // iOS 与 macOS 共享 Apple 的键盘语义——录制对话框
+    // 已经把 iOS 当作 `_isMac`，所以匹配器也必须如此。
     let mut v = Vec::new();
     if cfg!(any(target_os = "macos", target_os = "ios")) {
         if command { v.push(Modifier::Primary); }
@@ -162,8 +162,8 @@ pub fn normalize_modifiers(alt: bool, ctrl: bool, shift: bool, command: bool) ->
     v
 }
 
-/// Map an rdev::Event to a string key name, matching the storage schema.
-/// Returns None for events we don't intercept (modifier-only presses, releases, etc.).
+/// 把一个 rdev::Event 映射为字符串按键名，与存储结构保持一致。
+/// 对于我们不拦截的事件（仅修饰键按下、释放等）返回 None。
 pub fn event_to_key_name(event: &rdev::Event) -> Option<String> {
     use rdev::{EventType, Key};
     let key = match event.event_type {
@@ -180,10 +180,10 @@ pub fn event_to_key_name(event: &rdev::Event) -> Option<String> {
         Key::PageUp => "page_up".into(),
         Key::PageDown => "page_down".into(),
         Key::Insert => "insert".into(),
-        // Numpad Enter (`KpReturn`) shares the "enter" name with the main
-        // Return key — matches the Web matcher (`NumpadEnter` -> "enter") and
-        // matches user expectation that the two physical Enters are
-        // interchangeable for shortcuts.
+        // 数字小键盘的回车（`KpReturn`）与主回车键共用 "enter" 这个名称——
+        // 这与 Web 匹配器一致（`NumpadEnter` -> "enter"），也
+        // 符合用户对这两个物理回车键
+        // 在快捷键中可以互换的预期。
         Key::Return | Key::KpReturn => "enter".into(),
         Key::LeftArrow => "arrow_left".into(),
         Key::RightArrow => "arrow_right".into(),
@@ -241,11 +241,11 @@ pub fn event_to_key_name(event: &rdev::Event) -> Option<String> {
     })
 }
 
-/// Read keyboard-shortcut bindings from `LocalConfig` and refresh the cache.
+/// 从 `LocalConfig` 读取键盘快捷键绑定并刷新缓存。
 ///
-/// Empty or invalid JSON falls back to `Bindings::default()` (disabled, no
-/// bindings). Call this once at startup and again whenever the config is
-/// written.
+/// JSON 为空或无效时回退到 `Bindings::default()`（禁用、无
+/// 绑定）。在启动时调用一次，并在每次配置被
+/// 写入时再次调用。
 pub fn reload_from_config() {
     let raw = hbb_common::config::LocalConfig::get_option(LOCAL_CONFIG_KEY);
     #[cfg(target_os = "linux")]
@@ -267,16 +267,16 @@ fn reload_from_raw(raw: &str, platform: &str, is_wayland: bool) {
             }
         }
     };
-    // Match the controller capabilities in ShortcutModel, preserving storage
-    // for a later return to another platform or display server.
+    // 与 ShortcutModel 中的控制端能力保持一致，同时保留
+    // 存储，以便日后回到另一个平台或显示服务器。
     parsed.bindings.retain(|b| action_available_on_platform(&b.action, platform, is_wayland));
     match CACHE.write() {
         Ok(mut w) => {
-            *w = Arc::new(parsed);
+            * w = Arc::new(parsed);
         }
         Err(poison) => {
             log::error!("Keyboard shortcut cache write lock is poisoned");
-            *poison.into_inner() = Arc::new(parsed);
+            * poison.into_inner() = Arc::new(parsed);
         }
     }
 }
@@ -297,8 +297,8 @@ fn action_available_on_platform(action: &str, platform: &str, is_wayland: bool) 
     }
 }
 
-/// Snapshot of the currently cached bindings. Cheap (one atomic increment) —
-/// safe to call on every keystroke.
+/// 当前缓存绑定的快照。开销很低（一次原子自增）——
+/// 可以安全地在每次按键时调用。
 pub fn current() -> Arc<Bindings> {
     match CACHE.read() {
         Ok(b) => Arc::clone(&b),
@@ -309,29 +309,29 @@ pub fn current() -> Arc<Bindings> {
     }
 }
 
-/// Match an `rdev::Event` against the cached bindings. Returns the matched
-/// action id, or `None` if no binding fires.
+/// 把一个 `rdev::Event` 与缓存的绑定做匹配。返回匹配到的
+/// action id，若没有绑定触发则返回 `None`。
 ///
-/// A bound chord belongs to RustDesk: it is consumed even when the action is
-/// unavailable in the current session (e.g. screenshot on a peer that does not
-/// support it), and the Flutter side then does nothing. It is never forwarded
-/// to the remote, so what a chord does depends on the binding alone, not on
-/// session state the user cannot see.
+/// 已绑定的组合键属于 RustDesk：即使该动作在
+/// 当前会话中不可用（例如对不支持截图的对端按下截图键），
+/// 它也会被消费掉，而 Flutter 侧随后什么也不做。它绝不会被转发
+/// 到远端，所以一个组合键的行为只取决于绑定本身，而不取决于
+/// 用户看不到的会话状态。
 pub fn match_event(event: &rdev::Event) -> Option<String> {
     let bindings = current();
     if !bindings.enabled || bindings.pass_through {
         return None;
     }
-    // Note: `match_normalized` re-checks both flags below — this short-circuit
-    // is just to avoid the `event_to_key_name` + `get_modifiers_state` work
-    // in the common bypass case.
+    // 注意：`match_normalized` 会再次检查下面两个标志——这个短路
+    // 只是为了避免在常见的旁路情况下白做 `event_to_key_name` + `get_modifiers_state` 的开销
+    // 。
     let key_name = event_to_key_name(event)?;
     let (alt, ctrl, shift, command) =
         crate::keyboard::client::get_modifiers_state(false, false, false, false);
     let mods = normalize_modifiers(alt, ctrl, shift, command);
     let action = match_normalized(&key_name, &mods, &bindings)?;
-    // AltGraph is text input, not the ordinary Alt recorded in a shortcut.
-    // Keep the shared modifier snapshot unchanged for remote key encoding.
+    // AltGraph 是文本输入，不是快捷键中记录的那种普通 Alt。
+    // 为远端按键编码保持共享的修饰键快照不变。
     #[cfg(target_os = "windows")]
     if unsafe { super::IS_0X021D_DOWN }
         && super::MODIFIERS_STATE.lock().unwrap().get(&rdev::Key::AltGr) == Some(&true)
@@ -355,21 +355,21 @@ pub fn match_event(event: &rdev::Event) -> Option<String> {
 
 #[cfg(feature = "flutter")]
 lazy_static::lazy_static! {
-    /// Physical keys whose press fired a shortcut and whose release has not
-    /// arrived yet. Every event of such a key belongs to RustDesk until its
-    /// release, whatever the modifiers do meanwhile: auto repeats and the
-    /// release are consumed and never reach the remote.
+    /// 按下时触发了快捷键、而释放尚未到达的物理按键。
+    /// 这类按键的每一个事件都归 RustDesk 所有，直到它
+    /// 被释放，无论期间修饰键如何变化：自动重复和
+    /// 释放都会被消费掉，绝不会到达远端。
     ///
-    /// Ownership is physical, so it is shared by every session: a shortcut
-    /// can switch focus or close its own session before the key is released,
-    /// and the session that receives the release is not the one that fired.
-    /// It is never dropped with a session. A key whose release is missed
-    /// heals itself: its next press is consumed as a repeat and that release
-    /// removes it.
+    /// 所有权是基于物理按键的，所以被所有会话共享：一个快捷键
+    /// 可能在按键释放之前切换焦点或关闭它自己的会话，
+    /// 而收到释放的那个会话并不是触发它的那个。
+    /// 它绝不会随某个会话一起被丢弃。一个释放被漏掉的按键
+    /// 会自我修复：它的下一次按下会被当作重复消费掉，而那次释放
+    /// 会把它移除。
     static ref FIRED_KEYS: std::sync::Mutex<std::collections::HashSet<rdev::Key>> =
         Default::default();
-    /// Actions waiting for the release of the key that fired them, with the
-    /// session that fired them. See `runs_on_release`.
+    /// 等待触发它们的按键释放的动作，以及触发它们的
+    /// 会话。参见 `runs_on_release`。
     static ref RELEASE_ACTIONS: std::sync::Mutex<
         std::collections::HashMap<rdev::Key, (hbb_common::SessionID, String)>,
     > = Default::default();
@@ -378,13 +378,13 @@ lazy_static::lazy_static! {
     > = Default::default();
 }
 
-/// Actions that move keyboard focus to another session or a dialog. They run when the
-/// key that fired them is released, not when it is pressed, so the matcher
-/// that consumed the press also sees its repeats and its release. The next
-/// session may route its keys through the other matcher (Flutter's legacy
-/// path on Linux), which never saw the press. Mirrors
-/// `kShortcutActionsRunOnKeyUp` in `shortcut_constants.dart`; both are
-/// checked against `flutter/test/fixtures/key_up_shortcut_actions.json`.
+/// 把键盘焦点移到另一个会话或对话框的动作。它们在
+/// 触发它们的按键被释放时（而不是按下时）运行，这样
+/// 消费掉那次按下的匹配器也能看到它的重复和释放。下一个
+/// 会话可能会通过另一个匹配器路由它的按键（Linux 上 Flutter 的旧版
+/// 路径），而那个匹配器从未见过这次按下。对应
+/// `shortcut_constants.dart` 中的 `kShortcutActionsRunOnKeyUp`；两者都
+/// 以 `flutter/test/fixtures/key_up_shortcut_actions.json` 为准做校验。
 const RELEASE_ACTION_IDS: &[&str] = &[
     action_id::CLOSE_TAB,
     action_id::SWITCH_TAB_NEXT,
@@ -395,14 +395,14 @@ const RELEASE_ACTION_IDS: &[&str] = &[
 ];
 
 pub fn runs_on_release(action_id: &str) -> bool {
-    // A clipboard consent dialog can consume the trigger release. Web keeps
-    // this action on key-down for browser clipboard user activation.
+    // 剪贴板同意对话框可能会消费掉触发按键的释放。Web 端保持
+    // 该动作为按下时触发，以满足浏览器剪贴板的用户激活要求。
     action_id == action_id::SEND_CLIPBOARD_KEYSTROKES || RELEASE_ACTION_IDS.contains(&action_id)
 }
 
-/// Forget the modifiers a session released on its remote and the actions it
-/// still owes on key release. Fired keys are physical and stay owned until
-/// their release, whichever session gets it.
+/// 忘掉某个会话在其远端释放的修饰键，以及它仍
+/// 欠待在按键释放时执行的动作。已触发的按键是物理的，会一直归其所有直到
+/// 释放，无论最终是哪个会话收到。
 #[cfg(feature = "flutter")]
 pub fn clear_session_state(session_id: &hbb_common::SessionID) {
     RELEASE_ACTIONS.lock().unwrap().retain(|_, (sid, _)| sid != session_id);
@@ -421,7 +421,7 @@ pub fn clear_session_state(session_id: &hbb_common::SessionID) {
     }
 }
 
-/// Clear local state on focus loss when the shortcut already released the remote key.
+/// 当快捷键已经释放了远端按键时，在失去焦点时清除本地状态。
 #[cfg(feature = "flutter")]
 pub(super) fn release_modifier_on_leave(key: rdev::Key) -> bool {
     let sid = crate::flutter::get_cur_session_id();
@@ -444,8 +444,8 @@ pub fn enter_view_only(session_id: &hbb_common::SessionID) {
     if super::IS_RDEV_ENABLED.load(std::sync::atomic::Ordering::SeqCst) {
         return;
     }
-    // The Flutter input source stops routing key events here, so the release
-    // of a fired key can no longer reach this matcher.
+    // Flutter 输入源不再把按键事件路由到这里，所以已触发按键的释放
+    // 再也无法到达这个匹配器。
     FIRED_KEYS.lock().unwrap().clear();
     RELEASE_ACTIONS.lock().unwrap().clear();
     clear_session_state(session_id);
@@ -462,20 +462,20 @@ pub fn transfer_released_modifiers(from: &hbb_common::SessionID, to: &hbb_common
     }
 }
 
-/// Match `event` against the cached bindings; if it matched, push a
-/// `shortcut_triggered` Flutter session event and return `true` so the caller
-/// can `return` early. Returns `false` when no shortcut fired (caller should
-/// continue with normal key handling).
+/// 把 `event` 与缓存的绑定做匹配；如果匹配上了，就推送一个
+/// `shortcut_triggered` Flutter 会话事件并返回 `true`，让调用方
+/// 能够提前 `return`。没有快捷键触发时返回 `false`（调用方应
+/// 继续正常的按键处理）。
 ///
-/// `session_id`:
-/// * `Some(&id)` — Flutter FFI path: dispatch to the exact session whose key
-///   event we're processing. No dependence on the global focus tracker.
-/// * `None` — rdev grab loop: the loop is process-wide and has no way to know
-///   which Flutter session id the keystroke was meant for, so route to the
-///   globally-current session via `flutter::get_cur_session_id()`.
+/// `session_id`：
+/// * `Some(&id)` — Flutter FFI 路径：分发到我们正在处理其按键
+///   事件的那个确切会话。不依赖全局焦点跟踪器。
+/// * `None` — rdev grab 循环：该循环是进程级的，无从知道
+///   这次按键本该发给哪个 Flutter 会话 id，所以路由到
+///   通过 `flutter::get_cur_session_id()` 得到的全局当前会话。
 ///
-/// `peer` and `send` must belong to the same session as `session_id`, so the
-/// remote key releases go to the session the chord was typed into.
+/// `peer` 和 `send` 必须与 `session_id` 属于同一个会话，这样
+/// 远端按键的释放才会回到输入该组合键的那个会话。
 #[cfg(feature = "flutter")]
 pub fn try_dispatch(
     session_id: Option<&hbb_common::SessionID>,
@@ -507,8 +507,8 @@ pub fn try_dispatch(
         match event.event_type {
             EventType::KeyPress(k) if fired.contains(&k) => return true,
             EventType::KeyRelease(k) if fired.remove(&k) => {
-                // X11 Source 1 can report auto-repeat as release/press pairs.
-                // Held shortcuts may fire again until the backend normalizes them.
+                // X11 Source 1 可能把自动重复报告成释放/按下对。
+                // 在后端把它们归一化之前，持续按住的快捷键可能会再次触发。
                 drop(fired);
                 let pending = RELEASE_ACTIONS.lock().unwrap().remove(&k);
                 if let Some((sid, action_id)) = pending {
@@ -519,8 +519,8 @@ pub fn try_dispatch(
             _ => {}
         }
     }
-    // A forwarded press keeps ownership through repeats. Adding modifiers
-    // while it is held must not consume the key-up owed to the remote.
+    // 被转发的按下在重复期间保持所有权。按住期间再加入修饰键
+    // 绝不能消费掉欠给远端的 key-up。
     let action_id = match event.event_type {
         EventType::KeyPress(key) if super::TO_RELEASE.lock().unwrap().contains_key(&key) => None,
         _ => match_event(event),
@@ -596,8 +596,8 @@ fn restore_remote_modifiers(
     }
 }
 
-// Actions that move focus, stop input or change its mode must release ordinary
-// keys too: their physical key-up may no longer balance the original key-down.
+// 移动焦点、停止输入或改变输入模式的动作也必须释放普通的
+// 按键：它们的物理 key-up 可能已经无法与原来的 key-down 配平。
 #[cfg(feature = "flutter")]
 fn release_remote_non_modifiers(
     keyboard_mode: &str,
@@ -618,12 +618,12 @@ fn release_remote_non_modifiers(
     }
 }
 
-/// Release the remote modifiers before an action, preserving unrelated held keys.
+/// 在动作之前释放远端修饰键，同时保留无关的按住键。
 ///
-/// Unlike `keyboard::release_remote_keys` this keeps the local modifier state:
-/// the user is still physically holding the modifiers, and the next key of
-/// the chord (or an auto repeat) must still see them. It also sends through
-/// `send` instead of the globally current session.
+/// 与 `keyboard::release_remote_keys` 不同，它会保留本地修饰键状态：
+/// 用户物理上仍按着修饰键，而该组合键的下一个按键
+/// （或自动重复）仍必须能看到它们。它也通过
+/// `send` 发送，而不是发给全局当前会话。
 #[cfg(feature = "flutter")]
 fn release_remote_keys(
     session_id: &hbb_common::SessionID,
@@ -649,7 +649,7 @@ fn release_remote_keys(
     };
     let swap_ctrl_cmd = crate::flutter::sessions::get_session_by_session_id(session_id)
         .is_some_and(|session| session.get_toggle_option("allow_swap_key".into()));
-    // A consumed Alt/Meta-only chord must not activate Windows menus or Start.
+    // 被消费掉的仅含 Alt/Meta 的组合键不得激活 Windows 菜单或开始菜单。
     let neutralize_menu = peer == "windows"
         && !to_release.is_empty()
         && to_release.iter().all(|(key, _)| matches!(key, Key::Alt | Key::AltGr)
@@ -674,9 +674,9 @@ fn release_remote_keys(
         }
     }
     RELEASED_MODIFIERS.lock().unwrap().insert(
-        *session_id, held.iter().cloned().collect()
+        * session_id, held.iter().cloned().collect()
     );
-    // Focus-loss cleanup must still reset modifiers released outside the grab.
+    // 失去焦点的清理仍必须重置在 grab 之外释放的修饰键。
     TO_RELEASE.lock().unwrap().extend(held);
 }
 
@@ -690,9 +690,9 @@ fn send_windows_menu_ctrl(
     const LEFT_CTRL_SCAN_CODE: u32 = 0x1d;
     const LEFT_META_SCAN_CODE: u32 = 0xe05b;
     let mut event = KeyEvent::new();
-    // Keep Ctrl in Map mode: Legacy sync could release Alt/Meta before Ctrl.
+    // 在 Map 模式下保留 Ctrl：旧版同步可能在 Ctrl 之前就释放 Alt/Meta。
     event.mode = KeyboardMode::Map.into();
-    // The session sender swaps this packet too; the mask must arrive as Ctrl.
+    // 会话发送方也会替换这个数据包；掩码必须以 Ctrl 的形式送达。
     event.set_chr(if swap_ctrl_cmd {
         LEFT_META_SCAN_CODE
     } else {
@@ -709,11 +709,11 @@ fn mods_bits(m: &[Modifier]) -> u8 {
             Modifier::Primary => 1,
             Modifier::Alt     => 2,
             Modifier::Shift   => 4,
-            // macOS users can bind shortcuts that use Control independently
-            // of Command. On Win/Linux this variant should never appear in a
-            // saved binding (`normalize_modifiers` collapses Ctrl into
-            // Primary), but we still give it a distinct bit so a hand-edited
-            // config can't accidentally collide with another modifier.
+            // macOS 用户可以绑定独立使用 Control 的快捷键，
+            // 不必配合 Command。在 Win/Linux 上这个变体本不该出现在
+            // 已保存的绑定中（`normalize_modifiers` 会把 Ctrl 归并进
+            // Primary），但我们仍然给它一个独立的位，这样手工编辑过的
+            // 配置就不会意外地与另一个修饰键冲突。
             Modifier::Ctrl    => 8,
         };
     }
@@ -761,11 +761,11 @@ mod tests {
         event
     }
 
-    /// Cross-language parity for default bindings. The fixture file is the
-    /// shared source of truth — Dart has a mirror test against the same file
-    /// (`kDefaultShortcutBindings matches fixture` in
-    /// `flutter/test/keyboard_shortcuts_test.dart`). Any drift on either
-    /// side breaks one of the two tests.
+    /// 默认绑定的跨语言一致性。该 fixture 文件是
+    /// 共享的真实来源——Dart 侧有一个针对同一文件的镜像测试
+    /// （`kDefaultShortcutBindings matches fixture` 在
+    /// `flutter/test/keyboard_shortcuts_test.dart` 中）。任何一侧出现偏差
+    /// 都会让两个测试中的一个失败。
     #[test]
     fn default_bindings_match_fixture_json() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
@@ -814,7 +814,7 @@ mod tests {
     #[test]
     fn match_returns_none_when_modifiers_partial() {
         let bindings = Bindings { enabled: true, pass_through: false, bindings: default_bindings() };
-        // missing Shift
+        // 缺少 Shift
         let result = match_normalized("p", &[Modifier::Primary, Modifier::Alt], &bindings);
         assert_eq!(result, None);
     }
@@ -828,8 +828,8 @@ mod tests {
 
     #[test]
     fn match_handles_duplicate_modifiers_in_input() {
-        // A user-edited config could contain duplicate modifiers; the matcher must
-        // treat the modifier list as a set, not a multiset.
+        // 用户编辑过的配置可能包含重复的修饰键；匹配器必须
+        // 把修饰键列表当作集合而不是多重集来处理。
         let bindings = Bindings {
             enabled: true,
             pass_through: false,
@@ -839,12 +839,12 @@ mod tests {
                 key: "a".into(),
             }],
         };
-        // Caller passes Primary twice — must not match a binding with Primary+Alt.
+        // 调用方传入两次 Primary——不应匹配 Primary+Alt 的绑定。
         assert_eq!(
             match_normalized("a", &[Modifier::Primary, Modifier::Primary], &bindings),
             None,
         );
-        // Caller passes Primary+Alt with one duplicate — should still match.
+        // 调用方传入 Primary+Alt 且有一个重复——仍应匹配。
         assert_eq!(
             match_normalized("a", &[Modifier::Primary, Modifier::Alt, Modifier::Alt], &bindings),
             Some("x"),
@@ -853,10 +853,10 @@ mod tests {
 
     #[test]
     fn modifier_normalization_primary_resolves_per_os() {
-        // On Win/Linux: pressing Ctrl satisfies Primary
+        // 在 Win/Linux 上：按下 Ctrl 即满足 Primary
         let mods = normalize_modifiers(/*alt=*/true, /*ctrl=*/true, /*shift=*/true, /*command=*/false);
         if cfg!(any(target_os = "macos", target_os = "ios")) {
-            // On Apple platforms Ctrl is NOT primary
+            // 在 Apple 平台上 Ctrl 不是 primary
             assert!(!mods.contains(&Modifier::Primary));
             assert!(mods.contains(&Modifier::Ctrl));
         } else {
@@ -872,18 +872,18 @@ mod tests {
         if cfg!(any(target_os = "macos", target_os = "ios")) {
             assert!(mods.contains(&Modifier::Primary));
         } else {
-            // On Win/Linux Command/Meta is NOT primary
+            // 在 Win/Linux 上 Command/Meta 不是 primary
             assert!(!mods.contains(&Modifier::Primary));
         }
     }
 
     #[test]
     fn match_refuses_zero_modifier_bindings() {
-        // Defense-in-depth: a hand-edited config with empty `mods` must NOT
-        // turn every plain "P" press into a screenshot shortcut, which would
-        // swallow all typing in the remote session. The recording dialog
-        // already refuses to save such bindings, but the matcher must hold
-        // the line independently.
+        // 纵深防御：手工编辑过的、`mods` 为空的配置绝不能
+        // 把普通的 "P" 按下变成截图快捷键，否则那会
+        // 吞掉远端会话中的所有输入。录制对话框
+        // 本来就会拒绝保存这类绑定，但匹配器必须独立地
+        // 守住这条底线。
         let bindings = Bindings {
             enabled: true,
             pass_through: false,
@@ -894,20 +894,20 @@ mod tests {
             }],
         };
         assert_eq!(match_normalized("p", &[], &bindings), None);
-        // Even with extra modifiers held by the user, a zero-mod binding
-        // still doesn't match (no shape of held modifiers can equal the
-        // empty saved set after the empty-check skips the entry).
+        // 即使用户还按着额外的修饰键，零修饰键的绑定
+        // 仍然不会匹配（因为在空检查跳过该条目之后，按住的修饰键
+        // 无论取什么组合都不可能等于空集合）。
         assert_eq!(
             match_normalized("p", &[Modifier::Primary], &bindings),
             None,
         );
     }
 
-    /// The native Flutter path turns a key into a name through its USB HID
-    /// usage (`rdev::usb_hid_key_from_code` -> `event_to_key_name`); the Dart
-    /// recorder does the same through `physicalKeyName`. Both are checked
-    /// against the same fixture, so a binding recorded on any keyboard layout
-    /// matches the key that was pressed.
+    /// 原生 Flutter 路径通过 USB HID
+    /// usage 把按键转成名称（`rdev::usb_hid_key_from_code` -> `event_to_key_name`）；Dart
+    /// 侧的录制器通过 `physicalKeyName` 做同样的事。两者都
+    /// 以同一个 fixture 为准校验，所以在任意键盘布局上记录的绑定
+    /// 都能匹配到实际按下的按键。
     #[test]
     fn usb_hid_keys_match_fixture() {
         let pairs: Vec<(String, u32)> = serde_json::from_str(include_str!(
@@ -924,19 +924,19 @@ mod tests {
         }
     }
 
-    /// Serializes the tests that write the global `CACHE`.
+    /// 把写入全局 `CACHE` 的测试串行化。
     static CACHE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]
     fn reload_handles_missing_and_invalid_json() {
         let _guard = CACHE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        // empty (no value set) → defaults
+        // 空（未设置值）→ 默认值
         reload_from_raw("", "windows", false);
         let b = current();
         assert!(!b.enabled);
         assert!(b.bindings.is_empty());
 
-        // invalid JSON → defaults (no panic)
+        // 无效 JSON → 默认值（不 panic）
         reload_from_raw("not json", "windows", false);
         let b = current();
         assert!(!b.enabled);
@@ -999,10 +999,10 @@ mod tests {
         e
     }
 
-    /// Holding the chord modifiers and pressing two bound keys must fire both
-    /// actions once each: releasing the modifiers on the remote must not clear
-    /// them locally, and overlapping fired keys each own their repeats and
-    /// release.
+    /// 按住组合键的修饰键并按下两个已绑定的按键，必须各自触发一次
+    /// 对应的动作：在远端释放修饰键绝不能清除
+    /// 本地的修饰键，而且相互重叠的已触发按键各自拥有自己的重复和
+    /// 释放。
     #[cfg(feature = "flutter")]
     #[test]
     fn dispatch_consumes_overlapping_fired_keys() {
@@ -1010,8 +1010,8 @@ mod tests {
 
         let _guard = CACHE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let chord = enable_defaults_and_hold_chord();
-        // Records the action of every press that dispatched: a press whose key
-        // was not already fired before the call.
+        // 记录每一次真正分发出去的按下的动作：某个按键的按下
+        // 在这次调用之前尚未被触发过。
         let fired = std::cell::RefCell::new(Vec::new());
         let dispatch = |e: &rdev::Event| {
             let before = fired_keys();
@@ -1038,14 +1038,14 @@ mod tests {
         assert!(dispatch(&make_release(Key::KeyC)), "C release is consumed");
         assert!(fired_keys().is_empty());
         assert_eq!(
-            *fired.borrow(),
+            * fired.borrow(),
             vec![action_id::SCREENSHOT.to_owned(), action_id::TOGGLE_CHAT.to_owned()]
         );
 
         release_chord(chord);
     }
 
-    /// A fired key stays owned until its release even after the modifiers go.
+    /// 已触发的按键会一直归其所有直到释放，即使修饰键已经松开。
     #[cfg(feature = "flutter")]
     #[test]
     fn dispatch_consumes_fired_key_after_modifiers_release() {
@@ -1064,9 +1064,9 @@ mod tests {
         assert!(!dispatch(&make_release(Key::KeyP)));
     }
 
-    /// Close tab is itself a shortcut: the session that fired the key is gone
-    /// before the key is released, and the session that receives the rest of
-    /// the key's events still owns them.
+    /// 关闭标签页本身就是一个快捷键：触发该按键的会话在按键
+    /// 释放之前就已经消失，而收到该按键其余
+    /// 事件的那个会话仍然拥有它们。
     #[cfg(feature = "flutter")]
     #[test]
     fn dispatch_keeps_fired_key_after_session_close() {
@@ -1188,7 +1188,7 @@ mod tests {
             let chord = enable_defaults_and_hold_chord();
             let mut bindings = default_bindings();
             bindings.iter_mut().find(|b| b.key == "s").unwrap().action = action.into();
-            *CACHE.write().unwrap() = Arc::new(Bindings { enabled: true, pass_through: false, bindings });
+            * CACHE.write().unwrap() = Arc::new(Bindings { enabled: true, pass_through: false, bindings });
             release_chord(chord);
             super::super::event_to_key_events(
                 "windows".into(), &make_press(Key::KeyW), KeyboardMode::Map, Some(0),
@@ -1241,7 +1241,7 @@ mod tests {
         let release_events = if release_consumed { vec![] } else {
             super::super::event_to_key_events("windows".into(), &release, KeyboardMode::Map, Some(0))
         };
-        // Cleanup precedes assertions so a failing regression cannot poison other tests.
+        // 先做清理再做断言，这样一个失败的回归测试不会污染其他测试。
         super::super::event_to_key_events("windows".into(), &release, KeyboardMode::Map, Some(0));
         release_chord(chord);
         reset_fired_keys();
@@ -1359,7 +1359,7 @@ mod tests {
 
         let _guard = CACHE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_fired_keys();
-        *CACHE.write().unwrap() = Arc::new(Bindings {
+        * CACHE.write().unwrap() = Arc::new(Bindings {
             enabled: true,
             pass_through: false,
             bindings: vec![Binding {
@@ -1465,8 +1465,8 @@ mod tests {
         release_chord(chord);
     }
 
-    /// The Dart matcher keeps the same list (`kShortcutActionsRunOnKeyUp`);
-    /// the fixture is the shared source of truth.
+    /// Dart 匹配器保留着同样的列表（`kShortcutActionsRunOnKeyUp`）；
+    /// 该 fixture 是共享的真实来源。
     #[test]
     fn key_up_actions_match_fixture() {
         use std::collections::BTreeSet;
@@ -1488,9 +1488,9 @@ mod tests {
         assert!(!runs_on_release(action_id::SCREENSHOT));
     }
 
-    /// Close tab and tab switching move focus away before the key is
-    /// released; they run on the release so the same matcher sees the whole
-    /// press.
+    /// 关闭标签页和标签切换会在按键
+    /// 释放之前就把焦点移走；它们在释放时运行，好让同一个匹配器看到整个
+    /// 按下过程。
     #[cfg(feature = "flutter")]
     #[test]
     fn focus_changing_actions_run_on_release() {
@@ -1499,7 +1499,7 @@ mod tests {
         let _guard = CACHE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let chord = enable_defaults_and_hold_chord();
         let prefix = || vec![Modifier::Primary, Modifier::Alt, Modifier::Shift];
-        *CACHE.write().unwrap() = Arc::new(Bindings {
+        * CACHE.write().unwrap() = Arc::new(Bindings {
             enabled: true,
             pass_through: false,
             bindings: vec![
@@ -1537,7 +1537,7 @@ mod tests {
 
         let _guard = CACHE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let chord = enable_defaults_and_hold_chord();
-        *CACHE.write().unwrap() = Arc::new(Bindings {
+        * CACHE.write().unwrap() = Arc::new(Bindings {
             enabled: true,
             pass_through: false,
             bindings: vec![Binding {
@@ -1584,7 +1584,7 @@ mod tests {
         use base::message_proto::KeyboardMode;
         use rdev::Key;
 
-        *CACHE.write().unwrap() = Arc::new(Bindings {
+        * CACHE.write().unwrap() = Arc::new(Bindings {
             enabled: true,
             pass_through: false,
             bindings: default_bindings(),

@@ -163,7 +163,7 @@ impl SciterConnectionManager {
     }
 
     fn hide_cm(&self) -> bool {
-        *crate::ui::cm::HIDE_CM.lock().unwrap()
+        * crate::ui::cm::HIDE_CM.lock().unwrap()
     }
 
     fn get_supported_privacy_mode_impls(&self) -> String {
@@ -174,7 +174,7 @@ impl SciterConnectionManager {
 
 impl sciter::EventHandler for SciterConnectionManager {
     fn attached(&mut self, root: HELEMENT) {
-        *self.ui_handler.element.lock().unwrap() = Some(Element::from(root));
+        * self.ui_handler.element.lock().unwrap() = Some(Element::from(root));
     }
 
     sciter::dispatch_script_call! {

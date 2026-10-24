@@ -62,7 +62,7 @@ fn main() -> io::Result<()> {
     let d = Display::primary().unwrap();
     let (width, height) = (d.width() as u32, d.height() as u32);
 
-    // Setup the multiplexer.
+    // 设置复用器。
 
     let out = match {
         OpenOptions::new()
@@ -96,7 +96,7 @@ fn main() -> io::Result<()> {
 
     let mut vt = webm.add_video_track(width, height, None, mux_codec);
 
-    // Setup the encoder.
+    // 设置编码器。
     let quality = args.flag_quality;
     let mut vpx = vpx_encode::VpxEncoder::new(
         EncoderCfg::VPX(vpx_encode::VpxEncoderConfig {
@@ -110,7 +110,7 @@ fn main() -> io::Result<()> {
     )
     .unwrap();
 
-    // Start recording.
+    // 开始录制。
 
     let start = Instant::now();
     let stop = Arc::new(AtomicBool::new(false));
@@ -126,7 +126,7 @@ fn main() -> io::Result<()> {
 
     let spf = Duration::from_nanos(1_000_000_000 / args.flag_fps);
 
-    // Capturer object is expensive, avoiding to create it frequently.
+    // Capturer 对象开销很大，避免频繁创建。
     let mut c = Capturer::new(d).unwrap();
     let mut yuv = Vec::new();
     let mut mid_data = Vec::new();
@@ -152,7 +152,7 @@ fn main() -> io::Result<()> {
         }
     }
 
-    // End things.
+    // 收尾。
 
     let _ = webm.finalize(None);
 

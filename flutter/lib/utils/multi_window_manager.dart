@@ -9,7 +9,7 @@ import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/main.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 
-/// must keep the order
+/// 必须保持顺序
 // ignore: constant_identifier_names
 enum WindowType {
   Main,
@@ -49,9 +49,9 @@ class MultiWindowCallResult {
   MultiWindowCallResult(this.windowId, this.result);
 }
 
-/// Window Manager
-/// mainly use it in `Main Window`
-/// use it in sub window is not recommended
+/// 窗口管理器
+/// 主要在 `Main Window` 中使用
+/// 不建议在子窗口中使用
 class RustDeskMultiWindowManager {
   RustDeskMultiWindowManager._();
 
@@ -95,8 +95,8 @@ class RustDeskMultiWindowManager {
     }
   }
 
-  // This function must be called in the main window thread.
-  // Because the _remoteDesktopWindows is managed in that thread.
+  // 此函数必须在主窗口线程中调用。
+  // 因为 _remoteDesktopWindows 就在那个线程中管理。
   openMonitorSession(int windowId, String peerId, int display, int displayCount,
       Rect? screenRect, int windowType) async {
     final isCamera = windowType == WindowType.ViewCamera.index;
@@ -251,7 +251,7 @@ class RustDeskMultiWindowManager {
     }
     final msg = jsonEncode(params);
 
-    // separate window for file transfer is not supported
+    // 不支持为文件传输单独开窗口
     bool openInTabs = type != WindowType.RemoteDesktop ||
         mainGetLocalBoolOptionSync(kOptionOpenNewConnInTabs);
 
@@ -354,9 +354,9 @@ class RustDeskMultiWindowManager {
     bool? forceRelay,
     String? connToken,
   }) async {
-    // Iterate through terminal windows in reverse order to prioritize
-    // the most recently added or used windows, as they are more likely
-    // to have an active session.
+    // 以逆序遍历终端窗口，优先处理
+    // 最近添加或使用过的窗口，因为它们更可能
+    // 有处于活动状态的会话。
     for (final windowId in _terminalWindows.reversed) {
       if (await DesktopMultiWindow.invokeMethod(
           windowId, kWindowEventActiveSession, remoteId)) {
@@ -364,9 +364,9 @@ class RustDeskMultiWindowManager {
       }
     }
 
-    // Terminal windows should always create new windows, not reuse
-    // This avoids the MissingPluginException when trying to invoke
-    // new_terminal on an inactive window
+    // 终端窗口应始终创建新窗口，而不是复用
+    // 这样可以避免在非活动窗口上尝试调用
+    // new_terminal 时抛出的 MissingPluginException
     var params = {
       "type": WindowType.Terminal.index,
       "id": remoteId,
@@ -377,7 +377,7 @@ class RustDeskMultiWindowManager {
     };
     final msg = jsonEncode(params);
 
-    // Always create a new window for terminal
+    // 终端始终创建新窗口
     final windowId = await newSessionWindow(
         WindowType.Terminal, remoteId, msg, _terminalWindows, false);
     return MultiWindowCallResult(windowId, null);
@@ -455,7 +455,7 @@ class RustDeskMultiWindowManager {
 
   Future<void> _closeWindows(WindowType type) async {
     if (type == WindowType.Main) {
-      // skip main window, use window manager instead
+      // 跳过主窗口，改用窗口管理器
       return;
     }
 
@@ -522,11 +522,11 @@ class RustDeskMultiWindowManager {
     await _notifyActiveWindow();
   }
 
-  /// Remove active window which has [`windowId`]
+  /// 移除带有 [`windowId`] 的活动窗口
   ///
-  /// [Availability]
-  /// This function should only be called from main window.
-  /// For other windows, please post a unregister(hide) event to main window handler:
+  /// [可用性]
+  /// 此函数只能从主窗口调用。
+  /// 对于其他窗口，请向主窗口处理器投递一个 unregister(hide) 事件：
   /// `rustDeskWinManager.call(WindowType.Main, kWindowEventHide, {"id": windowId!});`
   Future<void> unregisterActiveWindow(int windowId) async {
     _activeWindows.remove(windowId);
@@ -544,8 +544,8 @@ class RustDeskMultiWindowManager {
     _windowActiveCallbacks.remove(callback);
   }
 
-  // This function is called from the main window.
-  // It will query the active remote windows to get their coords.
+  // 此函数从主窗口调用。
+  // 它会查询活动的远程窗口以获取其坐标。
   Future<List<String>> getOtherRemoteWindowCoords(int wId) async {
     List<String> coords = [];
     for (final windowId in _remoteDesktopWindows) {
@@ -562,12 +562,12 @@ class RustDeskMultiWindowManager {
     return coords;
   }
 
-  // This function is called from one remote window.
-  // Only the main window knows `_remoteDesktopWindows` and `_activeWindows`.
-  // So we need to call the main window to get the other remote windows' coords.
+  // 此函数从某个远程窗口调用。
+  // 只有主窗口知道 `_remoteDesktopWindows` 和 `_activeWindows`。
+  // 因此需要调用主窗口来获取其他远程窗口的坐标。
   Future<List<RemoteWindowCoords>> getOtherRemoteWindowCoordsFromMain() async {
     List<RemoteWindowCoords> coords = [];
-    // Call the main window to get the coords of other remote windows.
+    // 调用主窗口以获取其他远程窗口的坐标。
     String res = await DesktopMultiWindow.invokeMethod(
         kMainWindowId, kWindowEventRemoteWindowCoords, kWindowId.toString());
     List<dynamic> list = jsonDecode(res);

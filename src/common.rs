@@ -50,7 +50,7 @@ pub enum GrabState {
 
 pub type NotifyMessageBox = fn(String, String, String, String) -> dyn Future<Output = ()>;
 
-// the executable name of the portable version
+// 便携版的可执行文件名
 pub const PORTABLE_APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
 
 pub const PLATFORM_WINDOWS: &str = "Windows";
@@ -70,18 +70,18 @@ pub mod input {
     pub const MOUSE_TYPE_UP: i32 = 2;
     pub const MOUSE_TYPE_WHEEL: i32 = 3;
     pub const MOUSE_TYPE_TRACKPAD: i32 = 4;
-    /// Relative mouse movement type for gaming/3D applications.
-    /// This type sends delta (dx, dy) values instead of absolute coordinates.
+    /// 用于游戏/3D 应用的相对鼠标移动类型。
+    /// 该类型发送增量 (dx, dy) 值而不是绝对坐标。
     /// NOTE: This is only supported by the Flutter client. The Sciter client (deprecated)
-    /// does not support relative mouse mode due to:
-    /// 1. Fixed send_mouse() function signature that doesn't allow type differentiation
-    /// 2. Lack of pointer lock API in Sciter/TIS
-    /// 3. No OS cursor control (hide/show/clip) FFI bindings in Sciter UI
+    /// 不支持相对鼠标模式，原因如下：
+    /// 1. send_mouse() 函数签名固定，无法区分类型
+    /// 2. Sciter/TIS 中缺少 pointer lock API
+    /// 3. Sciter UI 中没有操作系统光标控制（隐藏/显示/裁剪）的 FFI 绑定
     pub const MOUSE_TYPE_MOVE_RELATIVE: i32 = 5;
 
-    /// Mask to extract the mouse event type from the mask field.
-    /// The lower 3 bits contain the event type (MOUSE_TYPE_*), giving a valid range of 0-7.
-    /// Currently defined types use values 0-5; values 6 and 7 are reserved for future use.
+    /// 用于从 mask 字段中提取鼠标事件类型的掩码。
+    /// 低 3 位包含事件类型 (MOUSE_TYPE_*)，有效范围为 0-7。
+    /// 当前定义的类型取值 0-5；6 和 7 保留供将来使用。
     pub const MOUSE_TYPE_MASK: i32 = 0x7;
 
     pub const MOUSE_BUTTON_LEFT: i32 = 0x01;
@@ -99,9 +99,9 @@ lazy_static::lazy_static! {
 }
 
 lazy_static::lazy_static! {
-    // Is server process, with "--server" args
+    // 是服务端进程，带 "--server" 参数
     static ref IS_SERVER: bool = std::env::args().nth(1) == Some("--server".to_owned());
-    // Is server logic running. The server code can invoked to run by the main process if --server is not running.
+    // 服务端逻辑是否正在运行。如果 --server 未运行，主进程可以调用服务端代码来运行。
     static ref SERVER_RUNNING: Arc<RwLock<bool>> = Default::default();
     static ref IS_MAIN: bool = std::env::args().nth(1).map_or(true, |arg| !arg.starts_with("--"));
     static ref IS_CM: bool = std::env::args().nth(1) == Some("--cm".to_owned());
@@ -137,7 +137,7 @@ pub fn global_clean() {}
 
 #[inline]
 pub fn set_server_running(b: bool) {
-    *SERVER_RUNNING.write().unwrap() = b;
+    * SERVER_RUNNING.write().unwrap() = b;
 }
 
 #[inline]
@@ -150,15 +150,15 @@ pub fn is_support_multi_ui_session_num(ver: i64) -> bool {
     ver >= hbb_common::get_version_number(MIN_VER_MULTI_UI_SESSION)
 }
 
-/// Peers from the 1.5.0 release name a cursor by `cursor_content_id`; older ones by the
-/// platform handle, which apps mint anew for the same shape.
+/// 1.5.0 版本的对端用 `cursor_content_id` 标识一个光标；更早的版本用
+/// 平台句柄标识，而应用对同一种形状会重新生成新的句柄。
 #[inline]
 pub fn is_peer_naming_cursors_by_content(ver: i64) -> bool {
     ver >= hbb_common::get_version_number("1.5.0")
 }
 
-/// One id per cursor look, however many handles a platform gives it. Held to 53 bits: the web
-/// client decodes a u64 into a JS number and drops the whole message when it does not fit.
+/// 无论平台给它多少个句柄，每种光标外观只有一个 id。限制在 53 位：Web
+/// 客户端会把 u64 解码为 JS number，放不下时丢弃整条消息。
 pub fn cursor_content_id(width: i32, height: i32, hotx: i32, hoty: i32, colors: &[u8]) -> u64 {
     let mut hasher = xxhash_rust::xxh3::Xxh3::new();
     for v in [width, height, hotx, hoty] {
@@ -208,8 +208,8 @@ pub fn is_support_file_transfer_resume_num(ver: i64) -> bool {
     ver >= hbb_common::get_version_number("1.4.2")
 }
 
-/// Minimum server version required for relative mouse mode support.
-/// This constant must mirror Flutter's `kMinVersionForRelativeMouseMode` in `consts.dart`.
+/// 支持相对鼠标模式所需的最低服务端版本。
+/// 该常量必须与 `consts.dart` 中 Flutter 的 `kMinVersionForRelativeMouseMode` 保持一致。
 const MIN_VERSION_RELATIVE_MOUSE_MODE: &str = "1.4.5";
 
 #[inline]
@@ -222,10 +222,10 @@ pub fn is_support_relative_mouse_mode_num(ver: i64) -> bool {
     ver >= hbb_common::get_version_number(MIN_VERSION_RELATIVE_MOUSE_MODE)
 }
 
-// is server process, with "--server" args
+// 是服务端进程，带 "--server" 参数
 #[inline]
 pub fn is_server() -> bool {
-    *IS_SERVER
+    * IS_SERVER
 }
 
 #[inline]
@@ -240,21 +240,21 @@ pub fn need_fs_cm_send_files() -> bool {
     }
 }
 
-/// Android is scoped-storage only: the peer may never touch anything outside the app
-/// workspace (`Config::get_home()`, i.e. the app-specific external files directory).
+/// Android 仅支持 scoped storage：对端绝不能触碰应用之外的内容
+/// 工作区（`Config::get_home()`，即应用专属的外部文件目录）。
 ///
-/// Every peer supplied path must be validated with this before it reaches the
-/// filesystem, for reads, writes, renames, creations and deletions alike. The path is
-/// resolved to its canonical form (of the deepest existing ancestor, so paths that are
-/// about to be created are handled too) so symlinks cannot escape the workspace.
+/// 每个对端提供的路径在到达
+/// 文件系统之前（无论是读取、写入、重命名、创建还是删除）都必须用此方法校验。该路径会
+/// 解析为其规范形式（取最深的已存在祖先目录，因此那些
+/// 即将被创建的路径也能正确处理），从而防止符号链接逃出工作区。
 ///
-/// Only the `ReadDir` protocol action treats an empty path as the home directory.
-/// Callers must opt in to that protocol-specific behavior with `allow_empty`.
+/// 只有 `ReadDir` 协议动作会把空路径视为主目录。
+/// 调用方必须通过 `allow_empty` 显式启用这一协议特定行为。
 #[cfg(target_os = "android")]
 pub fn is_peer_path_allowed(path: &str, allow_empty: bool) -> bool {
     use std::path::{Component, Path, PathBuf};
 
-    // Canonicalize the deepest existing ancestor and re-append the missing tail.
+    // 对最深的已存在祖先目录做规范化，再接回缺失的尾部路径。
     fn resolve(path: &Path) -> Option<PathBuf> {
         let mut tail: Vec<std::ffi::OsString> = Vec::new();
         let mut base = path.to_path_buf();
@@ -276,7 +276,7 @@ pub fn is_peer_path_allowed(path: &str, allow_empty: bool) -> bool {
         return allow_empty;
     }
     let path = Path::new(path);
-    // `..` is never needed by the protocol and would defeat the prefix check below.
+    // 协议从来不需要 `..`，而且它会破坏下面的前缀检查。
     if !path.is_absolute() || path.components().any(|c| c == Component::ParentDir) {
         return false;
     }
@@ -285,7 +285,7 @@ pub fn is_peer_path_allowed(path: &str, allow_empty: bool) -> bool {
     if home.as_os_str().is_empty() {
         return false;
     }
-    // `Path::starts_with` compares whole components, and is true for equal paths.
+    // `Path::starts_with` 按完整组件比较，路径相同时为真。
     resolve(path).map_or(false, |target| target.starts_with(&home))
 }
 
@@ -297,7 +297,7 @@ pub fn is_peer_path_allowed(_path: &str, _allow_empty: bool) -> bool {
 
 #[inline]
 pub fn is_main() -> bool {
-    *IS_MAIN
+    * IS_MAIN
 }
 
 #[inline]
@@ -305,10 +305,10 @@ pub fn is_cm() -> bool {
     *IS_CM
 }
 
-// Is server logic running.
+// 服务端逻辑是否正在运行。
 #[inline]
 pub fn is_server_running() -> bool {
-    *SERVER_RUNNING.read().unwrap()
+    * SERVER_RUNNING.read().unwrap()
 }
 
 #[inline]
@@ -322,7 +322,7 @@ pub fn valid_for_numlock(evt: &KeyEvent) -> bool {
     }
 }
 
-/// Set sound input device.
+/// 设置声音输入设备。
 pub fn set_sound_input(device: String) {
     let prior_device = get_option("audio-input".to_owned());
     if prior_device != device {
@@ -335,7 +335,7 @@ pub fn set_sound_input(device: String) {
     }
 }
 
-/// Get system's default sound input device name.
+/// 获取系统默认的声音输入设备名称。
 #[inline]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn get_default_sound_input() -> Option<String> {
@@ -570,7 +570,7 @@ macro_rules! audio_rechannel {
                 let mut f = Frame::<Ch32, $in_channels>::default();
                 let mut i = 0;
                 for c in f.channels_mut() {
-                    *c = x[i].into();
+                    * c = x[i].into();
                     i += 1;
                 }
                 *y = f;
@@ -722,7 +722,7 @@ async fn test_nat_type_() -> ResultType<bool> {
         let mut socket =
             socket_client::connect_tcp_local(server, local_addr, CONNECT_TIMEOUT).await?;
         if i == 0 {
-            // reuse the local addr is required for nat test
+            // nat 测试需要复用本地地址
             local_addr = Some(socket.local_addr());
             Config::set_option(
                 "local-ip-addr".to_owned(),
@@ -808,7 +808,7 @@ pub async fn get_nat_type(ms_timeout: u64) -> i32 {
     crate::ipc::get_nat_type(ms_timeout).await
 }
 
-// used for client to test which server is faster in case stop-servic=Y
+// 用于客户端在 stop-servic=Y 的情况下测试哪个服务器更快
 #[tokio::main(flavor = "current_thread")]
 async fn test_rendezvous_server_() {
     let servers = Config::get_rendezvous_servers();
@@ -892,15 +892,15 @@ pub fn run_me<T: AsRef<std::ffi::OsStr>>(args: Vec<T>) -> std::io::Result<std::p
 
 #[inline]
 pub fn username() -> String {
-    // fix bug of whoami
+    // 修复 whoami 的 bug
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     return whoami::username().trim_end_matches('\0').to_owned();
     #[cfg(any(target_os = "android", target_os = "ios"))]
     return DEVICE_NAME.lock().unwrap().clone();
 }
 
-// Exactly the implementation of "whoami::hostname()".
-// This wrapper is to suppress warnings.
+// 与 "whoami::hostname()" 的实现完全一致。
+// 这个包装器用于屏蔽警告。
 #[inline(always)]
 #[cfg(not(target_os = "ios"))]
 pub fn whoami_hostname() -> String {
@@ -915,7 +915,7 @@ pub fn hostname() -> String {
     {
         #[allow(unused_mut)]
         let mut name = whoami_hostname();
-        // some time, there is .local, some time not, so remove it for osx
+        // 有时有 .local，有时没有，所以为 osx 去掉它
         #[cfg(target_os = "macos")]
         if name.ends_with(".local") {
             name = name.trim_end_matches(".local").to_owned();
@@ -1101,7 +1101,7 @@ pub(crate) fn display_version_from_release_id(release_id: &str) -> ResultType<St
 
 fn clear_software_update_url() {
     let mut update_url = SOFTWARE_UPDATE_URL.lock().unwrap();
-    *update_url = String::new();
+    * update_url = String::new();
 }
 
 fn process_software_update_check_response(bytes: Bytes) -> ResultType<()> {
@@ -1120,15 +1120,15 @@ fn process_software_update_check_response(bytes: Bytes) -> ResultType<()> {
                 let _ = crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, data);
             }
         }
-        *SOFTWARE_UPDATE_URL.lock().unwrap() = response_url;
+        * SOFTWARE_UPDATE_URL.lock().unwrap() = response_url;
     } else {
         clear_software_update_url();
     }
     Ok(())
 }
 
-// No need to check `danger_accept_invalid_cert` for now.
-// Because the url is always `https://api.rustdesk.com/version/latest`.
+// 目前无需检查 `danger_accept_invalid_cert`。
+// 因为该 url 始终是 `https://api.rustdesk.com/version/latest`。
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
     let (request, url) =
@@ -1332,9 +1332,9 @@ pub fn get_audit_server(api: String, custom: String, typ: String) -> String {
     format!("{}/api/audit/{}", url, typ)
 }
 
-/// Check if we should use raw TCP proxy for API calls.
-/// Returns true if USE_RAW_TCP_FOR_API builtin option is "Y", WebSocket is off,
-/// and the target URL belongs to the configured non-public API host.
+/// 检查 API 调用是否应使用裸 TCP 代理。
+/// 如果 USE_RAW_TCP_FOR_API 内置选项为 "Y"、WebSocket 关闭，
+/// 且目标 URL 属于配置的非公开 API 主机，则返回 true。
 #[inline]
 fn should_use_raw_tcp_for_api(url: &str) -> bool {
     get_builtin_option(keys::OPTION_USE_RAW_TCP_FOR_API) == "Y"
@@ -1342,7 +1342,7 @@ fn should_use_raw_tcp_for_api(url: &str) -> bool {
         && is_tcp_proxy_api_target(url)
 }
 
-/// Check if we can attempt raw TCP proxy fallback for this target URL.
+/// 检查对该目标 URL 是否可以尝试裸 TCP 代理回退。
 #[inline]
 fn can_fallback_to_raw_tcp(url: &str) -> bool {
     !use_ws() && is_tcp_proxy_api_target(url)
@@ -1410,13 +1410,13 @@ fn get_tcp_proxy_addr() -> String {
     check_port(Config::get_rendezvous_server(), RENDEZVOUS_PORT)
 }
 
-/// Send an HTTP request via the rendezvous server's TCP proxy using protobuf.
-/// Connects with `connect_tcp` + `secure_tcp`, sends `HttpProxyRequest`,
-/// receives `HttpProxyResponse`.
+/// 通过 rendezvous 服务器的 TCP 代理用 protobuf 发送 HTTP 请求。
+/// 用 `connect_tcp` + `secure_tcp` 连接，发送 `HttpProxyRequest`，
+/// 接收 `HttpProxyResponse`。
 ///
-/// The entire operation (connect + handshake + send + receive) is wrapped in
-/// an overall timeout of `CONNECT_TIMEOUT + READ_TIMEOUT` so that a stall at
-/// any stage cannot block the caller indefinitely.
+/// 整个操作（连接 + 握手 + 发送 + 接收）被包裹在
+/// 总计 `CONNECT_TIMEOUT + READ_TIMEOUT` 的超时内，以免在任意阶段
+/// 发生停滞而无限期阻塞调用方。
 async fn tcp_proxy_request(
     method: &str,
     url: &str,
@@ -1476,8 +1476,8 @@ async fn tcp_proxy_request(
     .await?
 }
 
-/// Build HeaderEntry list from "Key: Value" style header string (used by post_request).
-/// If the caller supplies a Content-Type header it overrides the default `application/json`.
+/// 从 "Key: Value" 形式的请求头字符串构建 HeaderEntry 列表（供 post_request 使用）。
+/// 如果调用方提供了 Content-Type 请求头，则覆盖默认的 `application/json`。
 fn parse_simple_header(header: &str) -> Vec<HeaderEntry> {
     let mut entries = Vec::new();
     let mut has_content_type = false;
@@ -1507,7 +1507,7 @@ fn parse_simple_header(header: &str) -> Vec<HeaderEntry> {
     entries
 }
 
-/// POST request via TCP proxy.
+/// 通过 TCP 代理发起 POST 请求。
 async fn post_request_via_tcp_proxy(url: &str, body: &str, header: &str) -> ResultType<String> {
     let headers = parse_simple_header(header);
     let resp = tcp_proxy_request("POST", url, body.as_bytes(), headers).await?;
@@ -1554,7 +1554,7 @@ fn parse_json_header_entries(header: &str) -> ResultType<Vec<HeaderEntry>> {
     }
 }
 
-/// Returns (status_code, body_text). Separating status so the wrapper can decide on fallback.
+/// 返回 (status_code, body_text)。把状态码分离出来，便于包装层决定是否回退。
 async fn post_request_http(url: &str, body: &str, header: &str) -> ResultType<(u16, String)> {
     let proxy_conf = Config::get_socks();
     let tls_url = get_url_for_tls(url, &proxy_conf);
@@ -1575,8 +1575,8 @@ async fn post_request_http(url: &str, body: &str, header: &str) -> ResultType<(u
     Ok((status, text))
 }
 
-/// Try `http_fn` first; on connection failure or 5xx, fall back to `tcp_fn`
-/// if the URL is eligible. 4xx responses are returned as-is.
+/// 先尝试 `http_fn`；连接失败或遇到 5xx 时，回退到 `tcp_fn`
+/// （前提是 URL 符合条件）。4xx 响应原样返回。
 async fn with_tcp_proxy_fallback<HttpFut, TcpFut>(
     url: &str,
     method: &str,
@@ -1627,12 +1627,12 @@ where
     http_result.map(|(_status, text)| text)
 }
 
-/// POST request with raw TCP proxy support.
-/// - If `USE_RAW_TCP_FOR_API` is "Y" and WS is off, goes directly through TCP proxy.
-/// - Otherwise tries HTTP first; on connection failure or 5xx status,
-///   falls back to TCP proxy if WS is off.
-/// - 4xx responses are returned as-is (server is reachable, business logic error).
-/// - If fallback also fails, returns the original HTTP result (text or error).
+/// 支持裸 TCP 代理的 POST 请求。
+/// - 如果 `USE_RAW_TCP_FOR_API` 为 "Y" 且 WS 关闭，则直接通过 TCP 代理。
+/// - 否则先尝试 HTTP；连接失败或状态码为 5xx 时，
+///   若 WS 关闭则回退到 TCP 代理。
+/// - 4xx 响应原样返回（服务器可达，属于业务逻辑错误）。
+/// - 如果回退也失败，返回原始 HTTP 结果（文本或错误）。
 pub async fn post_request(url: String, body: String, header: &str) -> ResultType<String> {
     with_tcp_proxy_fallback(
         &url,
@@ -1643,7 +1643,7 @@ pub async fn post_request(url: String, body: String, header: &str) -> ResultType
     .await
 }
 
-/// POST request via TCP proxy, preserving the HTTP status code.
+/// 通过 TCP 代理发起 POST 请求，并保留 HTTP 状态码。
 async fn post_request_via_tcp_proxy_status(
     url: &str,
     body: &str,
@@ -1660,9 +1660,9 @@ async fn post_request_via_tcp_proxy_status(
     ))
 }
 
-/// Like `post_request`, but returns the HTTP status code so callers can tell
-/// a server-side failure from success. Same fallback rules: on connection
-/// failure or 5xx, retry once through the raw TCP proxy when eligible.
+/// 与 `post_request` 类似，但返回 HTTP 状态码，让调用方能区分
+/// 服务端失败与成功。回退规则相同：连接
+/// 失败或 5xx 时，在符合条件的情况下通过裸 TCP 代理重试一次。
 pub async fn post_request_with_status(
     url: String,
     body: String,
@@ -1728,8 +1728,8 @@ async fn post_request_(
     req = req.header("Content-Type", "application/json");
     let to = std::time::Duration::from_secs(12);
     if tls_type.is_some() && danger_accept_invalid_cert.is_some() {
-        // This branch is used to reduce a `clone()` when both `tls_type` and
-        // `danger_accept_invalid_cert` are cached.
+        // 该分支用于减少一次 `clone()`，当 `tls_type` 和
+        // `danger_accept_invalid_cert` 都被缓存时。
         match req.body(body.clone()).timeout(to).send().await {
             Ok(resp) => {
                 upsert_tls_cache(
@@ -1907,8 +1907,8 @@ async fn get_http_response_async(
     }
 }
 
-/// Returns (status_code, json_string) so the caller can inspect the status
-/// without re-parsing the serialized JSON.
+/// 返回 (status_code, json_string)，让调用方可以查看状态码
+/// 而无需重新解析序列化后的 JSON。
 async fn http_request_http(
     url: &str,
     method: &str,
@@ -1930,7 +1930,7 @@ async fn http_request_http(
         danger_accept_invalid_cert,
     )
     .await?;
-    // Serialize response headers
+    // 序列化响应头
     let mut response_headers = Map::new();
     for (key, value) in response.headers() {
         response_headers.insert(key.to_string(), json!(value.to_str().unwrap_or("")));
@@ -1939,19 +1939,19 @@ async fn http_request_http(
     let status_code = response.status().as_u16();
     let response_body = response.text().await?;
 
-    // Construct the JSON object
+    // 构造 JSON 对象
     let mut result = Map::new();
     result.insert("status_code".to_string(), json!(status_code));
     result.insert("headers".to_string(), Value::Object(response_headers));
     result.insert("body".to_string(), json!(response_body));
 
-    // Convert map to JSON string
+    // 把 map 转换为 JSON 字符串
     let json_str = serde_json::to_string(&result)
         .map_err(|e| anyhow!("Failed to serialize response: {}", e))?;
     Ok((status_code, json_str))
 }
 
-/// HTTP request with raw TCP proxy support.
+/// 支持裸 TCP 代理的 HTTP 请求。
 #[tokio::main(flavor = "current_thread")]
 pub async fn http_request_sync(
     url: String,
@@ -1968,8 +1968,8 @@ pub async fn http_request_sync(
     .await
 }
 
-/// General HTTP request via TCP proxy. Header is a JSON string (used by http_request_sync).
-/// Returns a JSON string with status_code, headers, body (same format as http_request_sync).
+/// 通过 TCP 代理发起通用 HTTP 请求。请求头是 JSON 字符串（供 http_request_sync 使用）。
+/// 返回包含 status_code、headers、body 的 JSON 字符串（格式与 http_request_sync 相同）。
 async fn http_request_via_tcp_proxy(
     url: &str,
     method: &str,
@@ -2085,10 +2085,10 @@ pub fn make_empty_dirs_response_to_json(res: &ReadEmptyDirsResponse) -> String {
     serde_json::to_string(&map).unwrap_or("".into())
 }
 
-/// The function to handle the url scheme sent by the system.
+/// 处理系统发送的 url scheme 的函数。
 ///
-/// 1. Try to send the url scheme from ipc.
-/// 2. If failed to send the url scheme, we open a new main window to handle this url scheme.
+/// 1. 尝试通过 ipc 发送该 url scheme。
+/// 2. 如果发送 url scheme 失败，就打开一个新的主窗口来处理该 url scheme。
 pub fn handle_url_scheme(url: String) {
     #[cfg(not(target_os = "ios"))]
     if let Err(err) = crate::ipc::send_url_scheme(url.clone()) {
@@ -2230,7 +2230,7 @@ pub fn check_process(arg: &str, mut same_uid: bool) -> bool {
         if same_uid && p.user_id() != my_uid {
             continue;
         }
-        // on mac, p.cmd() get "/Applications/RustDesk.app/Contents/MacOS/RustDesk", "XPC_SERVICE_NAME=com.carriez.RustDesk_server"
+        // 在 mac 上，p.cmd() 得到 "/Applications/RustDesk.app/Contents/MacOS/RustDesk"，"XPC_SERVICE_NAME=com.carriez.RustDesk_server"
         let parg = if p.cmd().len() <= 1 { "" } else { &p.cmd()[1] };
         if arg.is_empty() {
             if !parg.starts_with("--") {
@@ -2244,19 +2244,19 @@ pub fn check_process(arg: &str, mut same_uid: bool) -> bool {
 }
 
 async fn secure_tcp_impl(conn: &mut Stream, key: &str, log_on_success: bool) -> ResultType<()> {
-    // Skip additional encryption when using WebSocket connections (wss://)
-    // as WebSocket Secure (wss://) already provides transport layer encryption.
-    // This doesn't affect the end-to-end encryption between clients,
-    // it only avoids redundant encryption between client and server.
+    // 使用 WebSocket 连接 (wss://) 时跳过额外加密
+    // 因为 WebSocket Secure (wss://) 本身已提供传输层加密。
+    // 这不影响客户端之间的端到端加密，
+    // 只是避免客户端与服务器之间重复加密。
     if use_ws() {
         return Ok(());
     }
     key_exchange(conn, key, log_on_success).await.map(|_| ())
 }
 
-/// The server's key exchange on `conn`. `Ok(true)` once the stream is encrypted. `Ok(false)`
-/// when the server sent something else first, nothing parseable, or closed: `secure_tcp`
-/// tolerates that for servers from before the exchange, `secure_tcp_required` does not.
+/// 在 `conn` 上与服务端进行密钥交换。流被加密后返回 `Ok(true)`。`Ok(false)`
+/// 表示服务端先发了别的东西、没有可解析的内容或直接关闭：`secure_tcp`
+/// 能容忍来自密钥交换之前的服务端这种情况，`secure_tcp_required` 则不能。
 async fn key_exchange(conn: &mut Stream, key: &str, log_on_success: bool) -> ResultType<bool> {
     let rs_pk = get_rs_pk(key);
     let Some(rs_pk) = rs_pk else {
@@ -2274,9 +2274,9 @@ async fn key_exchange(conn: &mut Stream, key: &str, log_on_success: bool) -> Res
                             .map_err(|_| anyhow!("Signature mismatch in key exchange"))?;
                         let their_pk_b = get_pk(&their_pk_b)
                             .context("Wrong their public length in key exchange")?;
-                        // The signed X25519 high bit marks servers that sign their parameters.
-                        // X25519 ignores that bit, so old clients use the key unchanged; keep
-                        // the bytes as signed, since the transcript and KxParams carry them so.
+                        // 签名后的 X25519 高位用于标记会对参数签名的服务端。
+                        // X25519 会忽略该位，因此旧客户端会原样使用该密钥；请保持
+                        // 字节的有符号形式，因为 transcript 和 KxParams 也是这样携带它们的。
                         if their_pk_b[31] & 0x80 != 0 || !ex.signed_params.is_empty() {
                             let params = sign::verify(&ex.signed_params, &rs_pk)
                                 .ok()
@@ -2334,11 +2334,11 @@ async fn secure_tcp_silent(conn: &mut Stream, key: &str) -> ResultType<()> {
     secure_tcp_impl(conn, key, false).await
 }
 
-/// Like [`secure_tcp`], but returns only once the server's key exchange has actually encrypted
-/// the stream; a server that answers with anything else, or with nothing, is an error, so the
-/// caller can withhold what it was about to send instead of sending it in the clear.
-/// `secure_tcp` keeps tolerating such a server, which the paths from before the exchange depend
-/// on. WebSocket is treated as `secure_tcp` treats it, as a transport that is encrypted already.
+/// 与 [`secure_tcp`] 类似，但只有在服务端的密钥交换真正加密了
+/// 该流之后才返回；用其他内容或什么都不回复的服务端属于错误，因此
+/// 调用方可以扣住原本要发送的内容，而不是明文发出。
+/// `secure_tcp` 仍然容忍这类服务端，密钥交换之前的那些路径依赖这一点。
+/// WebSocket 则按 `secure_tcp` 的方式对待，视作已经加密的传输层。
 pub async fn secure_tcp_required(conn: &mut Stream, key: &str) -> ResultType<()> {
     if use_ws() {
         return Ok(());
@@ -2375,10 +2375,10 @@ pub fn decode_id_pk(signed: &[u8], key: &sign::PublicKey) -> ResultType<(String,
     Ok((id, pk))
 }
 
-/// Like [`decode_id_pk`] but also returns the signed DTLS certificate fingerprint (empty string
-/// for non-WebRTC peers), used to bind a WebRTC DTLS channel to the verified peer identity, and
-/// the newest key exchange version the peer speaks (0, the original scheme, for a peer from
-/// before versions).
+/// 与 [`decode_id_pk`] 类似，但同时返回签名后的 DTLS 证书指纹（非 WebRTC 对端为空字符串
+/// ），用于把 WebRTC DTLS 通道绑定到已验证的对端身份，以及
+/// 对端所使用的最新密钥交换版本（来自旧版本的对端为 0，即最初方案，
+/// 之前的版本）。
 pub fn decode_id_pk_dtls(
     signed: &[u8],
     key: &sign::PublicKey,
@@ -2393,9 +2393,9 @@ pub fn decode_id_pk_dtls(
     }
 }
 
-/// Whether the DTLS fingerprint a WebRTC peer signed into its identity is the one of the channel
-/// actually negotiated. An empty signed value binds nothing: on a WebRTC channel it is either a
-/// peer that could not sign one or a rendezvous/relay that stripped it, and both fail closed.
+/// WebRTC 对端签入其身份的 DTLS 指纹是否就是该通道实际协商出的指纹。
+/// 签入的值为空则不绑定任何东西：在 WebRTC 通道上，它要么意味着
+/// 对端无法签名，要么意味着 rendezvous/relay 把它剥掉了，两者都会失败关闭。
 pub fn dtls_fingerprint_bound(signed_fp: &str, actual_fp: &str) -> bool {
     !signed_fp.is_empty() && signed_fp == actual_fp
 }
@@ -2443,7 +2443,7 @@ impl ThrottledInterval {
                     self.next_tick = now + self.min_interval;
                     Poll::Ready(instant)
                 } else {
-                    // This call is required since tokio 1.27
+                    // 自 tokio 1.27 起必须调用此方法
                     cx.waker().wake_by_ref();
                     Poll::Pending
                 }
@@ -2523,16 +2523,16 @@ fn read_custom_client_advanced_settings(
             } else {
                 let k2 = k.replace("_", "-");
                 let k = k2.replace("-", "_");
-                // display
+                // 显示
                 display_settings.insert(k.clone(), v.to_owned());
                 display_settings.insert(k2.clone(), v.to_owned());
-                // local
+                // 本地
                 local_settings.insert(k.clone(), v.to_owned());
                 local_settings.insert(k2.clone(), v.to_owned());
-                // server
+                // 服务端
                 server_settings.insert(k.clone(), v.to_owned());
                 server_settings.insert(k2.clone(), v.to_owned());
-                // buildin
+                // 内置
                 buildin_settings.insert(k.clone(), v.to_owned());
                 buildin_settings.insert(k2.clone(), v.to_owned());
             }
@@ -2544,7 +2544,7 @@ fn read_custom_client_advanced_settings(
 #[cfg(target_os = "macos")]
 pub fn get_dst_align_rgba() -> usize {
     // https://developer.apple.com/forums/thread/712709
-    // Memory alignment should be multiple of 64.
+    // 内存对齐应为 64 的倍数。
     if crate::ui_interface::use_texture_render() {
         64
     } else {
@@ -2581,7 +2581,7 @@ pub fn read_custom_client(config: &str) {
 
     if let Some(app_name) = data.remove("app-name") {
         if let Some(app_name) = app_name.as_str() {
-            *config::APP_NAME.write().unwrap() = app_name.to_owned();
+            * config::APP_NAME.write().unwrap() = app_name.to_owned();
         }
     }
 
@@ -2696,23 +2696,23 @@ pub fn is_udp_disabled() -> bool {
     Config::get_option(keys::OPTION_DISABLE_UDP) == "Y"
 }
 
-/// Run KCP with its congestion window (nc=0) instead of the turbo profile it has always shipped.
+/// 让 KCP 使用其拥塞窗口 (nc=0)，而不是它一直沿用的 turbo 配置。
 ///
-/// Opt-in: which profile wins depends on why packets are lost — nc=1 deepens real congestion,
-/// while nc=0 reads random loss as congestion and its RTO backoff drops cwnd to 1. Undecidable
-/// without a shaped link, so keep what users run today.
+/// 需显式开启：哪种配置更合适取决于丢包的原因 —— nc=1 会加深真实的拥塞，
+/// 而 nc=0 会把随机丢包当作拥塞，其 RTO 退避会把 cwnd 降到 1。没有整形链路时无法判定，
+/// 所以保持用户目前使用的配置。
 #[inline]
 pub fn get_kcp_cc_enabled() -> bool {
     let k = keys::OPTION_ALLOW_KCP_CC;
     config::option2bool(k, &Config::get_option(k))
 }
 
-// this crate https://github.com/yoshd/stun-client supports nat type
+// 该 crate https://github.com/yoshd/stun-client 支持 nat 类型
 async fn stun_ipv6_test(stun_server: String) -> ResultType<(SocketAddr, String)> {
     use stunclient::StunClient;
     let local_addr = SocketAddr::from(([0u16; 8], 0)); // [::]:0
     let socket = UdpSocket::bind(&local_addr).await?;
-    // Resolve via tokio so DNS never blocks the async runtime worker.
+    // 通过 tokio 解析，这样 DNS 不会阻塞异步运行时的工作线程。
     let Some(stun_addr) = tokio::net::lookup_host(&stun_server)
         .await?
         .find(|x| x.is_ipv6())
@@ -2731,22 +2731,22 @@ async fn stun_ipv6_test(stun_server: String) -> ResultType<(SocketAddr, String)>
     })
 }
 
-/// A global address to ask the kernel for a route to; libwebrtc's QueryDefaultLocalAddress asks
-/// for the same one. Nothing is ever sent to it.
+/// 一个全局地址，用于向内核询问到该地址的路由；libwebrtc 的 QueryDefaultLocalAddress 询问的
+/// 也是同一个地址。不会向它发送任何数据。
 const IPV6_ROUTE_PROBE: std::net::Ipv6Addr =
     std::net::Ipv6Addr::new(0x2001, 0x4860, 0x4860, 0, 0, 0, 0, 0x8888);
-/// The public IPv6 address the STUN servers report is looked for in the background, and for no
-/// longer than this: a probe that outlived the minute could write an earlier network's address
-/// over a later probe's.
+/// 在后台查找 STUN 服务器报告的公网 IPv6 地址，且查找时间不会
+/// 超过这个时长：超时超过一分钟的探测可能把先前网络的地址写入
+/// 覆盖掉后一次探测的结果。
 const STUN_IPV6_TIMEOUT_MS: u64 = 5_000;
 
 async fn test_bind_ipv6() -> ResultType<SocketAddr> {
     let local_addr = SocketAddr::from(([0u16; 8], 0)); // [::]:0
     let socket = UdpSocket::bind(local_addr).await?;
-    // Nothing is sent - `connect` only makes the kernel pick a route and a source address - so
-    // the target can be any global address, and given as a number it is: this is awaited on the
-    // connection path, and resolving a STUN host's name first was the one thing on it that
-    // could wait on the network - for as long as the resolver takes, when there is none.
+    // 不会发送任何数据 —— `connect` 只是让内核选定路由和源地址 —— 因此
+    // 目标可以是任意全局地址，以数字形式给出即可：这一步在
+    // 连接路径上被等待，而先解析 STUN 主机的名字是其中唯一可能
+    // 在网络上等待的环节 —— 在没有网络时可能要等解析器返回。
     socket
         .connect(SocketAddr::from((IPV6_ROUTE_PROBE, 53)))
         .await?;
@@ -2755,8 +2755,8 @@ async fn test_bind_ipv6() -> ResultType<SocketAddr> {
 
 pub async fn test_ipv6() -> Option<tokio::task::JoinHandle<()>> {
     {
-        // One look and one claim of the minute, under one lock: two connections arriving
-        // together would otherwise both find it over and both probe.
+        // 在同一把锁下，一分钟内只查看并占用一次：两个连接同时
+        // 到达时，否则都会查到它已过期并都去探测。
         let mut cached = PUBLIC_IPV6_ADDR.lock().unwrap();
         if cached
             .1
@@ -2786,10 +2786,10 @@ pub async fn test_ipv6() -> Option<tokio::task::JoinHandle<()>> {
             log::warn!("Failed to bind IPv6 socket: {}", e);
         }
     }
-    // Interestingly, on my macOS, sometimes my ipv6 works, sometimes not (test with ping6 or https://test-ipv6.com/).
-    // I checked ifconfig, could not see any difference. Both secure ipv6 and temporary ipv6 are there.
-    // So we can not rely on the local ipv6 address queries with if_addrs.
-    // above test_bind_ipv6 is safer, because it can fail in this case.
+    // 有趣的是，在我的 macOS 上，ipv6 有时能用，有时不能（可用 ping6 或 https://test-ipv6.com/ 测试）。
+    // 我检查了 ifconfig，看不出任何差别。secure ipv6 和 temporary ipv6 都在。
+    // 所以我们不能依赖 if_addrs 查询本地 ipv6 地址。
+    // 上面的 test_bind_ipv6 更安全，因为这种情况下它会失败。
     /*
     std::thread::spawn(|| {
         if let Ok(ifaces) = if_addrs::get_if_addrs() {
@@ -2803,9 +2803,9 @@ pub async fn test_ipv6() -> Option<tokio::task::JoinHandle<()>> {
                         && !ip.is_unicast_link_local()
                         && (ip.segments()[0] & 0xe000) == 0x2000
                     {
-                        // only use the first one, on mac, the first one is the stable
-                        // one, the last one is the temporary one. The middle ones are deperecated.
-                        *PUBLIC_IPV6_ADDR.lock().unwrap() =
+                        // 只使用第一个，在 mac 上第一个是稳定的
+                        // 地址，最后一个是临时地址。中间的那些已废弃。
+                        * PUBLIC_IPV6_ADDR.lock().unwrap() =
                             Some((SocketAddr::from((ip, 0)), Instant::now()));
                         log::debug!("Found public IPv6 address locally: {}", ip);
                         break;
@@ -2844,10 +2844,10 @@ pub async fn test_ipv6() -> Option<tokio::task::JoinHandle<()>> {
     }))
 }
 
-// A punch packet carries a magic and a transaction id so a reply can be *proven* to answer this
-// probe. The punch it replaces sent a zero-length datagram and called the hole open on whatever
-// arrived next - which the rendezvous NAT test's own leftover replies satisfied instantly, so the
-// retry loop below never actually ran and its success meant nothing.
+// 打洞包携带一个 magic 和一个事务 id，这样回复就能被*证明*是对这次
+// 探测的应答。它所替代的打洞逻辑发送的是零长数据报，只要有任何包到达就认为洞已打开
+// —— 而 rendezvous NAT 测试自己残留的回复会立刻满足这个条件，于是
+// 下面的重试循环实际上从未运行，其成功也没有意义。
 const PUNCH_PROBE: [u8; 4] = *b"RDP?";
 const PUNCH_ACK: [u8; 4] = *b"RDP!";
 const PUNCH_PACKET_LEN: usize = 12;
@@ -2866,22 +2866,22 @@ fn punch_tid(packet: &[u8], tag: &[u8; 4]) -> Option<u64> {
     packet[4..].try_into().ok().map(u64::from_le_bytes)
 }
 
-/// Punch until one of our own probes is acknowledged. Both ends run this identically - each
-/// probes, each answers the other's probes - and each returns only once a reply carrying its own
-/// transaction id comes back, the one thing that proves the pair carries traffic both ways.
+/// 持续打洞直到我们自己的某个探测被确认。两端完全相同地运行它 —— 各自
+/// 探测，各自应答对方的探测 —— 并且各自只有在收到带有自己事务 id 的回复后
+/// 才返回，这是唯一能证明这一对能双向传输数据的东西。
 ///
-/// Returning is therefore a fact rather than a guess, which is what lets the caller stop instead
-/// of handing a dead socket to a transport whose only way to discover the truth is to time out.
+/// 因此返回是一个事实而非猜测，正因如此调用方才能停下来，而不必
+/// 把一个死掉的 socket 交给只能靠超时才能发现真相的传输层。
 ///
-/// A datagram that is neither probe nor acknowledgement is returned rather than dropped: it means
-/// the peer finished first and is already speaking KCP, whose SYN is never retransmitted.
+/// 既不是探测也不是确认的数据报会被返回而不是丢弃：这意味着
+/// 对端先完成了流程并已在使用 KCP，而 KCP 的 SYN 是不会重传的。
 ///
-/// Only the connector stops on its own acknowledgement, because only it has something to send
-/// next. An acknowledgement proves our probe came back, not that the peer's probe was answered -
-/// and after this returns nothing answers probes any more, since KCP's io loop drops anything
-/// shorter than its header. A listener that stopped here would go mute while a peer whose own
-/// probe or answer was lost - the normal state of a hole that is still opening - kept probing an
-/// endpoint that works, until it timed out. So the listener stops on the peer's first real packet.
+/// 只有连接方会因收到自己的确认而停止，因为只有它还有数据要发送
+/// 。确认只能证明我们的探测回来了，并不能证明对端的探测得到了应答 ——
+/// 而且这之后就没有任何东西再回应探测了，因为 KCP 的 io 循环会丢弃任何
+/// 短于其首部的数据报。在这里停止的监听方会陷入沉默，而一个自己的
+/// 探测或应答丢失的对端 —— 这仍处于开启中的洞的正常状态 —— 会继续探测一个
+/// 可用的端点，直到超时。所以监听方在收到对端的第一个真实数据包时就停止。
 pub async fn punch_udp(
     socket: Arc<UdpSocket>,
     listen: bool,
@@ -2889,14 +2889,14 @@ pub async fn punch_udp(
     let tid = ((hbb_common::time_based_rand() as u64) << 32) | hbb_common::time_based_rand() as u64;
     let probe = punch_packet(&PUNCH_PROBE, tid);
     let mut data = [0u8; 1500];
-    // `connect` does not flush the receive queue, so the NAT test's extra replies are still in it.
+    // `connect` 不会清空接收队列，所以 NAT 测试的额外回复还在队列里。
     while socket.try_recv(&mut data).is_ok() {}
 
     let mut retry_interval = Duration::from_millis(20);
     const MAX_INTERVAL: Duration = Duration::from_millis(200);
-    // Both ends start within one rendezvous round trip of each other and the acknowledgement is
-    // one peer round trip, so a pair that has not answered in this long is not going to. The old
-    // 20s came from having no way to tell "not yet" from "never".
+    // 两端启动时间相差不超过一个 rendezvous 往返，而确认本身耗时
+    // 一个对端往返，所以超过这个时长仍未应答的一对也不会再应答了。旧的
+    // 20s 来自当时无法区分 "还没有" 和 "永远不会"。
     const MAX_TIME: Duration = Duration::from_secs(3);
     let mut probes_sent = 0u32;
     let mut probes_seen = 0u32;
@@ -2905,10 +2905,10 @@ pub async fn punch_udp(
     socket.send(&probe).await.ok();
     probes_sent += 1;
     let tm = Instant::now();
-    // Absolute instants, not relative sleeps: `select!` rebuilds every arm each iteration, so a
-    // peer that keeps the receive side ready restarts a relative timer before it can fire. That
-    // both defeats MAX_TIME and starves the retransmit, and the peer decides the rate - an
-    // old-build peer's empty datagrams match no arm below and loop without even a pause.
+    // 使用绝对时间点而非相对休眠：`select!` 每次迭代都会重建各个分支，因此
+    // 一个始终让接收端就绪的对端会在相对定时器触发前重启它。这
+    // 既会架空 MAX_TIME，也会饿死重传，而且速率由对端决定 —— 一个
+    // 旧版本对端的空数据报匹配不上下面任何分支，会连暂停都没有地空转。
     let deadline = tm + MAX_TIME;
     let mut next_probe = tm + retry_interval;
 
@@ -2925,9 +2925,9 @@ pub async fn punch_udp(
             }
             res = socket.recv(&mut data) => match res {
                 Err(e) => {
-                    // ICMP unreachable from the peer's NAT is expected while the hole forms and
-                    // surfaces here as ConnectionReset/Refused; treat it as loss, MAX_TIME bounds
-                    // the attempt. Log only the first - this retries every 10ms.
+                    // 打洞形成期间，来自对端 NAT 的 ICMP 不可达是预期内的，
+                    // 在这里表现为 ConnectionReset/Refused；应视为丢包，由 MAX_TIME 限定
+                    // 本次尝试的时长。只记录第一条 —— 这里每 10ms 重试一次。
                     recv_errors += 1;
                     if recv_errors == 1 {
                         log::debug!("UDP punch recv error (treated as loss): {e}");
@@ -2992,10 +2992,10 @@ pub async fn get_ipv6_socket() -> Option<(Arc<UdpSocket>, bytes::Bytes)> {
     None
 }
 
-// The color is the same to `str2color()` in flutter.
+// 该颜色与 flutter 中的 `str2color()` 相同。
 pub fn str2color(s: &str, alpha: u8) -> u32 {
     let bytes = s.as_bytes();
-    // dart code `160 << 16 + 114 << 8 + 91` results `0`.
+    // dart 代码 `160 << 16 + 114 << 8 + 91` 的结果是 `0`。
     let mut hash: u32 = 0;
     for &byte in bytes {
         let code = byte as u32;
@@ -3008,9 +3008,9 @@ pub fn str2color(s: &str, alpha: u8) -> u32 {
     (alpha as u32) << 24 | rgb
 }
 
-/// Check control permission state from a u64 bitmap.
-/// Each permission uses 2 bits: 0 = not set, 1 = disable, 2 = enable, 3 = invalid (treated as not set)
-/// Returns: Some(true) = enabled, Some(false) = disabled, None = not set or invalid
+/// 从 u64 位图中检查控制权限状态。
+/// 每项权限占 2 位：0 = 未设置，1 = 禁用，2 = 启用，3 = 无效（按未设置处理）
+/// 返回：Some(true) = 已启用，Some(false) = 已禁用，None = 未设置或无效
 pub fn get_control_permission(
     permissions: u64,
     permission: hbb_common::rendezvous_proto::control_permissions::Permission,
@@ -3034,12 +3034,12 @@ pub fn is_direct_ip_access(peer: &str) -> bool {
     hbb_common::is_ip_str(peer) || hbb_common::is_domain_port_str(peer)
 }
 
-// Align the maximum length of the peer id to the maximum length of the peer id in the server.
+// 把对端 id 的最大长度对齐到服务端对端 id 的最大长度。
 const MAX_UNTRUSTED_PEER_ID_LEN: usize = 253;
 const UNTRUSTED_PEER_ID_FORBIDDEN_CHARS: &[char] = &['"', '<', '>', '/', '\\', '|', '?', '*'];
 
-// Shared validation for peer/connect ids that cross untrusted boundaries before
-// they are stored or written into command/script contexts.
+// 对跨越不可信边界的对端/连接 id 进行共享校验，
+// 在它们被存入或写入命令/脚本上下文之前。
 pub fn is_valid_untrusted_peer_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= MAX_UNTRUSTED_PEER_ID_LEN
@@ -3124,9 +3124,9 @@ mod tests {
         )
     }
 
-    // The deadline must hold against a peer that keeps the receive side ready. `select!` rebuilds
-    // its arms every iteration, so a relative sleep would be restarted by every datagram and the
-    // punch would run for as long as the peer keeps talking, with no outer timeout to stop it.
+    // 截止时间必须能对始终保持接收端就绪的对端生效。`select!` 每次迭代都会重建
+    // 各个分支，因此相对休眠会被每个数据报重启，而
+    // 打洞会随着对端一直说话而一直运行，没有外层超时来终止它。
     #[tokio::test]
     async fn test_udp_punch_deadline_survives_a_talkative_peer() {
         let a = UdpSocket::bind("127.0.0.1:0").await.unwrap();
@@ -3134,8 +3134,8 @@ mod tests {
         let (a_addr, b_addr) = (a.local_addr().unwrap(), b.local_addr().unwrap());
         a.connect(b_addr).await.unwrap();
         b.connect(a_addr).await.unwrap();
-        // Empty datagrams answer no probe and match no return branch, so they only feed the loop.
-        // Sent well past the punch deadline so a restarted timer would show up as a long run.
+        // 空数据报不会应答任何探测，也匹配不上任何返回分支，只会喂给循环。
+        // 发送时间远超打洞截止时间，这样被重启的定时器就会表现为一次长时间运行。
         let flooder = tokio::spawn(async move {
             let end = Instant::now() + Duration::from_secs(12);
             while Instant::now() < end {
@@ -3179,7 +3179,7 @@ mod tests {
         }
     }
 
-    // ThrottledInterval tick less times than tokio interval, if there're sleeps
+    // 如果存在休眠，ThrottledInterval 的 tick 次数会少于 tokio interval
     #[allow(non_snake_case)]
     #[tokio::test]
     async fn test_RustDesk_interval_sleep() {
@@ -3198,8 +3198,8 @@ mod tests {
                     }
                 }
             }
-            // No multiple ticks in the `interval` time.
-            // Values in "times" are unique and are less than normal tokio interval.
+            // 在 `interval` 时间内不会有多个 tick。
+            // "times" 中的值是唯一的，且小于常规的 tokio interval。
             let times2: HashSet<u128> = HashSet::from_iter(times.clone());
             assert_eq!(times.len(), times2.len(), "test: {}", i);
         }
@@ -3303,7 +3303,7 @@ mod tests {
         assert!(err.contains("TCP proxy error: dial failed"));
     }
 
-    /// A stand-in rendezvous server on loopback: accepts one connection and hands it to `serve`.
+    /// 环回地址上的一个临时替代 rendezvous 服务器：接受一个连接并交给 `serve`。
     async fn rendezvous_stub<F, Fut>(serve: F) -> String
     where
         F: FnOnce(hbb_common::tcp::FramedStream) -> Fut + Send + 'static,
@@ -3355,7 +3355,7 @@ mod tests {
     #[tokio::test]
     async fn test_secure_tcp_required_refuses_a_server_without_the_exchange() {
         let (key, _) = server_key();
-        // A server from before the exchange answers the first message with something else.
+        // 密钥交换之前的服务端会用别的东西回应第一条消息。
         let serve = |mut s: hbb_common::tcp::FramedStream| async move {
             let mut msg = RendezvousMessage::new();
             msg.set_register_peer_response(RegisterPeerResponse::new());
@@ -3366,7 +3366,7 @@ mod tests {
         let mut conn = connect(&host).await;
         assert!(secure_tcp_required(&mut conn, &key).await.is_err());
         assert!(!conn.is_secured());
-        // The legacy call tolerates the same server, and the stream stays in the clear.
+        // 旧版调用能容忍同样的服务端，数据流保持明文。
         let host = rendezvous_stub(serve).await;
         let mut conn = connect(&host).await;
         secure_tcp(&mut conn, &key).await.unwrap();
@@ -3482,7 +3482,7 @@ mod tests {
                 }
                 "cleared_marker_and_stripped_fields" => {
                     let mut signed_pk = ex.keys[0].to_vec();
-                    *signed_pk.last_mut().unwrap() &= 0x7f;
+                    * signed_pk.last_mut().unwrap() &= 0x7f;
                     ex.keys[0] = signed_pk.into();
                     ex.signed_params = Bytes::new();
                     ex.version = 0;
@@ -3512,7 +3512,7 @@ mod tests {
                     ex.signed_params = sign::sign(&params.write_to_bytes().unwrap(), &sk).into();
                 }
                 "signed_id_pk_as_params" => {
-                    // The server signs IdPk with the same key; its `id` sits where `pk` does.
+                    // 服务端用同一把密钥签名 IdPk；它的 `id` 位于 `pk` 所在的位置。
                     let mut pk = [0x2au8; box_::PUBLICKEYBYTES];
                     pk[30] = 0xc2;
                     pk[31] = 0xaa;
@@ -3574,8 +3574,8 @@ mod tests {
         assert!(!dtls_fingerprint_bound(&signed_fp, "sha-256 0A:1B:2D"));
         assert!(!dtls_fingerprint_bound("", ""));
 
-        // The fingerprint is under the signature: a blob verified with another key yields
-        // nothing, and one whose payload was edited in transit fails verification.
+        // 指纹位于签名之下：用另一把密钥验证该数据块会得到
+        // 空结果，而载荷在传输中被篡改的则验证失败。
         let (other_pk, _) = sign::gen_keypair();
         assert!(decode_id_pk_dtls(&signed, &other_pk).is_err());
         let mut tampered = signed.clone();
@@ -3583,8 +3583,8 @@ mod tests {
         tampered[last] ^= 1;
         assert!(decode_id_pk_dtls(&tampered, &pk).is_err());
 
-        // `decode_id_pk` is the same blob minus the fingerprint, so the field is invisible to
-        // non-WebRTC handshakes.
+        // `decode_id_pk` 是去掉指纹后的同一数据块，因此该字段对
+        // 非 WebRTC 握手不可见。
         assert_eq!(decode_id_pk(&signed, &pk).unwrap(), (id, their_pk));
     }
 }

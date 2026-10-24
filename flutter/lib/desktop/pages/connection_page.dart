@@ -1,4 +1,4 @@
-// main window right pane
+// 主窗口右侧面板
 
 import 'dart:async';
 import 'dart:convert';
@@ -31,7 +31,7 @@ class OnlineStatusWidget extends StatefulWidget {
   State<OnlineStatusWidget> createState() => _OnlineStatusWidgetState();
 }
 
-/// State for the connection page.
+/// 连接页面的状态。
 class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   final _svcStopped = Get.find<RxBool>(tag: 'stop-service');
   final _svcIsUsingPublicServer = true.obs;
@@ -132,7 +132,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
             // stop
             if (!isIncomingOnly) startServiceWidget(),
             // ready && public
-            // No need to show the guide if is custom client.
+            // 如果是自定义客户端则无需显示该引导。
             if (!isIncomingOnly) setupServerWidget(),
           ],
         );
@@ -187,7 +187,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   }
 }
 
-/// Connection page for connecting to a remote peer.
+/// 用于连接远端对端的连接页面。
 class ConnectionPage extends StatefulWidget {
   const ConnectionPage({Key? key}) : super(key: key);
 
@@ -195,10 +195,10 @@ class ConnectionPage extends StatefulWidget {
   State<ConnectionPage> createState() => _ConnectionPageState();
 }
 
-/// State for the connection page.
+/// 连接页面的状态。
 class _ConnectionPageState extends State<ConnectionPage>
     with SingleTickerProviderStateMixin, WindowListener {
-  /// Controller for the id input bar.
+  /// id 输入栏的控制器。
   final _idController = IDTextEditingController();
 
   final RxBool _idInputFocused = false.obs;
@@ -260,7 +260,7 @@ class _ConnectionPageState extends State<ConnectionPage>
       isWindowMinimized = true;
     } else if (eventName == 'maximize' || eventName == 'restore') {
       if (isWindowMinimized && isWindows) {
-        // windows can't update when minimized.
+        // 窗口最小化时无法更新。
         Get.forceAppUpdate();
       }
       isWindowMinimized = false;
@@ -269,13 +269,13 @@ class _ConnectionPageState extends State<ConnectionPage>
 
   @override
   void onWindowEnterFullScreen() {
-    // Remove edge border by setting the value to zero.
+    // 将值设为零以去掉边缘边框。
     stateGlobal.resizeEdgeSize.value = 0;
   }
 
   @override
   void onWindowLeaveFullScreen() {
-    // Restore edge border to default edge size.
+    // 将边缘边框恢复为默认边缘大小。
     stateGlobal.resizeEdgeSize.value = stateGlobal.isMaximized.isTrue
         ? kMaximizeEdgeSize
         : windowResizeEdgeSize;
@@ -295,7 +295,7 @@ class _ConnectionPageState extends State<ConnectionPage>
       }
 
       final textLength = _idEditingController.value.text.length;
-      // Select all to facilitate removing text, just following the behavior of address input of chrome.
+      // 全选以便删除文本，这与 Chrome 地址输入框的行为保持一致。
       _idEditingController.selection =
           TextSelection(baseOffset: 0, extentOffset: textLength);
     }
@@ -325,8 +325,8 @@ class _ConnectionPageState extends State<ConnectionPage>
     );
   }
 
-  /// Callback for the connect button.
-  /// Connects to the selected peer.
+  /// 连接按钮的回调。
+  /// 连接到选中的对端。
   void onConnect(
       {bool isFileTransfer = false,
       bool isViewCamera = false,
@@ -340,8 +340,8 @@ class _ConnectionPageState extends State<ConnectionPage>
         isTcpTunneling: isTcpTunneling);
   }
 
-  /// UI for the remote ID TextField.
-  /// Search for a peer.
+  /// 远端 ID TextField 的界面。
+  /// 搜索对端。
   Widget _buildRemoteIDTextField(BuildContext context) {
     var w = Container(
       width: 320 + 20 * 2,
@@ -570,9 +570,9 @@ class _ConnectionPageState extends State<ConnectionPage>
                                       '${translate('Terminal')} (beta)',
                                       () => onConnect(isTerminal: true)
                                     ),
-                                    // `connect` routes this through the
-                                    // desktop path only; the peer card gates
-                                    // it the same way.
+                                    // `connect` 会将其走
+                                    // 桌面端专属路径；对方卡片则以
+                                    // 相同的方式进行限制。
                                     if (isDesktop)
                                       (
                                         'TCP tunneling',

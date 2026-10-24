@@ -33,7 +33,7 @@ impl Server {
                 if server.is_some() {
                     unsafe {
                         if 0 != xcb_connection_has_error(server.as_ref().unwrap().raw) {
-                            *server = None;
+                            * server = None;
                             println!("Reset x11 connection");
                         }
                     }
@@ -44,7 +44,7 @@ impl Server {
                         Ok(s) => {
                             let s = Rc::new(s);
                             res = Ok(s.clone());
-                            *server = Some(s);
+                            * server = Some(s);
                         }
                         Err(err) => {
                             res = Err(err);

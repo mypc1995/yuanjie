@@ -81,7 +81,7 @@ pub fn generate2fa() -> String {
     if let Ok(info) = TOTPInfo::gen_totp_info(id, 6) {
         if let Ok(totp) = info.new_totp() {
             let code = totp.get_url();
-            *CURRENT_2FA.lock().unwrap() = Some((info, totp));
+            * CURRENT_2FA.lock().unwrap() = Some((info, totp));
             return code;
         }
     }
@@ -164,14 +164,14 @@ pub async fn send_2fa_code_to_telegram(text: &str, bot: TelegramBot) -> ResultTy
 
 pub fn get_chatid_telegram(bot_token: &str) -> ResultType<Option<String>> {
     let url = format!("https://api.telegram.org/bot{}/getUpdates", bot_token);
-    // because caller is in tokio runtime, so we must call post_request_sync in new thread.
+    // 因为调用方运行在 tokio 运行时中，所以必须在新的线程里调用 post_request_sync。
     let handle = std::thread::spawn(move || crate::post_request_sync(url, "".to_owned(), ""));
     let resp = handle.join().map_err(|_| anyhow!("Thread panicked"))??;
     let value = serde_json::from_str::<serde_json::Value>(&resp).map_err(|e| anyhow!(e))?;
 
-    // Check for an error_code in the response
+    // 检查响应中是否有 error_code
     if let Some(error_code) = value.get("error_code").and_then(|code| code.as_i64()) {
-        // If there's an error_code, try to use the description for the error message
+        // 如果存在 error_code，就尝试用 description 作为错误信息
         let description = value["description"]
             .as_str()
             .unwrap_or("Unknown error occurred");

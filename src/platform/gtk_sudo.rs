@@ -1,5 +1,5 @@
 // https://github.com/aarnt/qt-sudo
-// Sometimes reboot is needed to refresh sudoers.
+// 有时需要重启才能刷新 sudoers。
 
 use crate::lang::translate;
 use base::platform::linux::CMD_SH;
@@ -39,7 +39,7 @@ enum Message {
 }
 
 pub fn run(cmds: Vec<&str>) -> ResultType<()> {
-    // rustdesk service kill `rustdesk --` processes
+    // rustdesk 服务会杀掉 `rustdesk --` 进程
     let second_arg = std::env::args().nth(1).unwrap_or_default();
     let cmd_mode =
         second_arg.starts_with("--") && second_arg != "--tray" && second_arg != "--no-server";
@@ -122,7 +122,7 @@ fn ui(args: Vec<String>) {
                         let last_pwd = last_password.lock().unwrap().clone();
                         let username = username.lock().unwrap().clone();
                         if let Some((username, password)) = password_prompt(&username, &last_pwd, &err_msg, show_edit) {
-                                *last_password.lock().unwrap() = password.clone();
+                                * last_password.lock().unwrap() = password.clone();
                                 if let Err(e) = tx_from_ui
                                     .lock()
                                     .unwrap()
@@ -160,7 +160,7 @@ fn ui(args: Vec<String>) {
             }
             match rx_from_ui.recv() {
                 Ok(Message::Password((user, password))) => {
-                    *username.lock().unwrap() = user;
+                    * username.lock().unwrap() = user;
                     initial_password = Some(password);
                 }
                 Ok(Message::Cancel) => {
@@ -277,7 +277,7 @@ fn cmd_parent(child: Pid, master: OwnedFd) -> ResultType<()> {
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
             Err(e) => {
-                // Child process is dead
+                // 子进程已结束
                 log::info!("Read child error: {:?}", e);
                 break;
             }
@@ -301,7 +301,7 @@ fn cmd_parent(child: Pid, master: OwnedFd) -> ResultType<()> {
         }
     }
 
-    // Wait for child process
+    // 等待子进程
     let status = waitpid(child, None);
     log::info!("waitpid status: {:?}", status);
     let mut code = EXIT_CODE;
@@ -351,7 +351,7 @@ fn ui_parent(
                 let last_line = buf.lines().last().unwrap_or(&buf).trim().to_string();
                 log::info!("read from child: {}", buf);
 
-                // sudo-rs's notice for a rejected password, not an error: it asks again.
+                // 这是 sudo-rs 对密码被拒的提示，不是错误：它会再次询问。
                 if (last_line.starts_with("sudo:") || last_line.starts_with("su:"))
                     && last_line != "sudo: Authentication failed, try again."
                 {
@@ -381,7 +381,7 @@ fn ui_parent(
                                 initial_password = None;
                                 continue;
                             }
-                            // In fact, su mode can only input password once
+                            // 实际上，su 模式只能输入一次密码
                             let err_msg = if first { "" } else { "Sorry, try again." };
                             first = false;
                             if let Err(e) =
@@ -430,14 +430,14 @@ fn ui_parent(
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
             Err(e) => {
-                // Child process is dead
+                // 子进程已结束
                 log::debug!("Read error: {:?}", e);
                 break;
             }
         }
     }
 
-    // Wait for child process
+    // 等待子进程
     let status = waitpid(child, None);
     log::info!("waitpid status: {:?}", status);
     let mut code = EXIT_CODE;
@@ -527,7 +527,7 @@ fn child(su_user: Option<String>, args: Vec<String>) -> ResultType<()> {
         ];
     }
 
-    // allow failure here
+    // 这里允许失败
     let _ = setsid();
     let mut cparams = vec![];
     for param in &params {

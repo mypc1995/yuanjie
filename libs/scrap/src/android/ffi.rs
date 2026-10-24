@@ -72,8 +72,8 @@ impl FrameRaw {
         self.last_update = Instant::now();
     }
 
-    // take inner data as slice
-    // release when success
+    // 把内部数据取为切片
+    // 成功时释放
     fn take<'a>(&mut self, dst: &mut Vec<u8>, last: &mut Vec<u8>) -> Option<()> {
         if self.enable.not() {
             return None;
@@ -161,9 +161,9 @@ pub extern "system" fn Java_ffi_FFI_onClipboardUpdate(
             if let Ok(clips) = MultiClipboards::parse_from_bytes(&data[1..]) {
                 let is_client = data[0] == 1;
                 if is_client {
-                    *CLIPBOARDS_CLIENT.lock().unwrap() = Some(clips);
+                    * CLIPBOARDS_CLIENT.lock().unwrap() = Some(clips);
                 } else {
-                    *CLIPBOARDS_HOST.lock().unwrap() = Some(clips);
+                    * CLIPBOARDS_HOST.lock().unwrap() = Some(clips);
                 }
             }
         }
@@ -196,12 +196,12 @@ pub extern "system" fn Java_ffi_FFI_init(env: JNIEnv, _class: JClass, ctx: JObje
         let java_vm = jvm.get_java_vm_pointer() as *mut c_void;
         let mut jvm_lock = JVM.write().unwrap();
         if jvm_lock.is_none() {
-            *jvm_lock = Some(jvm);
+            * jvm_lock = Some(jvm);
         }
         drop(jvm_lock);
         if let Ok(context) = env.new_global_ref(ctx) {
             let context_jobject = context.as_obj().as_raw() as *mut c_void;
-            *MAIN_SERVICE_CTX.write().unwrap() = Some(context);
+            * MAIN_SERVICE_CTX.write().unwrap() = Some(context);
             init_ndk_context(java_vm, context_jobject);
         }
     }
@@ -218,11 +218,11 @@ pub extern "system" fn Java_ffi_FFI_setClipboardManager(
         let java_vm = jvm.get_java_vm_pointer() as *mut c_void;
         let mut jvm_lock = JVM.write().unwrap();
         if jvm_lock.is_none() {
-            *jvm_lock = Some(jvm);
+            * jvm_lock = Some(jvm);
         }
         drop(jvm_lock);
         if let Ok(manager) = env.new_global_ref(clipboard_manager) {
-            *CLIPBOARD_MANAGER.write().unwrap() = Some(manager);
+            * CLIPBOARD_MANAGER.write().unwrap() = Some(manager);
         }
     }
 }
@@ -260,7 +260,7 @@ pub extern "system" fn Java_ffi_FFI_setCodecInfo(env: JNIEnv, _class: JClass, in
     if let Ok(info) = env.get_string(&info) {
         let info: String = info.into();
         if let Ok(infos) = serde_json::from_str::<MediaCodecInfos>(&info) {
-            *MEDIA_CODEC_INFOS.write().unwrap() = Some(infos);
+            * MEDIA_CODEC_INFOS.write().unwrap() = Some(infos);
         }
     }
 }
@@ -270,11 +270,11 @@ pub fn get_codec_info() -> Option<MediaCodecInfos> {
 }
 
 pub fn clear_codec_info() {
-    *MEDIA_CODEC_INFOS.write().unwrap() = None;
+    * MEDIA_CODEC_INFOS.write().unwrap() = None;
 }
 
-// another way to fix "reference table overflow" error caused by new_string and call_main_service_pointer_input frequently calld
-// is below, but here I change kind from string to int for performance
+// 另一种修复「reference table overflow」错误的方法，该错误由频繁调用 new_string 和 call_main_service_pointer_input 引起
+// 见下方，但这里出于性能考虑把 kind 从 string 改成 int
 /*
         env.with_local_frame(10, || {
             let kind = env.new_string(kind)?;
@@ -441,12 +441,12 @@ pub fn call_main_service_set_by_name(
     }
 }
 
-// Difference between MainService, MainActivity, JNI_OnLoad:
-//  jvm is the same, ctx is differen and ctx of JNI_OnLoad is null.
-//  cpal: all three works
-//  Service(GetByName, ...): only ctx from MainService works, so use 2 init context functions
-// On app start: JNI_OnLoad or MainActivity init context
-// On service start first time: MainService replace the context
+// MainService、MainActivity、JNI_OnLoad 之间的区别：
+//  jvm 相同，ctx 不同，而 JNI_OnLoad 的 ctx 为 null。
+//  cpal：三者都可用
+//  Service(GetByName, ...)：只有来自 MainService 的 ctx 可用，因此使用两个初始化 context 的函数
+// 应用启动时：由 JNI_OnLoad 或 MainActivity 初始化 context
+// 服务首次启动时：MainService 替换该 context
 
 fn init_ndk_context(java_vm: *mut c_void, context_jobject: *mut c_void) {
     let mut lock = NDK_CONTEXT_INITED.lock().unwrap();
@@ -454,14 +454,14 @@ fn init_ndk_context(java_vm: *mut c_void, context_jobject: *mut c_void) {
         unsafe {
             ndk_context::release_android_context();
         }
-        *lock = false;
+        * lock = false;
     }
     unsafe {
         ndk_context::initialize_android_context(java_vm, context_jobject);
         #[cfg(feature = "hwcodec")]
         hwcodec::android::ffmpeg_set_java_vm(java_vm);
     }
-    *lock = true;
+    * lock = true;
 }
 
 fn try_init_rustls_platform_verifier(env: &mut JNIEnv, context_jobject: *mut c_void) {
@@ -505,7 +505,7 @@ pub extern "system" fn Java_ffi_FFI_onAppStart(mut env: JNIEnv, _class: JClass, 
         if let Ok(context) = env.new_global_ref(ctx) {
             let java_vm = jvm.get_java_vm_pointer() as *mut c_void;
             let context_jobject = context.as_obj().as_raw() as *mut c_void;
-            *APPLICATION_CONTEXT.write().unwrap() = Some(context);
+            * APPLICATION_CONTEXT.write().unwrap() = Some(context);
             try_init_rustls_platform_verifier(&mut env, context_jobject);
         }
     }

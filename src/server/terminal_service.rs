@@ -17,7 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-// Windows-specific imports from terminal_helper module
+// 来自 terminal_helper 模块的 Windows 专用导入
 #[cfg(target_os = "windows")]
 use super::terminal_helper::{
     configure_utf8_shell_command, create_named_pipe_server, encode_helper_message,
@@ -33,47 +33,47 @@ const MAX_SERVICES: usize = 100; // Maximum number of persistent terminal servic
 const SERVICE_IDLE_TIMEOUT: Duration = Duration::from_secs(3600); // 1 hour idle timeout
 const CHANNEL_BUFFER_SIZE: usize = 500; // Channel buffer size. Max per-message size ~4KB (reader buffer), so worst case ~500*4KB ≈ 2MB/terminal. Increased from 100 to reduce data loss during disconnects.
 const COMPRESS_THRESHOLD: usize = 512; // Compress terminal data larger than this
-                                       // Default max bytes for reconnection buffer replay.
+                                       // 重连时缓冲区回放的最大字节数默认值。
 const DEFAULT_RECONNECT_BUFFER_BYTES: usize = 8 * 1024;
 const MAX_SIGWINCH_PHASE_ATTEMPTS: u8 = 3; // Max attempts per SIGWINCH phase before giving up
 
-/// Two-phase SIGWINCH trigger for TUI app redraw on reconnection.
+/// 用于重连时触发 TUI 程序重绘的两阶段 SIGWINCH 机制。
 ///
-/// Why two phases? A single resize-then-restore done back-to-back is too fast:
-/// by the time the TUI app handles the asynchronous SIGWINCH signal and calls
-/// `ioctl(TIOCGWINSZ)`, the PTY size has already been restored to the original.
-/// ncurses sees no size change and skips the full redraw.
+/// 为什么要两个阶段？连续背靠背地执行一次「调整尺寸后恢复」实在太快：
+/// 等 TUI 程序处理异步 SIGWINCH 信号并调用
+/// `ioctl(TIOCGWINSZ)` 时，PTY 尺寸已经恢复为原始值。
+/// ncurses 察觉不到尺寸变化，于是跳过了完整重绘。
 ///
-/// Splitting across two `read_outputs()` calls (~30ms apart) ensures the app
-/// sees a real size change on each SIGWINCH, forcing a complete redraw.
+/// 拆分成两次 `read_outputs()` 调用（相隔约 30ms）可确保程序
+/// 在每次 SIGWINCH 时都能察觉到真实的尺寸变化，从而强制完整重绘。
 #[derive(Debug, Clone)]
 enum SigwinchPhase {
-    /// No SIGWINCH needed.
+    /// 无需 SIGWINCH。
     Idle,
-    /// Phase 1: Resize PTY to temp dimensions (rows±1). The app handles SIGWINCH
-    /// and redraws at the temporary size.
+    /// 阶段 1：将 PTY 调整为临时尺寸（rows±1）。程序处理 SIGWINCH
+    /// 并按临时尺寸重绘。
     TempResize { retries: u8 },
-    /// Phase 2: Restore PTY to correct dimensions. The app handles SIGWINCH,
-    /// detects the size change, and performs a full redraw at the correct size.
+    /// 阶段 2：将 PTY 恢复到正确尺寸。程序处理 SIGWINCH，
+    /// 察觉到尺寸变化，并按正确尺寸执行完整重绘。
     Restore { retries: u8 },
 }
 
-/// Which resize to perform in the two-phase SIGWINCH sequence.
+/// 在两阶段 SIGWINCH 序列中要执行哪一种尺寸调整。
 enum SigwinchAction {
-    /// Phase 1: resize to temp dimensions (rows±1) to trigger SIGWINCH with a visible size change.
+    /// 阶段 1：调整为临时尺寸（rows±1），以可见的尺寸变化触发 SIGWINCH。
     TempResize,
-    /// Phase 2: restore to correct dimensions to trigger SIGWINCH and force full redraw.
+    /// 阶段 2：恢复到正确尺寸，触发 SIGWINCH 并强制完整重绘。
     Restore,
 }
 
-/// Session state machine for terminal streaming.
+/// 用于终端流传输的会话状态机。
 #[derive(Debug)]
 enum SessionState {
-    /// Session is closed, not streaming data to client.
+    /// 会话已关闭，不再向客户端流式传输数据。
     Closed,
-    /// Session is active, streaming data to client.
-    /// pending_buffer: historical buffer to send before real-time data (set on reconnection).
-    /// sigwinch: two-phase SIGWINCH trigger state for TUI app redraw.
+    /// 会话处于活动状态，正在向客户端流式传输数据。
+    /// pending_buffer：先于实时数据发送的历史缓冲区（在重连时设置）。
+    /// sigwinch：用于 TUI 程序重绘的两阶段 SIGWINCH 触发状态。
     Active {
         pending_buffer: Option<Vec<u8>>,
         sigwinch: SigwinchPhase,
@@ -81,18 +81,18 @@ enum SessionState {
 }
 
 lazy_static::lazy_static! {
-    // Global registry of persistent terminal services indexed by service_id
+    // 以 service_id 为索引的持久化终端服务全局注册表
     static ref TERMINAL_SERVICES: Arc<Mutex<HashMap<String, Arc<Mutex<PersistentTerminalService>>>>> =
         Arc::new(Mutex::new(HashMap::new()));
 
-    // Cleanup task handle
+    // 清理任务句柄
     static ref CLEANUP_TASK: Arc<Mutex<Option<std::thread::JoinHandle<()>>>> = Arc::new(Mutex::new(None));
 
-    // List of terminal child processes to check for zombies
+    // 待检查僵尸进程的终端子进程列表
     static ref TERMINAL_TASKS: Arc<Mutex<Vec<Box<dyn Child + Send + Sync>>>> = Arc::new(Mutex::new(Vec::new()));
 }
 
-/// Service metadata that is sent to clients
+/// 发送给客户端的服务元数据
 #[derive(Clone, Debug)]
 pub struct ServiceMetadata {
     pub service_id: String,
@@ -101,7 +101,7 @@ pub struct ServiceMetadata {
     pub is_persistent: bool,
 }
 
-/// Generate a new persistent service ID
+/// 生成新的持久化服务 ID
 pub fn generate_service_id() -> String {
     format!("ts_{}", uuid::Uuid::new_v4())
 }
@@ -109,19 +109,19 @@ pub fn generate_service_id() -> String {
 fn get_default_shell() -> String {
     #[cfg(target_os = "windows")]
     {
-        // Use shared implementation from terminal_helper
+        // 使用 terminal_helper 中的共享实现
         super::terminal_helper::get_default_shell()
     }
     #[cfg(not(target_os = "windows"))]
     {
-        // First try the SHELL environment variable
+        // 先尝试 SHELL 环境变量
         if let Ok(shell) = std::env::var("SHELL") {
             if !shell.is_empty() {
                 return shell;
             }
         }
 
-        // Check for common shells in order of preference
+        // 按优先级顺序检查常见的 shell
         let shells = ["/bin/bash", "/bin/zsh", "/bin/sh"];
         for shell in &shells {
             if std::path::Path::new(shell).exists() {
@@ -129,7 +129,7 @@ fn get_default_shell() -> String {
             }
         }
 
-        // Final fallback to /bin/sh which should exist on all POSIX systems
+        // 最后回退到 /bin/sh，它在所有 POSIX 系统上应该都存在
         "/bin/sh".to_string()
     }
 }
@@ -158,7 +158,7 @@ pub fn is_service_specified_user(service_id: &str) -> Option<bool> {
     get_service(service_id).map(|s| s.lock().unwrap().is_specified_user)
 }
 
-/// Get or create a persistent terminal service
+/// 获取或创建一个持久化终端服务
 fn get_or_create_service(
     service_id: String,
     is_persistent: bool,
@@ -166,7 +166,7 @@ fn get_or_create_service(
 ) -> Result<Arc<Mutex<PersistentTerminalService>>> {
     let mut services = TERMINAL_SERVICES.lock().unwrap();
 
-    // Check service limit
+    // 检查服务数量上限
     if !services.contains_key(&service_id) && services.len() >= MAX_SERVICES {
         return Err(anyhow!(
             "Maximum number of terminal services ({}) reached",
@@ -190,7 +190,7 @@ fn get_or_create_service(
         })
         .clone();
 
-    // Ensure cleanup task is running
+    // 确保清理任务正在运行
     ensure_cleanup_task();
 
     service.lock().unwrap().reset_status(is_persistent);
@@ -198,12 +198,12 @@ fn get_or_create_service(
     Ok(service)
 }
 
-/// Remove a service from the global registry
+/// 从全局注册表中移除服务
 fn remove_service(service_id: &str) {
     let mut services = TERMINAL_SERVICES.lock().unwrap();
     if let Some(service) = services.remove(service_id) {
         log::info!("Removed service: {}", service_id);
-        // Close all terminals in the service
+        // 关闭该服务中的所有终端
         let sessions = service.lock().unwrap().sessions.clone();
         for (_, session) in sessions.iter() {
             let mut session = session.lock().unwrap();
@@ -212,7 +212,7 @@ fn remove_service(service_id: &str) {
     }
 }
 
-/// List all active terminal services
+/// 列出所有活动的终端服务
 pub fn list_services() -> Vec<ServiceMetadata> {
     let services = TERMINAL_SERVICES.lock().unwrap();
     services
@@ -228,13 +228,13 @@ pub fn list_services() -> Vec<ServiceMetadata> {
         .collect()
 }
 
-/// Get service by ID
+/// 按 ID 获取服务
 pub fn get_service(service_id: &str) -> Option<Arc<Mutex<PersistentTerminalService>>> {
     let services = TERMINAL_SERVICES.lock().unwrap();
     services.get(service_id).cloned()
 }
 
-/// Clean up inactive services
+/// 清理非活动的服务
 pub fn cleanup_inactive_services() {
     let services = TERMINAL_SERVICES.lock().unwrap();
     let now = Instant::now();
@@ -242,12 +242,12 @@ pub fn cleanup_inactive_services() {
 
     for (service_id, service) in services.iter() {
         if let Ok(svc) = service.lock() {
-            // Remove non-persistent services after idle timeout
+            // 空闲超时后移除非持久化服务
             if !svc.is_persistent && now.duration_since(svc.last_activity) > SERVICE_IDLE_TIMEOUT {
                 to_remove.push(service_id.clone());
                 log::info!("Cleaning up idle non-persistent service: {}", service_id);
             }
-            // Remove persistent services with no active terminals after longer timeout
+            // 在更长的超时后移除没有活动终端的持久化服务
             else if svc.is_persistent
                 && svc.sessions.is_empty()
                 && now.duration_since(svc.last_activity) > SERVICE_IDLE_TIMEOUT * 2
@@ -258,21 +258,21 @@ pub fn cleanup_inactive_services() {
         }
     }
 
-    // Remove outside of iteration to avoid deadlock
+    // 在迭代之外移除，以避免死锁
     drop(services);
     for id in to_remove {
         remove_service(&id);
     }
 }
 
-/// Add a child process to the zombie reaper
+/// 将子进程加入僵尸进程回收器
 fn add_to_reaper(child: Box<dyn Child + Send + Sync>) {
     if let Ok(mut tasks) = TERMINAL_TASKS.lock() {
         tasks.push(child);
     }
 }
 
-/// Check and reap zombie terminal processes
+/// 检查并回收僵尸终端进程
 fn check_zombie_terminals() {
     let mut tasks = match TERMINAL_TASKS.lock() {
         Ok(t) => t,
@@ -283,16 +283,16 @@ fn check_zombie_terminals() {
     while i < tasks.len() {
         match tasks[i].try_wait() {
             Ok(Some(_)) => {
-                // Process has exited, remove it
+                // 进程已退出，将其移除
                 log::info!("Process exited: {:?}", tasks[i].process_id());
                 tasks.remove(i);
             }
             Ok(None) => {
-                // Still running
+                // 仍在运行
                 i += 1;
             }
             Err(err) => {
-                // Error checking status, remove it
+                // 检查状态时出错，将其移除
                 log::info!(
                     "Process exited with error: {:?}, err: {err}",
                     tasks[i].process_id()
@@ -303,7 +303,7 @@ fn check_zombie_terminals() {
     }
 }
 
-/// Ensure the cleanup task is running
+/// 确保清理任务正在运行
 fn ensure_cleanup_task() {
     let mut task_handle = CLEANUP_TASK.lock().unwrap();
     if task_handle.is_none() {
@@ -311,10 +311,10 @@ fn ensure_cleanup_task() {
             log::info!("Started cleanup task");
             let mut last_service_cleanup = Instant::now();
             loop {
-                // Check for zombie processes every 100ms
+                // 每 100ms 检查一次僵尸进程
                 check_zombie_terminals();
 
-                // Check for inactive services every 5 minutes
+                // 每 5 分钟检查一次非活动服务
                 if last_service_cleanup.elapsed() > Duration::from_secs(300) {
                     cleanup_inactive_services();
                     last_service_cleanup = Instant::now();
@@ -323,7 +323,7 @@ fn ensure_cleanup_task() {
                 std::thread::sleep(Duration::from_millis(100));
             }
         });
-        *task_handle = Some(handle);
+        * task_handle = Some(handle);
     }
 }
 
@@ -336,13 +336,13 @@ pub fn get_terminal_session_count(include_zombie_tasks: bool) -> usize {
     c
 }
 
-/// User token wrapper for cross-module use.
+/// 供跨模块使用的用户令牌包装类型。
 ///
-/// # Design Note
-/// On Windows, this type is defined in terminal_helper.rs and re-exported here.
-/// On non-Windows platforms, it's defined here directly.
-/// This design avoids circular dependencies while keeping the API consistent.
-/// Both definitions MUST have identical public API (new, as_raw methods).
+/// # 设计说明
+/// 在 Windows 上，该类型定义于 terminal_helper.rs 并在此处重新导出。
+/// 在非 Windows 平台上，该类型直接定义于此处。
+/// 该设计避免了循环依赖，同时保持 API 一致。
+/// 两处定义必须具有完全相同的公共 API（new、as_raw 方法）。
 #[cfg(not(target_os = "windows"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UserToken(pub usize);
@@ -390,7 +390,7 @@ pub fn new(
     is_persistent: bool,
     user_token: Option<UserToken>,
 ) -> GenericService {
-    // Create the service with initial persistence setting
+    // 以初始持久化设置创建服务
     allow_err!(get_or_create_service(
         service_id.clone(),
         is_persistent,
@@ -417,7 +417,7 @@ fn run(sp: TerminalService, service_id: String) -> ResultType<()> {
         thread::sleep(Duration::from_millis(30)); // Read at ~33fps for responsive terminal
     }
 
-    // Clean up non-persistent service when loop exits
+    // 循环退出时清理非持久化服务
     if let Some(service) = get_service(&service_id) {
         let should_remove = !service.lock().unwrap().is_persistent;
         if should_remove {
@@ -428,7 +428,7 @@ fn run(sp: TerminalService, service_id: String) -> ResultType<()> {
     Ok(())
 }
 
-/// Output buffer for terminal session
+/// 终端会话的输出缓冲区
 struct OutputBuffer {
     lines: VecDeque<Vec<u8>>,
     total_size: usize,
@@ -449,18 +449,18 @@ impl OutputBuffer {
             return;
         }
 
-        // Handle incomplete lines
+        // 处理不完整的行
         let mut start = 0;
         if self.last_line_incomplete {
             if let Some(last_line) = self.lines.back_mut() {
-                // Find first newline in new data
+                // 在新数据中查找第一个换行符
                 if let Some(newline_pos) = data.iter().position(|&b| b == b'\n') {
                     last_line.extend_from_slice(&data[..=newline_pos]);
                     self.total_size += newline_pos + 1;
                     start = newline_pos + 1;
                     self.last_line_incomplete = false;
                 } else {
-                    // Still no newline, append all
+                    // 仍没有换行符，全部追加
                     last_line.extend_from_slice(data);
                     self.total_size += data.len();
                     start = data.len();
@@ -468,16 +468,16 @@ impl OutputBuffer {
             }
         }
 
-        // Process remaining data
+        // 处理剩余数据
         let remaining = &data[start..];
         let ends_with_newline = remaining.last() == Some(&b'\n');
 
-        // Split by lines
+        // 按行拆分
         let lines: Vec<&[u8]> = remaining.split(|&b| b == b'\n').collect();
 
         for (i, line) in lines.iter().enumerate() {
             if i == lines.len() - 1 && !ends_with_newline && !line.is_empty() {
-                // Last line without newline
+                // 末尾没有换行符的最后一行
                 self.last_line_incomplete = true;
             }
 
@@ -492,11 +492,11 @@ impl OutputBuffer {
             }
         }
 
-        // Trim old data if buffer is too large
+        // 缓冲区过大时裁剪旧数据
         while self.total_size > MAX_OUTPUT_BUFFER_SIZE || self.lines.len() > MAX_BUFFER_LINES {
             if self.lines.len() == 1 && self.last_line_incomplete {
-                // Only an oversized line without newline is left: keep its newest half
-                // instead of dropping it, so the copy happens once per half buffer.
+                // 只剩下一个超长且没有换行符的行：保留其较新的一半
+                // 而不是直接丢弃，这样每半个缓冲区只需复制一次。
                 let line = &mut self.lines[0];
                 line.drain(..line.len().saturating_sub(MAX_OUTPUT_BUFFER_SIZE / 2));
                 self.total_size = line.len();
@@ -536,20 +536,20 @@ impl OutputBuffer {
         let mut chunks: Vec<&[u8]> = Vec::new();
         let mut size = 0;
 
-        // Collect whole chunks from newest to oldest, preserving chronological continuity.
-        // If the newest chunk alone exceeds max_bytes, take its tail (truncation may split
-        // an ANSI escape, but the terminal will self-correct on subsequent output).
+        // 从最新到最旧收集完整的块，保持时间顺序的连续性。
+        // 如果最新的块本身就超过 max_bytes，则取其尾部（截断可能会截断
+        // ANSI 转义序列，但终端会在后续输出时自行修正）。
         for line in self.lines.iter().rev() {
             if size + line.len() > max_bytes {
                 if size == 0 && line.len() > max_bytes {
-                    // Single oversized chunk: take the tail to preserve the most recent content.
-                    // Align offset forward to a UTF-8 char boundary so that downstream
-                    // clients (e.g. Dart) that decode the payload as UTF-8 text don't
-                    // encounter split code points. The protobuf bytes field itself allows
-                    // arbitrary bytes; this is a best-effort mitigation for client-side decoding.
+                    // 单个超大的块：取其尾部以保留最新的内容。
+                    // 将偏移量向前对齐到 UTF-8 字符边界，使下游
+                    // 客户端（例如 Dart）按 UTF-8 文本解码负载时不会
+                    // 遇到被截断的码点。protobuf 的 bytes 字段本身允许
+                    // 任意字节；这只是针对客户端解码的尽力而为的缓解措施。
                     let mut offset = line.len() - max_bytes;
-                    // Skip at most 3 continuation bytes (UTF-8 max 4-byte sequence).
-                    // Prevents runaway skipping on non-UTF-8 binary data.
+                    // 最多跳过 3 个后续字节（UTF-8 最长 4 字节序列）。
+                    // 避免在非 UTF-8 二进制数据上无休止地跳过。
                     let mut skipped = 0u8;
                     while skipped < 3
                         && offset < line.len()
@@ -558,8 +558,8 @@ impl OutputBuffer {
                         offset += 1;
                         skipped += 1;
                     }
-                    // If we skipped past all remaining bytes (degenerate data), drop the
-                    // chunk entirely rather than emitting a slice that decodes poorly on the client.
+                    // 如果跳过了所有剩余字节（退化数据），则丢弃该
+                    // 块，而不是输出一个在客户端解码效果很差的切片。
                     if offset < line.len() {
                         chunks.push(&line[offset..]);
                         size = line.len() - offset;
@@ -571,7 +571,7 @@ impl OutputBuffer {
             chunks.push(line);
         }
 
-        // Reverse to restore chronological order and concatenate
+        // 反转以恢复时间顺序并拼接
         chunks.reverse();
         let mut result = Vec::with_capacity(size);
         for chunk in chunks {
@@ -582,9 +582,9 @@ impl OutputBuffer {
     }
 }
 
-/// Find the largest prefix of `buf` that does not end in the middle of a UTF-8
-/// code point. Invalid bytes are treated as complete so they can continue
-/// downstream and be rendered with replacement characters if needed.
+/// 找出 `buf` 的最大前缀，使其结尾不会落在 UTF-8 的
+/// 码点中间。无效字节被视为完整字节，以便它们可以继续
+/// 向下传递，并在需要时以替换字符呈现。
 fn find_utf8_split_point(buf: &[u8]) -> usize {
     if buf.is_empty() {
         return 0;
@@ -620,12 +620,12 @@ fn find_utf8_split_point(buf: &[u8]) -> usize {
     buf.len()
 }
 
-// Terminal output currently follows a UTF-8 text model end to end: the service
-// keeps replay buffers on UTF-8 boundaries, and Flutter decodes payload bytes as
-// UTF-8 before writing to xterm. This accumulator only prevents splitting a
-// trailing UTF-8 code point across PTY reads. Supporting non-UTF-8 terminals
-// would need a separate design covering remote encoding detection, Flutter
-// decoding, replay truncation, and input transcoding.
+// 终端输出目前端到端遵循 UTF-8 文本模型：服务
+// 将回放缓冲区保持在 UTF-8 边界上，Flutter 在写入 xterm 之前把负载字节解码为
+// UTF-8 文本。该累加器只用于避免把
+// 末尾的 UTF-8 码点拆分到多次 PTY 读取中。若要支持非 UTF-8 终端，
+// 还需要一套单独的设计，涵盖远端编码检测、Flutter
+// 解码、回放截断和输入转码。
 #[derive(Default)]
 struct Utf8ChunkAccumulator {
     remainder: Vec<u8>,
@@ -649,9 +649,9 @@ impl Utf8ChunkAccumulator {
             return Some(data);
         }
 
-        // Only hold back a candidate incomplete suffix when we have evidence that
-        // the bytes before it are already UTF-8 text. If split is 0, the whole
-        // read may be the start of a UTF-8 character, so keep it for the next read.
+        // 只有当有证据表明前面的字节已经是 UTF-8 文本时，
+        // 才暂存候选的不完整后缀。如果 split 为 0，则整个
+        // 读取内容可能是一个 UTF-8 字符的开头，因此保留给下一次读取。
         if !had_remainder && split > 0 && std::str::from_utf8(&data[..split]).is_err() {
             return Some(data);
         }
@@ -673,8 +673,8 @@ impl Utf8ChunkAccumulator {
     }
 }
 
-/// Try to send data through the output channel with rate-limited drop logging.
-/// Returns `true` if the caller should break out of the read loop (channel disconnected).
+/// 尝试通过输出通道发送数据，并对丢弃日志做限速。
+/// 若调用方应跳出读取循环（通道已断开），则返回 `true`。
 fn try_send_output(
     output_tx: &mpsc::SyncSender<Vec<u8>>,
     data: Vec<u8>,
@@ -690,24 +690,24 @@ fn try_send_output(
                     "Terminal {}{} output channel recovered, dropped {} chunks since last report",
                     terminal_id,
                     label,
-                    *drop_count
+                    * drop_count
                 );
-                *drop_count = 0;
+                * drop_count = 0;
             }
             false
         }
         Err(mpsc::TrySendError::Full(_)) => {
-            *drop_count += 1;
+            * drop_count += 1;
             if last_drop_warn.elapsed() >= Duration::from_secs(5) {
                 log::trace!(
                     "Terminal {}{} output channel full, dropped {} chunks in last {:?}",
                     terminal_id,
                     label,
-                    *drop_count,
+                    * drop_count,
                     last_drop_warn.elapsed()
                 );
-                *drop_count = 0;
-                *last_drop_warn = Instant::now();
+                * drop_count = 0;
+                * last_drop_warn = Instant::now();
             }
             false
         }
@@ -727,12 +727,12 @@ pub struct TerminalSession {
     last_activity: Instant,
     pty_pair: Option<portable_pty::PtyPair>,
     child: Option<Box<dyn Child + std::marker::Send + Sync>>,
-    // Channel for sending input to the writer thread
+    // 用于向写入线程发送输入的通道
     input_tx: Option<SyncSender<Vec<u8>>>,
-    // Channel for receiving output from the reader thread
+    // 用于从读取线程接收输出的通道
     output_rx: Option<Receiver<Vec<u8>>>,
     exiting: Arc<AtomicBool>,
-    // Thread handles
+    // 线程句柄
     reader_thread: Option<thread::JoinHandle<()>>,
     writer_thread: Option<thread::JoinHandle<()>>,
     output_buffer: OutputBuffer,
@@ -740,14 +740,14 @@ pub struct TerminalSession {
     pid: u32,
     rows: u16,
     cols: u16,
-    // Track if we've already sent the closed message
+    // 跟踪是否已经发送过 closed 消息
     closed_message_sent: bool,
-    // Session state machine for reconnection handling
+    // 用于处理重连的会话状态机
     state: SessionState,
-    // Helper mode: PTY is managed by helper process, communication via message protocol
+    // 辅助模式：PTY 由辅助进程管理，通过消息协议通信
     #[cfg(target_os = "windows")]
     is_helper_mode: bool,
-    // Handle to helper process for termination when session closes
+    // 辅助进程的句柄，用于会话关闭时终止进程
     #[cfg(target_os = "windows")]
     helper_process_handle: Option<SendableHandle>,
 }
@@ -782,17 +782,17 @@ impl TerminalSession {
         self.last_activity = Instant::now();
     }
 
-    // This helper function is to ensure that the threads are joined before the child process is dropped.
-    // Though this is not strictly necessary on macOS.
+    // 该辅助函数用于确保在线程 join 之后才 drop 子进程。
+    // 不过在 macOS 上这并非严格必要。
     fn stop(&mut self) {
         self.state = SessionState::Closed;
         self.exiting.store(true, Ordering::SeqCst);
 
-        // Drop the input channel to signal writer thread to exit
+        // drop 输入通道以通知写入线程退出
         if let Some(input_tx) = self.input_tx.take() {
-            // Send a final newline to ensure the reader can read some data, and then exit.
-            // This is required on Windows and Linux.
-            // Although `self.pty_pair = None;` is called below, we can still send a final newline here.
+            // 发送一个末尾换行符，确保读取线程能读到一些数据，然后退出。
+            // 在 Windows 和 Linux 上这是必需的。
+            // 尽管下面会调用 `self.pty_pair = None;`，这里仍然可以发送一个末尾换行符。
             #[cfg(target_os = "windows")]
             let final_msg = if self.is_helper_mode {
                 encode_helper_message(MSG_TYPE_DATA, b"\r\n")
@@ -809,29 +809,29 @@ impl TerminalSession {
         }
         self.output_rx = None;
 
-        // CRITICAL: In helper mode, we must terminate the helper process BEFORE joining threads!
-        // The reader thread is blocking on output_pipe.read(), which only returns EOF when
-        // the helper process exits. If we try to join the reader thread first, we deadlock.
+        // 关键：在辅助模式下，必须先终止辅助进程，再 join 线程！
+        // 读取线程阻塞在 output_pipe.read() 上，只有当
+        // 辅助进程退出时它才会返回 EOF。如果先尝试 join 读取线程，就会死锁。
         //
-        // Sequence for helper mode:
-        // 1. Signal exiting and close input channel (done above)
-        // 2. Terminate helper process (causes output pipe EOF)
-        // 3. Join reader thread (now unblocked due to EOF)
-        // 4. Join writer thread
+        // 辅助模式下的顺序：
+        // 1. 通知退出并关闭输入通道（已完成）
+        // 2. 终止辅助进程（导致输出管道 EOF）
+        // 3. join 读取线程（此时已因 EOF 而解除阻塞）
+        // 4. join 写入线程
         #[cfg(target_os = "windows")]
         if self.is_helper_mode {
             if let Some(helper_handle) = self.helper_process_handle.take() {
                 let handle = helper_handle.as_raw();
                 log::debug!("Helper mode: terminating helper process before joining threads...");
 
-                // Give helper a very short time to exit gracefully (it should detect pipe close)
-                // But don't wait too long - we need to unblock the reader thread
+                // 给辅助进程很短的时间优雅退出（它应该能检测到管道关闭）
+                // 但不要等太久 —— 我们需要解除读取线程的阻塞
                 let wait_result = unsafe { WinWaitForSingleObject(handle, 100) };
 
                 if wait_result == WIN_WAIT_OBJECT_0 {
                     log::debug!("Helper process exited gracefully");
                 } else {
-                    // Force terminate to unblock reader thread
+                    // 强制终止以解除读取线程的阻塞
                     log::debug!("Force terminating helper process to unblock reader thread");
                     unsafe {
                         let _ = WinTerminateProcess(handle, 0);
@@ -844,37 +844,37 @@ impl TerminalSession {
             }
         }
 
-        // 1. Windows (non-helper mode)
-        //    `pty_pair` uses pipe. https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/pty/src/win/conpty.rs#L16
-        //     `read()` may stuck at https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/filedescriptor/src/windows.rs#L345
-        //     We can close the pipe to signal the reader thread to exit.
-        //     After https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/pty/src/win/psuedocon.rs#L86, the reader reads `[27, 91, 63, 57, 48, 48, 49, 108, 27, 91, 63, 49, 48, 48, 52, 108]` in my tests.
+        // 1. Windows（非辅助模式）
+        //    `pty_pair` 使用管道。https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/pty/src/win/conpty.rs#L16
+        //     `read()` 可能会卡在 https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/filedescriptor/src/windows.rs#L345
+        //     我们可以关闭管道来通知读取线程退出。
+        //     在 https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/pty/src/win/psuedocon.rs#L86 之后，我的测试中读取线程读到的是 `[27, 91, 63, 57, 48, 48, 49, 108, 27, 91, 63, 49, 48, 48, 52, 108]`。
         // 2. Linux
-        //    `pty_pair` uses `libc::openpty`. https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/pty/src/unix.rs#L32
-        //    We can also call the drop method first. https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/pty/src/unix.rs#L352
-        //    The reader will get [13, 10] after dropping the `pty_pair`.
+        //    `pty_pair` 使用 `libc::openpty`。https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/pty/src/unix.rs#L32
+        //    我们也可以先调用 drop 方法。https://github.com/rustdesk-org/wezterm/blob/80174f8009f41565f0fa8c66dab90d4f9211ae16/pty/src/unix.rs#L352
+        //    drop `pty_pair` 后，读取线程会收到 [13, 10]。
         // 3. macOS
-        //    No stuck cases have been found so far, more testing is needed.
+        //    目前尚未发现卡住的案例，还需要更多测试。
         #[cfg(any(target_os = "windows", target_os = "linux"))]
         {
             self.pty_pair = None;
         }
 
-        // Wait for threads to finish
-        // The reader thread should join before the writer thread on Windows.
+        // 等待线程结束
+        // 在 Windows 上应先 join 读取线程，再 join 写入线程。
         if let Some(reader_thread) = self.reader_thread.take() {
             let _ = reader_thread.join();
         }
 
-        // The read can read the last "\r\n" after the writer thread (not the child process) exits
-        // on Linux in my tests.
-        // But we still send "\r\n" to the writer thread and let the reader thread exit first for safety.
+        // 写入线程（而非子进程）退出后，读取仍能读到最后的 "\r\n"
+        // （在 Linux 上，我的测试结果如此。）
+        // 但出于安全考虑，我们仍会向写入线程发送 "\r\n"，并让读取线程先退出。
         if let Some(writer_thread) = self.writer_thread.take() {
             let _ = writer_thread.join();
         }
 
         if let Some(mut child) = self.child.take() {
-            // Kill the process
+            // 杀掉进程
             let _ = child.kill();
             add_to_reaper(child);
         }
@@ -883,12 +883,12 @@ impl TerminalSession {
 
 impl Drop for TerminalSession {
     fn drop(&mut self) {
-        // Ensure child process is properly handled when session is dropped
+        // 确保会话 drop 时子进程被正确处理
         self.stop();
     }
 }
 
-/// Persistent terminal service that can survive connection drops
+/// 可在连接断开后继续存活的持久化终端服务
 pub struct PersistentTerminalService {
     service_id: String,
     sessions: HashMap<i32, Arc<Mutex<TerminalSession>>>,
@@ -916,7 +916,7 @@ impl PersistentTerminalService {
         self.last_activity = Instant::now();
     }
 
-    /// Get list of terminal metadata
+    /// 获取终端元数据列表
     pub fn list_terminals(&self) -> Vec<(i32, String, u32, Instant)> {
         self.sessions
             .iter()
@@ -927,7 +927,7 @@ impl PersistentTerminalService {
             .collect()
     }
 
-    /// Get buffered output for a terminal
+    /// 获取某个终端的缓冲输出
     pub fn get_terminal_buffer(&self, terminal_id: i32, max_bytes: usize) -> Option<Vec<u8>> {
         self.sessions.get(&terminal_id).map(|session| {
             let session = session.lock().unwrap();
@@ -935,7 +935,7 @@ impl PersistentTerminalService {
         })
     }
 
-    /// Get terminal info for recovery
+    /// 获取用于恢复的终端信息
     pub fn get_terminal_info(&self, terminal_id: i32) -> Option<(u16, u16, Vec<u8>)> {
         self.sessions.get(&terminal_id).map(|session| {
             let session = session.lock().unwrap();
@@ -949,7 +949,7 @@ impl PersistentTerminalService {
         })
     }
 
-    /// Check if service has active terminals
+    /// 检查服务是否有活动终端
     pub fn has_active_terminals(&self) -> bool {
         !self.sessions.is_empty()
     }
@@ -986,7 +986,7 @@ impl TerminalServiceProxy {
         is_persistent: Option<bool>,
         _user_token: Option<UserToken>,
     ) -> Self {
-        // Get persistence from the service if it exists
+        // 如果服务存在，则从中获取持久化设置
         let is_persistent =
             is_persistent.unwrap_or(if let Some(service) = get_service(&service_id) {
                 service.lock().unwrap().is_persistent
@@ -1053,16 +1053,16 @@ impl TerminalServiceProxy {
     ) -> Result<Option<TerminalResponse>> {
         let mut response = TerminalResponse::new();
 
-        // When the client requests a terminal_id that doesn't exist but there are
-        // surviving persistent sessions, remap the lowest-ID session to the requested
-        // terminal_id. This handles the case where _nextTerminalId resets to 1 on
-        // reconnect but the server-side sessions have non-contiguous IDs (e.g. {2: htop}).
+        // 当客户端请求了一个不存在的 terminal_id，但仍有
+        // 存活的持久化会话时，将 ID 最低的会话重新映射到请求的
+        // terminal_id。这处理了重连时 _nextTerminalId 重置为 1，
+        // 而服务端会话的 ID 不连续（例如 {2: htop}）的情况。
         //
-        // The client's requested terminal_id may not match any surviving session ID
-        // (e.g. _nextTerminalId incremented beyond the surviving IDs). This remap is a
-        // one-time handle reassignment — only the first reconnect triggers it because
-        // needs_session_sync is cleared afterward. Remaining sessions are communicated
-        // back via `persistent_sessions` with their original server-side IDs.
+        // 客户端请求的 terminal_id 可能与任何存活会话的 ID 都不匹配
+        // （例如 _nextTerminalId 递增超出了存活会话的 ID）。该重映射只是
+        // 一次性的句柄重新分配 —— 只有第一次重连会触发它，因为
+        // 之后 needs_session_sync 会被清除。其余会话通过
+        // `persistent_sessions` 以各自原有的服务端 ID 传回。
         if !service.sessions.contains_key(&open.terminal_id)
             && service.needs_session_sync
             && !service.sessions.is_empty()
@@ -1079,23 +1079,23 @@ impl TerminalServiceProxy {
             }
         }
 
-        // Check if terminal already exists
+        // 检查终端是否已存在
         if let Some(session_arc) = service.sessions.get(&open.terminal_id) {
-            // Reconnect to existing terminal
+            // 重连到已存在的终端
             let mut session = session_arc.lock().unwrap();
-            // Directly enter Active state with pending replay for immediate streaming.
-            // The replay combines output_buffer history and the channel backlog that was
-            // already pending at reconnect time so the client can suppress stale xterm
-            // query answers without requiring a protobuf schema change.
-            // During disconnect, read_outputs() is not called; channel data can still be lost
-            // if output_rx fills before reconnect drains it.
+            // 直接进入 Active 状态，并带上待回放数据以立即开始流式传输。
+            // 该回放将 output_buffer 中的历史数据与重连时已经
+            // 积压待处理的通道数据结合起来，使客户端无需修改 protobuf schema
+            // 即可抑制过期的 xterm 查询响应。
+            // 断线期间不会调用 read_outputs()；通道数据仍可能丢失，
+            // 如果 output_rx 在重连排空之前就被填满。
             let mut buffer = session
                 .output_buffer
                 .get_recent(DEFAULT_RECONNECT_BUFFER_BYTES);
             let mut reconnect_backlog = Vec::new();
             if let Some(output_rx) = &session.output_rx {
-                // Cap reconnect-time drain so a chatty PTY cannot keep OpenTerminal
-                // inside this loop indefinitely. Remaining output is drained by read_outputs().
+                // 限制重连时的排空量，避免话痨式的 PTY 让 OpenTerminal
+                // 在这个循环中无限期运行。剩余输出由 read_outputs() 排空。
                 for _ in 0..CHANNEL_BUFFER_SIZE {
                     let Ok(data) = output_rx.try_recv() else {
                         break;
@@ -1115,9 +1115,9 @@ impl TerminalServiceProxy {
             let has_pending = !buffer.is_empty();
             session.state = SessionState::Active {
                 pending_buffer: if has_pending { Some(buffer) } else { None },
-                // Always trigger two-phase SIGWINCH on reconnect to force TUI app redraw,
-                // regardless of whether there's pending buffer data. This avoids edge cases
-                // where buffer is empty but a TUI app (top/htop) still needs a full redraw.
+                // 重连时始终触发两阶段 SIGWINCH 以强制 TUI 程序重绘，
+                // 无论是否存在待处理的缓冲区数据。这样可避免出现
+                // 缓冲区为空但 TUI 程序（top/htop）仍需完整重绘的边界情况。
                 sigwinch: SigwinchPhase::TempResize {
                     retries: MAX_SIGWINCH_PHASE_ATTEMPTS,
                 },
@@ -1135,8 +1135,8 @@ impl TerminalServiceProxy {
             opened.replay_terminal_output = has_pending;
             if service.needs_session_sync {
                 if service.sessions.len() > 1 {
-                    // No need to include the current terminal in the list.
-                    // Because the `persistent_sessions` is used to restore the other sessions.
+                    // 无需把当前终端包含在列表中。
+                    // 因为 `persistent_sessions` 用于恢复其他会话。
                     opened.persistent_sessions = service
                         .sessions
                         .keys()
@@ -1151,16 +1151,16 @@ impl TerminalServiceProxy {
             return Ok(Some(response));
         }
 
-        // Windows with user_token: use helper process to run shell as the logged-in user
-        // This solves the ConPTY + CreateProcessAsUserW incompatibility issue where
-        // vim, Claude Code, and other TUI applications hang when ConPTY is created
-        // by SYSTEM service but shell runs as user via CreateProcessAsUserW.
+        // Windows 上带有 user_token：使用辅助进程以已登录用户身份运行 shell
+        // 这解决了 ConPTY + CreateProcessAsUserW 的兼容性问题，即
+        // 当 ConPTY 由 SYSTEM 服务创建、而 shell 通过 CreateProcessAsUserW
+        // 以用户身份运行时，vim、Claude Code 等 TUI 程序会卡死的问题。
         #[cfg(target_os = "windows")]
         if self.user_token.is_some() {
             return self.handle_open_with_helper(service, open);
         }
 
-        // Create new terminal session
+        // 创建新的终端会话
         log::info!(
             "Creating new terminal {} for service {}",
             open.terminal_id,
@@ -1180,7 +1180,7 @@ impl TerminalServiceProxy {
         let pty_system = portable_pty::native_pty_system();
         let pty_pair = pty_system.openpty(pty_size).context("Failed to open PTY")?;
 
-        // Use default shell for the platform
+        // 使用该平台的默认 shell
         let shell = get_default_shell();
         log::debug!("Using shell: {}", shell);
 
@@ -1190,16 +1190,16 @@ impl TerminalServiceProxy {
         #[cfg(target_os = "windows")]
         configure_utf8_shell_command(&shell, &mut cmd);
 
-        // macOS-specific terminal configuration
-        // 1. Use login shell (-l) to load user's shell profile (~/.zprofile, ~/.bash_profile)
-        //    This ensures PATH includes Homebrew paths (/opt/homebrew/bin, /usr/local/bin)
-        // 2. Set TERM environment variable for proper terminal behavior
-        //    This fixes issues with control sequences (e.g., Delete/Backspace keys)
-        //    macOS terminfo uses hex naming: '78' = 'x' for xterm entries
-        // Note: For Linux, `TERM` is set in src/platform/linux.rs try_start_server_()
+        // macOS 专用的终端配置
+        // 1. 使用登录 shell（-l）加载用户的 shell 配置（~/.zprofile、~/.bash_profile）
+        //    这可确保 PATH 包含 Homebrew 的路径（/opt/homebrew/bin、/usr/local/bin）
+        // 2. 设置 TERM 环境变量以获得正确的终端行为
+        //    这可修复控制序列相关的问题（例如 Delete/Backspace 键）
+        //    macOS 的 terminfo 使用十六进制命名：xterm 条目中 '78' = 'x'
+        // 注意：在 Linux 上，`TERM` 在 src/platform/linux.rs 的 try_start_server_() 中设置
         #[cfg(target_os = "macos")]
         {
-            // Start as login shell to load user environment (PATH, etc.)
+            // 以登录 shell 启动以加载用户环境（PATH 等）
             cmd.arg("-l");
             log::debug!("Added -l flag for macOS login shell");
 
@@ -1218,9 +1218,9 @@ impl TerminalServiceProxy {
             }
         }
 
-        // Note: On Windows with user_token, we use helper mode (handle_open_with_helper)
-        // which is dispatched earlier in this function. This code path is only reached
-        // when user_token is None (e.g., running directly as user, not as SYSTEM service).
+        // 注意：在 Windows 上带有 user_token 时，我们使用辅助模式（handle_open_with_helper）
+        // 该分支在本函数更早的位置就已分发。这条代码路径只有在
+        // user_token 为 None 时才会走到（例如直接以用户身份运行，而非作为 SYSTEM 服务）。
 
         log::debug!("Spawning shell process...");
         let child = pty_pair
@@ -1240,11 +1240,11 @@ impl TerminalServiceProxy {
 
         session.pid = child.process_id().unwrap_or(0) as u32;
 
-        // Create channels for input/output
+        // 为输入/输出创建通道
         let (input_tx, input_rx) = mpsc::sync_channel::<Vec<u8>>(CHANNEL_BUFFER_SIZE);
         let (output_tx, output_rx) = mpsc::sync_channel::<Vec<u8>>(CHANNEL_BUFFER_SIZE);
 
-        // Spawn writer thread
+        // 启动写入线程
         let terminal_id = open.terminal_id;
         let writer_thread = thread::spawn(move || {
             let mut writer = writer;
@@ -1261,21 +1261,21 @@ impl TerminalServiceProxy {
         });
 
         let exiting = session.exiting.clone();
-        // Spawn reader thread
+        // 启动读取线程
         let terminal_id = open.terminal_id;
         let reader_thread = thread::spawn(move || {
             let mut reader = reader;
             let mut buf = vec![0u8; 4096];
             let mut utf8_chunks = Utf8ChunkAccumulator::default();
             let mut drop_count: u64 = 0;
-            // Initialize to > 5s ago so the first drop triggers a warning immediately.
+            // 初始化为 5 秒多以前，以便第一次丢弃时立即触发警告。
             let mut last_drop_warn = Instant::now() - Duration::from_secs(6);
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => {
                         // EOF
-                        // This branch can be reached when the child process exits on macOS.
-                        // But not on Linux and Windows in my tests.
+                        // 在 macOS 上子进程退出时可能会走到这个分支。
+                        // 但在我的测试中，Linux 和 Windows 上不会走到。
                         if let Some(data) = utf8_chunks.finish() {
                             let _ = try_send_output(
                                 &output_tx,
@@ -1295,13 +1295,13 @@ impl TerminalServiceProxy {
                         let Some(data) = utf8_chunks.push_chunk(buf[..n].to_vec()) else {
                             continue;
                         };
-                        // Use try_send to avoid blocking the reader thread when channel is full.
-                        // During disconnect, the run loop (sp.ok()) stops and read_outputs() is
-                        // no longer called, so the channel won't be drained. Blocking send would
-                        // deadlock the reader thread in that case.
-                        // Note: data produced during disconnect may be lost if channel fills up,
-                        // since output_buffer is only updated in read_outputs(). The buffer will
-                        // contain history from before the disconnect, not data produced after it.
+                        // 使用 try_send 以避免通道满时阻塞读取线程。
+                        // 断线期间，运行循环（sp.ok()）会停止，read_outputs() 也
+                        // 不再被调用，因此通道不会被排空。此时阻塞式发送会
+                        // 使读取线程死锁。
+                        // 注意：如果通道被填满，断线期间产生的数据可能会丢失，
+                        // 因为 output_buffer 只在 read_outputs() 中更新。该缓冲区将
+                        // 包含断线之前的历史数据，而不是断线之后产生的数据。
                         if try_send_output(
                             &output_tx,
                             data,
@@ -1314,11 +1314,11 @@ impl TerminalServiceProxy {
                         }
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        // This branch is not reached in my tests, but we still add `exiting` check to ensure we can exit.
+                        // 在我的测试中未走到这个分支，但仍加上 `exiting` 检查以确保能够退出。
                         if exiting.load(Ordering::SeqCst) {
                             break;
                         }
-                        // For non-blocking I/O, sleep briefly
+                        // 对于非阻塞 I/O，短暂休眠
                         thread::sleep(Duration::from_millis(10));
                     }
                     Err(e) => {
@@ -1361,7 +1361,7 @@ impl TerminalServiceProxy {
             session.pid
         );
 
-        // Store the session
+        // 存储该会话
         service
             .sessions
             .insert(open.terminal_id, Arc::new(Mutex::new(session)));
@@ -1369,10 +1369,10 @@ impl TerminalServiceProxy {
         Ok(Some(response))
     }
 
-    /// Windows-only: Open terminal using helper process pattern
-    /// This solves the ConPTY + CreateProcessAsUserW incompatibility issue.
-    /// The helper process runs as the logged-in user and creates ConPTY + shell,
-    /// communicating with this service via named pipes.
+    /// 仅 Windows：使用辅助进程模式打开终端
+    /// 这解决了 ConPTY + CreateProcessAsUserW 的兼容性问题。
+    /// 辅助进程以已登录用户身份运行并创建 ConPTY + shell，
+    /// 并通过命名管道与本服务通信。
     #[cfg(target_os = "windows")]
     fn handle_open_with_helper(
         &self,
@@ -1390,7 +1390,7 @@ impl TerminalServiceProxy {
         let mut session =
             TerminalSession::new(open.terminal_id, open.rows as u16, open.cols as u16);
 
-        // Generate unique pipe names for this terminal
+        // 为该终端生成唯一的管道名称
         let pipe_id = uuid::Uuid::new_v4();
         let input_pipe_name = format!(r"\\.\pipe\rustdesk_term_in_{}", pipe_id);
         let output_pipe_name = format!(r"\\.\pipe\rustdesk_term_out_{}", pipe_id);
@@ -1401,16 +1401,16 @@ impl TerminalServiceProxy {
             output_pipe_name
         );
 
-        // Get user_token early - needed for both DACL creation and helper launch
+        // 尽早获取 user_token —— 创建 DACL 和启动辅助进程都需要它
         let user_token = self
             .user_token
             .ok_or_else(|| anyhow!("user_token is required for helper mode"))?;
 
-        // Create pipes (server side, don't wait for connection yet)
-        // input_pipe: service WRITES to this, helper READS from this
-        // output_pipe: service READS from this, helper WRITES to this
-        // Using OwnedHandle for RAII - handles are automatically closed on error
-        // Pass user_token to create restricted DACL (only SYSTEM + user can access)
+        // 创建管道（服务端，暂不等待连接）
+        // input_pipe：服务向它写入，辅助进程从它读取
+        // output_pipe：服务从它读取，辅助进程向它写入
+        // 使用 OwnedHandle 实现 RAII —— 出错时句柄会自动关闭
+        // 传入 user_token 以创建受限 DACL（仅 SYSTEM + 用户可访问）
         let input_pipe_handle = OwnedHandle::new(create_named_pipe_server(
             &input_pipe_name,
             false,
@@ -1431,15 +1431,15 @@ impl TerminalServiceProxy {
             open.cols as u16,
         )?;
 
-        // Use HelperProcessGuard for RAII cleanup - terminates process on error
-        // Unlike OwnedHandle which only closes the handle, this guard ensures
-        // the helper process is terminated if pipe connection fails or other errors occur.
+        // 使用 HelperProcessGuard 进行 RAII 清理 —— 出错时终止进程
+        // 与仅关闭句柄的 OwnedHandle 不同，该守卫确保
+        // 在管道连接失败或发生其他错误时终止辅助进程。
         let helper_process_guard =
             HelperProcessGuard::new(helper_process_info.handle, helper_process_info.pid);
         let helper_pid = helper_process_guard.pid();
 
-        // Wait for helper to connect to pipes
-        // If this fails, HelperProcessGuard will terminate the helper process
+        // 等待辅助进程连接到管道
+        // 如果失败，HelperProcessGuard 将终止辅助进程
         let mut input_pipe = wait_for_pipe_connection(
             input_pipe_handle,
             &input_pipe_name,
@@ -1451,8 +1451,8 @@ impl TerminalServiceProxy {
             PIPE_CONNECTION_TIMEOUT_MS,
         )?;
 
-        // Check if helper process is still running after pipe connection
-        // This provides early detection if helper crashed during startup
+        // 检查管道连接后辅助进程是否仍在运行
+        // 这可以在辅助进程启动期间崩溃时做到早期发现
         if !is_helper_process_running(helper_process_guard.as_raw()) {
             return Err(anyhow!(
                 "Helper process (PID {}) exited unexpectedly after pipe connection",
@@ -1460,21 +1460,21 @@ impl TerminalServiceProxy {
             ));
         }
 
-        // Disarm the guard and transfer ownership to session
-        // From this point, the session is responsible for terminating the helper
+        // 解除守卫武装并将所有权转移给会话
+        // 从此以后，由会话负责终止辅助
         let helper_raw_handle = helper_process_guard.disarm();
 
-        // Use helper process PID for session tracking
-        // Note: This is the helper process PID, not the actual shell PID.
-        // The real shell runs inside the helper process but its PID is not exposed here.
-        // For process management (termination, status), the helper PID is what we need.
+        // 使用辅助进程 PID 进行会话跟踪
+        // 注意：这是辅助进程的 PID，而不是实际 shell 的 PID。
+        // 真正的 shell 在辅助进程内部运行，但其 PID 在此处并未暴露。
+        // 对于进程管理（终止、状态），我们需要的是辅助进程的 PID。
         session.pid = helper_pid;
 
-        // Create channels for input/output (same as direct PTY mode)
+        // 为输入/输出创建通道（与直接 PTY 模式相同）
         let (input_tx, input_rx) = mpsc::sync_channel::<Vec<u8>>(CHANNEL_BUFFER_SIZE);
         let (output_tx, output_rx) = mpsc::sync_channel::<Vec<u8>>(CHANNEL_BUFFER_SIZE);
 
-        // Spawn writer thread: reads from channel, writes to input pipe
+        // 启动写入线程：从通道读取，向输入管道写入
         let terminal_id = open.terminal_id;
         let writer_thread = thread::spawn(move || {
             while let Ok(data) = input_rx.recv() {
@@ -1492,18 +1492,18 @@ impl TerminalServiceProxy {
             );
         });
 
-        // Spawn reader thread: reads from output pipe, sends to channel
-        // Note: The output pipe was created with FILE_FLAG_OVERLAPPED for timeout support
-        // during ConnectNamedPipe. However, once converted to a File handle, reads are
-        // performed synchronously. The WouldBlock handling below is defensive but may
-        // not be triggered in practice since File::read() blocks until data is available.
+        // 启动读取线程：从输出管道读取，发送到通道
+        // 注意：输出管道创建时带有 FILE_FLAG_OVERLAPPED 以支持超时
+        // （在 ConnectNamedPipe 期间）。不过一旦转换为 File 句柄，读取就是
+        // 同步进行的。下面的 WouldBlock 处理属于防御性代码，实际上可能
+        // 不会被触发，因为 File::read() 会阻塞直到有数据可用。
         let exiting = session.exiting.clone();
         let terminal_id = open.terminal_id;
         let reader_thread = thread::spawn(move || {
             let mut buf = vec![0u8; 4096];
             let mut utf8_chunks = Utf8ChunkAccumulator::default();
             let mut drop_count: u64 = 0;
-            // Initialize to > 5s ago so the first drop triggers a warning immediately.
+            // 初始化为 5 秒多以前，以便第一次丢弃时立即触发警告。
             let mut last_drop_warn = Instant::now() - Duration::from_secs(6);
             loop {
                 match output_pipe.read(&mut buf) {
@@ -1518,7 +1518,7 @@ impl TerminalServiceProxy {
                                 &mut last_drop_warn,
                             );
                         }
-                        // EOF - helper process exited
+                        // EOF —— 辅助进程已退出
                         log::debug!("Terminal {} helper output EOF", terminal_id);
                         break;
                     }
@@ -1529,7 +1529,7 @@ impl TerminalServiceProxy {
                         let Some(data) = utf8_chunks.push_chunk(buf[..n].to_vec()) else {
                             continue;
                         };
-                        // Use try_send to avoid blocking the reader thread (same as direct PTY mode)
+                        // 使用 try_send 以避免阻塞读取线程（与直接 PTY 模式相同）
                         if try_send_output(
                             &output_tx,
                             data,
@@ -1542,8 +1542,8 @@ impl TerminalServiceProxy {
                         }
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        // Defensive: WouldBlock is unlikely with synchronous File::read(),
-                        // but handle it gracefully just in case.
+                        // 防御性处理：使用同步的 File::read() 时基本不会出现 WouldBlock，
+                        // 但仍以优雅方式处理以防万一。
                         if exiting.load(Ordering::SeqCst) {
                             break;
                         }
@@ -1561,7 +1561,7 @@ impl TerminalServiceProxy {
             );
         });
 
-        // In helper mode, we don't have pty_pair or child - helper manages those
+        // 在辅助模式下，我们没有 pty_pair 或 child —— 这些由辅助进程管理
         session.pty_pair = None;
         session.child = None;
         session.input_tx = Some(input_tx);
@@ -1613,16 +1613,16 @@ impl TerminalServiceProxy {
             session.rows = resize.rows as u16;
             session.cols = resize.cols as u16;
 
-            // Note: we do NOT clear the sigwinch phase here. The server-side two-phase
-            // SIGWINCH mechanism in read_outputs() is self-contained (temp resize → restore
-            // across two polling cycles), so client resize is purely a dimension sync and
-            // doesn't affect it.
+            // 注意：这里不清除 sigwinch 阶段。服务端的两阶段
+            // SIGWINCH 机制在 read_outputs() 中是自包含的（临时调整尺寸 → 恢复
+            // 跨两个轮询周期），因此客户端的尺寸调整纯粹是尺寸同步，
+            // 不会影响它。
 
-            // Windows: handle helper mode vs direct PTY mode
+            // Windows：处理辅助模式与直接 PTY 模式
             #[cfg(target_os = "windows")]
             {
                 if session.is_helper_mode {
-                    // Helper mode: send resize command via message protocol
+                    // 辅助模式：通过消息协议发送尺寸调整命令
                     if let Some(input_tx) = &session.input_tx {
                         let msg = encode_resize_message(resize.rows as u16, resize.cols as u16);
                         if let Err(e) = input_tx.send(msg) {
@@ -1635,12 +1635,12 @@ impl TerminalServiceProxy {
                         );
                     }
                 } else {
-                    // Direct PTY mode
+                    // 直接 PTY 模式
                     Self::resize_pty(&session, resize)?;
                 }
             }
 
-            // Non-Windows: always direct PTY mode
+            // 非 Windows：始终为直接 PTY 模式
             #[cfg(not(target_os = "windows"))]
             {
                 Self::resize_pty(&session, resize)?;
@@ -1649,7 +1649,7 @@ impl TerminalServiceProxy {
         Ok(None)
     }
 
-    /// Resize PTY directly (used for non-helper mode)
+    /// 直接调整 PTY 尺寸（用于非辅助模式）
     fn resize_pty(session: &TerminalSession, resize: &ResizeTerminal) -> Result<()> {
         if let Some(pty_pair) = &session.pty_pair {
             pty_pair.master.resize(PtySize {
@@ -1672,7 +1672,7 @@ impl TerminalServiceProxy {
                 let mut session = session_arc.lock().unwrap();
                 session.update_activity();
                 if let Some(input_tx) = session.input_tx.clone() {
-                    // Encode data for helper mode or send raw for direct PTY mode
+                    // 在辅助模式下编码数据，在直接 PTY 模式下原样发送
                     #[cfg(target_os = "windows")]
                     let msg = if session.is_helper_mode {
                         encode_helper_message(MSG_TYPE_DATA, &data.data)
@@ -1689,7 +1689,7 @@ impl TerminalServiceProxy {
             };
 
             if let Some((input_tx, msg)) = input {
-                // Send outside the session lock; SyncSender::send can block when full.
+                // 在会话锁之外发送；SyncSender::send 在通道满时可能阻塞。
                 if let Err(e) = input_tx.send(msg) {
                     log::error!(
                         "Failed to send data to terminal {}: {}",
@@ -1710,7 +1710,7 @@ impl TerminalServiceProxy {
     ) -> Result<Option<TerminalResponse>> {
         let mut response = TerminalResponse::new();
 
-        // Always close and remove the terminal
+        // 始终关闭并移除该终端
         if let Some(session_arc) = service.sessions.remove(&close.terminal_id) {
             let mut session = session_arc.lock().unwrap();
             let exit_code = if let Some(mut child) = session.child.take() {
@@ -1731,11 +1731,11 @@ impl TerminalServiceProxy {
         }
     }
 
-    /// Perform a single PTY resize as part of the two-phase SIGWINCH sequence.
-    /// Returns true if the resize succeeded.
+    /// 作为两阶段 SIGWINCH 序列的一部分，执行一次 PTY 尺寸调整。
+    /// 尺寸调整成功时返回 true。
     ///
-    /// Takes individual field references to avoid borrowing the entire TerminalSession,
-    /// which would conflict with the mutable borrow of session.state in read_outputs().
+    /// 接收各字段的单独引用，以避免借用整个 TerminalSession，
+    /// 否则会与 read_outputs() 中对 session.state 的可变借用冲突。
     fn do_sigwinch_resize(
         terminal_id: i32,
         rows: u16,
@@ -1745,16 +1745,16 @@ impl TerminalServiceProxy {
         _is_helper_mode: bool,
         action: &SigwinchAction,
     ) -> bool {
-        // Skip if dimensions are not initialized (shouldn't happen on reconnect,
-        // but guard against it to avoid resizing to nonsensical values).
+        // 若尺寸未初始化则跳过（重连时不应发生，
+        // 但仍加以防护，避免调整到无意义的尺寸）。
         if rows == 0 || cols == 0 {
             return false;
         }
 
         let target_rows = match action {
             SigwinchAction::TempResize => {
-                // For very small terminals (≤2 rows), subtracting 1 would result in an unusable
-                // size (0 or 1 row), so we add 1 instead. Either direction triggers SIGWINCH.
+                // 对于非常小的终端（≤2 行），减去 1 会导致尺寸不可用
+                // （0 或 1 行），因此改为加上 1。两个方向都能触发 SIGWINCH。
                 if rows > 2 {
                     rows.saturating_sub(1)
                 } else {
@@ -1819,7 +1819,7 @@ impl TerminalServiceProxy {
         }
     }
 
-    /// Helper to create a TerminalResponse with optional compression.
+    /// 用于创建可选择压缩的 TerminalResponse 的辅助函数。
     fn create_terminal_data_response(terminal_id: i32, data: Vec<u8>) -> TerminalResponse {
         let mut response = TerminalResponse::new();
         let mut terminal_data = TerminalData::new();
@@ -1849,7 +1849,7 @@ impl TerminalServiceProxy {
             }
         };
 
-        // Get session references with minimal service lock time
+        // 以尽量短的服务锁时间获取会话引用
         let sessions: Vec<(i32, Arc<Mutex<TerminalSession>>)> = {
             let service = service.lock().unwrap();
             service
@@ -1862,13 +1862,13 @@ impl TerminalServiceProxy {
         let mut responses = Vec::new();
         let mut closed_terminals = Vec::new();
 
-        // Process each session with its own lock
+        // 每个会话各自持锁处理
         for (terminal_id, session_arc) in sessions {
             if let Ok(mut session) = session_arc.try_lock() {
-                // Check if the session has ended (reader thread finished or child exited).
-                // On Linux, the PTY reader thread may not return EOF when the shell exits
-                // (the cloned master fd keeps the read side open), so we also poll the child
-                // process via try_wait() as a fallback detection mechanism.
+                // 检查会话是否已结束（读取线程已结束或子进程已退出）。
+                // 在 Linux 上，shell 退出时 PTY 读取线程可能不会返回 EOF
+                // （克隆的 master fd 会让读端保持打开），因此我们还通过 try_wait() 轮询子
+                // 进程，作为备用的检测机制。
                 let mut should_send_closed = false;
                 if !session.closed_message_sent {
                     if let Some(thread) = &session.reader_thread {
@@ -1893,37 +1893,37 @@ impl TerminalServiceProxy {
                         session.closed_message_sent = true;
                     }
                 }
-                // It's Ok to put the closed message here.
-                // Because the `reader_thread` is joined in `stop()`,
-                // and `stop()` is called before the session is dropped.
+                // 把 closed 消息放在这里是可以的。
+                // 因为 `reader_thread` 会在 `stop()` 中被 join，
+                // 而 `stop()` 会在会话被 drop 之前调用。
                 if should_send_closed {
                     closed_terminals.push(terminal_id);
                 }
 
-                // Always drain the output channel regardless of session state.
-                // When Active: data is sent to client. When Closed (within the same
-                // connection): data is buffered in output_buffer for reconnection replay.
-                // Note: during actual disconnect, the run loop exits and read_outputs()
-                // is not called, so channel data produced after disconnect may be lost.
+                // 无论会话状态如何，始终排空输出通道。
+                // 处于 Active 时：数据发送给客户端。处于 Closed 时（在同一次
+                // 连接内）：数据缓存在 output_buffer 中，以便重连时回放。
+                // 注意：在真正断线时，运行循环会退出，read_outputs()
+                // 不会被调用，因此断线后产生的通道数据可能会丢失。
                 let mut has_activity = false;
                 let mut received_data = Vec::new();
                 if let Some(output_rx) = &session.output_rx {
-                    // Try to read all available data
+                    // 尝试读取所有可用数据
                     while let Ok(data) = output_rx.try_recv() {
                         has_activity = true;
                         received_data.push(data);
                     }
                 }
 
-                // Update buffer (always buffer for reconnection support)
+                // 更新缓冲区（始终缓存，以支持重连）
                 for data in &received_data {
                     session.output_buffer.append(data);
                 }
 
-                // Skip sending responses if session is not Active.
-                // Data is already buffered above and will be sent on next reconnection.
-                // Use a scoped block to limit the mutable borrow of session.state,
-                // so we can immutably borrow other session fields afterwards.
+                // 如果会话不是 Active 状态，则跳过发送响应。
+                // 数据已缓存在上面，下次重连时会发送。
+                // 使用作用域块来限制对 session.state 的可变借用，
+                // 以便之后能不可变地借用会话的其他字段。
                 let (replay_buffer, sigwinch_action) = {
                     let (pending_buffer, sigwinch) = match &mut session.state {
                         SessionState::Active {
@@ -1935,9 +1935,9 @@ impl TerminalServiceProxy {
 
                     let replay_buffer = pending_buffer.take();
 
-                    // Two-phase SIGWINCH: see SigwinchPhase doc comments for rationale.
-                    // Each phase is a single PTY resize, spaced ~30ms apart by the polling
-                    // interval, ensuring the TUI app sees a real size change on each signal.
+                    // 两阶段 SIGWINCH：原因参见 SigwinchPhase 的文档注释。
+                    // 每个阶段都是一次 PTY 尺寸调整，由轮询
+                    // 间隔拉开约 30ms，确保 TUI 程序在每次信号时都能察觉到真实的尺寸变化。
                     let sigwinch_action = match sigwinch {
                         SigwinchPhase::TempResize { retries } => {
                             if *retries == 0 {
@@ -1945,10 +1945,10 @@ impl TerminalServiceProxy {
                                     "Terminal {} SIGWINCH phase 1 (temp resize) failed after {} attempts, giving up",
                                     terminal_id, MAX_SIGWINCH_PHASE_ATTEMPTS
                                 );
-                                *sigwinch = SigwinchPhase::Idle;
+                                * sigwinch = SigwinchPhase::Idle;
                                 None
                             } else {
-                                *retries -= 1;
+                                * retries -= 1;
                                 Some(SigwinchAction::TempResize)
                             }
                         }
@@ -1958,10 +1958,10 @@ impl TerminalServiceProxy {
                                     "Terminal {} SIGWINCH phase 2 (restore) failed after {} attempts, giving up",
                                     terminal_id, MAX_SIGWINCH_PHASE_ATTEMPTS
                                 );
-                                *sigwinch = SigwinchPhase::Idle;
+                                * sigwinch = SigwinchPhase::Idle;
                                 None
                             } else {
-                                *retries -= 1;
+                                * retries -= 1;
                                 Some(SigwinchAction::Restore)
                             }
                         }
@@ -1980,7 +1980,7 @@ impl TerminalServiceProxy {
                     session.update_activity();
                 }
 
-                // Execute SIGWINCH resize outside the mutable borrow scope of session.state.
+                // 在 session.state 的可变借用作用域之外执行 SIGWINCH 尺寸调整。
                 if let Some(action) = sigwinch_action {
                     #[cfg(target_os = "windows")]
                     let is_helper = session.is_helper_mode;
@@ -1999,32 +1999,32 @@ impl TerminalServiceProxy {
                         match action {
                             SigwinchAction::TempResize => {
                                 if resize_ok {
-                                    // Phase 1 succeeded — advance to phase 2 (restore).
-                                    *sigwinch = SigwinchPhase::Restore {
+                                    // 阶段 1 成功 —— 进入阶段 2（恢复）。
+                                    * sigwinch = SigwinchPhase::Restore {
                                         retries: MAX_SIGWINCH_PHASE_ATTEMPTS,
                                     };
                                 }
-                                // If failed, retries already decremented; will retry phase 1.
+                                // 如果失败，retries 已递减；将重试阶段 1。
                             }
                             SigwinchAction::Restore => {
                                 if resize_ok {
-                                    // Phase 2 succeeded — SIGWINCH sequence complete.
-                                    *sigwinch = SigwinchPhase::Idle;
+                                    // 阶段 2 成功 —— SIGWINCH 序列完成。
+                                    * sigwinch = SigwinchPhase::Idle;
                                 }
-                                // If failed, retries already decremented; will retry phase 2.
+                                // 如果失败，retries 已递减；将重试阶段 2。
                             }
                         }
                     }
                 }
 
-                // Send real-time data after historical buffer
+                // 在历史缓冲区之后发送实时数据
                 for data in received_data {
                     responses.push(Self::create_terminal_data_response(terminal_id, data));
                 }
             }
         }
 
-        // Clean up closed terminals (requires service lock briefly)
+        // 清理已关闭的终端（需短暂持有服务锁）
         if !closed_terminals.is_empty() {
             let mut sessions = service.lock().unwrap().sessions.clone();
             for terminal_id in closed_terminals {
@@ -2034,9 +2034,9 @@ impl TerminalServiceProxy {
                     if let Some(session_arc) = sessions.remove(&terminal_id) {
                         service.lock().unwrap().sessions.remove(&terminal_id);
                         let mut session = session_arc.lock().unwrap();
-                        // Take the child and add to zombie reaper
+                        // 取出 child 并加入僵尸进程回收器
                         if let Some(mut child) = session.child.take() {
-                            // Try to get exit code if available
+                            // 如果可用则尝试获取退出码
                             if let Ok(Some(status)) = child.try_wait() {
                                 exit_code = status.exit_code() as i32;
                             }
@@ -2044,19 +2044,19 @@ impl TerminalServiceProxy {
                         }
                     }
                 } else {
-                    // For persistent sessions, clear the child reference and remove the session
-                    // if the closed message has been sent (shell has exited).
+                    // 对于持久化会话，清除 child 引用并移除该会话
+                    // （前提是 closed 消息已发送，即 shell 已退出）。
                     if let Some(session_arc) = sessions.get(&terminal_id) {
                         let mut session = session_arc.lock().unwrap();
                         if let Some(mut child) = session.child.take() {
-                            // Try to get exit code if available
+                            // 如果可用则尝试获取退出码
                             if let Ok(Some(status)) = child.try_wait() {
                                 exit_code = status.exit_code() as i32;
                             }
                             add_to_reaper(child);
                         }
                         if session.closed_message_sent {
-                            // Shell has exited, remove the dead session
+                            // shell 已退出，移除该失效会话
                             drop(session);
                             sessions.remove(&terminal_id);
                             service.lock().unwrap().sessions.remove(&terminal_id);
@@ -2076,10 +2076,10 @@ impl TerminalServiceProxy {
         responses
     }
 
-    /// Cleanup when connection drops
+    /// 连接断开时的清理
     pub fn on_disconnect(&self) {
         if !self.is_persistent {
-            // Remove non-persistent service
+            // 移除非持久化服务
             remove_service(&self.service_id);
         }
     }
@@ -2114,16 +2114,16 @@ mod tests {
     fn output_buffer_trim_after_incomplete_merge_does_not_underflow() {
         let mut buffer = OutputBuffer::new();
 
-        // Create an incomplete line first.
+        // 先创建一个不完整的行。
         buffer.append(b"hello");
 
-        // Merge a large chunk that contains the first newline at the tail.
-        // This exercises the "append to last incomplete line" branch.
+        // 合并一个尾部包含首个换行符的大块数据。
+        // 这会触发「追加到最后一行不完整内容」的分支。
         let mut large = vec![b'a'; 30_000];
         large.push(b'\n');
         buffer.append(&large);
 
-        // Exceed MAX_BUFFER_LINES so trim pops the first large merged line.
+        // 超出 MAX_BUFFER_LINES，使裁剪操作弹出第一行合并后的大行。
         for _ in 0..=MAX_BUFFER_LINES {
             buffer.append(b"x\n");
         }

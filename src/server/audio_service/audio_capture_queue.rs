@@ -97,7 +97,7 @@ impl Drop for CaptureEncoderWorker {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
         if let Some(handle) = self.handle.take() {
-            // Owner-thread shutdown already waits via join(); see CapturePcmSender::wake for Win7.
+            // 所有者线程的关闭已经通过 join() 等待；Win7 的情况参见 CapturePcmSender::wake。
             handle.thread().unpark();
             if let Err(error) = handle.join() {
                 log::error!("Failed to join audio encoder thread: {error:?}");
@@ -134,7 +134,7 @@ pub(super) fn new_pcm_handoff(
         max_samples,
     });
     {
-        // Initialize the mutex on this thread, including on platforms with lazy allocation.
+        // 在当前线程上初始化互斥锁，包括采用惰性分配的平台。
         let mut buffers = handoff.buffers.lock().unwrap();
         for _ in 0..capacity {
             buffers.available.push(Vec::with_capacity(max_samples));
@@ -165,9 +165,9 @@ impl CapturePcmSender {
             self.wake();
             return;
         }
-        // Do not wait for a descheduled worker. Contention rejects the current
-        // packet even if buffers are available; this is separate from drop-oldest
-        // when the buffer pool is exhausted.
+        // 不要等待被调度出去的 worker。发生争用时，即使缓冲区有空间也
+        // 拒绝当前这个包；这与缓冲区耗尽时的丢弃最旧
+        // 策略是分开的。
         let mut buffers = match self.handoff.buffers.try_lock() {
             Ok(buffers) => buffers,
             Err(TryLockError::WouldBlock) => {
@@ -210,15 +210,15 @@ impl CapturePcmSender {
 
     fn wake(&self) {
         if let Some(thread) = self.handoff.wake_thread.get() {
-            // #16095 moved Opus encoding and message submission from the capture callback to a worker.
-            // Previously, the callback did that work directly, with allocations and blocking locks.
-            // On Win7 with Rust 1.75, if the worker is descheduled after publishing PARKED but before
-            // NtWaitForKeyedEvent, unpark() waits in NtReleaseKeyedEvent until the worker enters that wait.
-            // It does not wait for encoding; park_timeout() does not bound the callback's wait.
-            // Delays can cause gaps or stall teardown; a Win7 microphone regression has not been measured.
-            // System loopback already failed on Win7 before #16095 (see cpal_impl::get_device),
-            // so the affected path is microphone/input-device capture, including outgoing voice calls.
-            // Accept this risk to preserve Win7 input capture without a separate legacy notifier.
+            // #16095 把 Opus 编码和消息提交从采集回调移到 worker 中。
+            // 此前，回调直接完成这些工作，其中包含内存分配和阻塞式加锁。
+            // 在 Win7 上使用 Rust 1.75 时，如果 worker 在发布 PARKED 之后、进入
+            // NtWaitForKeyedEvent 之前被调度出去，unpark() 会在 NtReleaseKeyedEvent 中一直等待，直到 worker 进入该等待。
+            // 它并不等待编码完成；park_timeout() 也不限制回调的等待时间。
+            // 延迟可能造成间隙或拖住拆卸；Win7 上的麦克风回归问题尚未测量。
+            // 在 #16095 之前，Win7 上的系统回环就已经失败（参见 cpal_impl::get_device），
+            // 因此受影响的是麦克风/输入设备采集路径，包括外发语音通话。
+            // 接受这一风险，以在不需要单独的旧版通知机制的情况下保留 Win7 的输入采集。
             // https://github.com/rust-lang/rust/blob/1.75.0/library/std/src/sys/windows/thread_parking.rs
             thread.unpark();
         }

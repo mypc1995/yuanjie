@@ -84,7 +84,7 @@ pub fn verified_update_artifact_for_release_page_url(
     query: UpdateArtifactQuery<'_>,
 ) -> ResultType<VerifiedUpdateArtifact> {
     let artifact = verified_update_artifact_from_release_page_url(release_page_url, &query)?;
-    *VERIFIED_UPDATE_ARTIFACT.lock().unwrap() = Some(artifact.clone());
+    * VERIFIED_UPDATE_ARTIFACT.lock().unwrap() = Some(artifact.clone());
     Ok(artifact)
 }
 
@@ -156,7 +156,7 @@ fn read_limited_response_bytes<R: Read>(
 
 pub fn get_update_download_file_from_url(url: &str) -> Option<PathBuf> {
     let parsed = url::Url::parse(url).ok()?;
-    // Check the raw prefix before Url normalizes default ports.
+    // 在 Url 规范化默认端口之前检查原始前缀。
     if !url.starts_with("https://github.com/")
         || parsed.scheme() != "https"
         || parsed.host_str() != Some("github.com")

@@ -31,7 +31,7 @@ const CAMERA_NOT_SUPPORTED: &str = "This platform doesn't support camera yet";
 
 pub struct Cameras;
 
-// pre-condition
+// 前置条件
 pub fn primary_camera_exists() -> bool {
     Cameras::exists(PRIMARY_CAMERA_IDX)
 }
@@ -44,15 +44,15 @@ impl Cameras {
                 let mut camera_displays = SYNC_CAMERA_DISPLAYS.lock().unwrap();
                 camera_displays.clear();
                 // FIXME: nokhwa returns duplicate info for one physical camera on linux for now.
-                // issue: https://github.com/l1npengtul/nokhwa/issues/171
-                // Use only one camera as a temporary hack.
+                // 问题：https://github.com/l1npengtul/nokhwa/issues/171
+                // 临时变通：只使用一个摄像头。
                 cfg_if::cfg_if! {
                     if #[cfg(target_os = "linux")] {
                         let Some(info) = cameras.first() else {
                             bail!("No camera found")
                         };
-                        // Use index (0) camera as main camera, fallback to the first camera if index (0) is not available.
-                        // But maybe we also need to check index (1) or the lowest index camera.
+                        // 使用 index (0) 的摄像头作为主摄像头；若 index (0) 不可用则回退到第一个摄像头。
+                        // 但也许我们还需要检查 index (1) 或索引最小的摄像头。
                         //
                         // https://askubuntu.com/questions/234362/how-to-fix-this-problem-where-sometimes-dev-video0-becomes-automatically-dev
                         // https://github.com/rustdesk/rustdesk/pull/12010#issue-3125329069

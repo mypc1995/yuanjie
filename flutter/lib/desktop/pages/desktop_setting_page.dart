@@ -178,7 +178,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
     WidgetsBinding.instance.removeObserver(this);
     Get.delete<PageController>(tag: _kSettingPageControllerTag);
     Get.delete<Rx<SettingsTabKey>>(tag: _kSettingPageTabKeyTag);
-    // Get.delete does not dispose a plain ChangeNotifier.
+    // Get.delete 不会销毁普通的 ChangeNotifier。
     controller.dispose();
     super.dispose();
   }
@@ -251,7 +251,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
   }
 
   Widget _buildBlock({required List<Widget> children}) {
-    // check both mouseMoveTime and videoConnCount
+    // 同时检查 mouseMoveTime 和 videoConnCount
     return Obx(() {
       final videoConnBlock =
           _canBeBlocked.value && stateGlobal.videoConnCount > 0;
@@ -394,7 +394,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
   }
 }
 
-//#region pages
+// #region pages
 
 class _General extends StatefulWidget {
   const _General({Key? key}) : super(key: key);
@@ -429,10 +429,10 @@ class _GeneralState extends State<_General> {
   }
 
   Widget keyboardShortcuts() {
-    // The bindings JSON (LocalConfig key `keyboard-shortcuts`) holds three
-    // flags + the bindings list: {enabled, pass_through, bindings}. When the
-    // master is off, the pass-through toggle and the Configure entry are
-    // hidden — both are meaningless without an active matcher.
+    // 绑定 JSON（LocalConfig key `keyboard-shortcuts`）保存了三个
+    // 标志 + 绑定列表：{enabled, pass_through, bindings}。当
+    // 总开关关闭时，直通开关和 Configure 入口都会
+    // 被隐藏——没有生效的 matcher 时这两者都没有意义。
     return StatefulBuilder(builder: (context, setLocalState) {
       final enabled = ShortcutModel.isEnabled();
       return _Card(title: 'Keyboard shortcuts', children: [
@@ -511,7 +511,7 @@ class _GeneralState extends State<_General> {
           () async {
             serviceBtnEnabled.value = false;
             await start_service(serviceStop.value);
-            // enable the button after 1 second
+            // 1 秒后启用按钮
             Future.delayed(const Duration(seconds: 1), () {
               serviceBtnEnabled.value = true;
             });
@@ -560,7 +560,7 @@ class _GeneralState extends State<_General> {
             isServer: false,
           ),
         ),
-        // though this is related to GUI, but opengl problem affects all users, so put in config rather than local
+        // 虽然这与 GUI 有关，但 OpenGL 问题会影响所有用户，因此放在 config 而不是 local 中
         if (isLinux)
           Tooltip(
             message: translate('software_render_tip'),
@@ -646,7 +646,7 @@ class _GeneralState extends State<_General> {
         ),
     ];
 
-    // Add client-side wakelock option for desktop platforms
+    // 为桌面平台添加客户端侧的 wakelock 选项
     if (!bind.isIncomingOnly()) {
       children.add(_OptionCheckBox(
         context,
@@ -924,17 +924,17 @@ class _GeneralState extends State<_General> {
     });
   }
 
-  // How long an already-connected relay is held back to give the direct WebRTC
-  // attempt a chance to win. It only means anything while WebRTC is on, so it
-  // follows the checkbox as an indented sub-option and is hidden outright when
-  // the box is clear — the shape `directIp` uses for its port.
+  // 已连接的 relay 会被延迟多久，以便让直连 WebRTC
+  // 有机会胜出。只有在 WebRTC 开启时它才有意义，因此它
+  // 作为缩进的子选项跟在复选框后面，并在
+  // 复选框未勾选时被完全隐藏——这是 `directIp` 用来表示其端口的形式。
   List<Widget> webrtcOptions(BuildContext context) {
     final stored = bind.mainGetLocalOption(key: kOptionRelayFallbackDelay);
     final controller = TextEditingController(text: stored);
-    // What the field holds against what is saved. Apply is offered only while
-    // the two differ, so an untouched field shows no button at all, and neither
-    // does one typed back to its saved value or cleared when nothing was saved
-    // — the state an "edited" flag alone would still call dirty.
+    // 输入框中的值与已保存值的对比。只有在两者
+    // 不同时才会提供"应用"按钮，因此未被改动的输入框根本不显示按钮，而且
+    // 把值改回已保存的值、或在什么都没保存时清空
+    // ——这些仅靠 "edited" 标志仍会被判定为已修改的状态。
     final typed = RxString(stored);
     final saved = RxString(stored);
     return [
@@ -963,8 +963,8 @@ class _GeneralState extends State<_General> {
                     enabled: enabled && !isOptFixed,
                     onChanged: (v) => typed.value = v,
                     inputFormatters: [
-                      // Seconds, at most one decimal. Clearing the field is
-                      // allowed and restores the built-in default.
+                      // 秒，最多一位小数。清空该输入框是
+                      // 允许的，并会恢复内置默认值。
                       FilteringTextInputFormatter.allow(
                           RegExp(r'^([0-9]|[1-9][0-9])(\.[0-9]?)?$')),
                     ],
@@ -1051,7 +1051,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
 
   Widget tfa() {
     bool enabled = !locked;
-    // Simple temp wrapper for PR check
+    // 用于 PR 检查的简单临时包装
     tmpWrapper() {
       RxBool has2fa = bind.mainHasValid2FaSync().obs;
       RxBool hasBot = bind.mainHasValidBotSync().obs;
@@ -1179,7 +1179,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
 
   Widget permissions(context) {
     bool enabled = !locked;
-    // Simple temp wrapper for PR check
+    // 用于 PR 检查的简单临时包装
     tmpWrapper() {
       String accessMode = bind.mainGetOptionSync(key: kOptionAccessMode);
       _AccessMode mode;
@@ -1486,7 +1486,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
       _OptionCheckBox(context, 'Enable direct IP access', kOptionDirectServer,
           update: update, enabled: !locked),
       () {
-        // Simple temp wrapper for PR check
+        // 用于 PR 检查的简单临时包装
         tmpWrapper() {
           bool enabled = option2bool(kOptionDirectServer,
               bind.mainGetOptionSync(key: kOptionDirectServer));
@@ -1546,7 +1546,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
 
   Widget whitelist() {
     bool enabled = !locked;
-    // Simple temp wrapper for PR check
+    // 用于 PR 检查的简单临时包装
     tmpWrapper() {
       RxBool hasWhitelist = whitelistNotEmpty().obs;
       update() async {
@@ -1820,7 +1820,7 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
       return Offstage();
     }
 
-    // Helper function to create network setting ListTiles
+    // 用于创建网络设置 ListTile 的辅助函数
     Widget listTile({
       required IconData icon,
       required String title,
@@ -2112,8 +2112,8 @@ class _DisplayState extends State<_Display> {
     void onDebouncer(int v) {
       bind.mainSetUserDefaultOption(
           key: kKeyTrackpadSpeed, value: v.toString());
-      // It's better to notify all sessions that the default speed is changed.
-      // But it may also be ok to take effect in the next connection.
+      // 最好通知所有会话默认速度已更改。
+      // 但在下次连接时生效也可以。
     }
 
     return _Card(title: 'Default trackpad speed', children: [
@@ -2333,7 +2333,7 @@ class _AccountState extends State<_Account> {
   }
 
   Widget? _buildUserAvatar() {
-    // Resolve relative avatar path at display time
+    // 在显示时解析相对头像路径
     final avatar =
         bind.mainResolveAvatarUrl(avatar: gFFI.userModel.avatar.value);
     return buildAvatarWidget(
@@ -2476,8 +2476,8 @@ class __PrinterState extends State<_Printer> {
     }
 
     final installed = bind.mainIsInstalled();
-    // `is-printer-installed` may fail, but it's rare case.
-    // Add additional error message here if it's really needed.
+    // `is-printer-installed` 可能会失败，但这是罕见情况。
+    // 如果确实需要，可以在这里补充额外的错误信息。
     final isPrinterInstalled =
         bind.mainGetCommonSync(key: 'is-printer-installed') == 'true';
 
@@ -2645,9 +2645,9 @@ class _AboutState extends State<_About> {
   }
 }
 
-//#endregion
+// #endregion
 
-//#region components
+// #region components
 
 // ignore: non_constant_identifier_names
 Widget _Card(
@@ -2699,7 +2699,7 @@ Widget _OptionCheckBox(
   bool isServer = true,
   bool Function()? optGetter,
   Future<void> Function(String, bool)? optSetter,
-  // Optional widget rendered between the label and the trailing space.
+  // 渲染在标签与尾部空白之间的可选组件。
   Widget? trailing,
 }) {
   getOpt() => optGetter != null
@@ -2744,7 +2744,7 @@ Widget _OptionCheckBox(
             offstage: !ref.value || checkedIcon == null,
             child: checkedIcon?.marginOnly(right: 5),
           ),
-          // Without `trailing`, keep the original Expanded(Text) layout.
+          // 没有 `trailing` 时，保持原有的 Expanded(Text) 布局。
           if (trailing == null)
             Expanded(
                 child: Text(
@@ -2816,18 +2816,18 @@ class _WaylandCardState extends State<WaylandCard> {
   static const _kClearShortcutsInhibitorEventKey =
       'clear-gnome-shortcuts-inhibitor-permission-res';
   final _clearShortcutsInhibitorFailedMsg = ''.obs;
-  // Don't show the shortcuts permission reset button for now.
-  // Users can change it manually:
+  // 暂时不显示快捷键权限重置按钮。
+  // 用户可以手动修改：
   //   "Settings" -> "Apps" -> "RustDesk" -> "Permissions" -> "Inhibit Shortcuts".
-  // For resetting(clearing) the permission from the portal permission store, you can
-  // use (replace <desktop-id> with the RustDesk desktop file ID):
+  // 若要重置（清除）portal 权限存储中的权限，可以使用
+  // （把 <desktop-id> 替换为 RustDesk 桌面文件 ID）：
   //   busctl --user call org.freedesktop.impl.portal.PermissionStore \
   //   /org/freedesktop/impl/portal/PermissionStore org.freedesktop.impl.portal.PermissionStore \
   //   DeletePermission sss "gnome" "shortcuts-inhibitor" "<desktop-id>"
-  // On a native install this is typically "rustdesk.desktop"; on Flatpak it is usually
-  // the exported desktop ID derived from the Flatpak app-id (e.g. "com.rustdesk.RustDesk.desktop").
+  // 在原生安装中通常是 "rustdesk.desktop"；在 Flatpak 中通常是
+  // 由 Flatpak app-id 派生的导出的桌面 ID（例如 "com.rustdesk.RustDesk.desktop"）。
   //
-  // We may add it back in the future if needed.
+  // 如果需要，我们以后可能会把它加回来。
   final showResetInhibitorPermission = false;
 
   @override
@@ -3167,7 +3167,7 @@ class _CountDownButtonState extends State<_CountDownButton> {
   }
 }
 
-// Tappable row that pushes the shortcut configuration page.
+// 点击可跳转到快捷键配置页面的行。
 class _ShortcutsConfigureRow extends StatelessWidget {
   // ignore: unused_element
   const _ShortcutsConfigureRow({Key? key}) : super(key: key);
@@ -3198,9 +3198,9 @@ class _ShortcutsConfigureRow extends StatelessWidget {
   }
 }
 
-//#endregion
+// #endregion
 
-//#region dialogs
+// #region dialogs
 
 void changeSocks5Proxy() async {
   var socks = await bind.mainGetSocks();
@@ -3219,8 +3219,8 @@ void changeSocks5Proxy() async {
   var pwdController = TextEditingController(text: password);
   RxBool obscure = true.obs;
 
-  // proxy settings
-  // The following option is a not real key, it is just used for custom client advanced settings.
+  // 代理设置
+  // 下面这个选项并不是真实的 key，只是用于自定义客户端的高级设置。
   const String optionProxyUrl = "proxy-url";
   final isOptFixed = isOptionFixed(optionProxyUrl);
 
@@ -3357,7 +3357,7 @@ void changeSocks5Proxy() async {
                 ),
               ],
             ),
-            // NOT use Offstage to wrap LinearProgressIndicator
+            // 不要使用 Offstage 包裹 LinearProgressIndicator
             if (isInProgress)
               const LinearProgressIndicator().marginOnly(top: 8),
           ],
@@ -3373,4 +3373,4 @@ void changeSocks5Proxy() async {
   });
 }
 
-//#endregion
+// #endregion

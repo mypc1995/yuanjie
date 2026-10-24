@@ -65,8 +65,8 @@ mod webrtc {
     const kLagInFrames: u32 = 0; // No look ahead.
     pub(super) const kTimeBaseDen: i64 = 1000;
 
-    // Only positive speeds, range for real-time coding currently is: 6 - 8.
-    // Lower means slower/better quality, higher means fastest/lower quality.
+    // 只支持正的速度，实时编码的取值范围目前是：6 - 8。
+    // 值越低越慢/质量越好，值越高越快/质量越差。
     fn get_cpu_speed(width: u32, height: u32) -> u32 {
         // aux_config_ = nullptr, kComplexityHigh
         if width * height <= 320 * 180 {
@@ -100,7 +100,7 @@ mod webrtc {
         let mut c = unsafe { std::mem::MaybeUninit::zeroed().assume_init() };
         call_aom!(aom_codec_enc_config_default(i, &mut c, kUsageProfile));
 
-        // Overwrite default config with input encoder settings & RTC-relevant values.
+        // 用输入的编码器设置和与 RTC 相关的值覆盖默认配置。
         c.g_w = cfg.width;
         c.g_h = cfg.height;
         c.g_threads = codec_thread_num(64) as _;
@@ -124,7 +124,7 @@ mod webrtc {
         c.rc_buf_sz = 1000;
         c.g_usage = kUsageProfile;
         c.g_error_resilient = 0;
-        // Low-latency settings.
+        // 低延迟设置。
         c.rc_end_usage = aom_rc_mode::AOM_CBR; // Constant Bit Rate (CBR) mode
         c.g_pass = aom_enc_pass::AOM_RC_ONE_PASS; // One-pass rate control
         c.g_lag_in_frames = kLagInFrames; // No look ahead when lag equals 0.
@@ -212,7 +212,7 @@ impl EncoderApi for AomEncoder {
                 let c = webrtc::enc_cfg(i, config, i444)?;
 
                 let mut ctx = Default::default();
-                // Flag options: AOM_CODEC_USE_PSNR and AOM_CODEC_USE_HIGHBITDEPTH
+                // 标志选项：AOM_CODEC_USE_PSNR 和 AOM_CODEC_USE_HIGHBITDEPTH
                 let flags: aom_codec_flags_t = 0;
                 call_aom!(aom_codec_enc_init_ver(
                     &mut ctx,
@@ -432,7 +432,7 @@ impl<'a> Iterator for EncodeFrames<'a> {
                         pts: f.pts,
                     });
                 } else {
-                    // Ignore the packet.
+                    // 忽略该数据包。
                 }
             }
         }
@@ -477,7 +477,7 @@ impl AomDecoder {
         })
     }
 
-    /// Notify the decoder to return any pending frame
+    /// 通知解码器返回任何待处理的帧
     pub fn flush<'a>(&'a mut self) -> Result<DecodeFrames<'a>> {
         call_aom!(aom_codec_decode(
             &mut self.ctx,

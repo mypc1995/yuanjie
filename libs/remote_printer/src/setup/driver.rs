@@ -30,10 +30,10 @@ fn enum_printer_driver(
 ) -> BOOL {
     unsafe {
         // https://learn.microsoft.com/en-us/windows/win32/printdocs/enumprinterdrivers
-        // This is a blocking or synchronous function and might not return immediately.
-        // How quickly this function returns depends on run-time factors
-        // such as network status, print server configuration, and printer driver implementation factors that are difficult to predict when writing an application.
-        // Calling this function from a thread that manages interaction with the user interface could make the application appear to be unresponsive.
+        // 这是一个阻塞或同步函数，可能不会立即返回。
+        // 该函数返回的快慢取决于运行时的各种因素，
+        // 例如网络状态、打印服务器配置，以及编写应用程序时难以预测的打印机驱动实现方面的因素。
+        // 在管理用户界面交互的线程中调用此函数，可能会让应用程序看起来没有响应。
         EnumPrinterDriversW(
             null_mut(),
             null_mut(),
@@ -81,15 +81,15 @@ fn find_inf(name: &PCWSTR) -> ResultType<Vec<u16>> {
 
 fn delete_printer_driver(name: &PCWSTR) -> ResultType<()> {
     unsafe {
-        // If the printer is used after the spooler service is started. E.g., printing a document through RustDesk Printer.
-        // `DeletePrinterDriverExW()` may fail with `ERROR_PRINTER_DRIVER_IN_USE`(3001, 0xBB9).
-        // We can only ignore this error for now.
-        // Though restarting the spooler service is a solution, it's not a good idea to restart the service.
+        // 如果在后台处理程序服务启动之后仍在使用该打印机。例如通过 RustDesk Printer 打印文档。
+        // `DeletePrinterDriverExW()` 可能以 `ERROR_PRINTER_DRIVER_IN_USE`（3001, 0xBB9）失败。
+        // 我们目前只能忽略这个错误。
+        // 虽然重启后台处理程序服务是一个解决办法，但重启该服务并不是个好主意。
         //
-        // Deleting the printer driver after deleting the printer is a common practice.
-        // No idea why `DeletePrinterDriverExW()` fails with `ERROR_UNKNOWN_PRINTER_DRIVER` after using the printer once.
+        // 删除打印机之后再删除打印机驱动是常见做法。
+        // 不清楚为什么用过一次打印机之后 `DeletePrinterDriverExW()` 会以 `ERROR_UNKNOWN_PRINTER_DRIVER` 失败。
         // https://github.com/ChromiumWebApps/chromium/blob/c7361d39be8abd1574e6ce8957c8dbddd4c6ccf7/cloud_print/virtual_driver/win/install/setup.cc#L422
-        // AnyDesk printer driver and the simplest printer driver also have the same issue.
+        // AnyDesk 的打印机驱动以及最简单的打印机驱动也有同样的问题。
         if FALSE
             == DeletePrinterDriverExW(
                 null_mut(),
@@ -143,7 +143,7 @@ fn delete_printer_driver_package(inf: Vec<u16>) -> ResultType<()> {
 }
 
 pub fn uninstall_driver(name: &PCWSTR) -> ResultType<()> {
-    // Note: inf must be found before `delete_printer_driver()`.
+    // 注意：必须在 `delete_printer_driver()` 之前找到 inf。
     let inf = find_inf(name)?;
     delete_printer_driver(name)?;
     delete_printer_driver_package(inf)

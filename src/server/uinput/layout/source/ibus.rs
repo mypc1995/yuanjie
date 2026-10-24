@@ -8,7 +8,7 @@ use std::{env, fs, io::ErrorKind, path::PathBuf};
 
 const IBUS_SERVICE: &str = "org.freedesktop.IBus";
 const IBUS_PATH: &str = "/org/freedesktop/IBus";
-// IBusEngineDesc serialization preserves these field positions for its clients.
+// IBusEngineDesc 的序列化会为它的客户端保留这些字段位置。
 const ENGINE_TYPE_FIELD: usize = 0;
 const ENGINE_NAME_FIELD: usize = 2;
 const ENGINE_LAYOUT_FIELD: usize = 9;
@@ -32,8 +32,8 @@ pub(super) fn layout(id: &str) -> ResultType<Option<(String, String)>> {
     if field(&fields, ENGINE_TYPE_FIELD)? != "IBusEngineDesc" {
         bail!("IBus returned an unexpected engine description");
     }
-    // GNOME may suppress IBus for password entry without updating persisted MRU.
-    // Its xkb:us::eng echo engine does not identify the compositor's layout.
+    // GNOME 在密码输入时可能会屏蔽 IBus，却不更新持久化的 MRU。
+    // 它的 xkb:us::eng echo 引擎无法标识合成器的布局。
     if field(&fields, ENGINE_NAME_FIELD)? != id {
         return Err(
             super::UnreliableSource("MRU-selected IBus engine is not currently active").into(),

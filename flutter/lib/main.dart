@@ -30,7 +30,7 @@ import 'mobile/pages/server_page.dart';
 import 'mobile/widgets/deploy_dialog.dart';
 import 'models/platform_model.dart';
 
-/// Basic window and launch properties.
+/// 基本窗口与启动属性。
 int? kWindowId;
 WindowType? kWindowType;
 late List<String> kBootArgs;
@@ -46,7 +46,7 @@ Future<void> main(List<String> args) async {
     runMobileApp();
     return;
   }
-  // main window
+  // 主窗口
   if (args.isNotEmpty && args.first == 'multi_window') {
     kWindowId = int.parse(args[1]);
     stateGlobal.setWindowId(kWindowId!);
@@ -57,8 +57,8 @@ Future<void> main(List<String> args) async {
         ? <String, dynamic>{}
         : jsonDecode(args[2]) as Map<String, dynamic>;
     int type = argument['type'] ?? -1;
-    // to-do: No need to parse window id ?
-    // Because stateGlobal.windowId is a global value.
+    // 待办：需要解析窗口 id 吗？
+    // 因为 stateGlobal.windowId 是一个全局值。
     argument['windowId'] = kWindowId;
     kWindowType = type.windowType;
     switch (kWindowType) {
@@ -118,23 +118,23 @@ Future<void> main(List<String> args) async {
 }
 
 Future<void> initEnv(String appType) async {
-  // global shared preference
+  // 全局共享配置
   await platformFFI.init(appType);
-  // global FFI, use this **ONLY** for global configuration
-  // for convenience, use global FFI on mobile platform
-  // focus on multi-ffi on desktop first
+  // 全局 FFI，仅将其用于全局配置
+  // 为方便起见，移动平台使用全局 FFI
+  // 桌面端优先实现多 FFI
   await initGlobalFFI();
   // await Firebase.initializeApp();
   _registerEventHandler();
-  // Update the system theme.
+  // 更新系统主题。
   updateSystemWindowTheme();
 }
 
 void runMainApp(bool startService) async {
-  // register uni links
+  // 注册 uni links
   await initEnv(kAppTypeMain);
   checkUpdate();
-  // trigger connection status updater
+  // 触发连接状态更新
   await bind.mainCheckConnectStatus();
   if (startService) {
     gFFI.serverModel.startService();
@@ -149,13 +149,13 @@ void runMainApp(bool startService) async {
         bind.mainGetBuildinOption(key: "main-window-always-on-top") == 'Y';
   }
 
-  // Set window option.
+  // 设置窗口选项。
   WindowOptions windowOptions = getHiddenTitleBarWindowOptions(
       isMainWindow: true, alwaysOnTop: alwaysOnTop);
   windowManager.waitUntilReadyToShow(windowOptions, () async {
-    // Restore the location of the main window before window hide or show.
+    // 在隐藏或显示窗口前恢复主窗口的位置。
     await restoreWindowPosition(WindowType.Main);
-    // Check the startup argument, if we successfully handle the argument, we keep the main window hidden.
+    // 检查启动参数，如果成功处理了该参数，则保持主窗口隐藏。
     final handledByUniLinks = await initUniLinks();
     debugPrint("handled by uni links: $handledByUniLinks");
     if (handledByUniLinks || handleUriLink(cmdArgs: kBootArgs)) {
@@ -163,12 +163,12 @@ void runMainApp(bool startService) async {
     } else {
       windowManager.show();
       windowManager.focus();
-      // Move registration of active main window here to prevent from async visible check.
+      // 将活动主窗口的注册移到这里，以避免异步的可见性检查。
       rustDeskWinManager.registerActiveWindow(kWindowMainId);
     }
     windowManager.setOpacity(1);
     windowManager.setTitle(getWindowName());
-    // Do not use `windowManager.setResizable()` here.
+    // 这里不要使用 `windowManager.setResizable()`。
     setResizable(!bind.isIncomingOnly());
   });
 }
@@ -191,7 +191,7 @@ void runMultiWindow(
 ) async {
   await initEnv(appType);
   final title = getWindowName();
-  // set prevent close to true, we handle close event manually
+  // 将 prevent close 设为 true，关闭事件由我们手动处理
   WindowController.fromWindowId(kWindowId!).setPreventClose(true);
   if (isMacOS) {
     disableWindowMovable(kWindowId);
@@ -226,7 +226,7 @@ void runMultiWindow(
       );
       break;
     default:
-      // no such appType
+      // 没有这样的 appType
       exit(0);
   }
   _runApp(
@@ -234,15 +234,15 @@ void runMultiWindow(
     widget,
     MyTheme.currentThemeMode(),
   );
-  // we do not hide titlebar on win7 because of the frame overflow.
+  // 在 win7 上我们不隐藏标题栏，因为会出现边框溢出。
   if (kUseCompatibleUiMode) {
     WindowController.fromWindowId(kWindowId!).showTitleBar(true);
   }
   switch (appType) {
     case kAppTypeDesktopRemote:
-      // If screen rect is set, the window will be moved to the target screen and then set fullscreen.
+      // 如果设置了屏幕区域，窗口会先移动到目标屏幕，然后再设置为全屏。
       if (argument['screen_rect'] == null) {
-        // display can be used to control the offset of the window.
+        // display 可用于控制窗口的偏移。
         await restoreWindowPosition(
           WindowType.RemoteDesktop,
           windowId: kWindowId!,
@@ -256,9 +256,9 @@ void runMultiWindow(
           windowId: kWindowId!);
       break;
     case kAppTypeDesktopViewCamera:
-      // If screen rect is set, the window will be moved to the target screen and then set fullscreen.
+      // 如果设置了屏幕区域，窗口会先移动到目标屏幕，然后再设置为全屏。
       if (argument['screen_rect'] == null) {
-        // display can be used to control the offset of the window.
+        // display 可用于控制窗口的偏移。
         await restoreWindowPosition(
           WindowType.ViewCamera,
           windowId: kWindowId!,
@@ -275,10 +275,10 @@ void runMultiWindow(
       await restoreWindowPosition(WindowType.Terminal, windowId: kWindowId!);
       break;
     default:
-      // no such appType
+      // 没有这样的 appType
       exit(0);
   }
-  // show window from hidden status
+  // 显示处于隐藏状态的窗口
   WindowController.fromWindowId(kWindowId!).show();
 }
 
@@ -297,7 +297,7 @@ void runConnectionManagerScreen() async {
     await showCmWindow(isStartup: true);
   }
   setResizable(false);
-  // Start the uni links handler and redirect links to Native, not for Flutter.
+  // 启动 uni links 处理器，并把链接重定向到原生端，不在 Flutter 中处理。
   listenUniLinks(handleByFlutter: false);
 }
 
@@ -314,7 +314,7 @@ showCmWindow({bool isStartup = false}) async {
       windowManager.focus(),
       windowManager.setOpacity(1)
     ]);
-    // ensure initial window size to be changed
+    // 确保初始窗口大小被改变
     await windowManager.setSizeAlignment(
         kConnectionManagerWindowSizeClosedChat, Alignment.topRight);
     _isCmReadyToShow = true;
@@ -404,7 +404,7 @@ WindowOptions getHiddenTitleBarWindowOptions(
     bool center = false,
     bool? alwaysOnTop}) {
   var defaultTitleBarStyle = TitleBarStyle.hidden;
-  // we do not hide titlebar on win7 because of the frame overflow.
+  // 在 win7 上我们不隐藏标题栏，因为会出现边框溢出。
   if (kUseCompatibleUiMode) {
     defaultTitleBarStyle = TitleBarStyle.normal;
   }
@@ -441,7 +441,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         to = ThemeMode.light;
       }
       Get.changeThemeMode(to);
-      // Synchronize the window theme of the system.
+      // 同步系统的窗口主题。
       updateSystemWindowTheme();
       if (desktopType == DesktopType.main) {
         bind.mainChangeTheme(dark: to.toShortString());
@@ -465,8 +465,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   void _updateOrientation() {
     if (isDesktop) return;
 
-    // Don't use `MediaQuery.of(context).orientation` in `didChangeMetrics()`,
-    // my test (Flutter 3.19.6, Android 14) is always the reverse value.
+    // 不要在 `didChangeMetrics()` 中使用 `MediaQuery.of(context).orientation`，
+    // 我测试时（Flutter 3.19.6、Android 14）得到的值总是相反的。
     // https://github.com/flutter/flutter/issues/60899
     // stateGlobal.isPortrait.value =
     //     MediaQuery.of(context).orientation == Orientation.portrait;
@@ -484,8 +484,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     return RefreshWrapper(builder: (context) {
       return MultiProvider(
         providers: [
-          // global configuration
-          // use session related FFI when in remote control or file transfer page
+          // 全局配置
+          // 在远程控制或文件传输页面使用会话相关的 FFI
           ChangeNotifierProvider.value(value: gFFI.ffiModel),
           ChangeNotifierProvider.value(value: gFFI.imageModel),
           ChangeNotifierProvider.value(value: gFFI.cursorModel),
@@ -575,7 +575,7 @@ _registerEventHandler() {
 
 Widget keyListenerBuilder(BuildContext context, Widget? child) {
   return RawKeyboardListener(
-    // `skipTraversal: isWeb` is to fix "Bad state: RenderBox was not laid out: minified:aeL#c19e4"
+    // `skipTraversal: isWeb` 是为了修复 "Bad state: RenderBox was not laid out: minified:aeL#c19e4"
     focusNode: FocusNode(skipTraversal: isWeb),
     child: child ?? Container(),
     onKey: (RawKeyEvent event) {

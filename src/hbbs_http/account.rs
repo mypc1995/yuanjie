@@ -29,16 +29,16 @@ pub struct OidcAuthUrl {
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct DeviceInfo {
-    /// Linux , Windows , Android ...
+    /// Linux、Windows、Android……
     #[serde(default)]
     pub os: String,
 
-    /// `browser` or `client`
+    /// `browser` 或 `client`
     #[serde(default)]
     pub r#type: String,
 
-    /// device name from rustdesk client,
-    /// browser info(name + version) from browser
+    /// 来自 rustdesk 客户端的设备名，
+    /// 来自浏览器的浏览器信息（名称 + 版本）
     #[serde(default)]
     pub name: String,
 }
@@ -151,7 +151,7 @@ impl OidcSession {
         if write_guard.warmed_api_server.as_deref() == Some(api_server) {
             return;
         }
-        // This URL is used to detect the appropriate TLS implementation for the server.
+        // 这个 URL 用于探测服务器可用的 TLS 实现。
         let login_option_url = format!("{}/api/login-options", api_server);
         let _ = create_http_client_with_url(&login_option_url);
         write_guard.warmed_api_server = Some(api_server.to_owned());
@@ -325,18 +325,18 @@ impl OidcSession {
                 }
                 Ok(HbbHttpResponse::<_>::Error(err)) => {
                     if err.contains("No authed oidc is found") {
-                        // ignore, keep querying
+                        // 忽略，继续查询
                     } else {
                         Self::set_state_if_current(auth_attempt, WAITING_ACCOUNT_AUTH, err);
                         return;
                     }
                 }
                 Ok(_) => {
-                    // ignore
+                    // 忽略
                 }
                 Err(err) => {
                     log::trace!("Failed query oidc {}", err);
-                    // ignore
+                    // 忽略
                 }
             }
             Self::sleep(QUERY_INTERVAL_SECS);

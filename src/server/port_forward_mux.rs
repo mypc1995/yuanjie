@@ -17,8 +17,8 @@ use std::{
 
 const CONNECT_TIMEOUT_MS: u64 = 3000;
 
-/// Before `opened` the controller may only have used `INITIAL_WINDOW`.
-/// `charged` is the running total of `charge(len)`, not of raw lengths.
+/// 在 `opened` 之前，控制端可能只用过 `INITIAL_WINDOW`。
+/// `charged` 是 `charge(len)` 的累计值，而不是原始长度之和。
 fn pending_fits(charged: usize, add_len: usize) -> bool {
     charged.saturating_add(charge(add_len) as usize) <= INITIAL_WINDOW as usize
 }
@@ -29,14 +29,14 @@ struct Entry {
     window: Arc<Mutex<RecvWindow>>,
 }
 
-/// The controlled side of one multiplexed tunnel. The main loop owns it and
-/// forwards every `PortForwardChannel` frame here; each channel is a task.
+/// 一条多路复用隧道的被控端。主循环持有它，并
+/// 把每一个 `PortForwardChannel` 帧都转发到这里；每个通道是一个任务。
 pub struct PortForwardMux {
     channels: HashMap<i32, Entry>,
     tx: Sender,
     login_target: String,
-    /// Raised once, by `close_all`, for the channels its `clear` cannot reach:
-    /// one parked on its target socket is not on the inbound queue.
+    /// 由 `close_all` 为其 `clear` 无法触及的通道一次性触发：
+    /// 停在目标套接字上的那个并不在入站队列上。
     teardown: watch::Sender<bool>,
 }
 
@@ -50,8 +50,8 @@ impl PortForwardMux {
         }
     }
 
-    /// `tunnel_permitted` is consulted for `open` alone, so the lookup is not
-    /// made per 64 KiB of data.
+    /// `tunnel_permitted` 只在 `open` 时查询，因此这次查找并不是
+    /// 每 64 KiB 数据做一次。
     pub fn handle(&mut self, frame: PortForwardChannel, tunnel_permitted: impl FnOnce() -> bool) {
         match frame.union {
             Some(port_forward_channel::Union::Open(open)) => {
@@ -69,8 +69,8 @@ impl PortForwardMux {
                 if delivered {
                     return;
                 }
-                // Dropped here and now, so the peer cannot queue anything more
-                // for this id while the task is still on its way out.
+                // 就在这里丢弃，这样对端就无法再为
+                // 这个 id 排队任何东西，而任务还在退出途中。
                 let Some(entry) = self.channels.remove(&d.channel_id) else {
                     return;
                 };
@@ -123,8 +123,8 @@ impl PortForwardMux {
             ..Default::default()
         };
         let (addr, is_rdp) = Connection::normalize_port_forward_target(&mut pf);
-        // Approval and permission checks saw the login's target; a tunnel
-        // serves that one target and nothing else.
+        // 批准与权限检查看到的是该次登录的目标；一条隧道
+        // 只服务那一个目标，别无其他。
         if addr != self.login_target {
             log::warn!(
                 "port forward channel {} asked for {} on a tunnel logged in for {}",
@@ -169,19 +169,19 @@ impl PortForwardMux {
         self.channels.len()
     }
 
-    /// Every task ends and drops its target socket: the queue's senders go for
-    /// a task on the queue, `teardown` reaches one parked on the socket.
+    /// 每个任务结束时都会丢弃它的目标套接字：队列中的发送方针对的是
+    /// 队列上的任务，而 `teardown` 能触及停在套接字上的任务。
     pub fn close_all(&mut self) {
         self.channels.clear();
-        // Not `send`: with no channel live it stores nothing, and one opened
-        // as the tunnel closes would never see it.
+        // 不是 `send`：没有活跃通道时它什么都不存，而一个已打开的
+        // 通道在隧道关闭时是看不到它的。
         self.teardown.send_replace(true);
     }
 }
 
-/// Owns the whole channel lifecycle: connect under a `select!` in which a
-/// queued command always wins over the connect, buffer what arrives
-/// meanwhile, then relay.
+/// 负责通道的整个生命周期：在一个 `select!` 中连接，其中
+/// 排队的命令总是优先于连接，同时缓存到达的数据，
+/// 然后再转发。
 async fn run_controlled_channel(
     id: i32,
     addr: String,
@@ -198,9 +198,9 @@ async fn run_controlled_channel(
     tokio::pin!(connect);
     let socket = loop {
         tokio::select! {
-            // Biased with the command arm first: a `close` that is already
-            // queued must win over a connect that completed on the same poll,
-            // or `opened` would go out for a channel the controller has dropped.
+            // 带偏置，把命令分支放在前面：一个已经排队的 `close`
+            // 必须优先于同一次轮询中完成的连接，
+            // 否则 `opened` 就会为一个控制端已经丢弃的通道发出去。
             biased;
             cmd = inbound.recv() => match cmd {
                 Some(Inbound::Data(b)) => {
@@ -230,7 +230,7 @@ async fn run_controlled_channel(
             }
         }
     };
-    // Granted before `opened` leaves, so the peer can never be ahead of it.
+    // 在 `opened` 发出之前就已授予，因此对端绝不会跑在它前面。
     window.lock().unwrap().grant(CHANNEL_WINDOW - INITIAL_WINDOW);
     if sink
         .send_ordered(opened_msg(id, true, "", CHANNEL_WINDOW))
@@ -243,8 +243,8 @@ async fn run_controlled_channel(
     run_channel(id, reader, writer, Vec::new(), pending, credit, window, inbound, sink, teardown).await;
 }
 
-/// The same words the raw pipe puts in its login error, so one problem reads
-/// the same whichever path the peer takes.
+/// 与原始管道在其登录错误中使用的措辞相同，因此同一个问题无论
+/// 对端走哪条路径读起来都一样。
 fn unreachable_message(addr: &str, is_rdp: bool) -> String {
     format!(
         "Failed to access remote {}. Please make sure it is reachable/open.",
@@ -274,7 +274,7 @@ mod tests {
             .unwrap()
     }
 
-    /// An echo server standing in for the forward target.
+    /// 一个充当转发目标替身的回显服务器。
     async fn echo_target() -> u16 {
         let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = l.local_addr().unwrap().port();
@@ -382,8 +382,8 @@ mod tests {
             let mut mux = PortForwardMux::new(tx, format!("127.0.0.1:{}", port));
             mux.handle(open(1, port), || true);
             assert_eq!(opened(&next_frame(&mut rx).await), (1, true));
-            // `enable-tunnel` is consulted per `open`, so turning it off
-            // mid-session stops new channels; the live one keeps relaying.
+            // 每次 `open` 都会查询 `enable-tunnel`，因此在会话中途关闭它
+            // 会阻止新建通道；已有的那个继续转发。
             mux.handle(open(2, port), || false);
             assert_eq!(opened(&next_frame(&mut rx).await), (2, false));
             mux.handle(data(1, b"still relayed"), || false);
@@ -427,8 +427,8 @@ mod tests {
             opened(&next_frame(&mut rx).await);
             let too_much = vec![0u8; CHANNEL_WINDOW as usize + 1];
             mux.handle(data(1, &too_much), || true);
-            // Gone before the channel task has run: whatever the peer keeps
-            // sending for this id can no longer queue anything.
+            // 在通道任务运行之前就消失了：对端继续为
+            // 这个 id 发送的任何东西都无法再排队。
             assert_eq!(mux.live_channels(), 0);
             mux.handle(data(1, &too_much), || true);
             assert_eq!(mux.live_channels(), 0);
@@ -449,7 +449,7 @@ mod tests {
             let mut mux = PortForwardMux::new(tx, format!("127.0.0.1:{}", a));
             mux.handle(open(1, a), || true);
             assert_eq!(opened(&next_frame(&mut rx).await), (1, true));
-            // Approval was for target a; b needs a login of its own.
+            // 批准的是目标 a；b 需要自己的登录。
             mux.handle(open(2, b), || true);
             let ch = next_frame(&mut rx).await;
             match &ch.union {
@@ -463,8 +463,8 @@ mod tests {
         });
     }
 
-    /// A target that accepts and hangs up at once, so every channel ends on
-    /// the target's EOF — the case where only the next `open` frees the entry.
+    /// 一个接受连接后立刻挂断的目标，因此每个通道都结束于
+    /// 目标的 EOF——这正是只有下一次 `open` 才会释放该条目的情况。
     async fn drop_target() -> u16 {
         let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = l.local_addr().unwrap().port();
@@ -486,8 +486,8 @@ mod tests {
             for id in 1..=(MAX_CHANNELS as i32 * 2) {
                 mux.handle(open(id, port), || true);
                 assert_eq!(opened(&next_frame(&mut rx).await), (id, true));
-                // The task sends `close` on the target's EOF and exits; the
-                // entry is dead until the next `open` drops it.
+                // 任务在目标的 EOF 处发送 `close` 并退出；该
+                // 条目一直失效，直到下一次 `open` 把它丢弃。
                 let ch = next_frame(&mut rx).await;
                 match &ch.union {
                     Some(port_forward_channel::Union::Close(c)) => assert_eq!(c.channel_id, id),

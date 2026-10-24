@@ -90,7 +90,7 @@ class HomePageState extends State<HomePage> {
             selectedItemColor: MyTheme.accent, //
             unselectedItemColor: MyTheme.darkGray,
             onTap: (index) => setState(() {
-              // close chat overlay when go chat page
+              // 进入聊天页面时关闭聊天浮层
               if (_selectedIndex != index) {
                 _selectedIndex = index;
                 if (isChatPageCurrentTab) {

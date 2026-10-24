@@ -82,19 +82,19 @@ impl InstallGate {
         Ok(())
     }
 
-    // cmd's SET /P must read a line successfully before it opens the BAT. Closing
-    // the pipe without this signal fails the command instead of running the BAT.
+    // cmd 的 SET /P 必须成功读入一行之后才会打开 BAT。关闭
+    // 管道时若没有这个信号，该命令会失败而不是运行 BAT。
     pub(super) fn release(&self, process: HANDLE) -> ResultType<()> {
         let event = unsafe { Owned::new(CreateEventW(None, true, false, None)?) };
         let mut overlapped = OVERLAPPED {
             hEvent: *event,
             ..Default::default()
         };
-        // Windows 7 requires a byte-count pointer even for overlapped writes.
+        // 即使是重叠写，Windows 7 也需要一个字节数指针。
         let mut written = 0;
         if let Err(error) = unsafe {
             WriteFile(
-                *self.pipe,
+                * self.pipe,
                 Some(READY),
                 Some(&mut written),
                 Some(&mut overlapped),
@@ -105,7 +105,7 @@ impl InstallGate {
             }
             self.wait_for_io(&overlapped, process)?;
         }
-        // Keep the server handle alive until cmd exits so the signal stays buffered.
+        // 保持服务端句柄存活直到 cmd 退出，这样信号才会一直缓存在缓冲区里。
         Ok(())
     }
 
@@ -118,14 +118,14 @@ impl InstallGate {
             return Ok(());
         }
         let error = io::Error::last_os_error();
-        // Retire pending I/O before the stack-allocated OVERLAPPED and event go away.
+        // 在栈上分配的 OVERLAPPED 和事件消失之前了结挂起的 I/O。
         if let Err(error) = unsafe { CancelIoEx(*self.pipe, Some(overlapped)) } {
             if error.code() != ERROR_NOT_FOUND.to_hresult() {
                 log::warn!("Failed to cancel installer handoff I/O: {error}");
             }
         }
-        // Cancellation normally completes with ERROR_OPERATION_ABORTED; preserve
-        // the original wait failure after observing that completion.
+        // 取消通常以 ERROR_OPERATION_ABORTED 完成；在观察到该完成状态后
+        // 保留原本的等待失败信息。
         let _ = unsafe { GetOverlappedResult(*self.pipe, overlapped, &mut transferred, true) };
         if wait.0 == WAIT_OBJECT_0.0 + 1 {
             bail!("Elevated installer exited before the file handoff completed");

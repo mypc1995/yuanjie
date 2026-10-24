@@ -31,7 +31,7 @@ impl Connection {
                     b"xcb_connect\0",
                 )?;
             let disconnect =
-                *library.get::<unsafe extern "C" fn(*mut c_void)>(b"xcb_disconnect\0")?;
+                * library.get::<unsafe extern "C" fn(*mut c_void)>(b"xcb_disconnect\0")?;
             let has_error = *library.get::<unsafe extern "C" fn(*mut c_void) -> libc::c_int>(
                 b"xcb_connection_has_error\0",
             )?;
@@ -58,11 +58,11 @@ impl Drop for Connection {
 }
 
 pub(super) fn read() -> ResultType<Source> {
-    // Xwayland receives the group through focus-scoped wl_keyboard.modifiers.
-    // With a native window focused, both core and slave X11 keyboards can
-    // retain the last X11-focused group (verified on GNOME and KWin).
-    // Reopening XCB or waiting cannot request the missing compositor update.
-    // Prefer native GNOME/KDE sources; do not steal focus to refresh Xwayland.
+    // Xwayland 通过与焦点相关的 wl_keyboard.modifiers 获得组信息。
+    // 当原生窗口获得焦点时，X11 的 core 和 slave 键盘都可能
+    // 保留上一次由 X11 聚焦的组（在 GNOME 和 KWin 上已验证）。
+    // 重新打开 XCB 或等待都无法请求到缺失的合成器更新。
+    // 优先使用原生的 GNOME/KDE 输入源；不要为了刷新 Xwayland 而抢占焦点。
     let api = xkb::xkbcommon_option().ok_or_else(|| anyhow!("Cannot load libxkbcommon"))?;
     let x11 = x11::xkbcommon_x11_option().ok_or_else(|| anyhow!("Cannot load libxkbcommon-x11"))?;
     let connection = Connection::open()?;

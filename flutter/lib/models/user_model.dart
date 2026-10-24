@@ -20,8 +20,8 @@ class UserModel {
   final RxString avatar = ''.obs;
   final RxBool isAdmin = false.obs;
   final RxString networkError = ''.obs;
-  // True when networkError carries a server-reported error rather than a
-  // connectivity failure; netWorkErrorWidget hides the network tip then.
+  // 当 networkError 携带的是服务端报告的错误而非
+  // 连接失败时为 true；此时 netWorkErrorWidget 会隐藏网络提示。
   final RxBool networkErrorFromServer = false.obs;
   bool get isLogin => userName.isNotEmpty;
   String get displayNameOrUserName =>
@@ -42,10 +42,10 @@ class UserModel {
 
   UserModel(this.parent) {
     userName.listen((p0) {
-      // When user name becomes empty, show login button
-      // When user name becomes non-empty:
-      //  For _updateLocalUserInfo, network error will be set later
-      //  For login success, should clear network error
+      // 当用户名变为空时，显示登录按钮
+      // 当用户名变为非空时：
+      //  对于 _updateLocalUserInfo，网络错误会在之后才设置
+      //  对于登录成功，应当清除网络错误
       networkError.value = '';
     });
   }
@@ -89,9 +89,9 @@ class UserModel {
       final data = json.decode(decode_http_response(response));
       final error = data['error'];
       if (error != null) {
-        // The only failure known to come from the server itself, so the
-        // check-your-network tip does not apply. Flag before the message is
-        // set in the catch below so rebuilds read a consistent pair.
+        // 已知唯一来自服务端自身的失败，因此
+        // “请检查网络”提示不适用。在下面的 catch 中设置消息之前先
+        // 打上标记，这样重建时读到的是一致的一对值。
         networkErrorFromServer.value = true;
         throw error;
       }
@@ -100,10 +100,10 @@ class UserModel {
       _parseAndUpdateUser(user);
     } catch (e) {
       debugPrint('Failed to refreshCurrentUser: $e');
-      // Surface failures in the address book / group tabs, which offer a
-      // retry. Anything not flagged above -- transport errors, non-JSON or
-      // unexpected-schema bodies (e.g. a filter's block page) -- keeps the
-      // check-your-network tip.
+      // 在通讯录 / 群组标签页中呈现失败信息，那里提供
+      // 重试。未在上面标记的情况 —— 传输错误、非 JSON 或
+      // 结构异常的响应体（例如某个过滤器的拦截页面）—— 仍保留
+      // “请检查网络”提示。
       if (networkError.value.isEmpty) {
         networkError.value = e.toString();
       }
@@ -154,12 +154,12 @@ class UserModel {
     isAdmin.value = user.isAdmin;
     bind.mainSetLocalOption(key: 'user_info', value: jsonEncode(user));
     if (isWeb) {
-      // ugly here, tmp solution
+      // 这里比较丑陋，临时方案
       bind.mainSetLocalOption(key: 'verifier', value: user.verifier ?? '');
     }
   }
 
-  // update ab and group status
+  // 更新通讯录和群组状态
   static Future<void> updateOtherModels() async {
     await Future.wait([
       gFFI.abModel.pullAb(force: ForcePullAb.listAndCurrent, quiet: false),
@@ -189,7 +189,7 @@ class UserModel {
     }
   }
 
-  /// throw [RequestException]
+  /// 抛出 [RequestException]
   Future<LoginResponse> login(LoginRequest loginRequest) async {
     final url = await bind.mainGetApiServer();
     final resp = await http.post(Uri.parse('$url/api/login'),
@@ -234,9 +234,9 @@ class UserModel {
     return loginResponse;
   }
 
-  /// Throws on network failures, non-success responses, and invalid response
-  /// data. Returns an empty list when no API server is configured or a
-  /// successful response contains no third-party login options.
+  /// 在网络失败、响应非成功以及响应数据无效时抛出异常。
+  /// 未配置 API 服务端，或成功响应中不含第三方登录选项时返回空列表。
+  /// 成功响应中不含第三方登录选项时返回空列表。
   static Future<List<dynamic>> queryOidcLoginOptions() async {
     final url = await bind.mainGetApiServer();
     if (url.trim().isEmpty) return [];

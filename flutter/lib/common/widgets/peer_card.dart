@@ -43,7 +43,7 @@ class _PeerCard extends StatefulWidget {
   _PeerCardState createState() => _PeerCardState();
 }
 
-/// State for the connection page.
+/// 连接页面的状态。
 class _PeerCardState extends State<_PeerCard>
     with AutomaticKeepAliveClientMixin {
   var _menuPos = RelativeRect.fill;
@@ -289,9 +289,9 @@ class _PeerCardState extends State<_PeerCard>
       color: Colors.transparent,
       elevation: 0,
       margin: EdgeInsets.zero,
-      // to-do: memory leak here, more investigation needed.
-      // Continious rebuilds of `Obx()` will cause memory leak here.
-      // The simple demo does not have this issue.
+      // 待办：这里存在内存泄漏，需要进一步排查。
+      // `Obx()` 的持续重建会导致这里出现内存泄漏。
+      // 简单的 demo 没有这个问题。
       child: Obx(
         () => Container(
           foregroundDecoration: deco.value,
@@ -488,8 +488,8 @@ class _PeerCardState extends State<_PeerCard>
     return peer.password.isNotEmpty;
   }
 
-  /// Show the peer menu and handle user's choice.
-  /// User might remove the peer or send a file to the peer.
+  /// 显示 peer 菜单并处理用户的选择。
+  /// 用户可能会删除该 peer 或向它发送文件。
   void _showPeerMenu(String id) async {
     await mod_menu.showMenu(
       context: context,
@@ -681,7 +681,7 @@ abstract class BasePeerCard extends StatelessWidget {
     );
   }
 
-  /// Only available on Windows.
+  /// 仅在 Windows 上可用。
   @protected
   MenuEntryBase<String> _createShortCutAction(String id) {
     return MenuEntryButton<String>(
@@ -1205,7 +1205,7 @@ class AddressBookPeerCard extends BasePeerCard {
     return menuItems;
   }
 
-  // address book does not need to update
+  // 通讯录不需要更新
   @protected
   @override
   void _update() =>
@@ -1547,8 +1547,8 @@ void connectInPeerTab(BuildContext context, Peer peer, PeerTabIndex tab,
   var password = '';
   bool isSharedPassword = false;
   if (tab == PeerTabIndex.ab) {
-    // If recent peer's alias is empty, set it to ab's alias
-    // Because the platform is not set, it may not take effect, but it is more important not to display if the connection is not successful
+    // 如果最近 peer 的别名为空，将其设置为通讯录中的别名
+    // 由于平台未设置，可能不会生效，但更重要的是连接未成功时不要显示
     if (peer.alias.isNotEmpty &&
         (await bind.mainGetPeerOption(id: peer.id, key: "alias")).isEmpty) {
       await bind.mainSetPeerAlias(

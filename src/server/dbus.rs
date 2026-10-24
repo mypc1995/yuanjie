@@ -1,8 +1,8 @@
-/// Url handler based on dbus
+/// 基于 dbus 的 Url 处理器
 ///
-/// Note:
-/// On linux, we use dbus to communicate between multiple rustdesk processes.
-/// [Flutter]: handle uni links for linux
+/// 注意：
+/// 在 linux 上，我们用 dbus 在多个 rustdesk 进程之间通信。
+/// [Flutter]：在 linux 上处理 uni link
 use dbus::blocking::Connection;
 use dbus_crossroads::{Crossroads, IfaceBuilder};
 use hbb_common::log;
@@ -29,11 +29,11 @@ impl fmt::Display for DbusError {
 
 impl Error for DbusError {}
 
-/// invoke new connection from dbus
+/// 通过 dbus 调用新建连接
 ///
-/// [Tips]:
-/// How to test by CLI:
-/// - use dbus-send command:
+/// [提示]：
+/// 如何用命令行测试：
+/// - 使用 dbus-send 命令：
 /// `dbus-send --session --print-reply --dest=org.rustdesk.rustdesk /dbus org.rustdesk.rustdesk.NewConnection string:'PEER_ID'`
 pub fn invoke_new_connection(uni_links: String) -> Result<(), Box<dyn Error>> {
     log::info!("Starting dbus service for uni");
@@ -48,11 +48,11 @@ pub fn invoke_new_connection(uni_links: String) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// start dbus server
+/// 启动 dbus 服务器
 ///
-/// [Blocking]:
-/// The function will block current thread to serve dbus server.
-/// So it's suitable to spawn a new thread dedicated to dbus server.
+/// [阻塞]：
+/// 该函数会阻塞当前线程以提供 dbus 服务。
+/// 因此适合另起一个专门负责 dbus 服务器的线程。
 pub fn start_dbus_server() -> Result<(), Box<dyn Error>> {
     let conn: Connection = Connection::new_session()?;
     let _ = conn.request_name(DBUS_NAME, false, true, false)?;
@@ -64,7 +64,7 @@ pub fn start_dbus_server() -> Result<(), Box<dyn Error>> {
 }
 
 fn handle_client_message(builder: &mut IfaceBuilder<()>) {
-    // register new connection dbus
+    // 注册新的 dbus 连接
     builder.method(
         DBUS_METHOD_NEW_CONNECTION,
         (DBUS_METHOD_NEW_CONNECTION_ID,),

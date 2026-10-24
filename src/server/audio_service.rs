@@ -1,12 +1,12 @@
-// both soundio and cpal use wasapi on windows and coreaudio on mac, they do not support loopback.
-// libpulseaudio support loopback because pulseaudio is a standalone audio service with some
-// configuration, but need to install the library and start the service on OS, not a good choice.
-// windows: https://docs.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording
-// mac: https://github.com/mattingalls/Soundflower
+// soundio 和 cpal 在 windows 上都用 wasapi、在 mac 上用 coreaudio，它们都不支持回环。
+// libpulseaudio 支持回环，因为 pulseaudio 是一个带有些许
+// 配置的独立音频服务，但需要在操作系统上安装该库并启动服务，不是好选择。
+// windows：https://docs.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording
+// mac：https://github.com/mattingalls/Soundflower
 // https://docs.microsoft.com/en-us/windows/win32/api/audioclient/nn-audioclient-iaudioclient
 // https://github.com/ExistentialAudio/BlackHole
 
-// if pactl not work, please run
+// 如果 pactl 不工作，请运行
 // sudo apt-get --purge --reinstall install pulseaudio
 // https://askubuntu.com/questions/403416/how-to-listen-live-sounds-from-input-from-external-sound-card
 // https://wiki.debian.org/audio-loopback
@@ -56,7 +56,7 @@ pub fn set_voice_call_input_device(device: Option<String>, set_if_present: bool)
     if *VOICE_CALL_INPUT_DEVICE.lock().unwrap() == device {
         return;
     }
-    *VOICE_CALL_INPUT_DEVICE.lock().unwrap() = device;
+    * VOICE_CALL_INPUT_DEVICE.lock().unwrap() = device;
     restart();
 }
 
@@ -81,9 +81,9 @@ pub fn restart() {
 mod pa_impl {
     use super::*;
 
-    /// Reading the sample bytes back as `f32` needs a 4-byte aligned pointer.
-    /// Returns an aligned copy only when `data` is not already aligned; `None`
-    /// means the caller can reinterpret `data` where it is, with no copy.
+    /// 把采样字节读回为 `f32` 需要 4 字节对齐的指针。
+    /// 只有在 `data` 尚未对齐时才返回对齐后的副本；`None`
+    /// 表示调用方可以直接在原地重新解释 `data`，无需复制。
     fn align_to_32_if_needed(data: &[u8]) -> Option<hbb_common::mem::AlignedU8Vec> {
         if (data.as_ptr() as usize & 3) == 0 {
             return None;
@@ -97,10 +97,10 @@ mod pa_impl {
     pub async fn run(sp: EmptyExtraFieldService) -> ResultType<()> {
         hbb_common::sleep(0.1).await; // one moment to wait for _pa ipc
         RESTARTING.store(false, Ordering::SeqCst);
-        // The `_pa` ipc is served by the cm, which is not started at a login
-        // screen, so connecting there fails and logs an error every second.
-        // Wait here instead; audio starts once a user logs in. Poll slowly,
-        // `is_prelogin` spawns a process on every call.
+        // `_pa` 的 ipc 由 cm 提供服务，而 cm 在登录
+        // 界面时尚未启动，所以在那里连接会失败，并且每秒都记录一条错误。
+        // 改为在这里等待；用户登录后音频才会开始。慢速轮询，
+        // 因为 `is_prelogin` 每次调用都会派生一个进程。
         #[cfg(target_os = "linux")]
         while crate::platform::is_prelogin() {
             if !sp.ok() {
@@ -136,9 +136,9 @@ mod pa_impl {
 
             #[cfg(target_os = "linux")]
             {
-                // The `_pa` peer closing surfaces as `Err` here. Dropping it left the loop polling
-                // a dead socket -- one 0-byte read per poll, ready at once and never `Pending` --
-                // which burned a full core for the rest of the process lifetime.
+                // `_pa` 对端关闭在这里表现为 `Err`。把它丢弃后，循环会继续轮询
+                // 一个已死的套接字 —— 每次轮询都读 0 字节，立刻就绪且永远不会 `Pending` ——
+                // 这会在进程余下的生命周期里一直占满一个核心。
                 let data = stream.next_raw().await?;
                 if data.len() == 0 {
                     send_f32(&zero_audio_frame, &mut encoder, &sp);
@@ -152,8 +152,8 @@ mod pa_impl {
                 let data: Vec<u8> = data.into();
                 let aligned = align_to_32_if_needed(&data);
                 let bytes = aligned.as_deref().unwrap_or(&data[..]);
-                // SAFETY: `bytes` is 4-byte aligned (either checked above or freshly
-                // allocated with align 4), and only whole f32s are read from it.
+                // 安全：`bytes` 是 4 字节对齐的（要么上面已检查过，要么是刚
+                // 以 align 4 新分配的），并且只从中读取完整的 f32。
                 let data = unsafe {
                     std::slice::from_raw_parts::<f32>(bytes.as_ptr() as _, bytes.len() / 4)
                 };
@@ -162,13 +162,13 @@ mod pa_impl {
 
             #[cfg(target_os = "android")]
             if scrap::android::ffi::get_audio_raw(&mut android_data, &mut vec![]).is_some() {
-                // Keep `android_data` as the reusable receive buffer: overwriting it with
-                // an exact-capacity aligned buffer only made the next `get_audio_raw`
-                // reallocate it, which dropped the alignment again.
+                // 保持 `android_data` 作为可复用的接收缓冲区：把它覆盖成
+                // 容量刚好且对齐的缓冲区，只会让下一次 `get_audio_raw`
+                // 重新分配它，从而又破坏了对齐。
                 let aligned = align_to_32_if_needed(&android_data);
                 let bytes = aligned.as_deref().unwrap_or(&android_data[..]);
-                // SAFETY: `bytes` is 4-byte aligned (either checked above or freshly
-                // allocated with align 4), and only whole f32s are read from it.
+                // 安全：`bytes` 是 4 字节对齐的（要么上面已检查过，要么是刚
+                // 以 align 4 新分配的），并且只从中读取完整的 f32。
                 let data = unsafe {
                     std::slice::from_raw_parts::<f32>(bytes.as_ptr() as _, bytes.len() / 4)
                 };
@@ -278,7 +278,7 @@ mod cpal_impl {
     pub fn run(sp: EmptyExtraFieldService, state: &mut State) -> ResultType<()> {
         if let Some(stream) = &state.stream {
             if stream.errors.needs_restart() {
-                // Recreate on the service thread, outside the capture callbacks.
+                // 在服务线程上重建，位于采集回调之外。
                 log::warn!("Recreating audio capture stream after an error");
                 super::restart();
             }
@@ -402,13 +402,13 @@ mod cpal_impl {
         if !audio_input.is_empty() {
             return get_audio_input(&audio_input);
         }
-        // The pinned CPAL uses event-driven WASAPI loopback here. Windows versions
-        // before Windows 10 1703 do not signal capture events, so system audio does
-        // not work on Win7. #16095 kept the same CPAL revision and loopback path;
-        // this limitation predates that PR.
-        // Ordinary microphone input is supported on Win7 and uses the branch above.
-        // #16095 added its callback-to-encoder wake dependency; see CapturePcmSender::wake
-        // for the new scheduling risk, whose audible impact on Win7 is unmeasured.
+        // 这里锁定版本的 CPAL 使用事件驱动的 WASAPI 回环。Windows 10 1703 之前的版本
+        // 不会触发采集事件，因此在 Win7 上系统音频
+        // 无法工作。#16095 保持了相同的 CPAL 版本和回环路径；
+        // 这个限制早于该 PR。
+        // 普通麦克风输入在 Win7 上受支持，使用上面那个分支。
+        // #16095 引入了它从回调唤醒编码器的依赖；关于新的调度风险，参见 CapturePcmSender::wake
+        // ，其在 Win7 上对听感的影响尚未测量。
         // https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording
         // https://learn.microsoft.com/en-us/windows/win32/coreaudio/capturesharedeventdriven
         let device = HOST
@@ -475,7 +475,7 @@ mod cpal_impl {
         use cpal::SampleFormat::*;
         let (device, config) = get_device()?;
         let sp = sp.clone();
-        // Sample rate must be one of 8000, 12000, 16000, 24000, or 48000.
+        // 采样率必须是 8000、12000、16000、24000 或 48000 之一。
         let sample_rate_0 = config.sample_rate().0;
         let sample_rate = if sample_rate_0 < 12000 {
             8000
@@ -546,7 +546,7 @@ mod cpal_impl {
         T: cpal::SizedSample,
         f32: cpal::FromSample<T>,
     {
-        // Starting capture does not guarantee sample delivery or audible data.
+        // 开始采集并不保证样本能被送出或能听到声音。
         if !received_samples && !data.is_empty() {
             log::info!(
                 "Audio capture received first PCM block: {} samples",
@@ -624,9 +624,9 @@ fn create_format_msg(sample_rate: u32, channels: u16) -> Message {
     msg
 }
 
-// Use a per-encoder counter for the Noise(Zero) Gate Attack Time.
-// every audio data length is set to 480
-// MAX_AUDIO_ZERO_COUNT=800 is similar as Gate Attack Time 3~5s(Linux) || 6~8s(Windows)
+// 使用按编码器独立的计数器来统计噪声（静音）门限启动时间。
+// 每段音频数据长度设为 480
+// MAX_AUDIO_ZERO_COUNT=800 相当于门限启动时间 3~5 秒(Linux) || 6~8 秒(Windows)
 const MAX_AUDIO_ZERO_COUNT: u16 = 800;
 
 struct AudioEncoder {
@@ -664,9 +664,9 @@ fn send_f32(data: &[f32], encoder: &mut AudioEncoder, sp: &GenericService) {
     }
     #[cfg(target_os = "android")]
     {
-        // the permitted opus data size are 120, 240, 480, 960, 1920, and 2880
-        // if data size is bigger than BATCH_SIZE, AND is an integer multiple of BATCH_SIZE
-        // then upload in batches
+        // 允许的 opus 数据大小为 120、240、480、960、1920 和 2880
+        // 如果数据大小大于 BATCH_SIZE，且是 BATCH_SIZE 的整数倍
+        // 则分批上传
         const BATCH_SIZE: usize = 960;
         let input_size = data.len();
         if input_size > BATCH_SIZE && input_size % BATCH_SIZE == 0 {

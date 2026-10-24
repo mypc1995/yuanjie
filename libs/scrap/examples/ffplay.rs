@@ -35,7 +35,7 @@ fn main() {
     loop {
         match capturer.frame(Duration::from_millis(0)) {
             Ok(frame) => {
-                // Write the frame, removing end-of-row padding.
+                // 写出该帧，并去掉行尾填充。
                 let Frame::PixelBuffer(frame) = frame else {
                     return;
                 };
@@ -47,10 +47,10 @@ fn main() {
                 }
             }
             Err(ref e) if e.kind() == WouldBlock => {
-                // Wait for the frame.
+                // 等待该帧。
             }
             Err(_) => {
-                // We're done here.
+                // 这里就结束了。
                 break;
             }
         }

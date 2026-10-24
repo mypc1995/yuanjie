@@ -26,7 +26,7 @@ import 'package:flutter_hbb/native/custom_cursor.dart'
 
 final SimpleWrapper<bool> _firstEnterImage = SimpleWrapper(false);
 
-// Used to skip session close if "move to new window" is clicked.
+// 当点击"在新窗口中打开"时，用于跳过会话关闭。
 final Map<String, bool> closeSessionOnDispose = {};
 
 class ViewCameraPage extends StatefulWidget {
@@ -82,8 +82,8 @@ class _ViewCameraPageState extends State<ViewCameraPage>
 
   final FocusNode _rawKeyFocusNode = FocusNode(debugLabel: "rawkeyFocusNode");
 
-  // We need `_instanceIdOnEnterOrLeaveImage4Toolbar` together with `_onEnterOrLeaveImage4Toolbar`
-  // to identify the toolbar instance and its callback function.
+  // 我们需要 `_instanceIdOnEnterOrLeaveImage4Toolbar` 配合 `_onEnterOrLeaveImage4Toolbar`
+  // 来标识工具栏实例及其回调函数。
   int? _instanceIdOnEnterOrLeaveImage4Toolbar;
   Function(bool)? _onEnterOrLeaveImage4Toolbar;
 
@@ -143,7 +143,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
     // }
 
     _blockableOverlayState.applyFfi(_ffi);
-    // Call onSelected in post frame callback, since we cannot guarantee that the callback will not call setState.
+    // 在 post frame 回调中调用 onSelected，因为无法保证该回调不会调用 setState。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.tabController?.onSelected?.call(widget.id);
     });
@@ -152,13 +152,13 @@ class _ViewCameraPageState extends State<ViewCameraPage>
   @override
   void onWindowBlur() {
     super.onWindowBlur();
-    // On windows, we use `focus` way to handle keyboard better.
-    // Now on Linux, there's some rdev issues which will break the input.
-    // We disable the `focus` way for non-Windows temporarily.
+    // 在 Windows 上，我们使用 `focus` 方式更好地处理键盘。
+    // 现在在 Linux 上，rdev 存在一些会破坏输入的问题。
+    // 我们暂时为非 Windows 平台禁用 `focus` 方式。
     if (isWindows) {
       _isWindowBlur = true;
-      // unfocus the primary-focus when the whole window is lost focus,
-      // and let OS to handle events instead.
+      // 整个窗口失去焦点时取消主焦点的聚焦，
+      // 改为让操作系统处理事件。
       _rawKeyFocusNode.unfocus();
     }
     stateGlobal.isFocused.value = false;
@@ -167,7 +167,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
   @override
   void onWindowFocus() {
     super.onWindowFocus();
-    // See [onWindowBlur].
+    // 参见 [onWindowBlur]。
     if (isWindows) {
       _isWindowBlur = false;
     }
@@ -177,15 +177,15 @@ class _ViewCameraPageState extends State<ViewCameraPage>
   @override
   void onWindowRestore() {
     super.onWindowRestore();
-    // On windows, we use `onWindowRestore` way to handle window restore from
-    // a minimized state.
+    // 在 Windows 上，我们使用 `onWindowRestore` 方式处理窗口从
+    // 最小化状态恢复。
     if (isWindows) {
       _isWindowBlur = false;
     }
     WakelockManager.enable(_uniqueKey);
   }
 
-  // When the window is unminimized, onWindowMaximize or onWindowRestore can be called when the old state was maximized or not.
+  // 窗口取消最小化时，无论旧状态是否为最大化，都可能调用 onWindowMaximize 或 onWindowRestore。
   @override
   void onWindowMaximize() {
     super.onWindowMaximize();
@@ -223,7 +223,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
     debugPrint("VIEW CAMERA PAGE dispose session $sessionId ${widget.id}");
     _ffi.textureModel.onViewCameraPageDispose(closeSession);
     if (closeSession) {
-      // ensure we leave this session, this is a double check
+      // 确保我们离开这个会话，这是一次复查
       _ffi.inputModel.enterOrLeave(false);
     }
     DesktopMultiWindow.removeListener(this);
@@ -244,8 +244,8 @@ class _ViewCameraPageState extends State<ViewCameraPage>
   }
 
   Widget emptyOverlay() => BlockableOverlay(
-        /// the Overlay key will be set with _blockableOverlayState in BlockableOverlay
-        /// see override build() in [BlockableOverlay]
+        /// Overlay 键会在 BlockableOverlay 中通过 _blockableOverlayState 设置
+        /// 参见 [BlockableOverlay] 中重写的 build()
         state: _blockableOverlayState,
         underlying: Container(
           color: Colors.transparent,
@@ -262,8 +262,8 @@ class _ViewCameraPageState extends State<ViewCameraPage>
             _onEnterOrLeaveImage4Toolbar = func;
           },
           onEnterOrLeaveImageCleaner: (id) {
-            // If _instanceIdOnEnterOrLeaveImage4Toolbar != id
-            // it means `_onEnterOrLeaveImage4Toolbar` is not set or it has been changed to another toolbar.
+            // 如果 _instanceIdOnEnterOrLeaveImage4Toolbar != id
+            // 说明 `_onEnterOrLeaveImage4Toolbar` 未设置，或已被改为另一个工具栏。
             if (_instanceIdOnEnterOrLeaveImage4Toolbar == id) {
               _instanceIdOnEnterOrLeaveImage4Toolbar = null;
               _onEnterOrLeaveImage4Toolbar = null;
@@ -301,7 +301,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                             ));
                       }
                     }(),
-              // Use Overlay to enable rebuild every time on menu button click.
+              // 使用 Overlay 使每次点击菜单按钮都能重新构建。
               _ffi.ffiModel.pi.isSet.isTrue
                   ? Overlay(
                       initialEntries: [OverlayEntry(builder: remoteToolbar)])
@@ -319,25 +319,25 @@ class _ViewCameraPageState extends State<ViewCameraPage>
         final imageReady = _ffi.ffiModel.pi.isSet.isTrue &&
             _ffi.ffiModel.waitForFirstImage.isFalse;
         if (imageReady) {
-          // If the privacy mode(disable physical displays) is switched,
-          // we should not dismiss the dialog immediately.
+          // 如果切换了隐私模式（禁用物理显示器），
+          // 则不应立即关闭对话框。
           if (DateTime.now().difference(togglePrivacyModeTime) >
               const Duration(milliseconds: 3000)) {
-            // `dismissAll()` is to ensure that the state is clean.
-            // It's ok to call dismissAll() here.
+            // 调用 `dismissAll()` 是为了确保状态干净。
+            // 在这里调用 dismissAll() 没问题。
             _ffi.dialogManager.dismissAll();
-            // Recreate the block state to refresh the state.
+            // 重新创建阻塞状态以刷新状态。
             _blockableOverlayState = BlockableOverlayState();
             _blockableOverlayState.applyFfi(_ffi);
           }
-          // Block the whole `bodyWidget()` when dialog shows.
+          // 对话框显示时阻塞整个 `bodyWidget()`。
           return BlockableOverlay(
             underlying: bodyWidget(),
             state: _blockableOverlayState,
           );
         } else {
-          // `_blockableOverlayState` is not recreated here.
-          // The toolbar's block state won't work properly when reconnecting, but that's okay.
+          // 这里不会重新创建 `_blockableOverlayState`。
+          // 重连时工具栏的阻塞状态无法正常工作，但也没关系。
           return bodyWidget();
         }
       }),
@@ -371,7 +371,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
         //
       }
     }
-    // See [onWindowBlur].
+    // 参见 [onWindowBlur]。
     if (!isWindows) {
       if (!_rawKeyFocusNode.hasFocus) {
         _rawKeyFocusNode.requestFocus();
@@ -394,7 +394,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
         //
       }
     }
-    // See [onWindowBlur].
+    // 参见 [onWindowBlur]。
     if (!isWindows) {
       _ffi.inputModel.enterOrLeave(false);
     }
@@ -421,11 +421,11 @@ class _ViewCameraPageState extends State<ViewCameraPage>
       onEnter: onEnter,
       onExit: onExit,
       onPointerDown: (event) {
-        // A double check for blur status.
-        // Note: If there's an `onPointerDown` event is triggered, `_isWindowBlur` is expected being false.
-        // Sometimes the system does not send the necessary focus event to flutter. We should manually
-        // handle this inconsistent status by setting `_isWindowBlur` to false. So we can
-        // ensure the grab-key thread is running when our users are clicking the remote canvas.
+        // 对失焦状态的再次确认。
+        // 注意：如果触发了 `onPointerDown` 事件，预期 `_isWindowBlur` 为 false。
+        // 有时系统不会把必要的焦点事件发送给 flutter。我们应该手动
+        // 通过把 `_isWindowBlur` 设为 false 来处理这种不一致状态。这样我们就能
+        // 确保用户点击远端画布时抓键线程正在运行。
         if (_isWindowBlur) {
           debugPrint(
               "Unexpected status: onPointerDown is triggered while the remote window is in blur status");
@@ -590,7 +590,7 @@ class _ImagePaintState extends State<ImagePaint> {
       final textureId = widget.ffi.textureModel
           .getTextureId(curDisplay == kAllDisplayValue ? i : curDisplay);
       if (true) {
-        // both "textureId.value != -1" and "true" seems ok
+        // "textureId.value != -1" 和 "true" 似乎都可以
         children.add(Positioned(
           left: (displays[i].x - rect.left) * s + offset.dx,
           top: (displays[i].y - rect.top) * s + offset.dy,

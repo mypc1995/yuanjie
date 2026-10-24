@@ -142,9 +142,9 @@ String _toolbarRawFraction({
   return '0.5';
 }
 
-// Returns the alignment for the wrapper Align that positions the entire
-// toolbar against the given edge at the given fraction along that edge.
-// Alignment uses [-1, 1] coordinates (0 = center).
+// 返回用于包裹的 Align 的对齐方式，使整个
+// 工具栏按给定的比例贴靠在给定的边缘上。
+// Alignment 使用 [-1, 1] 坐标（0 = 居中）。
 Alignment _alignmentForEdge(_ToolbarEdge edge, double fraction) {
   final f = fraction * 2 - 1;
   switch (edge) {
@@ -159,8 +159,8 @@ Alignment _alignmentForEdge(_ToolbarEdge edge, double fraction) {
   }
 }
 
-// The drag handle hangs off the side of the toolbar facing away from the
-// docked edge, so the icons themselves sit flush against that edge.
+// 拖拽手柄悬挂在工具栏背离
+// 停靠边缘的一侧，因此图标本身紧贴该边缘。
 BorderRadius _collapseHandleBorderRadius(_ToolbarEdge edge) {
   const r = Radius.circular(5);
   switch (edge) {
@@ -246,7 +246,7 @@ class ToolbarState {
   RxBool collapse = false.obs;
   RxBool hide = false.obs;
 
-  // Track initialization state to prevent flickering
+  // 跟踪初始化状态以防止闪烁
   final RxBool initialized = false.obs;
   bool _isInitializing = false;
 
@@ -269,14 +269,14 @@ class ToolbarState {
 
   bool get pin => _pin.value;
 
-  /// Initialize all toolbar states from session options.
-  /// This should be called once when the toolbar is first created.
+  /// 从会话选项初始化所有工具栏状态。
+  /// 这应在工具栏首次创建时调用一次。
   Future<void> init(SessionID sessionId) async {
     if (initialized.value || _isInitializing) return;
     _isInitializing = true;
 
     try {
-      // Load both states in parallel for better performance
+      // 并行加载两种状态以提升性能
       final results = await Future.wait([
         bind.sessionGetToggleOption(
             sessionId: sessionId, arg: kOptionCollapseToolbar),
@@ -298,7 +298,7 @@ class ToolbarState {
     collapse.value = !collapse.value;
   }
 
-  // Switch hide state for entire toolbar visibility
+  // 切换隐藏状态以控制整个工具栏的可见性
   switchHide(SessionID sessionId) async {
     bind.sessionToggleOption(sessionId: sessionId, value: kOptionHideToolbar);
     hide.value = !hide.value;
@@ -306,14 +306,14 @@ class ToolbarState {
 
   switchPin() async {
     _pin.value = !_pin.value;
-    // Save everytime changed, as this func will not be called frequently
+    // 每次变化都保存，因为此函数不会被频繁调用
     await _savePin();
   }
 
   setPin(bool v) async {
     if (_pin.value != v) {
       _pin.value = v;
-      // Save everytime changed, as this func will not be called frequently
+      // 每次变化都保存，因为此函数不会被频繁调用
       await _savePin();
     }
   }
@@ -465,18 +465,18 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
   final _fraction = 0.5.obs;
   final _edge = _ToolbarEdge.top.obs;
   final _dragging = false.obs;
-  // Live drag preview: where the toolbar would dock if the user dropped now.
+  // 实时拖拽预览：如果用户现在松手，工具栏会停靠在哪里。
   final _previewEdge = Rxn<_ToolbarEdge>();
   final _previewFraction = Rxn<double>();
-  // Measured size of the live toolbar, so the preview ghost matches reality
-  // (collapsed handle vs expanded toolbar). Updated after every layout pass.
+  // 实时工具栏的测量尺寸，使预览虚影与实际情况一致
+  // （折叠手柄与展开工具栏）。每次布局后更新。
   final _toolbarSize = Rxn<Size>();
   final _toolbarKey = GlobalKey(debugLabel: 'remote_toolbar_root');
-  // When false (default), the toolbar stays on the top edge and the drag
-  // handle just slides it horizontally — preserving long-standing UX while
-  // still fixing the bug where dragging only moved the handle. When true,
-  // the user has opted into multi-edge docking with nearest-edge snap.
-  // Kept in sync after settings-triggered rebuilds.
+  // 为 false（默认）时，工具栏停留在顶部边缘，拖拽
+  // 手柄只是让它水平滑动——保持长期以来的使用体验，同时
+  // 也修复了拖拽只移动手柄的 bug。为 true 时，
+  // 用户选择了启用多边缘停靠，并吸附到最近的边缘。
+  // 在设置引发的重建后保持同步。
   final _multiEdgeEnabled = false.obs;
   final _dockingOptionsInitialized = false.obs;
   bool _pendingDockingOptionSync = false;
@@ -487,7 +487,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
 
   void _setFullscreen(bool v) {
     stateGlobal.setFullscreen(v);
-    // stateGlobal.fullscreen is RxBool now, no need to call setState.
+    // stateGlobal.fullscreen 现在是 RxBool，无需调用 setState。
     // setState(() {});
   }
 
@@ -511,9 +511,9 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     }
     final dragEpoch = _dragEpoch;
 
-    // Use the canonical helper so the option's documented default semantics
-    // apply (allow-* prefix => default false). Keeping it raw-string would
-    // diverge from how _OptionCheckBox displays the same key.
+    // 使用规范的辅助方法，以便选项文档中说明的默认语义
+    // 得以生效（allow-* 前缀 => 默认为 false）。若保持为原始字符串就会
+    // 与 _OptionCheckBox 显示同一个 key 的方式不一致。
     final multiEdgeEnabled =
         mainGetLocalBoolOptionSync(kOptionAllowMultiEdgeToolbarDock);
     final cached = _cachedToolbarDockingOptions(widget.ffi.sessionId);
@@ -532,7 +532,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
 
     final savedFraction = await bind.sessionGetOption(
         sessionId: widget.ffi.sessionId, arg: kOptionRemoteMenubarFraction);
-    // Backward compat: legacy horizontal-only position.
+    // 向后兼容：旧版仅水平定位。
     final legacyFraction = await bind.sessionGetOption(
         sessionId: widget.ffi.sessionId, arg: _legacyRemoteMenubarDragX);
     if (!mounted || syncSerial != _dockingOptionSyncSerial) return;
@@ -548,9 +548,9 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       if (!mounted || syncSerial != _dockingOptionSyncSerial) return;
       nextEdge = _parseToolbarEdge(edgeStr);
     } else {
-      // The setting changed from top-only to multi-edge while this toolbar is
-      // already visible. Keep its current position instead of jumping to the
-      // last saved multi-edge dock.
+      // 该设置从仅顶部改为多边缘时，这个工具栏已经
+      // 可见。保持它当前的位置，而不是跳到
+      // 上次保存的多边缘停靠位置。
       nextEdge = cached.edge;
       savedFractionForNextEdge = cached.fraction.toString();
       keepCurrentPosition = true;
@@ -562,8 +562,8 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       savedFraction: savedFractionForNextEdge,
       legacyFraction: legacyFraction,
     );
-    // Clamp to the saved drag-bound contract so a corrupted or out-of-range
-    // saved value can't bypass it until the user drags again.
+    // 按已保存的拖拽边界约定做钳制，使损坏或超出范围的
+    // 保存值无法绕过它，直到用户再次拖拽。
     final dragLeft = double.tryParse(
             bind.mainGetLocalOption(key: kOptionRemoteMenubarDragLeft)) ??
         0.0;
@@ -641,7 +641,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _syncDockingOptions(force: cached == null || shouldResetToTop);
-      // Initialize toolbar states (collapse, hide) from session options
+      // 从会话选项初始化工具栏状态（折叠、隐藏）
       widget.state.init(widget.ffi.sessionId);
     });
 
@@ -685,20 +685,20 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      // Wait for initialization to complete to prevent flickering
+      // 等待初始化完成以防止闪烁
       if (!widget.state.initialized.value ||
           !_dockingOptionsInitialized.value) {
         return const SizedBox.shrink();
       }
-      // If toolbar is hidden, return empty widget
+      // 如果工具栏已隐藏，返回空组件
       if (hide.value) {
         return const SizedBox.shrink();
       }
       final edge = _edge.value;
       final isHorizontal = _isHorizontalEdge(edge);
 
-      // Measure the live toolbar after every layout so the preview ghost can
-      // match its actual footprint (collapsed handle vs expanded toolbar).
+      // 每次布局后测量实时工具栏，使预览虚影能够
+      // 与其实际占位一致（折叠手柄与展开工具栏）。
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_dragging.isTrue) return;
         final ro = _toolbarKey.currentContext?.findRenderObject();
@@ -718,9 +718,9 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
         ),
       );
 
-      // Always return the Stack — even when not dragging — so the toolbar's
-      // position in the Element tree stays stable. Wrapping/unwrapping it
-      // mid-drag was killing the Draggable's gesture state.
+      // 始终返回 Stack——即使没有在拖拽——使工具栏的
+      // 在 Element 树中的位置保持稳定。拖拽过程中对其
+      // 进行包裹/解包会破坏 Draggable 的手势状态。
       return Stack(
         fit: StackFit.expand,
         children: [
@@ -743,10 +743,10 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
   Widget _buildDragPreview(BuildContext context, _ToolbarEdge edge,
       double fraction, Size? measured) {
     final color = Theme.of(context).colorScheme.primary;
-    // Use the measured live toolbar size so collapsed vs expanded looks
-    // right. The current orientation may differ from the preview orientation
-    // (e.g. dragging a top-docked toolbar toward the left edge), so swap the
-    // long/short axes when previewing a different orientation.
+    // 使用测量得到的实时工具栏尺寸，使折叠与展开的效果
+    // 正确。当前方向可能与预览方向不同
+    // （例如把停靠在顶部的工具栏拖向左边缘），因此在预览其他方向时
+    // 需要交换长轴/短轴。
     final previewSize = _toolbarSizeForEdge(edge, measured);
     return Align(
       alignment: _alignmentForEdge(edge, fraction),
@@ -842,7 +842,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       state: widget.state,
       setFullscreen: _setFullscreen,
     ));
-    // Do not show keyboard for camera connection type.
+    // 摄像头连接类型不显示键盘。
     if (widget.ffi.connType == ConnType.defaultConn) {
       toolbarItems.add(_KeyboardMenu(id: widget.id, ffi: widget.ffi));
     }
@@ -853,9 +853,9 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     if (!isWeb) toolbarItems.add(_RecordMenu());
     toolbarItems.add(_CloseMenu(id: widget.id, ffi: widget.ffi));
     final toolbarBorderRadius = BorderRadius.all(Radius.circular(4.0));
-    // innerAxis: how the toolbar icons themselves flow.
-    // outerAxis: how the toolbar block and the handle stack against each other
-    // (perpendicular to the dock edge, so the handle hangs off the interior face).
+    // innerAxis：工具栏图标自身的排列方向。
+    // outerAxis：工具栏整体与手柄相互堆叠的方式
+    // （与停靠边缘垂直，因此手柄悬挂在内侧面上）。
     final innerAxis = isHorizontal ? Axis.horizontal : Axis.vertical;
     final outerAxis = isHorizontal ? Axis.vertical : Axis.horizontal;
     final spacer = isHorizontal
@@ -890,9 +890,9 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       ),
     );
     final handle = _buildDraggableCollapse(context, edge, isHorizontal);
-    // The handle hangs off the interior face of the toolbar (away from the
-    // docked edge), centered along that face by the Flex's default cross-axis
-    // alignment, so the icons themselves sit flush against the docked edge.
+    // 手柄悬挂在工具栏的内侧面上（背离
+    // 停靠边缘的一侧），并由 Flex 默认的交叉轴对齐
+    // 沿该面居中，因此图标本身紧贴停靠边缘。
     final children = (edge == _ToolbarEdge.top || edge == _ToolbarEdge.left)
         ? [toolbarMaterial, handle]
         : [handle, toolbarMaterial];
@@ -1281,7 +1281,7 @@ class _MonitorMenu extends StatelessWidget {
 
   onPressed(int i, PeerInfo pi, bool isMulti) {
     if (!isMulti) {
-      // If show monitors in toolbar(`buildMultiMonitorMenu()`), then the menu will dismiss automatically.
+      // 如果在工具栏中显示显示器（`buildMultiMonitorMenu()`），菜单会自动关闭。
       _menuDismissCallback(ffi);
     }
     RxInt display = CurrentDisplayState.find(id);
@@ -1381,7 +1381,7 @@ class ScreenAdjustor {
     try {
       return await WindowController.fromWindowId(windowId).isMaximized();
     } catch (_) {
-      // The delayed resolution callback may run after the window is disposed.
+      // 延迟的分辨率回调可能在窗口销毁后才执行。
       return null;
     }
   }
@@ -1404,9 +1404,9 @@ class ScreenAdjustor {
         });
   }
 
-  // Linux screen and work-area coordinates can use different units or become
-  // unreliable across Wayland/X11 state changes, so normalize reported frames
-  // and cache usable work-area measurements before sizing the window.
+  // Linux 的屏幕坐标和工作区坐标可能使用不同的单位，或者在
+  // Wayland/X11 状态变化时变得不可靠，因此要对报告的边框
+  // 进行归一化，并在调整窗口尺寸前缓存可用的工作区测量值。
 
   Future<void> _updateLinuxWorkAreaCache({
     required window_size.Screen screen,
@@ -1499,8 +1499,8 @@ class ScreenAdjustor {
       {bool forMenu = false}) async {
     final screen = _screen;
     if (screen != null) {
-      // Windows window frames use physical pixels while Flutter view sizes are
-      // logical. macOS and Linux window frames use the same units as Flutter.
+      // Windows 的窗口边框使用物理像素，而 Flutter 的视图尺寸是
+      // 逻辑像素。macOS 和 Linux 的窗口边框与 Flutter 使用相同单位。
       double scale = isWindows ? screen.scaleFactor : 1.0;
       final Rect wndRect;
       try {
@@ -1509,15 +1509,15 @@ class ScreenAdjustor {
         debugPrint("Failed to get frame of window $windowId, it may be hidden");
         return null;
       }
-      // On Windows, wndRect is GetWindowRect while mediaSize is GetClientRect.
+      // 在 Windows 上，wndRect 是 GetWindowRect，而 mediaSize 是 GetClientRect。
       // https://stackoverflow.com/a/7561083
       double magicWidth =
           wndRect.right - wndRect.left - mediaSize.width * scale;
       double magicHeight =
           wndRect.bottom - wndRect.top - mediaSize.height * scale;
       final canvasModel = ffi.canvasModel;
-      // canvasModel.scale is the rendered scale and already applies kIgnoreDpi.
-      // Use it instead of the remote source resolution.
+      // canvasModel.scale 是渲染缩放，已经应用了 kIgnoreDpi。
+      // 用它代替远端源分辨率。
       final isWayland = isLinux && bind.mainCurrentIsWayland();
       final isX11 = isLinux && !isWayland;
       await _updateLinuxWorkAreaCache(
@@ -1528,19 +1528,19 @@ class ScreenAdjustor {
         forMenu: forMenu,
       );
       if (isWindows && forMenu && isFullscreen) {
-        // desktop_multi_window's hidden title bar keeps 8 physical pixels on
-        // each horizontal edge and at the bottom, plus up to 1px at the top.
-        // Fullscreen removes these in WM_NCCALCSIZE, so predict the restored
-        // frame's worst-case padding when deciding whether to show the menu.
+        // desktop_multi_window 的隐藏标题栏会在每条水平边缘和底部
+        // 各保留 8 个物理像素，顶部最多保留 1px。
+        // 全屏时会在 WM_NCCALCSIZE 中移除这些，因此在决定是否显示菜单时，
+        // 要预估还原后边框的最大内边距。
         magicWidth = 16.0;
         magicHeight = 9.0;
       }
       double horizontalEdges;
       double verticalEdges;
       if (forMenu && (isLinux || ((isMacOS || isWindows) && isFullscreen))) {
-        // Linux Adjust Window unmaximizes; macOS and Windows exit fullscreen
-        // before resizing. Predict the restored normal-window edges when
-        // deciding whether to show the menu item.
+        // Linux 的 Adjust Window 会取消最大化；macOS 和 Windows 会退出全屏
+        // 后再调整尺寸。在决定是否显示菜单项时，
+        // 要预估还原后的普通窗口边缘。
         final resizePadding = isLinux && !kUseCompatibleUiMode
             ? kDragToResizeAreaPaddingSize
             : 0.0;
@@ -1583,18 +1583,18 @@ class ScreenAdjustor {
               : availableSize.height,
         );
       }
-      // A window frame cannot be smaller than its client area. Tolerate small
-      // floating-point differences; larger negative values mean the native
-      // frame and Flutter view metrics are not synchronized.
+      // 窗口边框不可能小于其客户区。要容忍小的
+      // 浮点误差；出现较大的负值说明原生
+      // 边框与 Flutter 视图度量没有同步。
       if (magicWidth < -0.1 || magicHeight < -0.1) {
         return null;
       }
-      // Reject implausibly small targets to avoid hiding the window.
+      // 拒绝小得不合理的目标尺寸，以免窗口被隐藏。
       if (width < 300 || height < 300) {
         return null;
       }
-      // The remote size may change after the menu is built. Reject targets
-      // that exceed the available area.
+      // 远端尺寸可能在菜单构建后发生变化。拒绝
+      // 超出可用区域的目标尺寸。
       final exceedsScreen =
           width > availableSize.width || height > availableSize.height;
       if (exceedsScreen) {
@@ -1618,9 +1618,9 @@ class ScreenAdjustor {
   }
 
   doAdjustWindow([BuildContext? context]) async {
-    // A resolution change is adjusted after a delay, when the menu context may
-    // already be disposed. Each desktop_multi_window window has its own engine,
-    // so that engine's first view is the current window.
+    // 分辨率变化会在延迟后调整，此时菜单上下文可能
+    // 已经被销毁。每个 desktop_multi_window 窗口都有自己的引擎，
+    // 因此该引擎的第一个视图就是当前窗口。
     final views = WidgetsBinding.instance.platformDispatcher.views;
     if (context == null && views.isEmpty) {
       return;
@@ -1632,7 +1632,7 @@ class ScreenAdjustor {
       final wasFullscreen = isFullscreen;
       cbExitFullscreen();
       if (wasFullscreen) {
-        // Wait for the native fullscreen exit to update the window frame.
+        // 等待原生全屏退出后再更新窗口边框。
         await Future.delayed(Duration(milliseconds: 700));
         await updateScreen();
       }
@@ -1642,15 +1642,15 @@ class ScreenAdjustor {
           return;
         }
         if (isMaximized == true) {
-          // setFrame may be ignored while the native window is maximized.
+          // 原生窗口最大化时 setFrame 可能被忽略。
           try {
             await wc.unmaximize();
           } catch (_) {
             return;
           }
           stateGlobal.setMaximized(false);
-          // Wait for the window manager and Flutter view metrics to reflect
-          // the restored window before calculating and setting its frame.
+          // 等待窗口管理器和 Flutter 视图度量反映
+          // 还原后的窗口，再计算并设置其边框。
           await Future.delayed(Duration(milliseconds: 300));
           await updateScreen();
         }
@@ -1686,7 +1686,7 @@ class ScreenAdjustor {
     if (isWeb) {
       return false;
     }
-    // Capture the view before awaiting because the menu context may be disposed.
+    // 在 await 之前先获取视图，因为菜单上下文可能已被销毁。
     final views = WidgetsBinding.instance.platformDispatcher.views;
     if (context == null && views.isEmpty) {
       return false;
@@ -1743,7 +1743,7 @@ class _DisplayMenuState extends State<_DisplayMenu> {
   @override
   void initState() {
     super.initState();
-    // Initialize custom percent from stored option once
+    // 从已保存的选项一次性初始化自定义百分比
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final v = await getSessionCustomScalePercent(widget.ffi.sessionId);
@@ -1780,7 +1780,7 @@ class _DisplayMenuState extends State<_DisplayMenu> {
         Divider(),
         toggles(),
       ];
-      // privacy mode
+      // 隐私模式
       final privacyModeState = PrivacyModeState.find(id);
       if (ffi.connType == ConnType.defaultConn &&
           (pi.features.privacyMode || privacyModeState.isNotEmpty) &&
@@ -1835,29 +1835,29 @@ class _DisplayMenuState extends State<_DisplayMenu> {
               final isCustom = e.value == kRemoteViewStyleCustom;
               final child =
                   isCustom ? Text(translate('Scale custom')) : e.child;
-              // Whether the current selection is already custom
+              // 当前选中项是否已经是自定义
               final bool isGroupCustomSelected =
                   e.groupValue == kRemoteViewStyleCustom;
-              // Keep menu open when switching INTO custom so the slider is visible immediately
+              // 切换到自定义时保持菜单打开，以便立即看到滑块
               final bool keepOpenForThisItem =
                   isCustom && !isGroupCustomSelected;
               return RdoMenuButton<String>(
                   value: e.value,
                   groupValue: e.groupValue,
                   onChanged: (value) {
-                    // Perform the original change
+                    // 执行原有的变更
                     e.onChanged?.call(value);
-                    // Only force a rebuild when we keep the menu open to reveal the slider
+                    // 只有在保持菜单打开以显示滑块时才强制重建
                     if (keepOpenForThisItem) {
                       setState(() {});
                     }
                   },
                   child: child,
                   ffi: ffi,
-                  // When entering custom, keep submenu open to show the slider controls
+                  // 进入自定义时保持子菜单打开，以显示滑块控件
                   closeOnActivate: !keepOpenForThisItem);
             }).toList(),
-            // Only show a divider when custom is NOT selected
+            // 仅在未选中自定义时才显示分隔线
             if (!isCustomSelected) Divider(),
             _customControlsIfCustomSelected(
                 onChanged: (v) => customPercent.value = v),
@@ -2089,8 +2089,8 @@ class _CustomScaleMenuControlsState
           value: scalePos,
           min: 0.0,
           max: 1.0,
-          // Use a wide range of divisions (calculated as (CustomScaleControls.maxPercent - CustomScaleControls.minPercent)) to provide ~1% precision increments.
-          // This allows users to set precise scale values. Lower values would require more fine-tuning via the +/- buttons, which is undesirable for big ranges.
+          // 使用较大的分段数（按 (CustomScaleControls.maxPercent - CustomScaleControls.minPercent) 计算），以提供约 1% 的精度增量。
+          // 这样用户可以设置精确的缩放值。更小的分段数需要通过 +/- 按钮做更多微调，对大范围而言并不可取。
           divisions:
               (CustomScaleControls.maxPercent - CustomScaleControls.minPercent)
                   .round(),
@@ -2131,8 +2131,8 @@ class _CustomScaleMenuControlsState
   }
 }
 
-// Lightweight rectangular thumb that paints the current percentage.
-// Stateless and uses only SliderTheme colors; avoids allocations beyond a TextPainter per frame.
+// 轻量的矩形滑块，绘制当前百分比。
+// 无状态，仅使用 SliderTheme 的颜色；除每帧一个 TextPainter 外不产生额外分配。
 class _RectValueThumbShape extends SliderComponentShape {
   final double min;
   final double max;
@@ -2140,8 +2140,8 @@ class _RectValueThumbShape extends SliderComponentShape {
   final double height;
   final double radius;
   final String unit;
-  // Optional mapper to compute display value from normalized position [0,1]
-  // If null, falls back to linear interpolation between min and max.
+  // 可选的映射函数，根据归一化位置 [0,1] 计算显示值
+  // 如果为 null，则回退到在最小值和最大值之间做线性插值。
   final int Function(double normalized)? displayValueForNormalized;
 
   const _RectValueThumbShape({
@@ -2176,7 +2176,7 @@ class _RectValueThumbShape extends SliderComponentShape {
   }) {
     final Canvas canvas = context.canvas;
 
-    // Resolve color based on enabled/disabled animation, with safe fallbacks.
+    // 根据启用/禁用动画解析颜色，并提供安全的回退。
     final ColorTween colorTween = ColorTween(
       begin: sliderTheme.disabledThumbColor,
       end: sliderTheme.thumbColor,
@@ -2192,7 +2192,7 @@ class _RectValueThumbShape extends SliderComponentShape {
     final Paint paint = Paint()..color = fillColor;
     canvas.drawRRect(rrect, paint);
 
-    // Compute displayed value from normalized slider value.
+    // 根据归一化的滑块值计算显示值。
     final int displayValue = displayValueForNormalized != null
         ? displayValueForNormalized!(value)
         : (min + value * (max - min)).round();
@@ -2359,7 +2359,7 @@ class _ResolutionsMenuState extends State<_ResolutionsMenu> {
     }
   }
 
-  // This widget has been unmounted, so the State no longer has a context
+  // 该组件已卸载，因此 State 不再有 context
   _onChanged(String? value) async {
     if (pi.currentDisplay == kAllDisplayValue) {
       return;
@@ -2411,8 +2411,8 @@ class _ResolutionsMenuState extends State<_ResolutionsMenu> {
           return;
         }
         if ((await widget.screenAdjustor.isWindowMaximized()) == false) {
-          // This delayed callback can outlive the menu State, so its context
-          // is unsafe.
+          // 这个延迟回调可能比菜单 State 活得更久，因此它的 context
+          // 是不安全的。
           widget.screenAdjustor.doAdjustWindow();
         }
       }
@@ -2632,10 +2632,10 @@ class _KeyboardMenu extends StatelessWidget {
         await ffi.inputModel.updateKeyboardMode();
       }
 
-      // If use flutter to grab keys, we can only use one mode.
-      // Map mode and Legacy mode, at least one of them is supported.
+      // 如果用 flutter 获取按键，我们只能使用一种模式。
+      // Map 模式和 Legacy 模式，至少支持其中之一。
       String? modeOnly;
-      // Keep both map and legacy mode on web at the moment.
+      // 目前 web 上同时保留 map 和 legacy 模式。
       // TODO: Remove legacy mode after web supports translate mode on web.
       if (isInputSourceFlutter && isDesktop) {
         if (bind.sessionIsKeyboardModeSupported(
@@ -2720,7 +2720,7 @@ class _KeyboardMenu extends StatelessWidget {
             ? (v) async {
                 if (v != null) {
                   await stateGlobal.setInputSource(ffi.sessionId, v);
-                  // Release native input; see the macOS trade-offs in RemotePage.
+                  // 释放原生输入；参见 RemotePage 中关于 macOS 的权衡说明。
                   if (isMacOS) ffi.inputModel.enterOrLeave(false);
                   await ffi.ffiModel.checkDesktopKeyboardMode();
                   await ffi.inputModel.updateKeyboardMode();
@@ -2769,7 +2769,7 @@ class _KeyboardMenu extends StatelessWidget {
                   value;
               ffiModel.setShowMyCursor(showMyCursor);
 
-              // Also set view only if showMyCursor is enabled and viewOnly is not enabled.
+              // 仅当 showMyCursor 启用且 viewOnly 未启用时才设置为仅查看。
               if (showMyCursor && !ffiModel.viewOnly) {
                 await bind.sessionToggleOption(
                     sessionId: ffi.sessionId, value: kOptionToggleViewOnly);
@@ -2831,7 +2831,7 @@ class _ChatMenu extends StatefulWidget {
 }
 
 class _ChatMenuState extends State<_ChatMenu> {
-  // Using in StatelessWidget got `Looking up a deactivated widget's ancestor is unsafe`.
+  // 在 StatelessWidget 中使用会报 `Looking up a deactivated widget's ancestor is unsafe`。
   final chatButtonKey = GlobalKey();
 
   @override
@@ -3272,7 +3272,7 @@ class RdoMenuButton<T> extends StatelessWidget {
   final ValueChanged<T?>? onChanged;
   final Widget? child;
   final FFI? ffi;
-  // When true, submenu will be dismissed on activate; when false, it stays open.
+  // 为 true 时，子菜单在激活后关闭；为 false 时保持打开。
   final bool closeOnActivate;
   const RdoMenuButton({
     Key? key,
@@ -3315,9 +3315,9 @@ class _DraggableShowHide extends StatefulWidget {
   final VoidCallback markDragEpoch;
   final VoidCallback syncDockingOptionsAfterDragIfNeeded;
   final bool isHorizontal;
-  // Whether multi-edge docking is enabled for this session (toggled in
-  // Settings -> Other). When false, the drag handle slides the toolbar
-  // horizontally on the top edge and never switches edges.
+  // 本次会话是否启用多边缘停靠（在
+  // 设置 -> 其他 中切换）。为 false 时，拖拽手柄让工具栏
+  // 在顶部边缘水平滑动，不会切换边缘。
   final bool multiEdgeEnabled;
   final RxBool dragging;
   final ToolbarState toolbarState;
@@ -3383,8 +3383,8 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
     }
   }
 
-  // Bias applied to the currently-previewed edge so a drag hovering between
-  // two edges doesn't flicker. Only relevant when multi-edge is enabled.
+  // 应用于当前预览边缘的偏置，使在两条边缘之间悬停的拖拽
+  // 不会闪烁。仅在启用多边缘时相关。
   static const double _switchHysteresisPx = 50.0;
 
   _ToolbarEdge _nearestToolbarEdge(Offset cursor, Size mediaSize) {
@@ -3523,10 +3523,10 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
     return Listener(
       onPointerDown: (event) => _lastPointerDown = event.position,
       child: Draggable(
-        // When multi-edge docking is off the toolbar stays on the top edge,
-        // so lock the feedback to horizontal motion — otherwise the handle
-        // floats away from the top while dragging and the toolbar looks
-        // unmoored. When multi-edge is on we need 2D drag for snap-to-edge.
+        // 关闭多边缘停靠时，工具栏停留在顶部边缘，
+        // 因此把反馈限制为水平移动——否则拖拽时手柄
+        // 会从顶部飘走，工具栏看起来
+        // 像是没有锚定。启用多边缘时需要二维拖拽来实现吸附边缘。
         axis: widget.multiEdgeEnabled ? null : Axis.horizontal,
         child: Icon(
           widget.isHorizontal ? Icons.drag_indicator : Icons.drag_handle,
@@ -3541,8 +3541,8 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
             _ensureDragGrabOffset(pointerDown);
           }
           widget.dragging.value = true;
-          // Seed the preview at the current docked edge/fraction so something
-          // shows the instant the drag begins, before the first onDragUpdate.
+          // 以当前停靠的边缘/比例初始化预览，使得
+          // 拖拽一开始就能显示内容，早于第一次 onDragUpdate。
           widget.previewEdge.value = widget.edge.value;
           widget.previewFraction.value = widget.fraction.value;
         },

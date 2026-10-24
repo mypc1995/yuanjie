@@ -21,7 +21,7 @@ const TIMEOUT: u64 = 5_000;
 const PAYLOAD: &[u8] = b"RustDesk websocket proxy test";
 
 fn tls_acceptor() -> TlsAcceptor {
-    // This self-signed identity is only used by the local mock servers.
+    // 这个自签名身份只被本地的模拟服务器使用。
     let cert = CertificateDer::from_pem_slice(include_bytes!("data/websocket-cert.pem")).unwrap();
     let key = PrivateKeyDer::from_pem_slice(include_bytes!("data/websocket-key.pem")).unwrap();
     let config = rustls::ServerConfig::builder_with_provider(Arc::new(
@@ -296,8 +296,8 @@ async fn tcp_proxy_round_trip() {
 
 #[tokio::test]
 async fn websocket_proxy_connections() {
-    // Keep configuration changes inside this integration test process.
-    *APP_NAME.write().unwrap() = format!("RustDesk WebSocket Test {}", std::process::id());
+    // 把配置变更限制在这个集成测试进程内。
+    * APP_NAME.write().unwrap() = format!("RustDesk WebSocket Test {}", std::process::id());
     option(keys::OPTION_ALLOW_INSECURE_TLS_FALLBACK, "Y");
     for scheme in ["http", "https"] {
         for url in ["ws://[::1]:21119", "wss://[::1]:21119"] {

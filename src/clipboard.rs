@@ -25,19 +25,19 @@ pub fn is_sync_clipboard_between_sessions_enabled() -> bool {
     )
 }
 
-// This format is used to store the flag in the clipboard.
+// 该格式用于在剪贴板中存储标志位。
 const RUSTDESK_CLIPBOARD_OWNER_FORMAT: &'static str = "dyn.com.rustdesk.owner";
 
-// Add special format for Excel XML Spreadsheet
+// 为 Excel XML Spreadsheet 添加特殊格式
 const CLIPBOARD_FORMAT_EXCEL_XML_SPREADSHEET: &'static str = "XML Spreadsheet";
 
 #[cfg(not(target_os = "android"))]
 lazy_static::lazy_static! {
     static ref ARBOARD_MTX: Arc<Mutex<()>> = Arc::new(Mutex::new(()));
-    // For updating in server and getting content in cm.
-    // Clipboard on Linux is "server--clients" mode.
-    // The clipboard content is owned by the server and passed to the clients when requested.
-    // Plain text is the only exception, it does not require the server to be present.
+    // 用于在服务端更新、在客户端获取内容。
+    // Linux 上的剪贴板是 "server--clients" 模式。
+    // 剪贴板内容由服务端持有，在客户端请求时传递给客户端。
+    // 纯文本是唯一的例外，它不需要服务端存在。
     static ref CLIPBOARD_CTX: Arc<Mutex<Option<ClipboardContext>>> = Arc::new(Mutex::new(None));
 }
 
@@ -98,7 +98,7 @@ fn read_clipboard_message(
     force: bool,
 ) -> Option<(Message, MultiClipboards)> {
     if ctx.is_none() {
-        *ctx = ClipboardContext::new().ok();
+        * ctx = ClipboardContext::new().ok();
     }
     let ctx2 = ctx.as_mut()?;
     match ctx2.get(side, force) {
@@ -142,7 +142,7 @@ pub fn check_clipboard_files(
     force: bool,
 ) -> Option<Vec<String>> {
     if ctx.is_none() {
-        *ctx = ClipboardContext::new().ok();
+        * ctx = ClipboardContext::new().ok();
     }
     let ctx2 = ctx.as_mut()?;
     match ctx2.get_files(side, force) {
@@ -183,7 +183,7 @@ pub fn try_empty_clipboard_files_sync(_side: ClipboardSide, _conn_id: i32) -> Re
     if ctx.is_none() {
         match ClipboardContext::new() {
             Ok(x) => {
-                *ctx = Some(x);
+                * ctx = Some(x);
             }
             Err(e) => {
                 log::error!("Failed to create clipboard context: {}", e);
@@ -203,7 +203,7 @@ pub fn try_empty_clipboard_files_sync(_side: ClipboardSide, _conn_id: i32) -> Re
         #[cfg(target_os = "macos")]
         {
             ctx.try_empty_clipboard_files(_side);
-            // No need to make sure the context is enabled.
+            // 无需确保上下文已启用。
             clipboard::ContextSend::proc(|context| -> ResultType<()> {
                 if !context.empty_clipboard(_conn_id)? {
                     bail!("Failed to empty clipboard files for conn_id {}", _conn_id);
@@ -230,7 +230,7 @@ pub fn check_clipboard_cm() -> ResultType<MultiClipboards> {
     if ctx.is_none() {
         match ClipboardContext::new() {
             Ok(x) => {
-                *ctx = Some(x);
+                * ctx = Some(x);
             }
             Err(e) => {
                 hbb_common::bail!("Failed to create clipboard context: {}", e);
@@ -261,7 +261,7 @@ fn do_update_clipboard_(mut to_update_data: Vec<ClipboardData>, side: ClipboardS
     if ctx.is_none() {
         match ClipboardContext::new() {
             Ok(x) => {
-                *ctx = Some(x);
+                * ctx = Some(x);
             }
             Err(e) => {
                 log::error!("Failed to create clipboard context: {}", e);
@@ -292,7 +292,7 @@ fn append_owner_marker(mut data: Vec<ClipboardData>, side: ClipboardSide) -> Vec
 pub fn set_text_clipboard_with_owner_sync(text: &str, side: ClipboardSide) -> ResultType<()> {
     let mut ctx = CLIPBOARD_CTX.lock().unwrap();
     if ctx.is_none() {
-        *ctx = Some(ClipboardContext::new()?);
+        * ctx = Some(ClipboardContext::new()?);
     }
     let clipboard_ctx = match ctx.as_mut() {
         Some(ctx) => ctx,
@@ -327,9 +327,9 @@ impl ClipboardContext {
         {
             let mut i = 1;
             loop {
-                // Try 5 times to create clipboard
-                // Arboard::new() connect to X server or Wayland compositor, which should be OK most times
-                // But sometimes, the connection may fail, so we retry here.
+                // 尝试 5 次创建剪贴板
+                // Arboard::new() 会连接到 X server 或 Wayland 合成器，多数情况下应该没问题
+                // 但有时连接可能失败，所以这里做重试。
                 match arboard::Clipboard::new() {
                     Ok(x) => {
                         board = x;
@@ -351,13 +351,13 @@ impl ClipboardContext {
     }
 
     fn get_formats(&mut self, formats: &[ClipboardFormat]) -> ResultType<Vec<ClipboardData>> {
-        // If there're multiple threads or processes trying to access the clipboard at the same time,
-        // the previous clipboard owner will fail to access the clipboard.
-        // `GetLastError()` will return `ERROR_CLIPBOARD_NOT_OPEN` (OSError(1418): Thread does not have a clipboard open) at this time.
-        // See https://github.com/rustdesk-org/arboard/blob/747ab2d9b40a5c9c5102051cf3b0bb38b4845e60/src/platform/windows.rs#L34
+        // 如果有多个线程或进程同时尝试访问剪贴板，
+        // 之前的剪贴板持有者将无法访问剪贴板。
+        // 此时 `GetLastError()` 会返回 `ERROR_CLIPBOARD_NOT_OPEN`（OSError(1418)：线程未打开剪贴板）。
+        // 参见 https://github.com/rustdesk-org/arboard/blob/747ab2d9b40a5c9c5102051cf3b0bb38b4845e60/src/platform/windows.rs#L34
         //
-        // This is a common case on Windows, so we retry here.
-        // Related issues:
+        // 这在 Windows 上是常见情况，所以这里做重试。
+        // 相关 issue：
         // https://github.com/rustdesk/rustdesk/issues/9263
         // https://github.com/rustdesk/rustdesk/issues/9222#issuecomment-2329233175
         for i in 0..CLIPBOARD_GET_MAX_RETRY {
@@ -385,8 +385,8 @@ impl ClipboardContext {
 
     pub fn get(&mut self, side: ClipboardSide, force: bool) -> ResultType<Vec<ClipboardData>> {
         let data = self.get_formats_filter(SUPPORTED_FORMATS, side, force)?;
-        // We have a separate service named `file-clipboard` to handle file copy-paste.
-        // We need to read the file urls because file copy may set the other clipboard formats such as text.
+        // 我们有一个名为 `file-clipboard` 的独立服务来处理文件复制粘贴。
+        // 由于文件复制可能会设置其他剪贴板格式（如文本），我们需要读取文件 url。
         #[cfg(feature = "unix-file-copy-paste")]
         {
             if data.iter().any(|c| matches!(c, ClipboardData::FileUrl(_))) {
@@ -420,7 +420,7 @@ impl ClipboardContext {
             .into_iter()
             .filter(|c| match c {
                 ClipboardData::Special((s, _)) => s != RUSTDESK_CLIPBOARD_OWNER_FORMAT,
-                // Skip synchronizing empty text to the remote clipboard
+                // 跳过把空文本同步到远端剪贴板
                 ClipboardData::Text(text) => !text.is_empty(),
                 _ => true,
             })
@@ -510,11 +510,11 @@ impl ClipboardContext {
             let urls = Self::get_file_urls_set_by_rustdesk(data, side);
             if !urls.is_empty() {
                 // FIXME:
-                // The host-side clear file clipboard `let _ = self.inner.clear();`,
-                // does not work on KDE Plasma for the installed version.
+                // 宿主端清空文件剪贴板 `let _ = self.inner.clear();`，
+                // 在已安装版本上对 KDE Plasma 无效。
 
-                // Don't use `base::platform::linux::is_kde()` here.
-                // It's not correct in the server process.
+                // 这里不要使用 `base::platform::linux::is_kde()`。
+                // 在服务端进程中它不正确。
                 #[cfg(target_os = "linux")]
                 let is_kde_x11 = base::platform::linux::is_kde_session()
                     && crate::platform::linux::is_x11();
@@ -561,7 +561,7 @@ pub fn get_current_clipboard_msg(
     peer_platform: &str,
     side: ClipboardSide,
 ) -> Option<Message> {
-    // Clipboard changes can be skipped while synchronization is disabled.
+    // 同步被禁用时，可以跳过剪贴板变化。
     #[cfg(target_os = "linux")]
     if !clipboard_listener::is_ready() {
         log::error!("Cannot read initial clipboard before the listener is ready");
@@ -582,7 +582,7 @@ pub fn get_current_clipboard_msg(
     if is_support_multi_clipboard(peer_version, peer_platform) {
         Some(msg)
     } else {
-        // Find the first text clipboard and send it.
+        // 找到第一个文本剪贴板并发送。
         multi_clipboards
             .clipboards
             .iter()
@@ -602,8 +602,8 @@ pub enum ClipboardSide {
 }
 
 impl ClipboardSide {
-    // 01: the clipboard is owned by the host
-    // 10: the clipboard is owned by the client
+    // 01：剪贴板由宿主持有
+    // 10：剪贴板由客户端持有
     fn get_owner_data(&self) -> Vec<u8> {
         match self {
             ClipboardSide::Host => vec![0b01],
@@ -788,7 +788,7 @@ mod proto {
             return None;
         }
 
-        // Find the first text clipboard and send it.
+        // 找到第一个文本剪贴板并发送。
         multi_clipboards
             .clipboards
             .iter()
@@ -886,8 +886,8 @@ pub fn get_clipboards_msg(client: bool) -> Option<Message> {
     Some(msg)
 }
 
-// We need this mod to notify multiple subscribers when the clipboard changes.
-// Because only one clipboard master(listener) can trigger the clipboard change event multiple listeners are created on Linux(x11).
+// 我们需要这个模块在剪贴板变化时通知多个订阅者。
+// 因为只有一个剪贴板 master（监听器）能触发剪贴板变化事件，所以在 Linux(x11) 上会创建多个监听器。
 // https://github.com/rustdesk-org/clipboard-master/blob/4fb62e5b62fb6350d82b571ec7ba94b3cd466695/src/master/x11.rs#L226
 #[cfg(not(target_os = "android"))]
 pub mod clipboard_listener {
@@ -959,7 +959,7 @@ pub mod clipboard_listener {
     impl ClipboardHandler for Handler {
         #[cfg(target_os = "linux")]
         fn on_clipboard_ready(&mut self) {
-            // A restart must invalidate older snapshots, including on X11 or an empty selection.
+            // 重启必须使较早的快照失效，包括 X11 上或空选区的情况。
             CLIPBOARD_GENERATION.fetch_add(1, Ordering::SeqCst);
             if let Some(tx) = self.ready.take() {
                 if let Err(err) = tx.send(true) {
@@ -969,7 +969,7 @@ pub mod clipboard_listener {
         }
 
         fn on_clipboard_change(&mut self) -> CallbackResult {
-            // Empty or unsupported contents still invalidate an initial snapshot.
+            // 空内容或不支持的内容同样会使初始快照失效。
             CLIPBOARD_GENERATION.fetch_add(1, Ordering::SeqCst);
             let sub_lock = self.subscribers.lock().unwrap();
             for tx in sub_lock.values() {
@@ -979,7 +979,7 @@ pub mod clipboard_listener {
         }
 
         fn on_clipboard_initial_selection(&mut self) -> CallbackResult {
-            // Only client file sync consumes this event; text initial sync is per session.
+            // 只有客户端文件同步会消费该事件；文本初始同步是按会话进行的。
             #[cfg(all(target_os = "linux", feature = "unix-file-copy-paste"))]
             for tx in self.subscribers.lock().unwrap().values() {
                 if let Err(err) = tx.send(ClipboardEvent::InitialSelection) {
@@ -1001,7 +1001,7 @@ pub mod clipboard_listener {
             }
             #[cfg(target_os = "linux")]
             if self.ready.is_some() {
-                // Subscribers must receive the error before a failed startup stops.
+                // 订阅者必须在启动失败终止之前收到错误。
                 return CallbackResult::StopWithError(error);
             }
             CallbackResult::Next
@@ -1050,7 +1050,7 @@ pub mod clipboard_listener {
             listener_lock.handle = Some((shutdown, h));
             #[cfg(target_os = "linux")]
             {
-                // Initial-sync tasks await backend readiness without blocking the connection loop.
+                // 初始同步任务等待后端就绪，而不阻塞连接循环。
                 listener_lock.ready = Some(rx_ready);
             }
             log::info!("Clipboard listener thread started");

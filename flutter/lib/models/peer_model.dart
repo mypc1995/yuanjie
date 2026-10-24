@@ -175,10 +175,10 @@ class Peers extends ChangeNotifier {
   final String name;
   final String loadEvent;
   List<Peer> peers = List.empty(growable: true);
-  // Part of the peers that are not in the rest peers list.
-  // When there're too many peers, we may want to load the front 100 peers first,
-  // so we can see peers in UI quickly. `restPeerIds` is the rest peers' ids.
-  // And then load all peers later.
+  // 不在剩余设备列表中的那部分设备。
+  // 当设备太多时，我们可能想先加载前 100 个设备，
+  // 以便在界面中快速看到设备。`restPeerIds` 是其余设备的 id。
+  // 之后再加载全部设备。
   List<String> restPeerIds = List.empty(growable: true);
   final GetInitPeers? getInitPeers;
   UpdateEvent event = UpdateEvent.load;

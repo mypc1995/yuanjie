@@ -48,23 +48,23 @@ pub struct ProgressPercent {
     pub is_failed: bool,
 }
 
-// to-do: This trait may be removed, because unix file copy paste does not need it.
-/// Ability to handle Clipboard File from remote rustdesk client
+// 待办：这个 trait 可能被移除，因为 unix 的文件复制粘贴不需要它。
+/// 处理来自远端 rustdesk 客户端的剪贴板文件的能力
 ///
-/// # Note
-/// There actually should be 2 parts to implement a useable clipboard file service,
-/// but this only contains the RPC server part.
-/// The local listener and transport part is too platform specific to wrap up in typeclasses.
+/// # 注意
+/// 要实现一个可用的剪贴板文件服务，实际上应当分成 2 个部分，
+/// 但这里只包含 RPC 服务端部分。
+/// 本地监听与传输部分太依赖具体平台，难以用 typeclasses 封装。
 pub trait CliprdrServiceContext: Send + Sync {
-    /// set to be stopped
+    /// 设置为停止状态
     fn set_is_stopped(&mut self) -> Result<(), CliprdrError>;
-    /// clear the content on clipboard
+    /// 清空剪贴板上的内容
     fn empty_clipboard(&mut self, conn_id: i32) -> Result<bool, CliprdrError>;
-    /// run as a server for clipboard RPC
+    /// 作为剪贴板 RPC 的服务端运行
     fn server_clip_file(&mut self, conn_id: i32, msg: ClipboardFile) -> Result<(), CliprdrError>;
-    /// get the progress of the paste task.
+    /// 获取粘贴任务的进度。
     fn get_progress_percent(&self) -> Option<ProgressPercent>;
-    /// cancel the paste task.
+    /// 取消粘贴任务。
     fn cancel(&mut self);
 }
 
@@ -179,8 +179,8 @@ pub fn get_client_conn_id(peer_id: &str) -> Option<i32> {
 
 fn get_conn_id() -> i32 {
     let mut lock = CLIENT_CONN_ID_COUNTER.lock().unwrap();
-    *lock += 1;
-    *lock
+    * lock += 1;
+    * lock
 }
 
 pub fn get_rx_cliprdr_client(
@@ -272,7 +272,7 @@ fn send_data_to_channel(conn_id: i32, data: ClipboardFile) -> Result<(), Cliprdr
 #[inline]
 #[cfg(target_os = "windows")]
 pub fn send_data_exclude(conn_id: i32, data: ClipboardFile) {
-    // Need more tests to see if it's necessary to handle the error.
+    // 需要更多测试来判断是否有必要处理该错误。
     for msg_channel in VEC_MSG_CHANNEL.read().unwrap().iter() {
         if msg_channel.conn_id != conn_id {
             allow_err!(msg_channel.sender.send(data.clone()));
@@ -283,7 +283,7 @@ pub fn send_data_exclude(conn_id: i32, data: ClipboardFile) {
 #[inline]
 #[cfg(feature = "unix-file-copy-paste")]
 fn send_data_to_all(data: ClipboardFile) {
-    // Need more tests to see if it's necessary to handle the error.
+    // 需要更多测试来判断是否有必要处理该错误。
     for msg_channel in VEC_MSG_CHANNEL.read().unwrap().iter() {
         allow_err!(msg_channel.sender.send(data.clone()));
     }

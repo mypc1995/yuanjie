@@ -3,16 +3,16 @@ use std::sync::{
     Arc,
 };
 
-/// Bytes received from the peer, counted before framing.
+/// 从对端接收到的字节数，在组帧之前统计。
 ///
-/// A message reaches the application only once it is complete, so a large one — a clipboard image
-/// is the case that occurs in practice — leaves the receive loop with nothing to observe for as
-/// long as the transfer takes, and a peer that is sending steadily looks identical to one that
-/// died. This counter moves on every read, so liveness stays observable across such a message.
+/// 消息只有完整后才会到达应用层，因此一条大消息——比如剪贴板图片
+/// 正是实践中常见的情况——会让接收循环在传输期间
+/// 无事可观测，而一个持续发送的对端看起来和一个
+/// 已经掉线的对端一模一样。这个计数器每次读取都会变化，因此跨越这类消息仍能观测到存活状态。
 ///
-/// A counter rather than a timestamp on purpose: `Instant::now()` costs an order of magnitude more
-/// than a relaxed add, and the reader only ever compares successive samples, so the clock is
-/// needed once per sampling tick instead of once per read.
+/// 故意使用计数器而非时间戳：`Instant::now()` 的开销要贵一个数量级，
+/// 远超一次宽松加法，而读取方只会比较相邻的采样值，因此时钟
+/// 只需每个采样周期取一次，而不是每次读取都取。
 #[derive(Clone, Default)]
 pub struct RxProbe(Arc<AtomicU64>);
 
@@ -26,8 +26,8 @@ impl RxProbe {
         self.0.fetch_add(n as u64, Ordering::Relaxed);
     }
 
-    /// Changes whenever bytes arrived. Compare successive samples; the absolute value and its
-    /// wrap-around carry no meaning.
+    /// 每当有字节到达就会变化。比较相邻的采样值即可；其绝对值以及
+    /// 回绕都没有意义。
     #[inline]
     pub fn get(&self) -> u64 {
         self.0.load(Ordering::Relaxed)

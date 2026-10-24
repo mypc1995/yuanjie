@@ -1,7 +1,7 @@
 use hbb_common::{bail, ResultType};
 use tiny_skia::{FillRule, Paint, PathBuilder, PixmapMut, Point, Rect, Transform};
 use ttf_parser::Face;
-// A helper struct to bridge `ttf-parser` and `tiny-skia`.
+// 用于桥接 `ttf-parser` 与 `tiny-skia` 的辅助结构体。
 struct PathBuilderWrapper<'a> {
     path_builder: &'a mut PathBuilder,
     transform: Transform,
@@ -44,7 +44,7 @@ impl ttf_parser::OutlineBuilder for PathBuilderWrapper<'_> {
     }
 }
 
-// Draws a string of text with the white background rectangle onto the pixmap.
+// 把一段文本连同白色背景矩形绘制到 pixmap 上。
 pub(super) fn draw_text(
     pixmap: &mut PixmapMut,
     face: &Face,
@@ -57,7 +57,7 @@ pub(super) fn draw_text(
     let units_per_em = face.units_per_em() as f32;
     let scale = font_size / units_per_em;
 
-    // --- 1. Calculate text dimensions for the background ---
+    // --- 1. 计算背景所需的文本尺寸 ---
     let mut total_width = 0.0;
     for ch in text.chars() {
         let glyph_id = face.glyph_index(ch).unwrap_or_default();
@@ -66,21 +66,21 @@ pub(super) fn draw_text(
         }
     }
 
-    // Use font metrics for a consistent background height.
+    // 使用字体度量以获得一致的背景高度。
     let font_height = (face.ascender() - face.descender()) as f32 * scale;
     let ascent = face.ascender() as f32 * scale;
-    // Add some padding around the text
+    // 在文本周围加一些内边距
     let padding = 3.0;
 
     let mut bg_filled = false;
-    // --- 2. Draw the white background rectangle ---
+    // --- 2. 绘制白色背景矩形 ---
     if let Some(bg_rect) = Rect::from_xywh(
         x - padding,
         y - ascent - padding,
         total_width + 2.0 * padding,
         font_height + 2.0 * padding,
     ) {
-        // Corner radius
+        // 圆角半径
         let radius = 5.0;
         let path = {
             let mut pb = PathBuilder::new();
@@ -116,7 +116,7 @@ pub(super) fn draw_text(
         }
     }
 
-    // --- 3. Draw the text ---
+    // --- 3. 绘制文本 ---
     let transform = Transform::from_translate(x, y).pre_scale(scale, -scale);
     let mut path_builder = PathBuilder::new();
     let mut current_x = 0.0;
@@ -167,9 +167,9 @@ pub(super) fn create_font_face() -> ResultType<Face<'static>> {
     let Some((font_source, face_index)) = font_db.face_source(font_id) else {
         bail!("No face found for font!");
     };
-    // Load the font data into a static slice to satisfy `ttf-parser`'s lifetime requirements.
-    // We use `Box::leak` to leak the memory, which is acceptable here since the font data
-    // is needed for the entire lifetime of the application.
+    // 把字体数据载入一个静态切片，以满足 `ttf-parser` 的生命周期要求。
+    // 我们用 `Box::leak` 故意泄漏这块内存，这里这样做是可以接受的，因为字体数据
+    // 在应用的整个生命周期内都需要它。
     let font_data: &'static [u8] = Box::leak(match font_source {
         fontdb::Source::File(path) => std::fs::read(path)?.into_boxed_slice(),
         fontdb::Source::Binary(data) => data.as_ref().as_ref().to_vec().into_boxed_slice(),

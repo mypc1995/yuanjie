@@ -1,4 +1,4 @@
-// original cm window in Sciter version.
+// Sciter 版本中原始的 cm 窗口。
 
 import 'dart:async';
 import 'dart:math';
@@ -22,12 +22,12 @@ import '../../models/file_model.dart';
 import '../../models/platform_model.dart';
 import '../../models/server_model.dart';
 
-/// Set only by this window's own close control, and only once the user has confirmed. Any other
-/// way the window can go - a session logout closing every window, the window manager, a native
-/// title-bar button this app does not draw - leaves it false, which is the honest answer:
-/// nothing in that close says who asked for it. It lives at file scope because the control that
-/// sets it (`ConnectionManagerState`) and the handler that reads it (`_DesktopServerPageState`)
-/// are different widgets.
+/// 仅由本窗口自身的关闭控件设置，且只在用户确认之后。其他任何
+/// 窗口消失的方式 —— 会话注销关闭所有窗口、窗口管理器、本机的
+/// 标题栏按钮（本应用不会绘制）—— 都会让它保持 false，这才是诚实的答案：
+/// 那一次关闭没有任何信息能说明是谁发起的。它定义在文件作用域，因为设置它的控件
+/// （`ConnectionManagerState`）和读取它的处理函数（`_DesktopServerPageState`）
+/// 是不同的组件。
 bool _cmClosedByOperator = false;
 
 class DesktopServerPage extends StatefulWidget {
@@ -63,8 +63,8 @@ class _DesktopServerPageState extends State<DesktopServerPage>
 
   @override
   void onWindowClose() {
-    // Other platforms keep the old behaviour exactly: the ambiguity this guards against is a
-    // Linux session logout, which closes every window in the session.
+    // 其他平台完全保持原有行为：这里要防范的歧义是
+    // Linux 上的会话注销，它会关闭该会话中的所有窗口。
     final byOperator = _cmClosedByOperator || !isLinux;
     Future.wait([gFFI.serverModel.closeAll(byOperator: byOperator), gFFI.close()]).then((_) {
       if (isMacOS) {
@@ -350,8 +350,8 @@ class ConnectionManagerState extends State<ConnectionManager>
         res = await closeConfirmDialog();
       }
       if (res) {
-        // After the dialog, never before it: an external close while it is open must not
-        // inherit an intent the user had not expressed yet.
+        // 在对话框之后，绝不在之前：对话框打开期间的外部关闭不得
+        // 继承用户尚未表达的意图。
         _cmClosedByOperator = true;
         windowManager.close();
       }
@@ -440,7 +440,7 @@ class _CmHeaderState extends State<_CmHeader>
         _time.value = _time.value + 1;
       }
     });
-    // Call onSelected in post frame callback, since we cannot guarantee that the callback will not call setState.
+    // 在 post frame 回调中调用 onSelected，因为无法保证该回调不会调用 setState。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       gFFI.serverModel.tabController.onSelected?.call(client.id.toString());
     });
@@ -821,7 +821,7 @@ class _PrivilegeBoardState extends State<_PrivilegeBoard> {
                         translate('Enable recording session'),
                         canModify: canModifyPermission,
                       ),
-                      // only windows support block input
+                      // 仅 Windows 支持阻止输入
                       if (isWindows)
                         buildPermissionIcon(
                           client.blockInput,

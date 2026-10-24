@@ -58,20 +58,20 @@ fn open_ipc_parent_dir_fd(parent_c: &CString) -> std::io::Result<i32> {
     }
 }
 
-// Remove one preexisting IPC artifact via an already-opened parent directory FD.
+// 通过已经打开的父目录 FD 删除一个已存在的 IPC 残留产物。
 //
-// Security intent:
-// - Bind cleanup to the exact parent inode that passed O_NOFOLLOW + fstat checks.
-// - Avoid path-based TOCTOU during scrub (e.g., parent path rename/swap race).
+// 安全意图：
+// - 把清理绑定到那个通过了 O_NOFOLLOW + fstat 检查的确切父 inode。
+// - 避免清理过程中基于路径的 TOCTOU（例如父路径被重命名/替换的竞争）。
 //
-// Flow:
-// 1) fstatat(..., AT_SYMLINK_NOFOLLOW) to inspect the target entry under parent_fd.
-// 2) Decide file vs directory from st_mode.
-// 3) unlinkat relative to parent_fd (AT_REMOVEDIR for directories).
+// 流程：
+// 1) 用 fstatat(..., AT_SYMLINK_NOFOLLOW) 在 parent_fd 之下检查目标条目。
+// 2) 根据 st_mode 判断是文件还是目录。
+// 3) 相对于 parent_fd 执行 unlinkat（目录用 AT_REMOVEDIR）。
 //
-// Error policy:
-// - NotFound is treated as benign (already removed / raced away).
-// - Other errors are surfaced explicitly.
+// 错误策略：
+// - NotFound 视为无害（已被移除 / 被竞争抢先）。
+// - 其他错误会显式上报。
 fn remove_parent_entry_via_fd(
     parent_fd: i32,
     parent_dir: &Path,
@@ -164,18 +164,18 @@ fn scrub_preexisting_ipc_parent_entries(
     Ok(())
 }
 
-/// Remove one entry from the IPC parent directory through a no-follow fd on that directory.
+/// 通过该目录上不跟随符号链接的 fd，从 IPC 父目录中删除一个条目。
 ///
-/// Prefer this over `std::fs::remove_file` for anything about to be bound: `remove_file` is
-/// `unlink(2)`, which returns EISDIR against a directory-typed squatter and leaves it in place,
-/// and the bind that follows then fails EADDRINUSE. `remove_parent_entry_via_fd` fstats the
-/// entry first and picks `AT_REMOVEDIR` when it needs to.
+/// 对于任何即将被 bind 的东西，优先用它而不是 `std::fs::remove_file`：`remove_file` 是
+/// `unlink(2)`，对一个目录类型的抢占者会返回 EISDIR 并把它留在原地，
+/// 随后的 bind 就会以 EADDRINUSE 失败。`remove_parent_entry_via_fd` 会先对该
+/// 条目做 fstat，需要时选用 `AT_REMOVEDIR`。
 ///
-/// `AT_REMOVEDIR` is `rmdir(2)`, so the directory case this closes is the EMPTY one; a non-empty
-/// squatter still yields ENOTEMPTY and still blocks the bind that follows. That is deliberate, and
-/// the "obvious" fix is worse than the bug: removing it recursively would be root deleting a tree
-/// an unprivileged process planted. What the caller gains there is a named error to log ahead of
-/// the bind's own failure, not a successful bind.
+/// `AT_REMOVEDIR` 就是 `rmdir(2)`，所以它能解决的目录情形是空目录；非空的
+/// 抢占者仍会返回 ENOTEMPTY，仍然阻塞随后的 bind。这是有意为之，而
+/// 那个“显而易见的”修法比这个 bug 更糟：递归删除就等于 root 删掉一棵
+/// 由非特权进程种下的目录树。那样调用方得到的只是一个可以在
+/// bind 自身失败之前记录的具名错误，而不是一次成功的 bind。
 pub(crate) fn remove_ipc_entry_via_secure_parent_fd(path: &str) -> ResultType<()> {
     let entry_name = Path::new(path)
         .file_name()
@@ -212,45 +212,45 @@ fn remove_ipc_socket_via_secure_parent_fd(postfix: &str) -> ResultType<()> {
     remove_ipc_entry_via_secure_parent_fd(&config::Config::ipc_path(postfix))
 }
 
-// Purpose:
-// - Harden the IPC parent directory before creating/listening socket files.
-// - Prevent symlink/path-race abuse and reject unsafe owner/mode.
+// 目的：
+// - 在创建/监听套接字文件之前加固 IPC 父目录。
+// - 防止符号链接/路径竞争的滥用，并拒绝不安全的属主/权限模式。
 //
-// Approach:
-// - Open parent dir with O_NOFOLLOW/O_DIRECTORY and operate on that fd.
-// - Validate inode type/owner/mode via fstat.
-// - For protected service postfix, optionally adopt owner (root only), then scrub stale
-//   rustdesk IPC artifacts when directory trust boundary changed.
+// 做法：
+// - 用 O_NOFOLLOW/O_DIRECTORY 打开父目录，并基于该 fd 操作。
+// - 通过 fstat 校验 inode 类型/属主/权限模式。
+// - 对受保护的服务后缀，可以选择接管属主（仅 root），然后清理陈旧的
+//   rustdesk IPC 残留产物（当目录的信任边界发生变化时）。
 //
-// Main steps:
-// 1) Resolve parent path and open/create directory securely.
-// 2) Verify directory inode type and owner uid.
-// 3) Enforce expected mode via fchmod on opened fd.
-// 4) Scrub stale IPC artifacts when owner/mode was unsafe before hardening.
+// 主要步骤：
+// 1) 解析父路径并安全地打开/创建目录。
+// 2) 校验目录的 inode 类型和属主 uid。
+// 3) 通过在已打开的 fd 上执行 fchmod 来强制期望的权限模式。
+// 4) 当加固前的属主/权限模式不安全时，清理陈旧的 IPC 残留产物。
 //
-// References:
-// - open(2): O_NOFOLLOW/O_DIRECTORY/O_CLOEXEC
+// 参考：
+// - open(2)：O_NOFOLLOW/O_DIRECTORY/O_CLOEXEC
 //   https://man7.org/linux/man-pages/man2/open.2.html
-// - fstat(2): verify file type/metadata on opened fd
+// - fstat(2)：在已打开的 fd 上校验文件类型/元数据
 //   https://man7.org/linux/man-pages/man2/fstat.2.html
-// - fchown(2): adopt ownership when running as root
+// - fchown(2)：以 root 运行时接管属主
 //   https://man7.org/linux/man-pages/man2/chown.2.html
-// - fchmod(2): enforce exact mode on opened fd
+// - fchmod(2)：在已打开的 fd 上强制精确的权限模式
 //   https://man7.org/linux/man-pages/man2/fchmod.2.html
 pub(crate) fn ensure_secure_ipc_parent_dir(path: &str, postfix: &str) -> ResultType<bool> {
     let parent_dir = Path::new(path)
         .parent()
         .ok_or_else(|| Error::new(ErrorKind::InvalidInput, format!("invalid ipc path: {path}")))?;
-    // Harden against common TOCTOU by opening the parent directory with O_NOFOLLOW (so the parent
-    // itself cannot be a symlink) and then operating on its FD (fstat/fchown/fchmod). This ensures
-    // we mutate the inode we opened, though it does not protect against symlinks in ancestor path
-    // components.
+    // 通过用 O_NOFOLLOW 打开父目录来抵御常见的 TOCTOU（这样父目录
+    // 本身不可能是符号链接），然后基于它的 FD 操作（fstat/fchown/fchmod）。这确保
+    // 我们修改的是自己打开的那个 inode，尽管它并不能防止祖先路径
+    // 组件中的符号链接。
     let parent_c = CString::new(parent_dir.as_os_str().as_bytes().to_vec())?;
     let fd = match open_ipc_parent_dir_fd(&parent_c) {
         Ok(fd) => fd,
         Err(open_err) => {
-            // If the directory doesn't exist yet, create it with the expected mode. The parent
-            // dir is intended to be a single-level /tmp path, so mkdir is sufficient here.
+            // 如果目录还不存在，就用期望的权限模式创建它。该父
+            // 目录本应是单层的 /tmp 路径，所以这里用 mkdir 就够了。
             if open_err.raw_os_error() == Some(hbb_common::libc::ENOENT) {
                 let expected_mode = expected_ipc_parent_mode(postfix);
                 let rc = unsafe {
@@ -261,7 +261,7 @@ pub(crate) fn ensure_secure_ipc_parent_dir(path: &str, postfix: &str) -> ResultT
                 };
                 if rc != 0 {
                     let mkdir_err = std::io::Error::last_os_error();
-                    // Handle a race where another process created the directory first.
+                    // 处理另一个进程抢先创建了目录的竞争。
                     if mkdir_err.raw_os_error() != Some(hbb_common::libc::EEXIST) {
                         return Err(Error::new(
                             mkdir_err.kind(),
@@ -337,8 +337,8 @@ pub(crate) fn ensure_secure_ipc_parent_dir(path: &str, postfix: &str) -> ResultT
     let expected_uid = unsafe { hbb_common::libc::geteuid() as u32 };
     let mut owner_uid = st.st_uid as u32;
     let mut adopted_foreign_service_parent = false;
-    // Service-scoped IPC may be created by different privilege contexts historically.
-    // If running as root on protected service postfix, try adopting ownership first.
+    // 历史上，服务作用域的 IPC 可能由不同的权限上下文创建。
+    // 如果以 root 运行且服务后缀受保护，就先尝试接管属主。
     if owner_uid != expected_uid && expected_uid == 0 && config::is_service_ipc_postfix(postfix) {
         let rc = unsafe {
             hbb_common::libc::fchown(
@@ -355,7 +355,7 @@ pub(crate) fn ensure_secure_ipc_parent_dir(path: &str, postfix: &str) -> ResultT
                 adopted_foreign_service_parent = true;
             }
         } else {
-            // Keep behavior unchanged; capture errno to ease diagnosing why chown failed.
+            // 保持行为不变；捕获 errno 以便诊断 chown 失败的原因。
             let err = std::io::Error::last_os_error();
             log::warn!(
                 "Failed to chown ipc parent dir, parent={}, postfix={}, expected_uid={}, rc={}, err={:?}",
@@ -380,13 +380,13 @@ pub(crate) fn ensure_secure_ipc_parent_dir(path: &str, postfix: &str) -> ResultT
     }
 
     let expected_mode = expected_ipc_parent_mode(postfix);
-    // Include special bits (setuid/setgid/sticky) to ensure the directory is hardened to the exact
-    // expected mode.
+    // 包含特殊位（setuid/setgid/sticky），以确保目录被加固到精确的
+    // 期望权限模式。
     let current_mode = (st.st_mode as u32) & 0o7777;
     let repaired_parent_mode = current_mode != expected_mode;
     let had_untrusted_parent_mode = (current_mode & 0o022) != 0;
     if repaired_parent_mode {
-        // Use fchmod on the opened fd to avoid path-race between check and chmod.
+        // 在已打开的 fd 上使用 fchmod，以避免检查和 chmod 之间的路径竞争。
         if unsafe { hbb_common::libc::fchmod(fd, expected_mode as hbb_common::libc::mode_t) } != 0 {
             let os_err = std::io::Error::last_os_error();
             return Err(Error::new(
@@ -432,35 +432,35 @@ pub(crate) fn get_pid_file(postfix: &str) -> String {
     format!("{}.pid", path)
 }
 
-// Purpose:
-// - Write current process pid to pid file without following attacker-controlled symlinks.
-// - Ensure the pid file is a regular file owned by the opened inode path.
+// 目的：
+// - 把当前进程的 pid 写入 pid 文件，且不跟随攻击者控制的符号链接。
+// - 确保 pid 文件是一个由所打开的 inode 路径所拥有的普通文件。
 //
-// Approach:
-// - Use libc open/fstat/write syscalls (FFI) so flags and inode validation are explicit.
-// - Open file with O_NOFOLLOW/O_CLOEXEC and verify S_IFREG with fstat before write.
-// - Keep unsafe scopes minimal and check syscall return values immediately.
+// 做法：
+// - 使用 libc 的 open/fstat/write 系统调用（FFI），让标志位和 inode 校验都是显式的。
+// - 用 O_NOFOLLOW/O_CLOEXEC 打开文件，并在写入之前用 fstat 校验 S_IFREG。
+// - 把 unsafe 作用域降到最小，并立即检查系统调用的返回值。
 //
-// Main steps:
-// 1) Secure-open pid file (without truncation).
-// 2) Validate opened inode is a regular file owned by current euid.
-// 3) Enforce pid file mode to 0600 and truncate via ftruncate after validation.
-// 4) Write process id bytes through fd.
+// 主要步骤：
+// 1) 安全地打开 pid 文件（不做截断）。
+// 2) 校验所打开的 inode 是由当前 euid 拥有的普通文件。
+// 3) 把 pid 文件的权限模式强制为 0600，并在校验之后用 ftruncate 截断。
+// 4) 通过 fd 写入进程 id 字节。
 //
-// Why not plain std::fs::write?
-// - std::fs helpers cannot enforce this exact open-time hardening sequence
-//   (especially "open with O_NOFOLLOW, then fstat the same opened inode").
+// 为什么不用普通的 std::fs::write？
+// - std::fs 的辅助函数无法强制这套精确的“打开时加固”流程
+//   （尤其是“用 O_NOFOLLOW 打开，然后对同一个已打开的 inode 做 fstat”）。
 //
-// References:
-// - open(2): O_NOFOLLOW/O_CLOEXEC/O_NONBLOCK
+// 参考：
+// - open(2)：O_NOFOLLOW/O_CLOEXEC/O_NONBLOCK
 //   https://man7.org/linux/man-pages/man2/open.2.html
-// - fstat(2): verify file type on opened fd
+// - fstat(2)：在已打开的 fd 上校验文件类型
 //   https://man7.org/linux/man-pages/man2/fstat.2.html
-// - fchmod(2): enforce secure mode on reused pid file
+// - fchmod(2)：在复用的 pid 文件上强制安全权限
 //   https://man7.org/linux/man-pages/man2/fchmod.2.html
-// - ftruncate(2): truncate after validation
+// - ftruncate(2)：校验之后截断
 //   https://man7.org/linux/man-pages/man2/ftruncate.2.html
-// - write(2): write bytes via fd
+// - write(2)：通过 fd 写入字节
 //   https://man7.org/linux/man-pages/man2/write.2.html
 fn write_pid_file(path: &Path) -> ResultType<()> {
     let path_c = CString::new(path.as_os_str().as_bytes().to_vec()).map_err(|err| {
@@ -542,9 +542,9 @@ fn write_pid_file(path: &Path) -> ResultType<()> {
 
     let bytes = std::process::id().to_string();
     let buf = bytes.as_bytes();
-    // `write(2)` is allowed to return a short write even for regular files.
-    // PID content is tiny and usually written in one shot, but we still loop
-    // until all bytes are persisted so this path is semantically correct.
+    // 即使是普通文件，`write(2)` 也允许返回短写。
+    // PID 内容极小，通常一次就写完，但我们仍然循环
+    // 直到所有字节都写完，这样这条路径在语义上才是正确的。
     let mut written = 0usize;
     while written < buf.len() {
         let rc = unsafe {
@@ -590,25 +590,25 @@ pub(crate) fn write_pid(postfix: &str) {
     }
 }
 
-// Purpose:
-// - Read pid file safely and avoid trusting symlink/non-regular files.
+// 目的：
+// - 安全地读取 pid 文件，避免信任符号链接/非普通文件。
 //
-// Approach:
-// - Use libc open/fstat/read syscalls (FFI) to control flags and inode checks.
-// - Open path with O_NOFOLLOW, validate opened fd via fstat, then read and parse.
-// - Keep unsafe scopes minimal and check syscall return values immediately.
+// 做法：
+// - 使用 libc 的 open/fstat/read 系统调用（FFI）来控制标志位和 inode 校验。
+// - 用 O_NOFOLLOW 打开路径，通过 fstat 校验所打开的 fd，然后读取并解析。
+// - 把 unsafe 作用域降到最小，并立即检查系统调用的返回值。
 //
-// Main steps:
-// 1) Secure-open pid file read-only.
-// 2) Ensure fd points to regular file.
-// 3) Read bytes and parse usize pid.
+// 主要步骤：
+// 1) 以只读方式安全地打开 pid 文件。
+// 2) 确保 fd 指向普通文件。
+// 3) 读取字节并解析出 usize 类型的 pid。
 //
-// References:
-// - open(2): O_NOFOLLOW/O_CLOEXEC/O_NONBLOCK
+// 参考：
+// - open(2)：O_NOFOLLOW/O_CLOEXEC/O_NONBLOCK
 //   https://man7.org/linux/man-pages/man2/open.2.html
-// - fstat(2): validate S_IFREG on opened fd
+// - fstat(2)：在已打开的 fd 上校验 S_IFREG
 //   https://man7.org/linux/man-pages/man2/fstat.2.html
-// - read(2): read bytes via fd
+// - read(2)：通过 fd 读取字节
 //   https://man7.org/linux/man-pages/man2/read.2.html
 #[inline]
 fn read_pid_file_secure(path: &Path) -> Option<usize> {
@@ -683,9 +683,9 @@ pub(crate) async fn check_pid(postfix: &str) -> bool {
     if probe_existing_listener(postfix).await {
         return true;
     }
-    // if not remove old ipc file, the new ipc creation will fail
-    // if we remove a ipc file, but the old ipc process is still running,
-    // new connection to the ipc will connect to new ipc, old connection to old ipc still keep alive
+    // 如果不删除旧的 ipc 文件，新的 ipc 创建会失败
+    // 如果我们删除了某个 ipc 文件，但旧的 ipc 进程仍在运行，
+    // 对 ipc 的新连接会连到新的 ipc，而旧 ipc 上原有的连接仍然存活
     if let Err(err) = remove_ipc_socket_via_secure_parent_fd(postfix) {
         log::debug!(
             "Failed to remove stale ipc socket via secure parent fd: postfix={}, err={}",
@@ -706,9 +706,9 @@ pub(crate) fn should_scrub_parent_entries_after_check_pid(
 
 #[cfg(test)]
 mod tests {
-    // Pins the HELPER's contract, which is all `new_drm_listener` consists of at that line -- not
-    // the call site itself. Binding the real `/tmp/<app>-service/ipc_drm` from a test would collide
-    // with a live root service, so "the listener still calls this" is not covered here.
+    // 锁定的是 HELPER 的契约，而 `new_drm_listener` 在那一行只包含这些内容——而不是
+    // 调用点本身。在测试里绑定真实的 `/tmp/<app>-service/ipc_drm` 会与
+    // 运行中的 root 服务冲突，所以这里并没有覆盖“监听器仍然调用它”这一点。
     #[test]
     fn test_remove_ipc_entry_via_secure_parent_fd_clears_an_empty_directory_squatter() {
         let unique = format!(
@@ -724,9 +724,9 @@ mod tests {
         let squatter = base.join("ipc_drm");
         std::fs::create_dir(&squatter).unwrap();
 
-        // Positive control for the defect this closes: `remove_file` is `unlink(2)` and cannot
-        // remove a directory. That is why the listener could not clear one, and then failed to
-        // bind over it. Without this line a passing test would prove nothing.
+        // 这是它所修复缺陷的正向对照：`remove_file` 是 `unlink(2)`，无法
+        // 删除目录。这正是监听器之前无法清除它的原因，随后才会
+        // 在其上 bind 失败。没有这一行，测试通过也说明不了任何问题。
         assert!(
             std::fs::remove_file(&squatter).is_err(),
             "remove_file must fail on a directory, or this test is vacuous"
@@ -739,19 +739,19 @@ mod tests {
             "the fd-based removal picks AT_REMOVEDIR and clears it"
         );
 
-        // Idempotent: this runs before every bind, so a path that is already gone is not an error.
+        // 幂等：每次 bind 之前都会执行，所以路径已经消失不算错误。
         super::remove_ipc_entry_via_secure_parent_fd(squatter.to_string_lossy().as_ref()).unwrap();
 
-        // The ORDINARY case, and the one the listener hits on every restart: a stale socket left by
-        // the previous run, i.e. a regular file. Covered here because the other file-removal test
-        // goes through `remove_parent_entry_via_fd` and the postfix path, not this entry point.
+        // 这是最常见的情形，也是监听器每次重启都会遇到的：上一次运行留下的陈旧套接字，
+        // 也就是一个普通文件。这里覆盖它，是因为另一个文件删除测试
+        // 走的是 `remove_parent_entry_via_fd` 和后缀路径，而不是这个入口。
         std::fs::write(&squatter, b"stale").unwrap();
         super::remove_ipc_entry_via_secure_parent_fd(squatter.to_string_lossy().as_ref()).unwrap();
         assert!(!squatter.exists(), "a stale regular file is cleared too");
 
-        // And the documented limit, pinned so the doc cannot drift: AT_REMOVEDIR is rmdir(2), so a
-        // NON-empty squatter is reported, not cleared. The caller logs that and carries on; nothing
-        // here should ever start deleting a tree it did not create.
+        // 还有那个有明确文档的限制，钉住它以免文档失真：AT_REMOVEDIR 就是 rmdir(2)，所以
+        // 非空的抢占者只会被报告，不会被清除。调用方记录该情况并继续；这里
+        // 绝不应该开始删除自己没有创建的目录树。
         std::fs::create_dir(&squatter).unwrap();
         std::fs::write(squatter.join("planted"), b"x").unwrap();
         assert!(
@@ -834,14 +834,14 @@ mod tests {
         let base = std::env::temp_dir().join(unique);
         std::fs::create_dir_all(&base).unwrap();
 
-        // Intentionally choose a parent that does not exist to exercise the ENOENT -> mkdir branch.
+        // 有意选择一个不存在的父目录，以走 ENOENT -> mkdir 这条分支。
         let parent_dir = base.join("parent");
         assert!(!parent_dir.exists());
         let ipc_path = parent_dir.join("ipc");
 
         let res = super::ensure_secure_ipc_parent_dir(ipc_path.to_string_lossy().as_ref(), "");
-        // Restrictive umask can make mkdir create a stricter initial mode. In that case
-        // ensure_secure_ipc_parent_dir repairs it with fchmod and may request a scrub.
+        // 限制性的 umask 会让 mkdir 创建出更严格的初始权限模式。这种情况下
+        // ensure_secure_ipc_parent_dir 会用 fchmod 修正它，并可能请求一次清理。
         res.unwrap();
 
         let md = std::fs::metadata(&parent_dir).unwrap();
@@ -927,14 +927,14 @@ mod tests {
         let trusted_parent_fd = super::open_ipc_parent_dir_fd(&trusted_parent_c).unwrap();
         let _trusted_parent_guard = super::FdGuard(trusted_parent_fd);
 
-        // Swap the path after the trusted inode has been opened.
+        // 在可信 inode 被打开之后替换路径。
         std::fs::rename(&trusted_parent, &trusted_parent_moved).unwrap();
         std::fs::rename(&attacker_parent, &trusted_parent).unwrap();
 
         super::scrub_preexisting_ipc_parent_entries(trusted_parent_fd, &trusted_parent, "_service")
             .unwrap();
 
-        // Expected secure behavior: scrub should target the inode that was opened before path swap.
+        // 期望的安全行为：清理应针对路径替换之前打开的那个 inode。
         assert!(
             !trusted_parent_moved.join("ipc_service").exists(),
             "trusted inode artifact should be removed even after path swap"
@@ -964,7 +964,7 @@ mod tests {
 
         let parent_dir = base.join("service_parent");
         std::fs::create_dir_all(&parent_dir).unwrap();
-        // Trigger "had_untrusted_service_parent_mode".
+        // 触发 "had_untrusted_service_parent_mode"。
         std::fs::set_permissions(&parent_dir, std::fs::Permissions::from_mode(0o777)).unwrap();
 
         let ipc_file = parent_dir.join("ipc_service");
@@ -976,7 +976,7 @@ mod tests {
             super::ensure_secure_ipc_parent_dir(ipc_file.to_string_lossy().as_ref(), "_service");
         assert_eq!(res.unwrap(), true);
 
-        // Parent hardening should run first; artifacts should stay until liveness probe completes.
+        // 父目录加固应先执行；残留产物应保留到存活探测完成之后。
         assert!(ipc_file.exists(), "ipc socket marker should be preserved");
         assert!(ipc_pid_file.exists(), "pid marker should be preserved");
 

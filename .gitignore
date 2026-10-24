@@ -117,3 +117,6 @@ flutter/build/
 .deploy/panel-credentials.txt
 *.pem.key
 .env.local
+
+# 注释批量翻译的中间产物
+.deploy/tools/batches/

@@ -43,7 +43,7 @@ void main() {
   });
 
   test('page keys go to the visible edge before paging', () {
-    // Rows 10..19 are fully visible.
+    // 第 10..19 行完全可见。
     expect(pageDelta(12, 10, 19, true), 7);
     expect(pageDelta(19, 10, 19, true), 9);
     expect(pageDelta(12, 10, 19, false), -2);

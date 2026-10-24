@@ -1,42 +1,42 @@
-//! Enigo lets you simulate mouse and keyboard input-events as if they were
-//! made by the actual hardware. The goal is to make it available on different
-//! operating systems like Linux, macOS and Windows – possibly many more but
-//! [Redox](https://redox-os.org/) and *BSD are planned. Please see the
-//! [Repo](https://github.com/enigo-rs/enigo) for the current status.
+//! Enigo 让你能够模拟鼠标和键盘的输入事件，就如同它们是
+//! 由真实硬件发出的。目标是让它能在不同的
+//! 操作系统（如 Linux、macOS 和 Windows）上可用 —— 也可能涵盖更多，但
+//! [Redox](https://redox-os.org/) 和 *BSD 已在计划中。请查看
+//! [Repo](https://github.com/enigo-rs/enigo) 了解当前进展。
 //!
-//! I consider this library in an early alpha status, the API will change in
-//! in the future. The keyboard handling is far from being very usable. I plan
-//! to build a simple
+//! 我认为这个库目前处于早期 alpha 阶段，API 将会在
+//! 未来发生变化。键盘处理部分远谈不上好用。我计划
+//! 构建一个简单的
 //! [DSL](https://en.wikipedia.org/wiki/Domain-specific_language)
-//! that will resemble something like:
+//! 它大致像这样：
 //!
 //! `"hello {+SHIFT}world{-SHIFT} and break line{ENTER}"`
 //!
-//! The current status is that you can just print
+//! 目前的状态是，你只能直接打印
 //! [unicode](http://unicode.org/)
-//! characters like [emoji](http://getemoji.com/) without the `{+SHIFT}`
+//! 诸如 [emoji](http://getemoji.com/) 这样的字符，而无需 `{+SHIFT}`
 //! [DSL](https://en.wikipedia.org/wiki/Domain-specific_language)
-//! or any other "special" key on the Linux, macOS and Windows operating system.
+//! 或 Linux、macOS 和 Windows 操作系统上的任何其他“特殊”按键。
 //!
-//! Possible use cases could be for testing user interfaces on different
-//! platforms,
-//! building remote control applications or just automating tasks for user
-//! interfaces unaccessible by a public API or scripting language.
+//! 可能的用例包括：在不同的平台上测试用户界面、
+//! 平台，
+//! 构建远程控制应用，或仅为没有公共 API 或脚本语言的
+//! 用户界面自动化任务。
 //!
-//! For the keyboard there are currently two modes you can use. The first mode
-//! is represented by the [key_sequence]() function
-//! its purpose is to simply write unicode characters. This is independent of
-//! the keyboardlayout. Please note that
-//! you're not be able to use modifier keys like Control
-//! to influence the outcome. If you want to use modifier keys to e.g.
-//! copy/paste
-//! use the Layout variant. Please note that this is indeed layout dependent.
+//! 键盘目前有两种可用模式。第一种模式
+//! 由 [key_sequence]() 函数表示，
+//! 其目的只是输入 unicode 字符。这与
+//! 键盘布局无关。请注意，
+//! 你无法使用 Control 之类的修饰键
+//! 来影响结果。如果你想用修饰键来例如
+//! 复制/粘贴
+//! 请使用 Layout 变体。请注意，这确实是依赖布局的。
 
-//! # Examples
+//! # 示例
 //! ```no_run
 //! use enigo::*;
 //! let mut enigo = Enigo::new();
-//! //paste
+//! 粘贴
 //! enigo.key_down(Key::Control);
 //! enigo.key_click(Key::Layout('v'));
 //! enigo.key_up(Key::Control);
@@ -78,7 +78,7 @@ mod linux;
 #[cfg(target_os = "linux")]
 pub use crate::linux::Enigo;
 
-/// DSL parser module
+/// DSL 解析器模块
 pub mod dsl;
 
 #[cfg(feature = "with_serde")]
@@ -93,51 +93,51 @@ pub type ResultType = std::result::Result<(), Box<dyn std::error::Error>>;
 
 #[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq)]
-/// MouseButton represents a mouse button,
-/// and is used in for example
-/// [mouse_click](trait.MouseControllable.html#tymethod.mouse_click).
+/// MouseButton 表示一个鼠标按键，
+/// 并例如用于
+/// [mouse_click](trait.MouseControllable.html#tymethod.mouse_click)。
 /// WARNING: Types with the prefix Scroll
-/// IS NOT intended to be used, and may not work on
-/// all operating systems.
+/// 并不打算被使用，且可能无法在
+/// 所有操作系统上工作。
 pub enum MouseButton {
-    /// Left mouse button
+    /// 鼠标左键
     Left,
-    /// Middle mouse button
+    /// 鼠标中键
     Middle,
-    /// Right mouse button
+    /// 鼠标右键
     Right,
-    /// Back mouse button
+    /// 鼠标后退键
     Back,
-    /// Forward mouse button
+    /// 鼠标前进键
     Forward,
 
-    /// Scroll up button
+    /// 滚轮上滚键
     ScrollUp,
-    /// Scroll down button
+    /// 滚轮下滚键
     ScrollDown,
-    /// Scroll left button
+    /// 滚轮左滚键
     ScrollLeft,
-    /// Scroll right button
+    /// 滚轮右滚键
     ScrollRight,
 }
 
-/// Representing an interface and a set of mouse functions every
-/// operating system implementation _should_ implement.
+/// 表示一个接口以及一组每个
+/// 操作系统实现都_应当_实现的鼠标函数。
 pub trait MouseControllable {
     // https://stackoverflow.com/a/33687996
-    /// Offer the ability to confer concrete type.
+    /// 提供赋予具体类型的能力。
     fn as_any(&self) -> &dyn std::any::Any;
 
-    /// Offer the ability to confer concrete type.
+    /// 提供赋予具体类型的能力。
     fn as_mut_any(&mut self) -> &mut dyn std::any::Any;
 
-    /// Lets the mouse cursor move to the specified x and y coordinates.
+    /// 让鼠标光标移动到指定的 x 和 y 坐标。
     ///
-    /// The topleft corner of your monitor screen is x=0 y=0. Move
-    /// the cursor down the screen by increasing the y and to the right
-    /// by increasing x coordinate.
+    /// 显示器屏幕的左上角是 x=0 y=0。向
+    /// 下移动光标需要增大 y，向右移动
+    /// 则需要增大 x 坐标。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -146,18 +146,18 @@ pub trait MouseControllable {
     /// ```
     fn mouse_move_to(&mut self, x: i32, y: i32);
 
-    /// Lets the mouse cursor move the specified amount in the x and y
-    /// direction.
+    /// 让鼠标光标在 x 和 y 方向移动指定
+    /// 距离。
     ///
-    /// The amount specified in the x and y parameters are added to the
-    /// current location of the mouse cursor. A positive x values lets
-    /// the mouse cursor move an amount of `x` pixels to the right. A negative
-    /// value for `x` lets the mouse cursor go to the left. A positive value
+    /// x 和 y 参数中指定的量会加到
+    /// 鼠标光标当前的位置上。正的 x 值会让
+    /// 鼠标光标向右移动 `x` 像素。负的
+    /// `x` 值会让鼠标光标向左移动。正的值
     /// of y
-    /// lets the mouse cursor go down, a negative one lets the mouse cursor go
+    /// 会让鼠标光标向下移动，负的值会让鼠标光标
     /// up.
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -166,19 +166,19 @@ pub trait MouseControllable {
     /// ```
     fn mouse_move_relative(&mut self, x: i32, y: i32);
 
-    /// Push down one of the mouse buttons
+    /// 按下鼠标按键之一
     ///
-    /// Push down the mouse button specified by the parameter `button` of
-    /// type [MouseButton](enum.MouseButton.html)
-    /// and holds it until it is released by
-    /// [mouse_up](trait.MouseControllable.html#tymethod.mouse_up).
-    /// Calls to [mouse_move_to](trait.MouseControllable.html#tymethod.
-    /// mouse_move_to) or
+    /// 按下由类型 [MouseButton](enum.MouseButton.html) 的参数 `button` 指定的
+    /// 鼠标按键，
+    /// 并一直保持，直到被
+    /// [mouse_up](trait.MouseControllable.html#tymethod.mouse_up) 释放。
+    /// 对 [mouse_move_to](trait.MouseControllable.html#tymethod.
+    /// mouse_move_to) 或
     /// [mouse_move_relative](trait.MouseControllable.html#tymethod.
     /// mouse_move_relative)
-    /// will work like expected and will e.g. drag widgets or highlight text.
+    /// 的调用会按预期工作，例如拖动控件或高亮文本。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -187,17 +187,17 @@ pub trait MouseControllable {
     /// ```
     fn mouse_down(&mut self, button: MouseButton) -> ResultType;
 
-    /// Lift up a pushed down mouse button
+    /// 抬起一个已按下的鼠标按键
     ///
-    /// Lift up a previously pushed down button (by invoking
-    /// [mouse_down](trait.MouseControllable.html#tymethod.mouse_down)).
-    /// If the button was not pushed down or consecutive calls without
-    /// invoking [mouse_down](trait.MouseControllable.html#tymethod.mouse_down)
-    /// will emit lift up events. It depends on the
-    /// operating system whats actually happening – my guess is it will just
-    /// get ignored.
+    /// 抬起先前按下的按键（通过调用
+    /// [mouse_down](trait.MouseControllable.html#tymethod.mouse_down)）。
+    /// 如果该按键并未被按下，或者在没有
+    /// 调用 [mouse_down](trait.MouseControllable.html#tymethod.mouse_down)
+    /// 的情况下连续调用，就会发出抬起事件。这取决于
+    /// 操作系统实际如何处理 —— 我猜它多半会直接
+    /// 被忽略。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -206,15 +206,15 @@ pub trait MouseControllable {
     /// ```
     fn mouse_up(&mut self, button: MouseButton);
 
-    /// Click a mouse button
+    /// 点击鼠标按键
     ///
-    /// it's essentially just a consecutive invocation of
-    /// [mouse_down](trait.MouseControllable.html#tymethod.mouse_down) followed
-    /// by a [mouse_up](trait.MouseControllable.html#tymethod.mouse_up). Just
-    /// for
-    /// convenience.
+    /// 它本质上只是连续调用
+    /// [mouse_down](trait.MouseControllable.html#tymethod.mouse_down)，随后
+    /// 调用 [mouse_up](trait.MouseControllable.html#tymethod.mouse_up)。只是
+    /// 为了
+    /// 方便。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -223,15 +223,15 @@ pub trait MouseControllable {
     /// ```
     fn mouse_click(&mut self, button: MouseButton);
 
-    /// Scroll the mouse (wheel) left or right
+    /// 让鼠标（滚轮）向左或向右滚动
     ///
-    /// Positive numbers for length lets the mouse wheel scroll to the right
-    /// and negative ones to the left. The value that is specified translates
-    /// to `lines` defined by the operating system and is essentially one 15°
-    /// (click)rotation on the mouse wheel. How many lines it moves depends
-    /// on the current setting in the operating system.
+    /// length 为正数会让鼠标滚轮向右滚动，
+    /// 为负数则向左滚动。指定的值会换算成
+    /// 操作系统所定义的 `lines`，大致相当于鼠标滚轮上 15°
+    /// （一次点击）的转动。它会移动多少行取决于
+    /// 操作系统当前的设置。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -240,15 +240,15 @@ pub trait MouseControllable {
     /// ```
     fn mouse_scroll_x(&mut self, length: i32);
 
-    /// Scroll the mouse (wheel) up or down
+    /// 让鼠标（滚轮）向上或向下滚动
     ///
-    /// Positive numbers for length lets the mouse wheel scroll down
-    /// and negative ones up. The value that is specified translates
-    /// to `lines` defined by the operating system and is essentially one 15°
-    /// (click)rotation on the mouse wheel. How many lines it moves depends
-    /// on the current setting in the operating system.
+    /// length 为正数会让鼠标滚轮向下滚动，
+    /// 为负数则向上滚动。指定的值会换算成
+    /// 操作系统所定义的 `lines`，大致相当于鼠标滚轮上 15°
+    /// （一次点击）的转动。它会移动多少行取决于
+    /// 操作系统当前的设置。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -258,84 +258,84 @@ pub trait MouseControllable {
     fn mouse_scroll_y(&mut self, length: i32);
 }
 
-/// A key on the keyboard.
-/// For alphabetical keys, use Key::Layout for a system independent key.
-/// If a key is missing, you can use the raw keycode with Key::Raw.
+/// 键盘上的一个按键。
+/// 对于字母按键，使用 Key::Layout 以获得与系统无关的按键。
+/// 如果某个按键缺失，可以用 Key::Raw 使用原始键码。
 #[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Key {
-    /// alt key on Linux and Windows (option key on macOS)
+    /// Linux 和 Windows 上的 alt 键（macOS 上是 option 键）
     Alt,
-    /// backspace key
+    /// backspace 键
     Backspace,
-    /// caps lock key
+    /// caps lock 键
     CapsLock,
     // #[deprecated(since = "0.0.12", note = "now renamed to Meta")]
-    /// command key on macOS (super key on Linux, windows key on Windows)
+    /// macOS 上的 command 键（Linux 上是 super 键，Windows 上是 windows 键）
     Command,
-    /// control key
+    /// control 键
     Control,
-    /// delete key
+    /// delete 键
     Delete,
-    /// down arrow key
+    /// 下方向键
     DownArrow,
-    /// end key
+    /// end 键
     End,
-    /// escape key (esc)
+    /// escape 键（esc）
     Escape,
-    /// F1 key
+    /// F1 键
     F1,
-    /// F10 key
+    /// F10 键
     F10,
-    /// F11 key
+    /// F11 键
     F11,
-    /// F12 key
+    /// F12 键
     F12,
-    /// F2 key
+    /// F2 键
     F2,
-    /// F3 key
+    /// F3 键
     F3,
-    /// F4 key
+    /// F4 键
     F4,
-    /// F5 key
+    /// F5 键
     F5,
-    /// F6 key
+    /// F6 键
     F6,
-    /// F7 key
+    /// F7 键
     F7,
-    /// F8 key
+    /// F8 键
     F8,
-    /// F9 key
+    /// F9 键
     F9,
-    /// home key
+    /// home 键
     Home,
-    /// left arrow key
+    /// 左方向键
     LeftArrow,
-    /// meta key (also known as "windows", "super", and "command")
+    /// meta 键（也称为 "windows"、"super" 和 "command"）
     Meta,
-    /// option key on macOS (alt key on Linux and Windows)
+    /// macOS 上的 option 键（Linux 和 Windows 上是 alt 键）
     Option, // deprecated, use Alt instead
-    /// page down key
+    /// page down 键
     PageDown,
-    /// page up key
+    /// page up 键
     PageUp,
-    /// return key
+    /// return 键
     Return,
-    /// right arrow key
+    /// 右方向键
     RightArrow,
-    /// shift key
+    /// shift 键
     Shift,
-    /// space key
+    /// space 键
     Space,
     // #[deprecated(since = "0.0.12", note = "now renamed to Meta")]
-    /// super key on linux (command key on macOS, windows key on Windows)
+    /// linux 上的 super 键（macOS 上是 command 键，Windows 上是 windows 键）
     Super,
-    /// tab key (tabulator)
+    /// tab 键（制表符）
     Tab,
-    /// up arrow key
+    /// 上方向键
     UpArrow,
     // #[deprecated(since = "0.0.12", note = "now renamed to Meta")]
-    /// windows key on Windows (super key on Linux, command key on macOS)
+    /// Windows 上的 windows 键（Linux 上是 super 键，macOS 上是 command 键）
     Windows,
     ///
     Numpad0,
@@ -428,26 +428,26 @@ pub enum Key {
     ///
     RightAlt,
     ///
-    /// Function, /// mac
-    /// keyboard layout dependent key
+    /// 功能键，/// mac
+    /// 依赖键盘布局的按键
     Layout(char),
-    /// raw keycode eg 0x38
+    /// 原始键码，例如 0x38
     Raw(u16),
 }
 
-/// Representing an interface and a set of keyboard functions every
-/// operating system implementation _should_ implement.
+/// 表示一个接口以及一组每个
+/// 操作系统实现都_应当_实现的键盘函数。
 pub trait KeyboardControllable {
     // https://stackoverflow.com/a/33687996
-    /// Offer the ability to confer concrete type.
+    /// 提供赋予具体类型的能力。
     fn as_any(&self) -> &dyn std::any::Any;
 
-    /// Offer the ability to confer concrete type.
+    /// 提供赋予具体类型的能力。
     fn as_mut_any(&mut self) -> &mut dyn std::any::Any;
 
-    /// Types the string parsed with DSL.
+    /// 输入由 DSL 解析出的字符串。
     ///
-    /// Typing {+SHIFT}hello{-SHIFT} becomes HELLO.
+    /// 输入 {+SHIFT}hello{-SHIFT} 会变成 HELLO。
     /// TODO: Full documentation
     fn key_sequence_parse(&mut self, sequence: &str)
     where
@@ -457,7 +457,7 @@ pub trait KeyboardControllable {
             println!("Could not parse sequence");
         }
     }
-    /// Same as key_sequence_parse except returns any errors
+    /// 与 key_sequence_parse 相同，只是会返回错误
     fn key_sequence_parse_try(&mut self, sequence: &str) -> Result<(), dsl::ParseError>
     where
         Self: Sized,
@@ -465,14 +465,14 @@ pub trait KeyboardControllable {
         dsl::eval(self, sequence)
     }
 
-    /// Types the string
+    /// 输入该字符串
     ///
-    /// Emits keystrokes such that the given string is inputted.
+    /// 发出按键序列，使给定的字符串被输入。
     ///
-    /// You can use many unicode here like: ❤️. This works
-    /// regardless of the current keyboardlayout.
+    /// 这里可以使用很多 unicode 字符，例如：❤️。这样是有效的，
+    /// 与当前的键盘布局无关。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;
@@ -481,17 +481,17 @@ pub trait KeyboardControllable {
     /// ```
     fn key_sequence(&mut self, sequence: &str);
 
-    /// presses a given key down
+    /// 按下指定的按键
     fn key_down(&mut self, key: Key) -> ResultType;
 
-    /// release a given key formally pressed down by
+    /// 释放此前由
     /// [key_down](trait.KeyboardControllable.html#tymethod.key_down)
     fn key_up(&mut self, key: Key);
 
-    /// Much like the
-    /// [key_down](trait.KeyboardControllable.html#tymethod.key_down) and
+    /// 与
+    /// [key_down](trait.KeyboardControllable.html#tymethod.key_down) 和
     /// [key_up](trait.KeyboardControllable.html#tymethod.key_up)
-    /// function they're just invoked consecutively
+    /// 函数类似，它们只是被连续调用
     fn key_click(&mut self, key: Key);
 
     ///
@@ -502,9 +502,9 @@ pub trait KeyboardControllable {
 struct Enigo;
 
 impl Enigo {
-    /// Constructs a new `Enigo` instance.
+    /// 构造一个新的 `Enigo` 实例。
     ///
-    /// # Example
+    /// # 示例
     ///
     /// ```no_run
     /// use enigo::*;

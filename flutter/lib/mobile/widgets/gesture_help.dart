@@ -65,8 +65,8 @@ class _GestureHelpState extends State<GestureHelp> {
     _selectedIndex = _touchMode ? 1 : 0;
   }
 
-  /// Helper to exit relative mouse mode when certain conditions are met.
-  /// This reduces code duplication across multiple UI callbacks.
+  /// 在满足特定条件时退出相对鼠标模式的辅助方法。
+  /// 这样可以减少多个 UI 回调之间的代码重复。
   void _exitRelativeMouseModeIf(bool condition) {
     if (condition) {
       widget.inputModel?.setRelativeMouseMode(false);
@@ -115,7 +115,7 @@ class _GestureHelpState extends State<GestureHelp> {
                               _selectedIndex = index ?? 0;
                               _touchMode = index == 0 ? false : true;
                               widget.onTouchModeChange(_touchMode);
-                              // Exit relative mouse mode when switching to touch mode
+                              // 切换到触摸模式时退出相对鼠标模式
                               _exitRelativeMouseModeIf(_touchMode);
                             }
                           });
@@ -131,7 +131,7 @@ class _GestureHelpState extends State<GestureHelp> {
                               onChanged: (value) async {
                                 if (value == null) return;
                                 await _virtualMouseMode.toggleVirtualMouse();
-                                // Exit relative mouse mode when virtual mouse is hidden
+                                // 虚拟鼠标隐藏时退出相对鼠标模式
                                 _exitRelativeMouseModeIf(
                                     !_virtualMouseMode.showVirtualMouse);
                                 setState(() {});
@@ -140,7 +140,7 @@ class _GestureHelpState extends State<GestureHelp> {
                             InkWell(
                               onTap: () async {
                                 await _virtualMouseMode.toggleVirtualMouse();
-                                // Exit relative mouse mode when virtual mouse is hidden
+                                // 虚拟鼠标隐藏时退出相对鼠标模式
                                 _exitRelativeMouseModeIf(
                                     !_virtualMouseMode.showVirtualMouse);
                                 setState(() {});
@@ -152,7 +152,7 @@ class _GestureHelpState extends State<GestureHelp> {
                       ),
                       if (_touchMode && _virtualMouseMode.showVirtualMouse)
                         Padding(
-                          // Indent "Virtual mouse size"
+                          // 缩进 "Virtual mouse size"
                           padding: const EdgeInsets.only(left: 24.0),
                           child: SizedBox(
                             width: 260,
@@ -204,7 +204,7 @@ class _GestureHelpState extends State<GestureHelp> {
                         Transform.translate(
                           offset: const Offset(-10.0, -12.0),
                           child: Padding(
-                              // Indent "Show virtual joystick"
+                              // 缩进 "Show virtual joystick"
                               padding: const EdgeInsets.only(left: 24.0),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -216,7 +216,7 @@ class _GestureHelpState extends State<GestureHelp> {
                                       if (value == null) return;
                                       await _virtualMouseMode
                                           .toggleVirtualJoystick();
-                                      // Exit relative mouse mode when joystick is hidden
+                                      // 摇杆隐藏时退出相对鼠标模式
                                       _exitRelativeMouseModeIf(
                                           !_virtualMouseMode
                                               .showVirtualJoystick);
@@ -227,7 +227,7 @@ class _GestureHelpState extends State<GestureHelp> {
                                     onTap: () async {
                                       await _virtualMouseMode
                                           .toggleVirtualJoystick();
-                                      // Exit relative mouse mode when joystick is hidden
+                                      // 摇杆隐藏时退出相对鼠标模式
                                       _exitRelativeMouseModeIf(
                                           !_virtualMouseMode
                                               .showVirtualJoystick);
@@ -239,7 +239,7 @@ class _GestureHelpState extends State<GestureHelp> {
                                 ],
                               )),
                         ),
-                      // Relative mouse mode option - only visible when joystick is shown
+                      // 相对鼠标模式选项 —— 仅在显示摇杆时可见
                       if (!_touchMode &&
                           _virtualMouseMode.showVirtualMouse &&
                           _virtualMouseMode.showVirtualJoystick &&
@@ -247,7 +247,7 @@ class _GestureHelpState extends State<GestureHelp> {
                         Obx(() => Transform.translate(
                               offset: const Offset(-10.0, -24.0),
                               child: Padding(
-                                  // Indent further for 'Relative mouse mode'
+                                  // 为 'Relative mouse mode' 进一步缩进
                                   padding: const EdgeInsets.only(left: 48.0),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,

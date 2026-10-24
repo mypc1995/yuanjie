@@ -56,8 +56,8 @@ fn prepare_install_commands(cmds: &InstallCommands) -> ResultType<String> {
         .map(|file| path_for_cmd_environment(file.path()).map(|path| format!("\"{path}\"")))
         .collect::<ResultType<Vec<_>>>()?
         .join(" ");
-    // Call a fixed label so early EXIT /B still reaches cleanup, without reparsing a path.
-    // Exit the dedicated cmd after self-deletion; EXIT /B would reopen the missing BAT.
+    // 调用一个固定标签，使提前的 EXIT /B 仍能到达清理步骤，而无需重新解析路径。
+    // 自删除后退出专用的 cmd；EXIT /B 会重新打开已不存在的 BAT。
     Ok(format!(
         "@echo off\r\nsetlocal EnableExtensions DisableDelayedExpansion\r\n\
          set \"ERRORLEVEL=\"\r\n\
@@ -114,12 +114,12 @@ pub(super) fn run_cmds(cmds: impl Into<InstallCommands>, show: bool, tip: &str) 
         ))
     })?;
     gate.wait_for_client(process.handle())?;
-    // Keep DELETE-capable handles through UAC cancellation, but close them before
-    // cmd opens the BAT or copies its inputs. The protected DACL stays unchanged.
+    // 在 UAC 取消过程中保持具备 DELETE 能力的句柄，但在
+    // cmd 打开 BAT 或复制其输入之前关闭它们。受保护的 DACL 保持不变。
     script.release_files();
     gate.release(process.handle())?;
     let exit_code = process.wait()?;
-    // Cleanup must not change the result of an installation that already ran.
+    // 清理不得改变已经执行过的安装的结果。
     match fs::symlink_metadata(&directory) {
         Ok(_) => log::warn!(
             "Protected installer directory may remain at {}",
@@ -215,7 +215,7 @@ mod tests {
         assert!(!source.exists());
         fs::remove_dir(&root).unwrap();
 
-        // A child exiting without connecting must also retire the pending pipe I/O.
+        // 子进程未连接就退出时，也必须了结挂起的管道 I/O。
         let gate = InstallGate::new().unwrap();
         let mut child =
             std::process::Command::new(get_system_executable(CMD_RELATIVE_PATH).unwrap())

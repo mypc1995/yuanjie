@@ -38,22 +38,22 @@ lazy_static! {
 }
 
 #[derive(Serialize, Deserialize)]
-// For KDE Plasma only, because GNOME provides position info.
+// 仅适用于 KDE Plasma，因为 GNOME 会提供位置信息。
 struct PipewireDisplayOffsetCache {
-    // We need to compare the displays, because:
-    // 1. On Archlinux KDE Plasma
-    // 2. One display, and connect, remember share choice.
-    // 3. Plug in another monitor.
-    // 4. The portal will reuse the restore token, no new share choice dialog, but the share screen is different.
-    //    The controlling side will see the new monitor.
-    // All displays as one string for easy comparison
+    // 我们需要比较这些显示器，因为：
+    // 1. 在 Archlinux 的 KDE Plasma 上
+    // 2. 只有一个显示器，连接后会记住共享选择。
+    // 3. 再插上一台显示器。
+    // 4. portal 会复用 restore token，不会再弹出共享选择对话框，但共享的屏幕却变了。
+    // 控制端会看到新的显示器。
+    // 把所有显示器拼成一个字符串，便于比较
     // name1-x1-y1-width1-height1;name2-x2-y2-width2-height2;...
     display_key: String,
     restore_token: String,
     offsets: Vec<(i32, i32)>,
 }
 
-// KDE Plasma may not provide position info
+// KDE Plasma 可能不提供位置信息
 static HAS_POSITION_ATTR: AtomicBool = AtomicBool::new(false);
 static IS_SERVER_RUNNING: AtomicU8 = AtomicU8::new(0); // 0: uninitialized, 1:true, 2: false
 
@@ -77,8 +77,8 @@ pub fn close_session() {
 
 #[inline]
 pub fn is_rdp_session_hold() -> bool {
-    // try_lock: a request waiting for the user holds the slot (no session yet), and so do the short
-    // looks while a session is set up. Busy answers no session rather than wait.
+    // try_lock：一个等待用户响应的请求会占用该位置（此时还没有会话），会话建立期间的短暂
+    // 查询也一样。Busy 表示没有会话，而不是继续等待。
     matches!(RDP_SESSION_INFO.try_lock(), Ok(info) if info.is_some())
 }
 
@@ -86,13 +86,13 @@ pub fn try_close_session() {
     let mut rdp_info = RDP_SESSION_INFO.lock().unwrap();
     let mut close = false;
     if let Some(rdp_info) = &*rdp_info {
-        // If is server running and restore token is supported, there's no need to keep the session.
+        // 如果 is server 正在运行且支持 restore token，就没有必要保留会话。
         if is_server_running() && rdp_info.is_support_restore_token {
             close = true;
         }
     }
     if close {
-        *rdp_info = None;
+        * rdp_info = None;
         clear_wayland_displays_cache();
         HAS_POSITION_ATTR.store(false, Ordering::SeqCst);
     }
@@ -150,7 +150,7 @@ impl Error for GStreamerError {}
 
 #[derive(Clone)]
 pub struct PipeWireCapturable {
-    // connection needs to be kept alive for recording
+    // 录制期间需要保持连接存活
     dbus_conn: Arc<SyncConnection>,
     fd: OwnedFd,
     path: u64,
@@ -159,8 +159,8 @@ pub struct PipeWireCapturable {
     pub position: (i32, i32),
     pub logical_size: (usize, usize),
     pub physical_size: (usize, usize),
-    // False when `physical_size` is the portal size standing in for a resolution get_res() could
-    // not read.
+    // 当 `physical_size` 只是用来顶替 get_res() 读不到分辨率的 portal 尺寸时，返回 False
+    // （也就是它并不代表真实分辨率）。
     physical_size_measured: bool,
 }
 
@@ -171,7 +171,7 @@ impl PipeWireCapturable {
         resolution: Arc<Mutex<Option<(usize, usize)>>>,
         stream: &PwStreamInfo,
     ) -> Self {
-        // alternative to get screen resolution as stream.size is not always correct ex: on fractional scaling
+        // 获取屏幕分辨率的替代方案，因为 stream.size 并不总是正确，例如在分数缩放下
         // https://github.com/rustdesk/rustdesk/issues/6116#issuecomment-1817724244
         let measured = get_res(Self {
             dbus_conn: conn.clone(),
@@ -186,7 +186,7 @@ impl PipeWireCapturable {
         });
         let physical_size_measured = measured.is_ok();
         let physical_size = measured.unwrap_or(stream.size);
-        *resolution.lock().unwrap() = Some(physical_size);
+        * resolution.lock().unwrap() = Some(physical_size);
         Self {
             dbus_conn: conn,
             fd,
@@ -272,9 +272,9 @@ pub struct PipeWireRecorder {
     saved_raw_data: Vec<u8>, // for faster compare and copy
 }
 
-// Element creation fails the same way for a plugin that is not installed as for one that is
-// broken, so the tag does not claim which. Only the name travels to the peer -- it is what
-// says which package to look at -- and the factory's own error stays here in the log.
+// 插件未安装和插件损坏时，元素创建失败的方式是一样的，因此这个标签
+// 并不声称是哪一种。只有名称会传给对端——它决定了
+// 该查看哪个包——而 factory 自身的错误只留在本地日志里。
 fn gst_element(name: &str) -> ResultType<gst::Element> {
     gst::ElementFactory::make(name, None).map_err(|e| {
         error!("Failed to create GStreamer element {}: {}", name, e);
@@ -285,7 +285,7 @@ fn gst_element(name: &str) -> ResultType<gst::Element> {
 impl PipeWireRecorder {
     pub fn new(capturable: PipeWireCapturable) -> ResultType<Self> {
         let pipeline = gst::Pipeline::new(None);
-        // Clock waits on stale capture timestamps can exhaust the compositor's buffers.
+        // 基于过期采集时间戳的时钟等待会耗尽合成器的缓冲区。
         pipeline.use_clock(None::<&gst::Clock>);
 
         let src = gst_element("pipewiresrc")?;
@@ -293,16 +293,16 @@ impl PipeWireRecorder {
         src.set_property("path", &format!("{}", capturable.path))?;
         src.set_property("keepalive_time", &1_000.as_raw_fd())?;
 
-        // For some reason pipewire blocks on destruction of AppSink if this is not set to true,
-        // see: https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/982
+        // 不知为何，如果不把这里设为 true，pipewire 在销毁 AppSink 时会阻塞，
+        // 参见：https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/982
         src.set_property("always-copy", &true)?;
 
-        // COSMIC/Wayland fix: insert videoconvert between pipewiresrc and appsink.
-        // xdg-desktop-portal-cosmic's modifier negotiation fails when the downstream
-        // format set is too narrow (appsink only accepts BGRx/RGBx), producing
-        // "no more output formats" / not-negotiated (-4). videoconvert accepts any
-        // system-memory video/x-raw format, widening negotiation so the portal can
-        // settle on a format it can deliver via its SHM path.
+        // COSMIC/Wayland 的修复：在 pipewiresrc 与 appsink 之间插入 videoconvert。
+        // 当下游
+        // 格式集合过窄时（appsink 只接受 BGRx/RGBx），xdg-desktop-portal-cosmic 的协商会失败，产生
+        // “no more output formats” / not-negotiated (-4) 错误。videoconvert 接受任何
+        // 系统内存的 video/x-raw 格式，扩大了协商范围，使 portal 能够
+        // 最终选定一个它能通过 SHM 路径交付的格式。
         let convert = gst_element("videoconvert")?;
 
         let sink = gst_element("appsink")?;
@@ -327,22 +327,22 @@ impl PipeWireRecorder {
         ));
         appsink.set_caps(Some(&caps));
 
-        // [Workaround]
-        // Crash may occur if there are multiple pipelines started at the same time.
-        // `pipeline.get_state()` can significantly reduce the probability of crashes,
-        // but cannot completely resolve this issue.
-        // Adding a short sleep period can also reduce the probability of crashes.
+        // [变通方案]
+        // 同时启动多条 pipeline 时可能会崩溃。
+        // 调用 `pipeline.get_state()` 可以显著降低崩溃的概率，
+        // 但无法彻底解决这个问题。
+        // 加上一小段 sleep 同样可以降低崩溃的概率。
         debug!(
             "[gstreamer] Setting pipeline {} to PLAYING state...",
             capturable.fd.as_raw_fd()
         );
         pipeline.set_state(gst::State::Playing)?;
 
-        // If `is_server_running()` is false, it means using remote_desktop_portal,
-        // which does not use multiple streams, so no need to wait for state change.
+        // 如果 `is_server_running()` 为 false，说明使用的是 remote_desktop_portal，
+        // 它不使用多条流，因此不需要等待状态变化。
         if is_server_running() {
-            // Wait for the state change to actually complete before proceeding.
-            // The 2000ms timeout for pipeline state change was chosen based on empirical testing.
+            // 在继续之前，等待状态变化真正完成。
+            // pipeline 状态变化所用的 2000ms 超时是依据实测选定的。
             let state_change = pipeline.get_state(gst::ClockTime::from_mseconds(2000));
             match state_change {
                 (Ok(_), gst::State::Playing, _) => {
@@ -401,7 +401,7 @@ impl Recorder for PipeWireRecorder {
             let mut crop = buf
                 .get_meta::<gstreamer_video::VideoCropMeta>()
                 .map(|m| m.get_rect());
-            // only crop if necessary
+            // 只在必要时才裁剪
             if Some((0, 0, w as u32, h as u32)) == crop {
                 crop = None;
             }
@@ -412,10 +412,10 @@ impl Recorder for PipeWireRecorder {
                 return Ok(PixelProvider::NONE);
             }
             let buf_size = buf.get_size();
-            // BGRx is 4 bytes per pixel
+            // BGRx 每像素 4 字节
             if buf_size != (w * h * 4) {
-                // for some reason the width and height of the caps do not guarantee correct buffer
-                // size, so ignore those buffers, see:
+                // 不知为何，caps 中的宽高并不能保证缓冲区大小正确，
+                // 所以忽略这些缓冲区，参见：
                 // https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/985
                 trace!(
                     "Size of mapped buffer: {} does NOT match size of capturable {}x{}@BGRx, \
@@ -425,7 +425,7 @@ impl Recorder for PipeWireRecorder {
                     h
                 );
             } else {
-                // Copy region specified by crop into self.buffer_cropped
+                // 把 crop 指定的区域复制到 self.buffer_cropped
                 // TODO: Figure out if ffmpeg provides a zero copy alternative
                 if let Some((x_off, y_off, w_crop, h_crop)) = crop {
                     let x_off = x_off as usize;
@@ -434,7 +434,7 @@ impl Recorder for PipeWireRecorder {
                     let h_crop = h_crop as usize;
                     self.buffer_cropped.clear();
                     let data = buf.as_slice();
-                    // BGRx is 4 bytes per pixel
+                    // BGRx 每像素 4 字节
                     self.buffer_cropped.reserve(w_crop * h_crop * 4);
                     for y in y_off..(y_off + h_crop) {
                         let i = 4 * (w * y + x_off);
@@ -479,15 +479,15 @@ impl Drop for PipeWireRecorder {
         if let Err(err) = self.pipeline.set_state(gst::State::Null) {
             warn!("Failed to stop GStreamer pipeline: {}.", err);
         }
-        // Wait for state change to complete to avoid races during PipeWire teardown.
+        // 等待状态变化完成，以避免 PipeWire 拆除过程中的竞态。
         let _ = self.pipeline.get_state(gst::ClockTime::from_mseconds(2000));
     }
 }
 
-// The portal handshake is four sequential requests whose outcomes arrive as asynchronous
-// `Response` signals, so where and why it failed is known only inside the signal handler.
-// Recording it here, instead of collapsing every outcome into one `failed` flag, is what lets
-// the app side name the real cause rather than guess it from the error text.
+// portal 的握手是四个顺序请求，其结果以异步
+// `Response` 信号的形式到达，所以在哪里失败、因为什么失败，只有在信号处理函数内部才知道。
+// 把具体原因记录在这里（而不是把所有结果都合并成一个 `failed` 标志），才能让
+// 应用侧说出真正的原因，而不是从错误文本里猜测。
 #[derive(Clone, Copy)]
 enum PortalStage {
     CreateSession = 1,
@@ -519,9 +519,9 @@ impl PortalStage {
     }
 }
 
-// `wl-stage:<stage>:<kind>:<detail>`, parsed by `map_err_scrap` on the app side. The detail
-// reaches the user through a `{}` placeholder in a translated string, so it must not bring
-// braces, control characters or unbounded length of its own.
+// `wl-stage:<stage>:<kind>:<detail>`，由应用侧的 `map_err_scrap` 解析。detail 部分
+// 会通过翻译字符串中的 `{}` 占位符展示给用户，因此它不能带来
+// 花括号、控制字符或自身长度不受限制的内容。
 const STAGE_TAG: &str = "wl-stage:";
 
 fn stage_err(stage: &str, kind: &str, detail: &str) -> String {
@@ -534,8 +534,8 @@ fn stage_err(stage: &str, kind: &str, detail: &str) -> String {
     format!("{}{}:{}:{}", STAGE_TAG, stage, kind, detail.trim())
 }
 
-// The name alone is usually the generic `org.freedesktop.DBus.Error.Failed`; the message is
-// where a backend says what it objected to. This ends up in the log, so carry both.
+// 单看名称通常都是通用的 `org.freedesktop.DBus.Error.Failed`；message 才是
+// 后端说明自己反对什么的地方。这些内容会进日志，所以两者都要带上。
 fn dbus_stage_err(stage: &str, err: &dbus::Error) -> String {
     let detail = match (err.name(), err.message()) {
         (Some(name), Some(message)) if !name.is_empty() && !message.is_empty() => {
@@ -556,8 +556,8 @@ fn dbus_stage_err(stage: &str, err: &dbus::Error) -> String {
 struct PortalTrace {
     failed: Arc<AtomicBool>,
     reason: Arc<Mutex<Option<String>>>,
-    // The stage whose `Response` we are still waiting for, so the polling loop can tell a
-    // non-interactive step apart from the one that waits for a human.
+    // 我们仍在等待其 `Response` 的阶段，以便轮询循环能区分
+    // 无需交互的步骤和需要人参与的步骤。
     waiting_for: Arc<AtomicU8>,
 }
 
@@ -575,11 +575,11 @@ impl PortalTrace {
         self.failed.store(true, Ordering::SeqCst);
     }
 
-    // The first failure is the cause; whatever follows it is a consequence.
+    // 第一个失败才是原因，之后发生的都只是后果。
     fn record(&self, tag: String) {
         if let Ok(mut reason) = self.reason.lock() {
             if reason.is_none() {
-                *reason = Some(tag);
+                * reason = Some(tag);
             }
         }
     }
@@ -653,9 +653,9 @@ where
     })
 }
 
-// The request object path a portal method call will use, derived from our unique
-// bus name and the `handle_token` we pass in the call arguments. Knowing it up
-// front lets us subscribe to the `Response` signal *before* making the call.
+// portal 方法调用将使用的 request 对象路径，由我们的唯一
+// bus name 以及调用参数中传入的 `handle_token` 推导得出。提前知道它，
+// 就让我们可以在发起调用*之前*订阅 `Response` 信号。
 // https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Request.html
 fn get_request_path(
     conn: &SyncConnection,
@@ -767,7 +767,7 @@ pub fn get_available_cursor_modes() -> Result<u32, dbus::Error> {
     portal.available_cursor_modes()
 }
 
-// mostly inspired by https://gitlab.gnome.org/-/snippets/39
+// 主要参考 https://gitlab.gnome.org/-/snippets/39
 pub fn request_remote_desktop(
     capture_cursor: bool,
 ) -> ResultType<(
@@ -812,12 +812,12 @@ pub fn request_remote_desktop(
         }
     }
 
-    // The following code may be improved.
+    // 下面的代码还可以改进。
     // https://flatpak.github.io/xdg-desktop-portal/#:~:text=To%20avoid%20a%20race%20condition
-    // To avoid a race condition
-    // between the caller subscribing to the signal after receiving the reply for the method call and the signal getting emitted,
-    // a convention for Request object paths has been established that allows
-    // the caller to subscribe to the signal before making the method call.
+    // 为了避免竞态
+    // ——即调用方在收到方法调用的回复之后才去订阅信号，而信号本身却被发出——
+    // 社区已经确立了一套 Request 对象路径的约定，使得
+    // 调用方可以在发起方法调用之前就订阅该信号。
     handle_response(
         &conn,
         get_request_path(&conn, create_session_handle_token)
@@ -842,11 +842,11 @@ pub fn request_remote_desktop(
             .map_err(|e| anyhow!(dbus_stage_err("create-session", &e)))?;
     }
 
-    // wait 3 minutes for user interaction
+    // 等待用户交互最多 3 分钟
     for _ in 0..1800 {
         conn.process(Duration::from_millis(100))
             .map_err(|e| anyhow!(dbus_stage_err(trace_res.waiting_stage().as_str(), &e)))?;
-        // Once we got a file descriptor we are done!
+        // 一旦拿到文件描述符就完成了！
         if fd_res.lock().unwrap().is_some() {
             break;
         }
@@ -917,14 +917,14 @@ fn on_create_session_response(
 
         let portal = get_portal(c);
         let mut args: PropMap = HashMap::new();
-        // See `is_server_running()` to understand the following code.
+        // 参见 `is_server_running()` 以理解下面的代码。
         if is_server_running() {
             if is_support_restore_token {
                 let restore_token = config::LocalConfig::get_option(RESTORE_TOKEN_CONF_KEY);
                 if !restore_token.is_empty() {
                     args.insert(RESTORE_TOKEN.to_string(), Variant(Box::new(restore_token)));
                 }
-                // persist_mode may be configured by the user.
+                // persist_mode 可能由用户配置。
                 args.insert("persist_mode".to_string(), Variant(Box::new(2u32)));
             }
             let select_sources_handle_token = "u3";
@@ -1103,7 +1103,7 @@ fn on_start_response(
 ) -> Result<(), Box<dyn Error>> {
     move |r: OrgFreedesktopPortalRequestResponse, c, _| {
         let portal = get_portal(c);
-        // See `is_server_running()` to understand the following code.
+        // 参见 `is_server_running()` 以理解下面的代码。
         if is_server_running() {
             if is_support_restore_token {
                 if let Some(restore_token) = r.results.get(RESTORE_TOKEN) {
@@ -1122,8 +1122,8 @@ fn on_start_response(
             .lock()
             .unwrap()
             .append(&mut streams_from_response(r));
-        // Past this point the user has granted the request; anything that fails now is the
-        // hand-over of the PipeWire fd, which is a different thing to go looking at.
+        // 过了这一步，用户已经批准了请求；此时任何失败都出在
+        // PipeWire fd 的移交上，那是另一码事。
         trace.waiting(PortalStage::OpenPipeWireRemote);
         fd.clone().lock().unwrap().replace(
             portal
@@ -1153,7 +1153,7 @@ pub fn get_capturables() -> Result<Vec<PipeWireCapturable>, Box<dyn Error>> {
             is_support_restore_token,
             resolution: Arc::new(Mutex::new(None)),
         };
-        *rdp_connection = Some(rdp_info);
+        * rdp_connection = Some(rdp_info);
     }
 
     let rdp_info = match rdp_connection.as_mut() {
@@ -1177,15 +1177,15 @@ pub fn get_capturables() -> Result<Vec<PipeWireCapturable>, Box<dyn Error>> {
         .collect())
 }
 
-// If `is_server_running()` is true, then `screencast_portal::start` is called.
-// Otherwise, `remote_desktop_portal::start` is called.
+// 如果 `is_server_running()` 为 true，则调用 `screencast_portal::start`。
+// 否则调用 `remote_desktop_portal::start`。
 //
-// If `is_server_running()` is true, `--service` process is running,
-// then we can use uinput as the input method.
-// Otherwise, we have to use remote_desktop_portal's input method.
+// 如果 `is_server_running()` 为 true，说明 `--service` 进程正在运行，
+// 那么就可以用 uinput 作为输入方式。
+// 否则必须使用 remote_desktop_portal 的输入方式。
 //
-// `screencast_portal` supports restore_token and persist_mode if the version is greater than or equal to 4.
-// `remote_desktop_portal` does not support restore_token and persist_mode.
+// 如果版本大于等于 4，`screencast_portal` 支持 restore_token 和 persist_mode。
+// `remote_desktop_portal` 不支持 restore_token 和 persist_mode。
 pub(crate) fn is_server_running() -> bool {
     let v = IS_SERVER_RUNNING.load(Ordering::SeqCst);
     if v > 0 {
@@ -1210,11 +1210,11 @@ pub(crate) fn is_server_running() -> bool {
     is_running
 }
 
-// The logical size reported by portal may be different from the size reported by `get_displays()`.
-// So we need to use the workaround here.
-// 1. openSUSE, KDE Plasma
-// 2. Kubuntu 24.04 TLS, after running `sudo apt install plasma-workspace-wayland`
-// Maybe it's a bug, and we can remove this workaround in the future.
+// portal 报告的逻辑尺寸可能与 `get_displays()` 报告的尺寸不同。
+// 所以这里需要使用变通方案。
+// 1. openSUSE、KDE Plasma
+// 2. Kubuntu 24.04 TLS，在执行 `sudo apt install plasma-workspace-wayland` 之后
+// 这可能是个 bug，将来可以去掉这个变通方案。
 pub fn try_fix_logical_size(shared_displays: &mut Vec<crate::Display>) {
     if !is_server_running() {
         return;
@@ -1234,8 +1234,8 @@ pub fn try_fix_logical_size(shared_displays: &mut Vec<crate::Display>) {
                         if capturable.physical_size.0 != wd.width as usize
                             || capturable.physical_size.1 != wd.height as usize
                         {
-                            // If "Full Workspace" is selected in the portal dialog,
-                            // the physical size reported by portal may not match the display info.
+                            // 如果在 portal 对话框中选择了“Full Workspace”，
+                            // portal 报告的物理尺寸可能与显示信息不匹配。
                             debug!(
                             "Physical size of capturable ({:?}) does not match display info: ({:?}) - ({:?}). Skipping logical size fix.",
                             capturable.position,
@@ -1278,7 +1278,7 @@ pub fn fill_displays(
     let rdp_info = match rdp_connection.as_mut() {
         Some(res) => res,
         None => {
-            // Unreachable
+            // 不可达
             bail!("RDP session info is None when filling display positions.");
         }
     };
@@ -1331,10 +1331,10 @@ pub fn fill_displays(
     Ok(())
 }
 
-// The origin a stream takes when its position names no output of its size. Only a measured size
-// moves a position: when get_res() failed, the size is the portal size, which can be the mode of
-// another output and says less than the position does, whether the portal sent that position or
-// try_fill_positions restored it from its cache.
+// 当一个流的位置没有对应到同等尺寸的输出时，它所采用的原点。只有实测到的尺寸
+// 才会改变位置：当 get_res() 失败时，尺寸取的是 portal 尺寸，它可能是另一个输出的
+// 模式，因此比位置本身能说明的更少，无论这个位置是 portal 发来的，还是
+// try_fill_positions 从缓存中恢复的。
 fn reconciled_origin(
     position: (i32, i32),
     size: (usize, usize),
@@ -1347,11 +1347,11 @@ fn reconciled_origin(
     corrected_origin(position, size, outputs)
 }
 
-// The origin for a stream whose position names no output of the stream's size (a rotated output
-// counts in either orientation), when exactly one output has that size. xdg-desktop-portal-hyprland reports every stream at (0, 0):
-// with no output there `sort_streams` dropped the stream, and with another output there the
-// stream took its origin and missed `try_fix_logical_size`, so the pointer landed on the wrong
-// output (#15731). With several outputs of that size the position is kept.
+// 对于位置没有对应到与该流同尺寸输出的流所采用的原点（旋转过的输出
+// 按任一方向计算都算），前提是恰好只有一个输出具有该尺寸。xdg-desktop-portal-hyprland 把每个流都报告在 (0, 0)：
+// 那里没有输出时 `sort_streams` 会丢弃该流；而那里有另一个输出时，
+// 该流会采用那个原点并错过 `try_fix_logical_size`，导致指针落在错误的
+// 输出上（#15731）。如果有多个该尺寸的输出，则保留原位置。
 fn corrected_origin(
     position: (i32, i32),
     size: (usize, usize),
@@ -1522,9 +1522,9 @@ fn compare_left_up_corner(w: usize, d1: &[u8], d2: &[u8]) -> bool {
     let roi_h = std::cmp::min(36, h);
     let mut diff_px = 0usize;
     let total_px = roi_w * roi_h;
-    // Minimum number of differing pixels required to consider images different.
+    // 判定两幅图像不同所需的最少差异像素数。
     const MIN_DIFF_PIXELS: usize = 8;
-    // Divisor for threshold calculation: allows up to 1/8 of ROI pixels to differ before returning true.
+    // 阈值计算用的除数：允许最多 1/8 的 ROI 像素有差异，之后才返回 true。
     const DIFF_THRESHOLD_DIVISOR: usize = 8;
     let threshold = std::cmp::max(MIN_DIFF_PIXELS, total_px / DIFF_THRESHOLD_DIVISOR);
 
@@ -1609,8 +1609,8 @@ fn fill_multi_matched_positions_cursor(
     streams: &mut Vec<PwStreamInfo>,
     multi_matched_indices: Vec<usize>,
 ) -> ResultType<()> {
-    // This creates a new remote desktop session for cursor-based position detection.
-    // The session is temporary, used only for disambiguation, and is dropped after detection completes.
+    // 这会创建一个新的远程桌面会话，用于基于光标的位置检测。
+    // 该会话是临时的，只用于消歧，检测完成后即被丢弃。
     let (conn, fd, streams_with_cursor, _session, _is_support_restore_token) =
         request_remote_desktop(true)?;
     let conn = Arc::new(conn);
@@ -1624,7 +1624,7 @@ fn fill_multi_matched_positions_cursor(
             streams_with_cursor.get(idx),
         ) {
             (Some(crate::Display::WAYLAND(d)), Some(pw_stream), Some(pw_stream_with_cursor)) => {
-                // Check if only one display matches the size
+                // 检查是否只有一个显示器的尺寸匹配
                 let mut match_count = 0;
                 for (i, wd) in displays.displays.iter().enumerate() {
                     if matched_indices.contains(&i) {
@@ -1664,8 +1664,8 @@ fn fill_multi_matched_positions_cursor(
                     continue;
                 }
 
-                // Move the mouse to a neutral position first,
-                // to avoid interference from previous position.
+                // 先把鼠标移动到一个中立位置，
+                // 以避免上一个位置带来的干扰。
                 mouse_move_to_(&mouse_move_to, get_cursor_pos, 300, 300);
 
                 let mut rec = PipeWireRecorder::new(PipeWireCapturable {
@@ -1679,7 +1679,7 @@ fn fill_multi_matched_positions_cursor(
                     physical_size: (0, 0),
                     physical_size_measured: false,
                 })?;
-                // Take first frame and copy owned buffer to avoid borrow across second capture
+                // 取第一帧并复制其拥有的缓冲区，以避免第二次采集时出现借用冲突
                 let (is_bgr, w, first_buf): (bool, usize, Vec<u8>) =
                     match rec.capture(CAPTURE_TIMEOUT_MS) {
                         Ok(PixelProvider::BGR0(w, _, data1)) => (true, w, data1.to_vec()),
@@ -1771,7 +1771,7 @@ fn sort_streams(
         return;
     }
 
-    // put the main display first, then the rest by the order of displays
+    // 把主显示器放在最前，其余按显示器顺序排列
     let mut display_order: Vec<(i32, i32)> = Vec::new();
     if let Some(d) = displays.displays.get(displays.primary) {
         display_order.push((d.x, d.y));
@@ -1784,13 +1784,13 @@ fn sort_streams(
 
     let mut sorted_streams = Vec::new();
     let mut sorted_shared_displays = Vec::new();
-    // Move matching items in order without cloning
+    // 按顺序移动匹配项，不做克隆
     for (x, y) in display_order.into_iter() {
         for i in 0..streams.len() {
             if streams[i].position.0 == x && streams[i].position.1 == y {
                 sorted_streams.push(streams.remove(i));
-                // shared_displays.len() must be equal to streams.len()
-                // But we still check the length to avoid panic
+                // shared_displays.len() 必须等于 streams.len()
+                // 但仍然要检查长度以避免 panic
                 if shared_displays.len() > i {
                     sorted_shared_displays.push(shared_displays.remove(i));
                 }
@@ -1798,8 +1798,8 @@ fn sort_streams(
             }
         }
     }
-    *streams = sorted_streams;
-    *shared_displays = sorted_shared_displays;
+    * streams = sorted_streams;
+    * shared_displays = sorted_shared_displays;
 }
 
 #[cfg(test)]
@@ -1821,15 +1821,15 @@ mod tests {
 
     #[test]
     fn a_portal_position_naming_no_output_of_its_size_moves_to_the_only_one() {
-        // 1920x1080 at the origin, 2880x1800 to its right: xdph puts the right one at (0, 0).
+        // 原点处是 1920x1080，其右侧是 2880x1800：xdph 把右边那个放在 (0, 0)。
         let pair = [output(0, 0, (1920, 1080)), output(1920, 0, (2880, 1800))];
         assert_eq!(
             corrected_origin((0, 0), (2880, 1800), &pair),
             Some((1920, 0))
         );
-        // A real origin is kept.
+        // 保留真实的原点。
         assert_eq!(corrected_origin((1920, 0), (2880, 1800), &pair), None);
-        // Nothing starts at the origin (the hyprland layout in #15731).
+        // 没有任何输出位于原点（#15731 中的 hyprland 布局）。
         let three = [
             output(0, 120, (1920, 1200)),
             output(1920, 0, (3440, 1440)),
@@ -1839,14 +1839,14 @@ mod tests {
             corrected_origin((0, 0), (3440, 1440), &three),
             Some((1920, 0))
         );
-        // Two outputs of that size cannot be told apart: the position is kept.
+        // 无法区分两个该尺寸的输出：保留原位置。
         let twins = [
             output(0, 0, (2560, 1600)),
             output(2560, 0, (1920, 1080)),
             output(4480, 0, (1920, 1080)),
         ];
         assert_eq!(corrected_origin((0, 0), (1920, 1080), &twins), None);
-        // A portrait panel turned to landscape keeps its position next to a 1920x1080 output.
+        // 竖屏面板转成横屏后，仍保持在 1920x1080 输出旁边的位置。
         let turned = [
             WaylandDisplayInfo {
                 transform: 90,
@@ -1855,8 +1855,8 @@ mod tests {
             output(1920, 0, (1920, 1080)),
         ];
         assert_eq!(corrected_origin((0, 0), (1920, 1080), &turned), None);
-        // A rotated output that try_fill_positions could not match by its mode is found in its
-        // delivered orientation.
+        // try_fill_positions 无法按模式匹配到的旋转输出，会按其
+        // 投递方向来查找。
         let turned_right = [
             output(0, 0, (2560, 1440)),
             WaylandDisplayInfo {

@@ -1,23 +1,23 @@
-//! Server configuration preset for branded builds.
+//! 品牌定制构建的服务端配置预设。
 //!
-//! Empty by default, so an ordinary build behaves exactly like upstream.
-//! A branded build (`.deploy/builder/build_job.py` or
-//! `.deploy/package/client/package.ps1`) rewrites `src/server_preset.txt` with
-//! the real config string *before* compiling.
+//! 默认为空，因此普通构建的行为与上游完全一致。
+//! 品牌定制构建（`.deploy/builder/build_job.py` 或
+//! `.deploy/package/client/package.ps1`）会用真实的配置字符串重写 `src/server_preset.txt`，
+//! 这一步在*编译之前*完成。
 
 use hbb_common::config::Config;
 
-/// The preset config string, read from `src/server_preset.txt`.
+/// 预设的配置字符串，从 `src/server_preset.txt` 读取。
 ///
-/// Same encoding as the client's `ServerConfig.encode()`:
-/// `base64url(json{host,relay,api,key})` with the whole string reversed.
+/// 与客户端的 `ServerConfig.encode()` 采用相同编码：
+/// `base64url(json{host,relay,api,key})`，并把整个字符串反转。
 pub const PRESET_SERVER_CONFIG: &str = include_str!("server_preset.txt");
 
-/// Writes the preset into the local config, but only while the option is
-/// still empty.
+/// 把预设写入本地配置，但仅当该选项
+/// 仍为空时。
 ///
-/// A user who later points the client at another server keeps that choice;
-/// the preset never overrides it.
+/// 之后把客户端指向另一台服务器的用户会保留那个选择；
+/// 预设永远不会覆盖它。
 pub fn apply() {
     let preset = PRESET_SERVER_CONFIG.trim();
     if preset.is_empty() {
@@ -44,11 +44,11 @@ fn set_if_empty(key: &str, value: &str) {
 mod test {
     use super::*;
 
-    // base64url({"host":"1.2.3.4","relay":"","api":"","key":"k"}), reversed
+    // base64url({"host":"1.2.3.4","relay":"","api":"","key":"k"})，反转
     const ENCODED: &str = "9JyaiojI5V2aiwiIiojIpBXYiwiIiojI5FGblJnIsICNuMjLy4SMiojI0N3boJye";
 
-    // The preset and the client must agree on the encoding, otherwise the
-    // preset decodes into the wrong fields.
+    // 预设与客户端必须在编码上一致，否则
+    // 预设会被解析到错误的字段。
     #[test]
     fn preset_uses_the_client_config_encoding() {
         let cfg = crate::custom_server::get_custom_server_from_config_string(ENCODED).unwrap();

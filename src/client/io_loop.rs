@@ -11,19 +11,19 @@ use crate::{
     ui_session_interface::{InvokeUiSession, Session},
 };
 
-// Empirical no-data window before exposing the restart reconnect state to the UI.
-// Restart msgbox text is kept as a legacy UI fallback; Flutter handles the type as a control event.
+// 在把重启重连状态暴露给 UI 之前，无数据的经验性等待窗口。
+// 重启消息框文本保留作为旧版 UI 的兜底；Flutter 把该类型当作控制事件处理。
 const RESTART_REMOTE_DEVICE_NO_DATA_TIMEOUT: Duration = Duration::from_secs(5);
 const KCP_CLOSE_REASON_FLUSH_DELAY: Duration = Duration::from_millis(30);
-// Deadline for the parting close-reason send once the peer is presumed gone; KCP waits for send
-// capacity with no deadline of its own.
+// 一旦推定对端已离开，发送告别 close reason 的截止时间；KCP 等待发送
+// 容量时自身没有截止时间。
 const KCP_CLOSE_REASON_GONE_DEADLINE: Duration = Duration::from_millis(500);
-// Grace after ICE reports Disconnected, which it does ~5s after it stops hearing from the peer,
-// for ~8s in total. Disconnected is transient by design, so this waits out a Wi-Fi roam or a
-// sleep/wake rather than acting on the first hint.
+// ICE 报告 Disconnected 之后的宽限期，它在停止收到对端消息约 5s 后才报告，
+// 总共约 8s。Disconnected 按设计是暂态的，所以这里要熬过 Wi-Fi 漫游或
+// 睡眠/唤醒，而不是一见迹象就动作。
 const WEBRTC_SUSPECT_GRACE: Duration = Duration::from_secs(3);
-// KCP gets no such hint, only how long since a packet arrived; its endpoint pings an idle peer
-// about every 2s, so this is several missed pings, and matches the 8s WebRTC arrives at.
+// KCP 得不到这种迹象，只能知道距上一个包到达过了多久；它的端点大约每 2s
+// ping 一次空闲对端，所以这里对应若干次丢失的 ping，与 WebRTC 得到的 8s 一致。
 const KCP_PEER_SILENCE_LIMIT: Duration = Duration::from_secs(8);
 #[cfg(feature = "unix-file-copy-paste")]
 use crate::{clipboard::try_empty_clipboard_files, clipboard_file::unix_file_clip};
@@ -76,7 +76,7 @@ pub struct Remote<T: InvokeUiSession> {
     audio_sender: MediaSender,
     receiver: mpsc::UnboundedReceiver<Data>,
     sender: mpsc::UnboundedSender<Data>,
-    // Stop sending local audio to remote client.
+    // 停止向远端客户端发送本地音频。
     stop_voice_call_sender: Option<std::sync::mpsc::Sender<()>>,
     voice_call_request_timestamp: Option<NonZeroI64>,
     read_jobs: Vec<fs::TransferJob>,
@@ -84,10 +84,10 @@ pub struct Remote<T: InvokeUiSession> {
     remove_jobs: HashMap<i32, RemoveJob>,
     timer: crate::RustDeskInterval,
     last_update_jobs_status: (Instant, HashMap<i32, u64>),
-    // Set after PeerInfo for this round, not when the transport connects.
+    // 在这一轮收到 PeerInfo 之后才设置，而不是传输连接建立时。
     is_connected: bool,
-    // Whether the scheduled initial snapshot may still be sent.
-    // The connection loop clears this when handling its result or a live clipboard update.
+    // 已排期的初始快照是否仍可发送。
+    // 连接循环在处理其结果或收到实时剪贴板更新时会清除该标记。
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     initial_clipboard_pending: bool,
     first_frame: bool,
@@ -160,15 +160,15 @@ impl<T: InvokeUiSession> Remote<T> {
     pub async fn io_loop(&mut self, key: &str, token: &str, round: u32) {
         #[cfg(target_os = "windows")]
         let _file_clip_context_holder = {
-            // `is_port_forward()` will not reach here, but we still check it for clarity.
+            // `is_port_forward()` 不会走到这里，但为了清晰我们仍然检查它。
             if self.handler.is_default() {
-                // It is ok to call this function multiple times.
+                // 这个函数可以多次调用。
                 ContextSend::enable(true);
                 Some(crate::SimpleCallOnReturn {
                     b: true,
                     f: Box::new(|| {
-                        // No need to call `enable(false)` for sciter version, because each client of sciter version is a new process.
-                        // It's better to check if the peers are windows(support file copy&paste), but it's not necessary.
+                        // sciter 版本不需要调用 `enable(false)`，因为 sciter 版本的每个客户端都是一个新进程。
+                        // 最好检查对端是否是 windows（支持文件复制粘贴），但不是必需的。
                         #[cfg(feature = "flutter")]
                         if !crate::flutter::sessions::has_sessions_running(ConnType::DEFAULT_CONN) {
                             ContextSend::enable(false);
@@ -207,9 +207,9 @@ impl<T: InvokeUiSession> Remote<T> {
                     .unwrap()
                     .set_connected();
                 let is_secured = peer.is_secured();
-                // Only WebRTC needs refining: its label names the transport that won the race,
-                // not the family ICE ended up nominating, and it is the one path where the two
-                // can disagree with the address the rendezvous observed.
+                // 只有 WebRTC 需要细化：它的标签指的是赢得竞速的传输方式，
+                // 而不是 ICE 最终选定的族，而它正是两者可能
+                // 与 rendezvous 观察到的地址产生分歧的路径。
                 let stream_type = if peer.webrtc_remote_ipv6().await.unwrap_or(false) {
                     "WebRTC/IPv6"
                 } else {
@@ -234,7 +234,7 @@ impl<T: InvokeUiSession> Remote<T> {
                         .set_fingerprint(crate::common::pk_to_fingerprint(pk.unwrap_or_default()));
                 }
 
-                // just build for now
+                // 暂时先构建
                 #[cfg(not(any(target_os = "windows", feature = "unix-file-copy-paste")))]
                 let (_tx_holder, mut rx_clip_client) = mpsc::unbounded_channel::<i32>();
 
@@ -336,8 +336,8 @@ impl<T: InvokeUiSession> Remote<T> {
                                 break;
                             }
                             let rx_progress = peer.rx_progress();
-                            // `None` for transports that report none, and it never changes for a
-                            // given one, so they are inert here.
+                            // 对于报告为空的传输方式为 `None`，而且对某个
+                            // 传输方式来说它从不改变，所以在这里它们不起作用。
                             let progressed = rx_progress != last_rx_progress;
                             last_rx_progress = rx_progress;
                             if peer.webrtc_disconnected() && !progressed {
@@ -345,10 +345,10 @@ impl<T: InvokeUiSession> Remote<T> {
                             } else {
                                 webrtc_suspect_since = None;
                             }
-                            // Neither limit is a hard upper bound. A send is awaited inline in
-                            // this loop, so one in progress delays this tick - bounded on WebRTC
-                            // by the timeout the stream was built with, not bounded at all on
-                            // KCP. The 30s watchdog above shares the loop and the same delay.
+                            // 这两个限制都不是硬上限。发送在这个循环里就地
+                            // await，所以一个进行中的发送会推迟本次 tick——在 WebRTC 上
+                            // 受该流创建时的超时限制，而在
+                            // KCP 上完全不受限。上面的 30s 看门狗共享这个循环，也就共享同样的延迟。
                             peer_gone = webrtc_suspect_since
                                 .map_or(false, |since| since.elapsed() >= WEBRTC_SUSPECT_GRACE)
                                 || kcp
@@ -359,9 +359,9 @@ impl<T: InvokeUiSession> Remote<T> {
                                 log::info!("Peer stopped answering, reconnecting");
                                 #[cfg(feature = "flutter")]
                                 self.handler.msgbox("restarting-show", "Connecting...", "Connection in progress. Please wait.", "");
-                                // Sciter knows no `restarting-show` and would show a dialog that
-                                // waits for a click, where the timeout this arrives ahead of is
-                                // retryable and reconnects on its own. Keep that message for it.
+                                // Sciter 不认识 `restarting-show`，会弹出一个
+                                // 等待点击的对话框，而这里提前到达的超时是
+                                // 可重试的，会自动重连。为它保留那条消息。
                                 #[cfg(not(feature = "flutter"))]
                                 self.handler.msgbox("error", "Connection Error", "Timeout", "");
                                 break;
@@ -376,11 +376,11 @@ impl<T: InvokeUiSession> Remote<T> {
                             let speed = format!("{:.2}kB/s", speed as f32 / 1024 as f32);
 
                             let fps = self.video_threads.iter().map(|(k, v)| {
-                                // Correcting the inaccuracy of status_timer
+                                // 修正 status_timer 的不准确之处
                                 (k.clone(), (*v.frame_count.read().unwrap() as i32) * 1000 / elapsed as i32)
                             }).collect::<HashMap<usize, i32>>();
                             self.video_threads.iter().for_each(|(_, v)| {
-                                *v.frame_count.write().unwrap() = 0;
+                                * v.frame_count.write().unwrap() = 0;
                             });
                             self.fps_control(direct, fps.clone());
                             let chroma = self.chroma.read().unwrap().clone();
@@ -406,20 +406,20 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                 }
                 log::debug!("Exit io_loop of id={}", self.handler.get_id());
-                // Stop client audio server.
+                // 停止客户端音频服务。
                 if let Some(s) = self.stop_voice_call_sender.take() {
                     s.send(()).ok();
                 }
                 if kcp.is_some() {
-                    // Attempted rather than skipped even here: if the loss was one-way the peer
-                    // does get it, and drops its side instead of waiting out its own timeout.
+                    // 这里也是尝试发送而不是跳过：如果丢失是单向的，对端
+                    // 仍能收到，并会关闭自己那一侧，而不是等它自己的超时。
                     if peer_gone {
                         peer.set_send_timeout(KCP_CLOSE_REASON_GONE_DEADLINE.as_millis() as u64);
                     }
-                    // Send the close reason if it hasn't been sent yet, as KCP cannot detect the socket close event.
+                    // 如果尚未发送，就发送 close reason，因为 KCP 检测不到套接字关闭事件。
                     self.send_close_reason(&mut peer, "kcp").await;
-                    // KCP does not send messages immediately, so wait to ensure the last message is sent.
-                    // 1ms works in my test, but 30ms is more reliable.
+                    // KCP 不会立即发送消息，所以要等待以确保最后一条消息已发出。
+                    // 在我的测试中 1ms 就够用，但 30ms 更可靠。
                     tokio::time::sleep(KCP_CLOSE_REASON_FLUSH_DELAY).await;
                 }
             }
@@ -431,7 +431,7 @@ impl<T: InvokeUiSession> Remote<T> {
     }
 
     fn handle_disconnected(&self, round: u32) {
-        // set_disconnected_ok is used to check if new connection round is started.
+        // set_disconnected_ok 用于检查是否开启了新的连接轮次。
         let _set_disconnected_ok = self
             .handler
             .connection_round_state
@@ -441,7 +441,7 @@ impl<T: InvokeUiSession> Remote<T> {
 
         #[cfg(not(target_os = "ios"))]
         if self.handler.is_default() && _set_disconnected_ok {
-            // Other sessions may keep the listener running after this one disconnects.
+            // 这一轮断开后，其他会话可能仍让监听器继续运行。
             #[cfg(feature = "flutter")]
             crate::flutter::update_text_clipboard_required();
             #[cfg(all(feature = "flutter", feature = "unix-file-copy-paste"))]
@@ -451,8 +451,8 @@ impl<T: InvokeUiSession> Remote<T> {
 
         #[cfg(any(target_os = "windows", feature = "unix-file-copy-paste"))]
         if self.handler.is_default() && _set_disconnected_ok {
-            // Linux client cleanup runs synchronously in try_stop_clipboard() before FUSE is
-            // unmounted. Keep this async path for other file-clipboard platforms.
+            // Linux 客户端的清理在 FUSE 
+            // 卸载之前于 try_stop_clipboard() 中同步执行。为其他文件剪贴板平台保留这条异步路径。
             crate::clipboard::try_empty_clipboard_files(ClipboardSide::Client, self.client_conn_id);
         }
     }
@@ -472,14 +472,14 @@ impl<T: InvokeUiSession> Remote<T> {
                 } => {
                     self.handler.msgbox(&r#type, &title, &text, "");
                 }
-                // File-data responses bypass is_stopping_allowed, but still require login.
+                // 文件数据响应绕过 is_stopping_allowed，但仍然要求已登录。
                 _ if !self.is_connected => {
                     log::debug!("Discarding local file clipboard message before login");
                 }
                 _ => {
                     let is_stopping_allowed = clip.is_stopping_allowed();
                     let server_file_transfer_enabled =
-                        *self.handler.server_file_transfer_enabled.read().unwrap();
+                        * self.handler.server_file_transfer_enabled.read().unwrap();
                     let file_transfer_enabled =
                         self.handler.lc.read().unwrap().enable_file_copy_paste.v;
                     let view_only = self.handler.lc.read().unwrap().view_only.v;
@@ -498,7 +498,7 @@ impl<T: InvokeUiSession> Remote<T> {
                         #[cfg(target_os = "windows")]
                         if let Err(e) = ContextSend::make_sure_enabled() {
                             log::error!("failed to restart clipboard context: {}", e);
-                            // to-do: Show msgbox with "Don't show again" option
+                            // 待办：显示带"不再显示"选项的消息框
                         };
                         log::debug!("Send system clipboard message to remote");
                         #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -550,7 +550,7 @@ impl<T: InvokeUiSession> Remote<T> {
         }
     }
 
-    // Start a voice call recorder, records audio and send to remote
+    // 启动语音通话录制器，录制音频并发送到远端
     fn start_voice_call(&mut self) -> Option<std::sync::mpsc::Sender<()>> {
         if self.handler.is_file_transfer()
             || self.handler.is_port_forward()
@@ -558,23 +558,23 @@ impl<T: InvokeUiSession> Remote<T> {
         {
             return None;
         }
-        // iOS does not have this server.
+        // iOS 没有这个服务。
         #[cfg(not(any(target_os = "ios")))]
         {
             // NOTE:
-            // The client server and --server both use the same sound input device.
-            // It's better to distinguish the server side and client side.
-            // But it' not necessary for now, because it's not a common case.
-            // And it is immediately known when the input device is changed.
+            // 客户端服务和 --server 使用同一个声音输入设备。
+            // 最好区分服务端和客户端。
+            // 但目前没必要，因为这不是常见情况。
+            // 而且输入设备变更时能立即知道。
             crate::audio_service::set_voice_call_input_device(get_default_sound_input(), false);
-            // Create a channel to receive error or closed message
+            // 创建一个通道来接收错误或关闭消息
             let (tx, rx) = std::sync::mpsc::channel();
             let (tx_audio_data, mut rx_audio_data) =
                 hbb_common::tokio::sync::mpsc::unbounded_channel();
-            // Create a stand-alone inner, add subscribe to audio service
+            // 创建一个独立的 inner，向音频服务添加订阅
             let conn_id = CLIENT_SERVER.write().unwrap().get_new_id();
             let client_conn_inner = ConnInner::new(conn_id.clone(), Some(tx_audio_data), None);
-            // now we subscribe
+            // 现在我们订阅
             CLIENT_SERVER.write().unwrap().subscribe(
                 audio_service::NAME,
                 client_conn_inner.clone(),
@@ -583,11 +583,11 @@ impl<T: InvokeUiSession> Remote<T> {
             let tx_audio = self.sender.clone();
             std::thread::spawn(move || {
                 loop {
-                    // check if client is closed
+                    // 检查客户端是否已关闭
                     match rx.try_recv() {
                         Ok(_) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                             log::debug!("Exit voice call audio service of client");
-                            // unsubscribe
+                            // 取消订阅
                             CLIENT_SERVER.write().unwrap().subscribe(
                                 audio_service::NAME,
                                 client_conn_inner,
@@ -614,12 +614,12 @@ impl<T: InvokeUiSession> Remote<T> {
                         },
                         Err(err) => {
                             if err == TryRecvError::Empty {
-                                // ignore
+                                // 忽略
                             } else {
                                 log::debug!("Failed to record local audio channel: {}", err);
                             }
-                            // Both arms fall through with nothing else in this loop blocking, so
-                            // without a pause the thread spun a core for the whole voice call.
+                            // 两个分支都会落下来，而这个循环里没有其他东西会阻塞，因此
+                            // 没有暂停的话，这个线程会在整通语音通话期间占满一个核心。
                             std::thread::sleep(std::time::Duration::from_millis(1));
                         }
                     }
@@ -661,9 +661,9 @@ impl<T: InvokeUiSession> Remote<T> {
         self.initial_clipboard_pending = true;
         let sender = self.sender.clone();
         let permission_config = self.handler.get_permission_config();
-        // Clipboard access and encoding must not block the connection loop.
+        // 剪贴板访问和编码不能阻塞连接循环。
         let read_clipboard = move || {
-            // Capture after readiness, before reading; later changes invalidate this snapshot.
+            // 在就绪之后、读取之前采集；之后的变更会让这个快照失效。
             let generation = clipboard_listener::current_generation();
             let msg_out = if permission_config.is_text_clipboard_required() {
                 crate::clipboard::get_current_clipboard_msg(
@@ -675,7 +675,7 @@ impl<T: InvokeUiSession> Remote<T> {
                 None
             };
             let msg_out = msg_out.filter(|_| permission_config.is_text_clipboard_required());
-            // Empty or failed reads must also finish the pending initial-sync attempt.
+            // 空读取或读取失败也必须结束待定的初始同步尝试。
             if let Err(err) = sender.send(Data::InitialClipboard(generation, msg_out)) {
                 log::debug!("Failed to send initial clipboard result: {}", err);
             }
@@ -686,12 +686,12 @@ impl<T: InvokeUiSession> Remote<T> {
         tokio::task::spawn_blocking(read_clipboard);
     }
 
-    // Linux listener creation returns before X11/Wayland has subscribed to changes.
-    // Capture after readiness so changes during the read can invalidate the snapshot.
-    // A separate task keeps a stalled backend from blocking the connection loop.
+    // Linux 监听器创建会在 X11/Wayland 订阅变更之前就返回。
+    // 在就绪之后采集，这样读取期间的变更就能让快照失效。
+    // 单独的任务避免卡住的后端阻塞连接循环。
     #[cfg(target_os = "linux")]
     fn spawn_initial_clipboard_read_after_ready(&self, read_clipboard: impl FnOnce() + Send + 'static) {
-        // Initial-sync wait budget, not a protocol-defined startup deadline.
+        // 初始同步的等待预算，而不是协议规定的启动截止时间。
         const CLIPBOARD_READY_TIMEOUT: Duration = Duration::from_secs(5);
 
         let sender = self.sender.clone();
@@ -738,7 +738,7 @@ impl<T: InvokeUiSession> Remote<T> {
             }
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             Data::InitialClipboard(generation, msg) => {
-                // A live update supersedes any initial snapshot still being prepared.
+                // 实时更新会取代任何仍在准备中的初始快照。
                 if !self.initial_clipboard_pending {
                     return true;
                 }
@@ -747,8 +747,8 @@ impl<T: InvokeUiSession> Remote<T> {
                     return true;
                 }
                 if generation != clipboard_listener::current_generation() {
-                    // A clipboard change or listener restart can invalidate the snapshot
-                    // without sending a live update that supersedes it.
+                    // 剪贴板变更或监听器重启会让快照失效，
+                    // 却不会发送能取代它的实时更新。
                     drop(msg);
                     self.start_initial_clipboard_sync();
                     return true;
@@ -758,9 +758,9 @@ impl<T: InvokeUiSession> Remote<T> {
                 }
             }
             Data::Message(msg) => {
-                // The Flutter clipboard broadcast is process-wide, so a clipboard can reach this
-                // round's queue before the round has logged in; it is dropped here, on the round
-                // itself.
+                // Flutter 的剪贴板广播是进程级的，所以剪贴板内容可能在本轮
+                // 尚未登录时就进入本轮的队列；这里在本轮自身将其丢弃，
+                // 。
                 #[cfg(feature = "flutter")]
                 if !self.is_connected
                     && matches!(
@@ -789,12 +789,12 @@ impl<T: InvokeUiSession> Remote<T> {
                     Some(message::Union::Misc(misc)) => match misc.union {
                         Some(misc::Union::RefreshVideo(_)) => {
                             self.video_threads.iter().for_each(|(_, v)| {
-                                *v.discard_queue.write().unwrap() = true;
+                                * v.discard_queue.write().unwrap() = true;
                             });
                         }
                         Some(misc::Union::RefreshVideoDisplay(display)) => {
                             if let Some(v) = self.video_threads.get_mut(&(display as usize)) {
-                                *v.discard_queue.write().unwrap() = true;
+                                * v.discard_queue.write().unwrap() = true;
                             }
                         }
                         _ => {}
@@ -872,7 +872,7 @@ impl<T: InvokeUiSession> Remote<T> {
                             let mut files = job.files().clone();
                             #[cfg(windows)]
                             if self.handler.peer_platform() != "Windows" {
-                                // peer is not windows, need transform \ to /
+                                // 对端不是 windows，需要把 \ 转换成 /
                                 fs::transform_windows_path(&mut files);
                             }
                             let total_size = job.total_size();
@@ -972,7 +972,7 @@ impl<T: InvokeUiSession> Remote<T> {
                                 let mut files = job.files().clone();
                                 #[cfg(windows)]
                                 if self.handler.peer_platform() != "Windows" {
-                                    // peer is not windows, need transform \ to /
+                                    // 对端不是 windows，需要把 \ 转换成 /
                                     fs::transform_windows_path(&mut files);
                                 }
                                 allow_err!(
@@ -1196,7 +1196,7 @@ impl<T: InvokeUiSession> Remote<T> {
             }
             Data::NewVoiceCall => {
                 let msg = new_voice_call_request(true);
-                // Save the voice call request timestamp for the further validation.
+                // 保存语音通话请求的时间戳以供后续校验。
                 self.voice_call_request_timestamp = Some(
                     NonZeroI64::new(msg.voice_call_request().req_timestamp)
                         .unwrap_or(NonZeroI64::new(get_time()).unwrap()),
@@ -1383,8 +1383,8 @@ impl<T: InvokeUiSession> Remote<T> {
         }
     }
 
-    // Currently, this function only considers decoding speed and queue length, not network delay.
-    // The controlled end can consider auto fps as the maximum decoding fps.
+    // 目前这个函数只考虑解码速度和队列长度，不考虑网络延迟。
+    // 受控端可以把自动 fps 视为最大解码 fps。
     #[inline]
     fn fps_control(&mut self, direct: bool, real_fps_map: HashMap<usize, i32>) {
         self.video_threads.iter_mut().for_each(|(k, v)| {
@@ -1456,7 +1456,7 @@ impl<T: InvokeUiSession> Remote<T> {
         let should_decrease = trendings.iter().any(|v| *v == Some(false));
         let should_increase = !should_decrease && trendings.iter().any(|v| *v == Some(true));
         if last_auto_fps.is_none() || should_decrease || should_increase {
-            // limited_fps to ensure decoding is faster than encoding
+            // 用 limited_fps 确保解码快于编码
             let mut auto_fps = limited_fps;
             if should_decrease && limited_fps < max_queue_len {
                 auto_fps = limited_fps / 2;
@@ -1477,7 +1477,7 @@ impl<T: InvokeUiSession> Remote<T> {
                 self.handler.lc.write().unwrap().last_auto_fps = Some(auto_fps);
             }
         }
-        // send refresh
+        // 发送刷新
         for (display, thread) in self.video_threads.iter_mut() {
             let ctl = &mut thread.fps_control;
             let video_queue = thread.video_queue.read().unwrap();
@@ -1486,7 +1486,7 @@ impl<T: InvokeUiSession> Remote<T> {
                     && (video_queue.len() > tolerable
                             && (ctl.refresh_times == 0 || ctl.last_refresh_instant.map(|t|t.elapsed().as_secs() > 10).unwrap_or(false)))
             {
-                // Refresh causes client set_display, left frames cause flickering.
+                // 刷新会导致客户端 set_display，残留帧会造成闪烁。
                 drop(video_queue);
                 self.handler.refresh_video(*display as _);
                 log::info!("Refresh display {} to reduce delay", display);
@@ -1607,7 +1607,7 @@ impl<T: InvokeUiSession> Remote<T> {
                         #[cfg(all(target_os = "windows", not(feature = "flutter")))]
                         self.check_clipboard_file_context();
                         if self.handler.is_default() {
-                            // Startup notifications must see the current sessions' clipboard requirements.
+                            // 启动通知必须能看到当前会话的剪贴板需求。
                             #[cfg(feature = "flutter")]
                             #[cfg(not(target_os = "ios"))]
                             crate::flutter::update_text_clipboard_required();
@@ -1630,15 +1630,15 @@ impl<T: InvokeUiSession> Remote<T> {
                                     ),
                                 },
                             ));
-                            // To make sure current text clipboard data is updated.
+                            // 确保当前的文本剪贴板数据已更新。
                             #[cfg(not(target_os = "ios"))]
                             if let Some(mut rx) = rx {
                                 timeout(CLIPBOARD_INTERVAL, rx.recv()).await.ok();
                             }
 
-                            // `is_connected`` becomes true after the first PeerInfo.
-                            // Reconnects create a new Remote. Refreshes after a generation change
-                            // use a separate entry point and are not blocked by this guard.
+                            // `is_connected`` 在第一次 PeerInfo 之后变为 true。
+                            // 重连会创建一个新的 Remote。代数变化之后的刷新
+                            // 使用单独的入口，不受这个守卫阻塞。
                             #[cfg(not(any(target_os = "android", target_os = "ios")))]
                             if !self.is_connected
                                 && self.handler.is_text_clipboard_required()
@@ -1646,7 +1646,7 @@ impl<T: InvokeUiSession> Remote<T> {
                             {
                                 self.start_initial_clipboard_sync();
                             }
-                            // to-do: Android, is `sync_init_clipboard` really needed?
+                            // 待办：Android，`sync_init_clipboard` 真的需要吗？
                             // https://github.com/rustdesk/rustdesk/discussions/9010
                         }
 
@@ -1677,8 +1677,8 @@ impl<T: InvokeUiSession> Remote<T> {
                         }
                         Err(err) => {
                             log::warn!("Rejected cursor {id}: {err}");
-                            // The peer shows it now: selected, the UI treats it as a shape it
-                            // lacks, as it will when the peer selects it again.
+                            // 对端现在显示它：已选中，UI 会把它当作一个
+                            // 并不拥有的形状，就像对端再次选中它时那样。
                             self.handler.set_cursor_id(id.to_string());
                         }
                     }
@@ -1800,9 +1800,9 @@ impl<T: InvokeUiSession> Remote<T> {
                                     return true;
                                 }
                             }
-                            // We cannot call cancel_transfer_job/handle_job_status while holding
-                            // a mutable borrow from fs::get_job(&mut self.write_jobs), so defer
-                            // the error handling until after the borrow scope ends.
+                            // 我们不能调用 cancel_transfer_job/handle_job_status，同时持有
+                            // 来自 fs::get_job(&mut self.write_jobs) 的可变借用，所以要把
+                            // 错误处理推迟到借用作用域结束之后。
                             let mut set_files_err = None;
                             if let Some(job) = fs::get_job(fd.id, &mut self.write_jobs) {
                                 log::info!("job set_files: {:?}", entries);
@@ -1819,9 +1819,9 @@ impl<T: InvokeUiSession> Remote<T> {
                                     );
                                 }
                             } else if let Some(job) = self.remove_jobs.get_mut(&fd.id) {
-                                // Intentionally keep raw entries here:
-                                // - remote remove flow executes deletions on peer side;
-                                // - local remove flow is populated from local get_recursive_files().
+                                // 这里有意保留原始条目：
+                                // - 远端删除流程在对端执行删除；
+                                // - 本地删除流程由本地的 get_recursive_files() 填充。
                                 job.files = entries;
                                 self.handler
                                     .update_folder_files(fd.id, &job.files, fd.path, false, false);
@@ -1952,7 +1952,7 @@ impl<T: InvokeUiSession> Remote<T> {
                                                         union: Some(file_transfer_send_confirm_request::Union::OffsetBlk(0)),
                                                         ..Default::default()
                                                     };
-                                                        // This did not approve replacing an existing local file.
+                                                        // 这没有批准替换已存在的本地文件。
                                                         let msg = new_send_confirm(req);
                                                         allow_err!(peer.send(&msg).await);
                                                     }
@@ -2026,8 +2026,8 @@ impl<T: InvokeUiSession> Remote<T> {
                                                 .write()
                                                 .unwrap()
                                                 .remove(&d.id);
-                                            // Spawn a new thread to handle the print job.
-                                            // Or print job will block the ui thread.
+                                            // 启动一个新线程来处理打印任务。
+                                            // 否则打印任务会阻塞 ui 线程。
                                             std::thread::spawn(move || {
                                                 if let Err(e) =
                                                     crate::platform::send_raw_data_to_printer(
@@ -2072,7 +2072,7 @@ impl<T: InvokeUiSession> Remote<T> {
                         // https://github.com/rustdesk/rustdesk/issues/3703#issuecomment-1474734754
                         match p.permission.enum_value() {
                             Ok(Permission::Keyboard) => {
-                                *self.handler.server_keyboard_enabled.write().unwrap() = p.enabled;
+                                * self.handler.server_keyboard_enabled.write().unwrap() = p.enabled;
                                 #[cfg(feature = "flutter")]
                                 #[cfg(not(target_os = "ios"))]
                                 crate::flutter::update_text_clipboard_required();
@@ -2081,7 +2081,7 @@ impl<T: InvokeUiSession> Remote<T> {
                                 self.handler.set_permission("keyboard", p.enabled);
                             }
                             Ok(Permission::Clipboard) => {
-                                *self.handler.server_clipboard_enabled.write().unwrap() = p.enabled;
+                                * self.handler.server_clipboard_enabled.write().unwrap() = p.enabled;
                                 #[cfg(feature = "flutter")]
                                 #[cfg(not(target_os = "ios"))]
                                 crate::flutter::update_text_clipboard_required();
@@ -2091,7 +2091,7 @@ impl<T: InvokeUiSession> Remote<T> {
                                 self.handler.set_permission("audio", p.enabled);
                             }
                             Ok(Permission::File) => {
-                                *self.handler.server_file_transfer_enabled.write().unwrap() =
+                                * self.handler.server_file_transfer_enabled.write().unwrap() =
                                     p.enabled;
                                 if !p.enabled && self.handler.is_file_transfer() {
                                     return true;
@@ -2291,7 +2291,7 @@ impl<T: InvokeUiSession> Remote<T> {
                             #[cfg(not(feature = "flutter"))]
                             let action = "";
                             if action == "dismiss" {
-                                // Just ignore the incoming print job.
+                                // 直接忽略收到的打印任务。
                             } else {
                                 let id = fs::get_next_job_id();
                                 #[cfg(feature = "flutter")]
@@ -2350,11 +2350,11 @@ impl<T: InvokeUiSession> Remote<T> {
                             log::debug!("Possible encountering a voice call attack.");
                         } else {
                             if response.accepted {
-                                // The peer accepted the voice call.
+                                // 对端接受了语音通话。
                                 self.handler.on_voice_call_started();
                                 self.stop_voice_call_sender = self.start_voice_call();
                             } else {
-                                // The peer refused the voice call.
+                                // 对端拒绝了语音通话。
                                 self.handler.on_voice_call_closed("");
                             }
                         }
@@ -2389,7 +2389,7 @@ impl<T: InvokeUiSession> Remote<T> {
     fn set_peer_info(&mut self, pi: &PeerInfo) {
         self.peer_info.platform = pi.platform.clone();
 
-        // Check features field for terminal support
+        // 检查 features 字段以判断是否支持终端
         if let Some(features) = pi.features.as_ref() {
             self.peer_info.support_terminal = features.terminal;
         }
@@ -2493,7 +2493,7 @@ impl<T: InvokeUiSession> Remote<T> {
         let mut config = self.handler.load_config();
         config.privacy_mode.v = on;
         if on {
-            // For compatibility, version < 1.2.4, the default value is 'privacy_mode_impl_mag'.
+            // 为兼容旧版本，版本 < 1.2.4 时默认值为 'privacy_mode_impl_mag'。
             let impl_key = if impl_key.is_empty() {
                 "privacy_mode_impl_mag".to_string()
             } else {
@@ -2707,7 +2707,7 @@ impl<T: InvokeUiSession> Remote<T> {
                   data: &mut scrap::ImageRgb,
                   _texture: *mut c_void,
                   pixelbuffer: bool| {
-                *frame_count.write().unwrap() += 1;
+                * frame_count.write().unwrap() += 1;
                 if pixelbuffer {
                     handler.on_rgba(display, data);
                 } else {
@@ -2725,7 +2725,7 @@ impl<T: InvokeUiSession> Remote<T> {
     }
 
     fn update_record_state(&mut self) {
-        // state
+        // 状态
         let permission = self.handler.lc.read().unwrap().record_permission;
         if !permission {
             self.handler.lc.write().unwrap().record_state = false;
@@ -2737,12 +2737,12 @@ impl<T: InvokeUiSession> Remote<T> {
         }
         self.last_record_state = start;
         log::info!("record screen start: {start}");
-        // update local
+        // 更新本地
         for (_, v) in self.video_threads.iter_mut() {
             v.video_sender.send(MediaData::RecordScreen(start)).ok();
         }
         self.handler.update_record_status(start);
-        // update remote
+        // 更新远端
         let mut misc = Misc::new();
         misc.set_client_record_status(start);
         let mut msg = Message::new();
@@ -2750,7 +2750,7 @@ impl<T: InvokeUiSession> Remote<T> {
         self.sender.send(Data::Message(msg)).ok();
     }
 
-    /// A shape that decoded, for the UI to ask for again; see `Session::cursor_shapes`.
+    /// 已解码的形状，供 UI 再次索取；参见 `Session::cursor_shapes`。
     #[cfg(feature = "flutter")]
     fn keep_cursor_shape(&self, shape: CursorData) {
         self.handler
@@ -2764,7 +2764,7 @@ impl<T: InvokeUiSession> Remote<T> {
         !crate::is_peer_naming_cursors_by_content(self.handler.lc.read().unwrap().version)
     }
 
-    /// A shape the UI already has, under whatever handle, is only selected.
+    /// UI 已经拥有的形状（无论在哪个句柄下）只是被选中。
     fn set_cursor_data_by_content(&mut self, cd: CursorData) {
         let peer_id = cd.id;
         let id = CursorDedupe::name(&cd);
@@ -2792,9 +2792,9 @@ impl<T: InvokeUiSession> Remote<T> {
     }
 }
 
-/// A shape that decoded, still compressed, under the id the UI knows it by. Copied once it
-/// decoded: the message's colors may be a slice of a larger received buffer, which a clone
-/// would keep alive.
+/// 已解码的形状，仍处于压缩状态，按 UI 认识它的 id 存放。解码后
+/// 会拷贝一份：消息里的颜色可能只是更大接收缓冲区的一个切片，而 clone 会
+/// 让它一直存活。
 #[cfg(feature = "flutter")]
 fn cursor_shape(id: u64, cd: &CursorData, compressed: &[u8]) -> CursorData {
     CursorData {
@@ -2808,17 +2808,17 @@ fn cursor_shape(id: u64, cd: &CursorData, compressed: &[u8]) -> CursorData {
     }
 }
 
-/// The RGBA of a shape kept by `Session::cursor_shapes`, for the UI to draw it again.
+/// `Session::cursor_shapes` 保留的某个形状的 RGBA 数据，供 UI 再次绘制。
 #[cfg(any(feature = "flutter", test))]
 pub(crate) fn kept_cursor_rgba(shape: CursorData) -> hbb_common::ResultType<CursorData> {
     decode_cursor_data(shape)
 }
 
-// Both UI handlers receive validated, uncompressed RGBA from the receive loop.
+// 两个 UI 处理函数都从接收循环收到经过校验的、未压缩的 RGBA。
 fn decode_cursor_data(data: CursorData) -> hbb_common::ResultType<CursorData> {
     use hbb_common::{anyhow::anyhow, bail};
 
-    // Limit decoded cursor data to 1 MiB before JSON serialization.
+    // 在 JSON 序列化之前，把解码后的光标数据限制在 1 MiB 以内。
     const MAX_CURSOR_SIZE: i32 = 512;
     const RGBA_CHANNELS: usize = 4;
 
@@ -2855,19 +2855,19 @@ fn decode_cursor_data(data: CursorData) -> hbb_common::ResultType<CursorData> {
     Ok(cd)
 }
 
-/// Gives the UI one id per shape for a peer that names shapes by handle, so the UI decodes and
-/// keeps a shape once however many handles it arrives under. Nothing is dropped for the
-/// connection: the peer sends a shape once and may select any handle it named again.
+/// 对于用句柄命名形状的对端，给 UI 每个形状一个 id，这样 UI 只解码并
+/// 保留一次形状，无论它以多少个句柄到达。对连接来说不会有任何东西被丢弃：
+/// 对端只发送一次形状，之后可能再次选中它命名过的任意句柄。
 #[derive(Default)]
 struct CursorDedupe {
     ids: HashMap<u64, u64>,
-    // The shapes given to the UI, by content id: whether one that arrives needs decoding.
+    // 交给 UI 的形状，按内容 id 存放：用来判断新到达的形状是否需要解码。
     decoded: HashSet<u64>,
 }
 
 impl CursorDedupe {
-    /// Hashes the compressed colors: one peer compresses the same pixels to the same bytes, and
-    /// a shape seen before is then never decompressed again.
+    /// 对压缩后的颜色做哈希：同一个对端会把相同的像素压缩成相同的字节，
+    /// 于是之前见过的形状就再也不用解压了。
     fn name(cd: &CursorData) -> u64 {
         crate::cursor_content_id(cd.width, cd.height, cd.hotx, cd.hoty, &cd.colors)
     }
@@ -2880,19 +2880,19 @@ impl CursorDedupe {
         self.decoded.contains(&id)
     }
 
-    /// Names the handle once its shape decoded, now or before.
+    /// 在其形状解码之后（无论是现在还是之前）为该句柄命名。
     fn record(&mut self, peer_id: u64, id: u64) {
         self.ids.insert(peer_id, id);
         self.decoded.insert(id);
     }
 
-    /// Names a known handle by the content of a shape that did not decode, which is never
-    /// marked decoded: the UI has no shape under it, now or when the handle is selected again,
-    /// and the shape the handle named before is not shown in its place. A handle never seen is
-    /// not filed, so what a peer sends that does not decode takes no room.
+    /// 用未解码形状的内容为一个已知句柄命名，而该形状永远不会被
+    /// 标记为已解码：UI 在它之下没有形状，无论现在还是该句柄再次被选中时，
+    /// 而该句柄之前命名的形状也不会顶替它显示。从未见过的句柄
+    /// 不会被归档，所以对端发来的无法解码的内容不占空间。
     fn rejected(&mut self, peer_id: u64, id: u64) -> u64 {
         if let Some(named) = self.ids.get_mut(&peer_id) {
-            *named = id;
+            * named = id;
         }
         id
     }
@@ -2947,8 +2947,8 @@ struct VideoThread {
 
 impl Drop for VideoThread {
     fn drop(&mut self) {
-        // since channels are buffered, messages sent before the disconnect will still be properly received.
-        *self.discard_queue.write().unwrap() = true;
+        // 由于通道是有缓冲的，断开前发送的消息仍会被正确接收。
+        * self.discard_queue.write().unwrap() = true;
     }
 }
 
@@ -2958,8 +2958,8 @@ mod tests {
     use super::*;
     use crate::flutter::FlutterHandler;
 
-    /// A round's `Remote` over a loopback pair, before any login: what it sends to `peer`
-    /// arrives at `far`.
+    /// 一轮中处于回环连接对（尚未登录）时的 `Remote`：它发给 `peer` 的内容
+    /// 会到达 `far`。
     async fn remote_and_peer() -> (Remote<FlutterHandler>, Stream, Stream) {
         let listener = hbb_common::tcp::new_listener("127.0.0.1:0", false)
             .await
@@ -2998,8 +2998,8 @@ mod tests {
         Data::Message(msg)
     }
 
-    // A clipboard queued before this round's login stays here; what the login itself sends
-    // through the same queue does not.
+    // 在这一轮登录之前排队的剪贴板内容会留在这里；而登录本身通过同一队列
+    // 发送的内容不会留下。
     #[tokio::test]
     async fn a_clipboard_queued_before_this_rounds_login_is_dropped() {
         let (mut remote, mut peer, mut far) = remote_and_peer().await;

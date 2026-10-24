@@ -21,10 +21,10 @@ struct RestoreConfig {
 
 impl Drop for RestoreConfig {
     fn drop(&mut self) {
-        *CONFIG.lock().unwrap() = self.config.take();
-        *CONFIG_SET_BY_IPC.lock().unwrap() = self.set_by_ipc;
-        *OVERWRITE_SETTINGS.write().unwrap() = mem::take(&mut self.options);
-        *OVERWRITE_LOCAL_SETTINGS.write().unwrap() = mem::take(&mut self.local_options);
+        * CONFIG.lock().unwrap() = self.config.take();
+        * CONFIG_SET_BY_IPC.lock().unwrap() = self.set_by_ipc;
+        * OVERWRITE_SETTINGS.write().unwrap() = mem::take(&mut self.options);
+        * OVERWRITE_LOCAL_SETTINGS.write().unwrap() = mem::take(&mut self.local_options);
     }
 }
 
@@ -74,7 +74,7 @@ fn cached_sdk_entries_are_ignored_before_check_completes() {
     ];
     let mut cached = HwCodecConfig::default();
     for (_, format) in formats {
-        // A RAM fallback keeps this selection test independent of attached displays.
+        // RAM 回退使这个选择测试不依赖于已连接的显示器。
         cached.ram_encode.push(CodecInfo {
             format,
             ..Default::default()
@@ -83,7 +83,7 @@ fn cached_sdk_entries_are_ignored_before_check_completes() {
             add_backend(&mut cached, vendor.clone(), vendor, format);
         }
     }
-    *CONFIG.lock().unwrap() = Some(cached.clone());
+    * CONFIG.lock().unwrap() = Some(cached.clone());
     assert!(!HwCodecConfig::already_set());
     for (format, _) in formats {
         assert!(VRamEncoder::available(format).is_empty());
@@ -100,7 +100,7 @@ fn cached_sdk_entries_are_ignored_before_check_completes() {
         for vendor in [Driver::NV, Driver::MFX, Driver::AMF] {
             add_backend(&mut cached, Driver::FFMPEG, vendor, data_format);
         }
-        *CONFIG.lock().unwrap() = Some(cached.clone());
+        * CONFIG.lock().unwrap() = Some(cached.clone());
         let encoders = VRamEncoder::available(format);
         assert_eq!(encoders.len(), 3);
         for encoder in encoders {

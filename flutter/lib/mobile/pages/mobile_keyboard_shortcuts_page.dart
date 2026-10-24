@@ -1,22 +1,22 @@
 // flutter/lib/mobile/pages/mobile_keyboard_shortcuts_page.dart
 //
-// Mobile shell for the Keyboard Shortcuts configuration page. Mirrors
-// `desktop/pages/desktop_keyboard_shortcuts_page.dart` but with a touch-
-// friendly layout (ListTile rows instead of dense rows) and a hint banner
-// that explains the recording flow only works with a physical keyboard.
+// 键盘快捷键配置页的移动端外壳。对应
+// `desktop/pages/desktop_keyboard_shortcuts_page.dart`，但采用适合触摸
+// 的布局（使用 ListTile 行而不是紧凑的行），并带有提示横幅
+// 说明录制流程只在使用物理键盘时才能工作。
 //
-// All actual logic — group definitions, JSON I/O, conflict-replace flow,
-// recording-dialog round-trip, "Reset to defaults" — lives in the shared
-// `common/widgets/keyboard_shortcuts/page_body.dart`. This file only
-// supplies the AppBar, the AppBar action, and the platform hint banner.
+// 所有实际逻辑——分组定义、JSON 读写、冲突替换流程、
+// 录制对话框的往返流程、"Reset to defaults"——都放在共享的
+// `common/widgets/keyboard_shortcuts/page_body.dart` 中。本文件只
+// 提供 AppBar、AppBar 操作按钮和平台提示横幅。
 //
-// Mobile keyboard detection limitation: Flutter has no reliable
-// "is a physical keyboard attached?" API on iOS or Android. Soft keyboards
-// don't generate the `KeyDownEvent`s the recording dialog listens for, so
-// in practice the dialog only does anything useful when the user actually
-// has a hardware keyboard plugged in (USB / Bluetooth / Smart Connector).
-// For V1 we don't try to detect attachment — we just surface the
-// requirement as an in-page hint instead of disabling the Edit button.
+// 移动端键盘检测的限制：Flutter 在 iOS 或 Android 上没有可靠的
+// "is a physical keyboard attached?" API。软键盘
+// 不会产生录制对话框所监听的 `KeyDownEvent`，因此
+// 实际上只有当用户真的
+// 插入了硬件键盘（USB / 蓝牙 / Smart Connector）时，该对话框才有用。
+// 在 V1 中我们不尝试检测是否连接了键盘——只是把这一
+// 要求以页面内提示的形式呈现，而不是禁用编辑按钮。
 
 import 'package:flutter/material.dart';
 
@@ -60,9 +60,9 @@ class _MobileKeyboardShortcutsPageState
   }
 }
 
-/// A muted info banner shown above the master toggle on mobile. We can't
-/// reliably detect whether a physical keyboard is attached, so instead of
-/// disabling the Edit button we surface the requirement up front.
+/// 移动端显示在总开关上方的弱化提示横幅。我们无法
+/// 可靠地检测是否连接了物理键盘，因此我们没有
+/// 禁用编辑按钮，而是提前把这一要求提示出来。
 class _PhysicalKeyboardHintBanner extends StatelessWidget {
   final ThemeData theme;
   const _PhysicalKeyboardHintBanner({required this.theme});

@@ -1,4 +1,4 @@
-// The DRM/KMS capture half of the `_drm` IPC channel: types, root-service producer, framing.
+// `_drm` IPC 通道中用于 DRM/KMS 采集的那一半：类型、root 服务生产者、帧封装。
 
 use super::ipc_auth::active_uid_cached;
 use super::*;
@@ -13,24 +13,24 @@ pub struct DrmDisplayInfo {
     pub width: u32,
     pub height: u32,
     pub active: bool,
-    /// Render node of the GPU that EXPORTS this display's scanout; on a multi-GPU host auto-select
-    /// can bind a different GPU whose cross-vendor import then fails. Empty when the service cannot
-    /// name it: the consumer then auto-selects on a single-render-node host, and forces the CPU
-    /// path where there are several.
+    /// 导出本显示器扫描输出的那块 GPU 的 render node；在多 GPU 主机上，自动选择
+    /// 可能绑定到另一块 GPU，而跨厂商导入随后会失败。当服务无法
+    /// 确定它时为空：此时消费端在只有单个 render node 的主机上自动选择，而在有多个时强制走 CPU
+    /// 路径。
     #[serde(default)]
     pub render_node: String,
-    /// KMS card node (`/dev/dri/card*`) driving this display. crtc_ids are card-local, so the index
-    /// alone is ambiguous across cards. Empty = the single auto-detected device.
+    /// 驱动本显示器的 KMS card 节点（`/dev/dri/card*`）。crtc_ids 是 card 局部的，所以这个索引
+    /// 单独来看在不同 card 之间是有歧义的。为空表示使用自动检测到的唯一设备。
     #[serde(default)]
     pub device: String,
-    /// The primary plane rotates its framebuffer by 90/270 in hardware, so every frame is this
-    /// mode TRANSPOSED whatever the compositor reports (gamescope's wl_output has no transform).
+    /// 主平面在硬件上把它的帧缓冲旋转 90/270，所以每一帧都是这个
+    /// 模式 TRANSPOSED，不管合成器报告什么（gamescope 的 wl_output 没有 transform）。
     #[serde(default)]
     pub plane_transposed: bool,
 }
 
-/// Mirrors `scrap::drm_reader::drmtap_dmabuf_desc` except `dma_buf_fd` (never serializes — it rides
-/// SCM_RIGHTS ancillary), and adds `buffer_id` (fb_id tagged with a per-connection epoch; no consumer reads it today) and `has_fd`.
+/// 与 `scrap::drm_reader::drmtap_dmabuf_desc` 类似，只是 `dma_buf_fd` 不同（从不做序列化——它通过
+/// SCM_RIGHTS 辅助数据传递），并增加了 `buffer_id`（带每连接 epoch 标记的 fb_id；目前没有消费端读取它）和 `has_fd`。
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DmabufDesc {
     pub buffer_id: u64,
@@ -38,30 +38,30 @@ pub struct DmabufDesc {
     pub height: u32,
     pub format: u32,
     pub modifier: u64,
-    /// KMS framebuffer id — libdrmtap's import-once cache key. 0 disables caching for this frame.
+    /// KMS 帧缓冲 id——libdrmtap 的“一次导入”缓存键。0 表示这一帧不缓存。
     pub fb_id: u32,
-    /// Used entries in `offsets`/`pitches` (1..4); 0 is treated as 1.
+    /// `offsets`/`pitches` 中已使用的项（1..4）；0 视为 1。
     pub num_planes: u32,
     pub offsets: [u32; 4],
     pub pitches: [u32; 4],
-    /// DRMTAP_EOTF_* (SDR=0, PQ=2, HLG=3). PQ triggers the HDR->SDR tone-map on convert.
+    /// DRMTAP_EOTF_*（SDR=0、PQ=2、HLG=3）。PQ 会在转换时触发 HDR->SDR 色调映射。
     pub hdr_eotf: u32,
     pub hdr_max_nits: u32,
-    /// True: the fd rides this message's SCM_RIGHTS cmsg. False: import-once cache hit for `fb_id`.
+    /// 为 true：这个 fd 随本消息的 SCM_RIGHTS cmsg 传递。为 false：对 `fb_id` 命中了一次导入缓存。
     pub has_fd: bool,
-    /// The DRM `rotation` bitmask the primary plane scanned this frame out with, from
-    /// `drmtap_plane_rotation()` (libdrmtap 0.5.8); a plane without the property is reported as
-    /// rotate-0. `None` when the library cannot say (older than 0.5.8, nothing bound, or the
-    /// property set unreadable). A frame from a plane that rotated in hardware is already
-    /// upright; one from a plane that did not is turned by the output transform. See
-    /// `frame_transform`.
+    /// 主平面扫描输出这一帧时所用的 DRM `rotation` 位掩码，来自
+    /// `drmtap_plane_rotation()`（libdrmtap 0.5.8）；没有该属性的平面会被报告为
+    /// rotate-0。当库无法给出时为 `None`（版本低于 0.5.8、没有绑定，或
+    /// 属性集不可读）。来自在硬件中做了旋转的平面的帧本身已经
+    /// 是正的；来自未做旋转的平面的帧则由输出变换来旋转。参见
+    /// `frame_transform`。
     #[serde(default)]
     pub plane_rotation: Option<u32>,
-    /// Cursor plane position read right after this frame was grabbed, in scanout pixels of the
-    /// display this stream shows, so a few ms newer than the frame. `None` means the cursor is
-    /// hidden, the read failed or was rejected, or the producer predates this field. It rides
-    /// the frame instead of a stream of its own so it cannot queue and cannot backpressure the
-    /// capture worker; the consumer only acts on a position that held still for several frames.
+    /// 在这一帧被抓取后立刻读到的光标平面位置，单位是该
+    /// 码流所显示显示器的扫描输出像素，所以比这一帧新几毫秒。`None` 表示光标
+    /// 被隐藏、读取失败或被拒绝，或者生产者早于该字段。它随
+    /// 帧一起传递，而不是单独一条流，因此不会排队，也不会对
+    /// 采集 worker 施加背压；消费端只对连续数帧保持不变的位置作出反应。
     #[serde(default)]
     pub cursor_pos: Option<(i32, i32)>,
 }
@@ -78,20 +78,20 @@ pub(crate) async fn connect_drm(ms_timeout: u64) -> ResultType<DrmConn> {
     use std::os::fd::AsRawFd;
     let path = drm_ipc_path();
     let stream = timeout(ms_timeout, tokio::net::UnixStream::connect(&path)).await??;
-    // The producer MUST be root: a non-root peer that won a socket-path race must not be trusted to
-    // supply the display list, frames and an arbitrary dma-buf fd.
+    // 生产者必须是 root：赢得了套接字路径竞争的非 root 对端不能被信任去
+    // 提供显示器列表、帧以及任意的 dma-buf fd。
     if peer_uid_from_fd(stream.as_raw_fd()) != Some(0) {
         bail!("drm: _drm producer is not root; refusing to consume");
     }
     Ok(DrmConn::new(stream))
 }
 
-/// Bind the `_drm` listener 0666: connectable by any local uid, authorized in `handle_drm_conn`.
+/// 把 `_drm` 监听器绑定为 0666：任何本地 uid 都能连接，授权在 `handle_drm_conn` 中进行。
 fn new_drm_listener() -> ResultType<Incoming> {
     let path = drm_ipc_path();
     let _ = ensure_secure_ipc_parent_dir(&path, "_service")?;
-    // NOT `std::fs::remove_file`: `unlink(2)` returns EISDIR against a directory-typed squatter and
-    // the bind then fails EADDRINUSE; the fd-based helper picks `AT_REMOVEDIR` (empty dirs only).
+    // 不能用 `std::fs::remove_file`：对一个目录类型的抢占者，`unlink(2)` 会返回 EISDIR，
+    // 随后绑定会以 EADDRINUSE 失败；基于 fd 的辅助函数会选用 `AT_REMOVEDIR`（仅限空目录）。
     if let Err(err) = remove_ipc_entry_via_secure_parent_fd(&path) {
         log::warn!("drm: could not clear a stale entry at {}: {}", &path, err);
     }
@@ -107,22 +107,22 @@ fn new_drm_listener() -> ResultType<Incoming> {
 }
 
 enum DrmProducerMsg {
-    /// Enumerated displays, sent once before any frame.
+    /// 枚举出的显示器，在任何帧之前发送一次。
     Displays(Vec<DrmDisplayInfo>),
-    /// Zero-copy path: descriptor + scanout fd; the `OwnedFd` is closed once the send has dup'd it.
+    /// 零拷贝路径：描述符 + 扫描输出 fd；`OwnedFd` 在发送方 dup 之后就被关闭。
     Frame {
         desc: DmabufDesc,
         fd: Option<OwnedFd>,
     },
-    /// CPU-mapped fallback (packed BGRA): consumer has no convert context (`need_cpu`), or ENOTSUP.
+    /// CPU 映射的回退路径（紧凑 BGRA）：消费端没有转换上下文（`need_cpu`），或者遇到 ENOTSUP。
     FrameCpu {
         width: u32,
         height: u32,
         data: Bytes,
-        /// See `DmabufDesc::plane_rotation`.
+        /// 参见 `DmabufDesc::plane_rotation`。
         plane_rotation: Option<u32>,
-        /// See `DmabufDesc::cursor_pos`. The dmabuf path carries it inside the descriptor; this
-        /// one has no descriptor, so it travels beside the pixels.
+        /// 参见 `DmabufDesc::cursor_pos`。dmabuf 路径把它放在描述符内部；这条
+        /// 路径没有描述符，所以它随像素一起传递。
         cursor_pos: Option<(i32, i32)>,
     },
     Cursor {
@@ -136,8 +136,8 @@ enum DrmProducerMsg {
     },
 }
 
-/// Put this tick's cursor plane position on the frame it was read next to. The hidden sentinel
-/// carries no position; a shape message is left alone.
+/// 把本次 tick 的光标平面位置放到它被读取时相邻的那一帧上。隐藏哨兵
+/// 不携带位置；形状消息则不作处理。
 fn stamp_cursor_pos(msg: &mut DrmProducerMsg, c: Option<&scrap::drm_reader::CursorSnapshot>) {
     let pos = c.and_then(|c| (c.id != scrap::drm_reader::HIDDEN_CURSOR_ID).then_some((c.x, c.y)));
     match msg {
@@ -230,13 +230,13 @@ impl Drop for DrmStopGuard {
 
 fn dup_to_drm_conn(stream: &Connection) -> ResultType<DrmConn> {
     let raw = stream.inner.get_ref().as_raw_fd();
-    // F_DUPFD_CLOEXEC, not dup(): `dup` never copies close-on-exec, and this process forks (the
-    // `loginctl` lookup), so an already-authorized `_drm` socket would leak into children.
+    // 用 F_DUPFD_CLOEXEC，而不是 dup()：`dup` 从不复制 close-on-exec 标志，而这个进程会 fork（
+    // `loginctl` 查询），所以一个已授权的 `_drm` 套接字会泄漏到子进程中。
     let dup = unsafe { hbb_common::libc::fcntl(raw, hbb_common::libc::F_DUPFD_CLOEXEC, 0) };
     if dup < 0 {
         return Err(std::io::Error::last_os_error().into());
     }
-    // SAFETY: `dup` is a freshly dup'd, owned fd for a connected SOCK_STREAM unix socket.
+    // 安全性：`dup` 是为已连接的 SOCK_STREAM unix 套接字新 dup 出来的自有 fd。
     let std_stream = unsafe { std::os::unix::net::UnixStream::from_raw_fd(dup) };
     std_stream.set_nonblocking(true)?;
     let tokio_stream = tokio::net::UnixStream::from_std(std_stream)?;
@@ -245,15 +245,15 @@ fn dup_to_drm_conn(stream: &Connection) -> ResultType<DrmConn> {
 
 static DRM_DISPLAY_CACHE: std::sync::Mutex<Vec<DrmDisplayInfo>> = std::sync::Mutex::new(Vec::new());
 
-/// Bumped only when a change altered `DRM_DISPLAY_CACHE`; Release orders it after the cache write.
+/// 只有当某个变更改动了 `DRM_DISPLAY_CACHE` 时才会递增；Release 排序在缓存写入之后。
 static DRM_DISPLAY_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-/// The whole-hertz refresh of every driven CRTC the last enumeration saw, by (device, crtc), for
-/// a producer whose library cannot read the exact one: it then needs no connector probe of its own.
+/// 上一次枚举所见到的每个被驱动的 CRTC 的整赫兹刷新率，按 (device, crtc) 记录，用于
+/// 那些库读不到精确值的生产者：这样它就不需要自己去探测连接器。
 static DRM_WHOLE_HZ: std::sync::Mutex<std::collections::BTreeMap<(String, u32), u32>> =
     std::sync::Mutex::new(std::collections::BTreeMap::new());
 
-/// Displays this reader serves, plus the identity (`device:connector`) of each undriven output.
+/// 此 reader 服务的显示器，以及每个未被驱动的输出的标识（`device:connector`）。
 fn drm_displays_from_reader(
     reader: &mut scrap::drm_reader::DrmReader,
     device: &str,
@@ -268,8 +268,8 @@ fn drm_displays_from_reader(
     }
     let displays: Vec<DrmDisplayInfo> = snapshots
         .into_iter()
-        // Only outputs bound to a CRTC: a CONNECTED-but-unbound connector enumerates with
-        // `crtc_id == 0`, and `open(crtc=0)` auto-selects the FIRST ACTIVE CRTC and streams ITS frames.
+        // 只包含绑定到 CRTC 的输出：处于 CONNECTED 但未绑定的连接器枚举时
+        // `crtc_id == 0`，而 `open(crtc=0)` 会自动选中第一个处于 ACTIVE 的 CRTC 并推流它的帧。
         .filter(|d| {
             if !d.active || d.crtc_id == 0 {
                 undriven.push(format!("{device}:{name}", name = d.name));
@@ -296,8 +296,8 @@ fn drm_displays_from_reader(
 const DRM_MODE_ROTATE_90: u32 = 0x2;
 const DRM_MODE_ROTATE_270: u32 = 0x8;
 
-/// Through a reader bound to `crtc_id`: the enumerating reader is bound to whichever crtc
-/// auto-select picked.
+/// 通过绑定到 `crtc_id` 的 reader：枚举用的 reader 绑定的是自动选择挑中的那个 crtc，
+/// 无论它是哪一个。
 fn plane_transposed(device: &str, crtc_id: u32) -> bool {
     let dev = (!device.is_empty()).then_some(device);
     let Some(mut r) = scrap::drm_reader::DrmReader::open(dev, crtc_id) else {
@@ -320,7 +320,7 @@ fn plane_transposed(device: &str, crtc_id: u32) -> bool {
     transposed
 }
 
-/// Active displays of every DRM device + the connected-but-undriven identities, from ONE look.
+/// 通过一次查询得到所有 DRM 设备的活动显示器 + 已连接但未被驱动的标识。
 fn drm_enumerate_all_displays() -> (Vec<DrmDisplayInfo>, Vec<String>) {
     if let Some(devices) = scrap::drm_reader::list_devices() {
         if devices.len() > 1 {
@@ -356,13 +356,13 @@ fn drm_enumerate_all_displays() -> (Vec<DrmDisplayInfo>, Vec<String>) {
                 );
             }
         }
-        // Take this even when the list is EMPTY: the fallback re-keys identities under `device = ""`.
+        // 即使列表为空也要采用这个结果：回退路径会在 `device = ""` 下重新编排标识。
         if any_opened {
             return (all, undriven_total);
         }
     }
-    // Auto-detect alone is not enough: it picks a card that is SCANNING OUT. Measured on the T2 with
-    // the panel idle-disabled it binds card0 (the Touch Bar); the panel on card2 is invisible to it.
+    // 只靠自动检测是不够的：它会选中一块正在扫描输出的 card。在 T2 上实测，
+    // 面板空闲禁用时它绑定到 card0（Touch Bar）；card2 上的面板它根本看不到。
     let mut all = Vec::new();
     let mut undriven_total = Vec::new();
     let mut paths: Vec<std::path::PathBuf> = match std::fs::read_dir("/dev/dri") {
@@ -379,7 +379,7 @@ fn drm_enumerate_all_displays() -> (Vec<DrmDisplayInfo>, Vec<String>) {
             Vec::new()
         }
     };
-    // Deterministic order, so the display list does not depend on directory order.
+    // 确定的顺序，这样显示器列表就不依赖目录顺序。
     paths.sort();
     let n_paths = paths.len();
     for p in paths {
@@ -406,7 +406,7 @@ fn drm_enumerate_all_displays() -> (Vec<DrmDisplayInfo>, Vec<String>) {
     (all, undriven_total)
 }
 
-/// Connectors a wake did NOT bring back. SELF-REFUTING: an entry later seen DRIVEN is removed.
+/// 唤醒没有恢复的连接器。可自我推翻：后来被发现处于 DRIVEN 的条目会被移除。
 #[cfg(feature = "drm-wake")]
 static DRM_WAKE_HOPELESS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
 
@@ -438,7 +438,7 @@ static DRM_LAST_WAKE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU6
 #[cfg(feature = "drm-wake")]
 static DRM_WAKE_UNAVAILABLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Wake config key; `enable-` is load-bearing: an absent value reads as `!= "N"`, so it defaults ON.
+/// 唤醒配置键；`enable-` 是关键：值缺失时读作 `!= "N"`，所以默认为开启。
 #[cfg(feature = "drm-wake")]
 const OPTION_ENABLE_DRM_DISPLAY_WAKE: &str = "enable-drm-display-wake";
 
@@ -451,15 +451,15 @@ const DRM_WAKE_RECHECK_TOTAL: std::time::Duration = std::time::Duration::from_se
 #[cfg(feature = "drm-wake")]
 const DRM_WAKE_SETTLE_WINDOW: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// Seconds since service start, monotonic: SystemTime would let a clock step re-open the wake gate.
+/// 服务启动以来的秒数，单调递增：用 SystemTime 会让时钟跳变重新打开唤醒闸门。
 #[cfg(feature = "drm-wake")]
 fn drm_wake_clock_secs() -> u64 {
     static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
     START.get_or_init(std::time::Instant::now).elapsed().as_secs()
 }
 
-/// Look like user activity so the compositor re-enables an idle-DISABLED connector (until it does,
-/// nothing scans out). Measured on a T2 greeter: one relative move restored a 2880x1800 scanout.
+/// 看起来像用户活动，这样合成器会重新启用空闲时被禁用的连接器（在它这样做之前，
+/// 没有任何扫描输出）。在 T2 的 greeter 上实测：一次相对移动就恢复了 2880x1800 的扫描输出。
 #[cfg(feature = "drm-wake")]
 fn drm_wake_displays(reason: &str) -> bool {
     use std::sync::atomic::Ordering;
@@ -485,8 +485,8 @@ fn drm_wake_displays(reason: &str) -> bool {
         }
     }
 
-    // It has to look like a MOUSE: libinput ignores a device with a single relative axis and no
-    // buttons. Measured: REL_X + REL_Y + BTN_LEFT woke the panel; REL_X alone did not.
+    // 它必须看起来像一只鼠标：libinput 会忽略只有单个相对轴且没有
+    // 按键的设备。实测：REL_X + REL_Y + BTN_LEFT 能唤醒面板；仅 REL_X 不行。
     let mut axes = evdev::AttributeSet::<evdev::RelativeAxisType>::new();
     axes.insert(evdev::RelativeAxisType::REL_X);
     axes.insert(evdev::RelativeAxisType::REL_Y);
@@ -510,11 +510,11 @@ fn drm_wake_displays(reason: &str) -> bool {
         }
     };
 
-    // A FRESH uinput device is not bound yet; events written before udev binds it are lost. Measured
-    // back to back: with this pause the panel went `disabled -> enabled`, without it it did not.
+    // 新建的 uinput 设备尚未绑定；在 udev 绑定之前写入的事件会丢失。实测
+    // 连续两次：有这个暂停时面板会 `disabled -> enabled`，没有则不会。
     std::thread::sleep(DRM_WAKE_DEVICE_SETTLE);
 
-    // +1 then -1: activity with zero net displacement. emit() appends the SYN_REPORT itself.
+    // 先 +1 再 -1：净位移为零的一次活动。emit() 会自行追加 SYN_REPORT。
     let step = |v: i32| {
         evdev::InputEvent::new(
             evdev::EventType::RELATIVE,
@@ -546,8 +546,8 @@ fn drm_enumerate_settled(reason: &str) -> Vec<DrmDisplayInfo> {
     displays
 }
 
-/// Wake build: wake an undriven display and WAIT for the settled topology. The wait applies to every
-/// handshake whose wake may still be in flight, not only the one whose attempt won the rate limit.
+/// 唤醒时的构建：唤醒一个未被驱动的显示器并等待拓扑稳定。这个等待适用于每一个
+/// 唤醒可能仍在进行中的握手，而不只是赢得限速的那一次尝试。
 #[cfg(feature = "drm-wake")]
 fn drm_enumerate_settled(reason: &str) -> Vec<DrmDisplayInfo> {
     use std::sync::atomic::Ordering;
@@ -607,7 +607,7 @@ fn drm_enumerate_settled(reason: &str) -> Vec<DrmDisplayInfo> {
         schedule_drm_cache_refresh();
     }
     if fired && !cur_wakeable.is_empty() {
-        // Only the handshake that FIRED latches; a loser's baseline was taken mid-transition.
+        // 只有真正触发（FIRE）的那次握手会锁存；落败者的基线是在切换过程中采集的。
         let mut hopeless = DRM_WAKE_HOPELESS
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -627,13 +627,13 @@ fn drm_enumerate_settled(reason: &str) -> Vec<DrmDisplayInfo> {
     cur
 }
 
-/// The SINGLE writer of DRM_DISPLAY_CACHE (+ DRM_DISPLAY_GENERATION), off the caller's thread and
-/// SINGLE-FLIGHT: a request arriving during a run coalesces into exactly one follow-up.
+/// DRM_DISPLAY_CACHE（+ DRM_DISPLAY_GENERATION）的唯一写入者，不在调用方线程上，且是
+/// 单飞（single-flight）：运行期间到达的请求会合并成恰好一次后续运行。
 fn schedule_drm_cache_refresh() {
     use std::sync::atomic::{AtomicBool, Ordering};
     static RUNNING: AtomicBool = AtomicBool::new(false);
     static PENDING: AtomicBool = AtomicBool::new(false);
-    // Ownership of RUNNING, released on every exit incl. unwind and failed spawn; re-taken mid-loop.
+    // 对 RUNNING 的所有权，在每一种退出路径上都会释放，包括栈展开和启动失败；可在循环中重新取得。
     struct RefreshSlot(bool);
     impl RefreshSlot {
         fn release(&mut self) {
@@ -652,7 +652,7 @@ fn schedule_drm_cache_refresh() {
             self.release();
         }
     }
-    // Announce a refresh is wanted before trying to run, so an active worker is guaranteed to see it.
+    // 在尝试运行之前先声明需要刷新，这样正在运行的 worker 一定能看到。
     PENDING.store(true, Ordering::Release);
     if RUNNING.swap(true, Ordering::AcqRel) {
         return; // a worker is already active; it will observe PENDING and refresh again
@@ -674,7 +674,7 @@ fn schedule_drm_cache_refresh() {
                     Err(poisoned) => poisoned.into_inner(),
                 };
                 if *cache != fresh {
-                    *cache = fresh;
+                    * cache = fresh;
                     true
                 } else {
                     false
@@ -684,8 +684,8 @@ fn schedule_drm_cache_refresh() {
                 DRM_DISPLAY_GENERATION.fetch_add(1, Ordering::Release);
                 log::info!("drm: display cache refreshed (topology changed)");
             }
-            // Exit only if no request arrived during this enumeration. The re-check after releasing
-            // the slot closes the lost-wakeup window (a request that set PENDING just before it).
+            // 只有当这次枚举期间没有请求到达时才退出。释放槽位之后的
+            // 复查弥补了丢失唤醒的窗口（在释放前一刻刚把 PENDING 置位的请求）。
             if !PENDING.load(Ordering::Acquire) {
                 slot.release();
                 if !PENDING.load(Ordering::Acquire) {
@@ -714,7 +714,7 @@ fn uevent_is_drm_change(msg: &[u8]) -> bool {
     is_drm && is_change
 }
 
-/// Refresh the display cache on DRM hotplug uevents (raw NETLINK_KOBJECT_UEVENT, no libudev).
+/// 在 DRM 热插拔 uevent 时刷新显示器缓存（原生 NETLINK_KOBJECT_UEVENT，不使用 libudev）。
 fn drm_udev_listener() {
     use hbb_common::libc;
 
@@ -735,7 +735,7 @@ fn drm_udev_listener() {
     let _owned = unsafe { OwnedFd::from_raw_fd(sock) };
     let mut addr: libc::sockaddr_nl = unsafe { std::mem::zeroed() };
     addr.nl_family = libc::AF_NETLINK as u16;
-    // Group 1 = kernel-originated uevents (udev re-broadcasts on group 2); pid 0 => kernel assigns.
+    // 第 1 组 = 内核发起的 uevent（udev 在第 2 组重新广播）；pid 0 表示由内核分配。
     addr.nl_groups = 1;
     let rc = unsafe {
         libc::bind(
@@ -754,7 +754,7 @@ fn drm_udev_listener() {
     log::info!("drm: udev DRM-uevent listener started");
     let mut buf = [0u8; 8192];
     loop {
-        // recvmsg, not recv: a local process could UNICAST a spoofed uevent to this root listener.
+        // 用 recvmsg 而不是 recv：本地进程可能向这个 root 监听器单播一个伪造的 uevent。
         let mut src: libc::sockaddr_nl = unsafe { std::mem::zeroed() };
         let mut iov = libc::iovec {
             iov_base: buf.as_mut_ptr() as *mut libc::c_void,
@@ -788,9 +788,9 @@ fn drm_udev_listener() {
 }
 
 fn drm_prewarm() {
-    // Re-ask, bounded: `get_display_server()` falls back to "x11" when it cannot tell (measured:
-    // "x11" 0.8 s into a boot on a Wayland host). `is_x11_for_drm()` is that path minus the
-    // greeter blind spot, which a login screen never leaves.
+    // 有界地重新询问：`get_display_server()` 在无法判断时回退为 "x11"（实测：
+    // 在 Wayland 主机上开机 0.8 秒时就返回 "x11"）。`is_x11_for_drm()` 就是去掉
+    // greeter 盲区后的那条路径，登录界面永远不会离开该盲区。
     const PREWARM_SESSION_RECHECK: std::time::Duration = std::time::Duration::from_secs(2);
     const PREWARM_SESSION_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
     let waited = std::time::Instant::now();
@@ -809,7 +809,7 @@ fn drm_prewarm() {
     schedule_drm_cache_refresh();
     match scrap::drm_reader::DrmReader::open(None, 0) {
         Some(mut r) => {
-            // grab_desc(), not grab(): exports an fd without loading libEGL into the root service.
+            // 用 grab_desc() 而不是 grab()：导出 fd 而不必把 libEGL 加载进 root 服务。
             if let Ok((fd, _desc)) = r.grab_desc() {
                 drop(fd); // close the warm-up fd; we only wanted to prime the device/import path
             }
@@ -819,7 +819,7 @@ fn drm_prewarm() {
     }
 }
 
-/// Capture producer in the ROOT `--service`: one task per consumer, reader on a worker thread.
+/// ROOT `--service` 中的采集生产者：每个消费端一个任务，reader 跑在 worker 线程上。
 #[tokio::main(flavor = "current_thread")]
 pub async fn start_drm() {
     match new_drm_listener() {
@@ -882,13 +882,13 @@ fn drm_peer_authorized(peer_uid: Option<u32>, active_uid: Option<u32>) -> bool {
     }
 }
 
-/// Handle one `_drm` consumer: a private worker thread owns the `!Send` reader; this task forwards.
+/// 处理一个 `_drm` 消费端：一个专用 worker 线程持有 `!Send` 的 reader；这个任务负责转发。
 async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    // World-connectable socket, so the peer MUST be authorized here (this listener bypasses the
-    // generic `start()` accept loop). On the blocking pool: a cache miss forks `loginctl`.
+    // 这是可被全网连接的套接字，所以对端必须在这里被授权（这个监听器绕过了
+    // 通用的 `start()` accept 循环）。在阻塞线程池上：缓存未命中会 fork `loginctl`。
     static DRM_AUTH_IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
     struct DrmAuthGuard;
     impl Drop for DrmAuthGuard {
@@ -898,8 +898,8 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
     }
     if !drm_auth_admitted(DRM_AUTH_IN_FLIGHT.fetch_add(1, Ordering::SeqCst)) {
         DRM_AUTH_IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
-        // Deliberately `debug`, not `warn`: this is reachable by any local uid, so a level that
-        // reaches the service log on every attempt is an unbounded log-write primitive for that peer.
+        // 刻意用 `debug` 而不是 `warn`：任何本地 uid 都能触发，所以一个
+        // 每次尝试都会写入服务日志的级别，对那个对端来说就是一个无界的日志写入原语。
         log::debug!("drm: too many _drm authorizations in flight; dropping this connection");
         return Ok(());
     }
@@ -911,10 +911,10 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
     .await?;
     drop(auth_guard);
     if !authorized {
-        // Deliberately no log here: the call above already reports it -- the uid mismatch through
-        // `log_rejected_service_connection`, throttled to one line per 5 s, and the executable
-        // mismatch as a plain warn. A second, unthrottled warn here would be the same unbounded
-        // log-write primitive.
+        // 这里刻意不打日志：上面的调用已经报告了它——uid 不匹配通过
+        // `log_rejected_service_connection` 报告（限速为每 5 秒一行），可执行文件
+        // 不匹配则以普通 warn 报告。这里再来一条未限速的 warn 就是同一个无界的
+        // 日志写入原语。
         return Ok(());
     }
 
@@ -932,9 +932,9 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
     }
     let _conn_guard = DrmConnGuard;
 
-    // Re-authorized per frame below: DRM/KMS capture is NOT session-scoped, so unless a stream stops
-    // when the active session changes the outgoing user's --server keeps receiving the incoming
-    // user's screen (and the greeter in between).
+    // 下面会逐帧重新授权：DRM/KMS 采集不是会话作用域的，所以除非码流在
+    // 活动会话变化时停止，发起方用户的 --server 会继续接收接入方
+    // 用户的屏幕（以及中途的 greeter）。
     let peer_uid = stream.peer_uid();
 
     let mut conn = dup_to_drm_conn(&stream)?;
@@ -995,7 +995,7 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
         Some(Err(e)) => return Err(e),
         None => return Ok(()), // timed out: client never chose a display
     };
-    // Reject crtc 0: `open(crtc=0)` auto-selects the FIRST ACTIVE CRTC and streams the WRONG monitor.
+    // 拒绝 crtc 0：`open(crtc=0)` 会自动选中第一个处于 ACTIVE 的 CRTC，从而推流错误的显示器。
     let selected = usize::try_from(display_idx)
         .ok()
         .and_then(|i| displays.get(i));
@@ -1021,9 +1021,9 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
     loop {
         conn.drain_frame_acks(&mut credit, DRM_FRAME_CREDIT, &mut demand)?;
         note_drm_demand(&demand_fps, demand, target_crtc, &mut demand_logged);
-        // While gated the worker does not grab, so it cannot advance its own MAX_STALLED watchdog: a
-        // consumer that stops acking without closing the socket would otherwise hold this connection,
-        // its worker thread and the privileged DRM context open indefinitely.
+        // 被门控期间 worker 不抓帧，因此无法推进自己的 MAX_STALLED 看门狗：一个
+        // 只停止确认却不关闭套接字的消费端，否则会一直占用这条连接、
+        // 它的 worker 线程和特权 DRM 上下文。
         const CREDIT_STALL: std::time::Duration = std::time::Duration::from_secs(5);
         if credit > 0 {
             credit_since = std::time::Instant::now();
@@ -1031,9 +1031,9 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
             log::info!("drm: consumer has not acked for {CREDIT_STALL:?}; closing _drm connection");
             break;
         }
-        // This must NOT also require that a frame is already held: those grabs keep the held frame
-        // fresh (latest-wins below), so gating on "held" would pin whatever frame was in hand when
-        // credit ran out and ship it stale once the ack lands.
+        // 这里绝不能同时要求已经持有某一帧：那些抓帧会让已持有的帧保持
+        // 新鲜（下面是最新优先），所以以“已持有”为门控条件会把手头的那一帧钉住，
+        // 在配额耗尽时的那一帧钉住，并在确认到达后送出过期数据。
         frames_gated.store(credit <= 0, Ordering::Relaxed);
         let first: Option<DrmProducerMsg> = if held_frame.is_some() && credit > 0 {
             frame_rx.try_recv().ok()
@@ -1060,9 +1060,9 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
                 None => break,
             }
         };
-        // Re-authorize per frame with the CACHE-ONLY active uid: a fresh lookup forks `loginctl` and
-        // would stall every stream on this single-threaded runtime. A miss is fail-closed for a non-root peer
-            // (root stays authorized; see `drm_peer_authorized`).
+        // 用仅查缓存的活动 uid 逐帧重新授权：一次新的查询会 fork `loginctl`，
+        // 在这个单线程运行时上拖垮每一条码流。对非 root 对端，未命中即失败即关闭
+            // （root 仍被授权；参见 `drm_peer_authorized`）。
         let peer_ok = drm_peer_authorized(peer_uid, active_uid_cached());
         if !peer_ok {
             log::warn!("drm: _drm peer no longer matches the active session (or it is unknown); closing");
@@ -1075,7 +1075,7 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .clone();
-            // Send even an EMPTY list, or the consumer keeps advertising removed displays.
+            // 即使列表为空也要发送，否则消费端会继续宣告已被移除的显示器。
             conn.send_msg(&Data::DrmDisplaysChanged(fresh), None).await?;
         }
         let mut latest_frame: Option<DrmProducerMsg> = held_frame.take();
@@ -1120,17 +1120,17 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
         }
         match latest_frame {
             Some(DrmProducerMsg::Frame { mut desc, fd }) => {
-                // Every exported frame carries its fd: the kernel can recycle an fb_id onto another
-                // buffer with the same geometry/modifier and this side cannot see the dma-buf inode
-                // that would tell the difference, so eliding it can serve a stale EGLImage. libdrmtap's
-                // import cache keys on fb_id AND inode, and can only re-import when handed a real fd.
+                // 每一帧导出时都带上它的 fd：内核可能把某个 fb_id 回收给另一个
+                // 具有相同 geometry/modifier 的缓冲区，而这一侧看不到能区分两者的 dma-buf inode，
+                // 所以省掉它可能送出过期的 EGLImage。libdrmtap 的
+                // 导入缓存以 fb_id 和 inode 为键，而且只有拿到真实的 fd 才能重新导入。
                 let send_fd = fd.is_some();
                 desc.has_fd = send_fd;
                 let borrowed = if send_fd { fd.as_ref().map(|f| f.as_fd()) } else { None };
                 conn.send_msg(&Data::DrmFrameDmabuf(desc), borrowed).await?;
                 credit -= 1; // one frame in flight until the consumer acks it
-                // `fd` (OwnedFd) is closed here whether or not it was attached (the cmsg dup'd it
-                // into the peer), which bounds our fd usage to ~1 in flight per frame.
+                // `fd`（OwnedFd）无论是否被附加都会在这里关闭（cmsg 已经把它 dup 到了
+                // 对端），这把我们的 fd 用量限制在每帧约 1 个在途。
             }
             Some(DrmProducerMsg::FrameCpu {
                 width,
@@ -1158,19 +1158,19 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
     Ok(())
 }
 
-/// The producer's tick when the consumer has not said its rate, and the WouldBlock retry period.
+/// 当消费方没有报出速率时生产者的 tick 间隔，以及 WouldBlock 的重试周期。
 const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_millis(33);
-/// Bound continuous no-frame (WouldBlock) time so a wedged device ends the stream (~5 s).
+/// 为持续无帧（WouldBlock）的时间设上限，这样卡死的设备会结束码流（约 5 秒）。
 const MAX_STALLED: u32 = 150;
 const _: () = assert!(
     FRAME_INTERVAL.as_millis() * MAX_STALLED as u128 >= 4_500
         && FRAME_INTERVAL.as_millis() * MAX_STALLED as u128 <= 5_500
 );
-/// A frame ack is one byte and every producer counts bytes, never their value, so a byte that
-/// also carries the consumer's encode rate is still exactly one credit to an older producer.
+/// 一帧的确认就是一个字节，而每个生产者只统计字节数、从不看它的值，所以一个
+/// 同时携带消费端编码速率的字节，对较早的生产者来说仍然恰好是一份配额。
 const DRM_ACK_PLAIN: u8 = 0x01;
 const DRM_ACK_FPS_FLAG: u8 = 0x80;
-/// video_qos's ceiling; it fits the seven low bits.
+/// video_qos 的上限；它能放进那 7 个低位里。
 const DRM_MAX_DEMAND_FPS: u8 = 120;
 
 fn drm_ack_byte(fps: u8) -> u8 {
@@ -1186,7 +1186,7 @@ fn drm_ack_demand(b: u8) -> Option<u8> {
     (b & DRM_ACK_FPS_FLAG != 0 && (1..=DRM_MAX_DEMAND_FPS).contains(&fps)).then_some(fps)
 }
 
-/// One period of a panel refreshing at `num/den` Hz, rounded up so pacing never outruns it.
+/// 以 `num/den` Hz 刷新的面板的一个周期，向上取整，这样节奏控制不会超过它。
 fn drm_panel_period(num: u64, den: u64) -> std::time::Duration {
     if num == 0 || den == 0 {
         return std::time::Duration::ZERO;
@@ -1195,9 +1195,9 @@ fn drm_panel_period(num: u64, den: u64) -> std::time::Duration {
     std::time::Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX))
 }
 
-/// Grab period for a consumer encoding at `demand_fps`, never faster than the panel: its own
-/// period above 30 fps, the old 33 ms tick from 30 down to 15, and below 15 half its period, so a
-/// slow consumer's frame is at most half its period old.
+/// 以 `demand_fps` 编码的消费端的抓取周期，绝不会快于面板：它自己
+/// 在 30 fps 以上时的周期、从 30 降到 15 期间沿用的旧 33 ms tick，以及低于 15 时取其周期的一半，因此
+/// 慢速消费端的帧最多只旧半个周期。
 fn drm_pacing_interval(demand_fps: u8, panel: std::time::Duration) -> std::time::Duration {
     if demand_fps == 0 {
         return FRAME_INTERVAL;
@@ -1206,8 +1206,8 @@ fn drm_pacing_interval(demand_fps: u8, panel: std::time::Duration) -> std::time:
     want.min((want / 2).max(FRAME_INTERVAL)).max(panel)
 }
 
-/// When the worker's next tick starts. Without a demand it is the old sleep after the work;
-/// with one it is a deadline phased on the previous tick, and `now` after an overrun.
+/// worker 下一次 tick 开始的时间。没有需求时是工作结束后的旧 sleep；
+/// 有需求时是以上一次 tick 为基准的截止时间，超时之后则为 `now`。
 fn drm_next_tick(
     prev: std::time::Instant,
     now: std::time::Instant,
@@ -1220,8 +1220,8 @@ fn drm_next_tick(
     (prev + drm_pacing_interval(demand_fps, panel)).max(now)
 }
 
-/// Hands the consumer's rate to the worker. The measured part of it moves with almost every frame:
-/// this connection logs its first rate, then a different one at most every ten seconds.
+/// 把消费端的速率交给 worker。其中可测量的部分几乎每帧都在变化：
+/// 这条连接会记录它的第一个速率，之后最多每十秒记录一个不同的速率。
 fn note_drm_demand(
     shared: &std::sync::atomic::AtomicU8,
     demand: u8,
@@ -1231,7 +1231,7 @@ fn note_drm_demand(
     shared.store(demand, std::sync::atomic::Ordering::Relaxed);
     if drm_demand_log_due(*logged, demand, std::time::Instant::now()) {
         log::debug!("drm: crtc {crtc}: the consumer encodes at {demand} fps");
-        *logged = Some((demand, std::time::Instant::now()));
+        * logged = Some((demand, std::time::Instant::now()));
     }
 }
 
@@ -1246,8 +1246,8 @@ fn drm_demand_log_due(
         })
 }
 
-/// When the worker wakes: for the next frame, and at least every FRAME_INTERVAL, because each
-/// tick also reads the cursor and a slow frame rate must not slow the cursor down.
+/// worker 醒来的时机：为了下一帧，且至少每隔 FRAME_INTERVAL 一次，因为每次
+/// tick 还要读取光标，而帧率慢不能把光标也拖慢。
 fn drm_worker_wake(now: std::time::Instant, next_frame: std::time::Instant) -> std::time::Instant {
     next_frame.min(now + FRAME_INTERVAL)
 }
@@ -1264,12 +1264,12 @@ fn drm_capture_worker(
 
     let t_conn = std::time::Instant::now();
 
-    // Enumerate FRESH rather than serve the cache: a cached display may no longer be driven.
+    // 重新枚举而不是直接用缓存：缓存中的显示器可能已经不再被驱动。
     let displays = if wake {
         drm_enumerate_settled("a consumer connected")
     } else {
         let (displays, _undriven) = drm_enumerate_all_displays();
-        // Seen lit, a connector a failed wake gave up on is wakeable again.
+        // 一旦看到它亮起，一次唤醒失败的连接器就又能被唤醒了。
         #[cfg(feature = "drm-wake")]
         drm_wakeable_undriven(&displays, &_undriven);
         displays
@@ -1324,11 +1324,11 @@ fn drm_capture_worker(
         let mut grabbed: Option<std::io::Result<DrmProducerMsg>> = if !frame_due
             || frames_gated.load(Ordering::Relaxed)
         {
-            // `stalled` is left untouched because the device is healthy -- the task bounds this
-            // state itself (CREDIT_STALL) since our watchdog cannot advance.
+            // `stalled` 保持不变，因为设备是健康的——任务本身会为这种
+            // 状态设限（CREDIT_STALL），因为我们的看门狗无法推进。
             None
         } else if use_dmabuf {
-            // Read right after the grab: the library answers for the plane that grab read from.
+            // 在抓取后立刻读取：库给出的是那次抓取所读取的那个平面的答案。
             Some(match reader.grab_desc() {
                 Ok((fd, d)) => Ok(DrmProducerMsg::Frame {
                     desc: DmabufDesc {
@@ -1352,8 +1352,8 @@ fn drm_capture_worker(
                 Err(err) => Err(err),
             })
         } else {
-            // The mapped buffer borrows the reader: copy it out, then take the rotation the grab
-            // recorded.
+            // 映射好的缓冲区借用了 reader：先把数据拷贝出来，再取抓取时
+            // 记录的旋转。
             let copied = reader
                 .grab()
                 .map(|(buf, w, h)| (Bytes::copy_from_slice(buf), w as u32, h as u32));
@@ -1365,10 +1365,10 @@ fn drm_capture_worker(
                 cursor_pos: None,
             }))
         };
-        // ONE cursor read per tick, and none on a stalled or failed grab: the plane position rides
-        // the frame it was read next to, and the shape ships when it changes. The position is a
-        // few ms newer than the frame; the consumer only measures a plane that held still for
-        // several frames, so that skew never reaches a measurement.
+        // 每个 tick 只读一次光标，在卡顿或抓取失败时不读：平面位置随
+        // 它被读取时相邻的那一帧传递，形状则在变化时才发出。这个位置比
+        // 帧新几毫秒；消费端只测量连续数帧保持不变的平面，
+        // 所以这种偏移不会进入测量结果。
         let cursor = match &grabbed {
             Some(Err(_)) => None,
             _ => reader.cursor(),
@@ -1399,7 +1399,7 @@ fn drm_capture_worker(
                     break;
                 }
                 std::thread::sleep(FRAME_INTERVAL);
-                // Or the first good grab after the stall finds its deadline gone and grabs twice.
+                // 或者卡顿之后的第一次成功抓帧发现自己的截止时间已过，于是抓了两次。
                 next_frame = std::time::Instant::now();
                 continue;
             }
@@ -1409,7 +1409,7 @@ fn drm_capture_worker(
                 );
                 use_dmabuf = false;
                 logged_first = false;
-                // The stall counter measured the abandoned path; give the fallback the whole budget.
+                // 卡顿计数测量的是那条被放弃的路径；给回退路径完整的预算。
                 stalled = 0;
                 continue;
             }
@@ -1419,7 +1419,7 @@ fn drm_capture_worker(
             }
         }
 
-        // Ship the cursor shape only when it changes (id is a content hash or the hidden sentinel).
+        // 只在光标形状变化时才发送它（id 是内容哈希或隐藏哨兵）。
         if let Some(c) = cursor {
             if c.id != last_cursor_id {
                 last_cursor_id = c.id;
@@ -1445,7 +1445,7 @@ fn drm_capture_worker(
             panel_read_at = std::time::Instant::now();
         }
         let now = std::time::Instant::now();
-        // A frame tick the credit held back is retried one pacing interval later.
+        // 被配额拦下的帧 tick 会在一个节奏间隔之后重试。
         if frame_due {
             next_frame = drm_next_tick(next_frame, now, demand_fps.load(Ordering::Relaxed), panel);
         }
@@ -1453,9 +1453,9 @@ fn drm_capture_worker(
     }
 }
 
-/// The panel period of `crtc`, exact when the library can say (libdrmtap 0.5.9, one GETCRTC), else
-/// the whole-hertz refresh the last enumeration saw; zero when neither is known, which leaves the
-/// pacing to the demand.
+/// `crtc` 的面板周期，库能给出时是精确值（libdrmtap 0.5.9，一次 GETCRTC），否则
+/// 是上一次枚举所见到的整赫兹刷新率；两者都不知道时为零，这会让节奏控制
+/// 交给需求决定。
 fn drm_read_panel_period(
     reader: &mut scrap::drm_reader::DrmReader,
     device: &str,
@@ -1483,13 +1483,13 @@ fn drm_whole_hz(device: &str, crtc: u32) -> u32 {
         .unwrap_or(0)
 }
 
-/// Ancillary-fd transport for `_drm`: `Framed`/`BytesCodec` cannot carry an SCM_RIGHTS cmsg, so the
-/// messages and raw bodies use a 4-byte big-endian length + payload, with any fd bound to the first
-    /// byte. The reverse-direction frame acks are bare bytes, not framed.
+/// `_drm` 的辅助数据 fd 传输：`Framed`/`BytesCodec` 无法携带 SCM_RIGHTS cmsg，所以
+/// 消息和原始负载使用 4 字节大端长度 + 负载，任何 fd 都绑定在第一个
+    /// 字节上。反向方向的帧确认是裸字节，不做帧封装。
 pub(crate) struct DrmConn {
     stream: tokio::net::UnixStream,
     read_buf: Vec<u8>,
-    /// Set once the current read consumed a byte: a spurious `readable()` vs a mid-frame stall.
+    /// 当前读取消费掉一个字节后就置位：用于区分虚假的 `readable()` 和帧中途卡顿。
     consumed: bool,
 }
 
@@ -1498,16 +1498,16 @@ const DRM_BODY_TIMEOUT_MS: u64 = 5_000;
 const DRM_SEND_TIMEOUT_MS: u64 = 5_000;
 
 const MAX_DRM_RAW_BYTES: usize = 512 * 1024 * 1024;
-/// `CMSG_SPACE(sizeof(int))` is 24 bytes on our targets; 64 gives headroom and the `align(8)`
-/// matches `cmsghdr` alignment.
+/// `CMSG_SPACE(sizeof(int))` 在我们的目标平台上是 24 字节；64 留有余量，而 `align(8)`
+/// 与 `cmsghdr` 的对齐要求一致。
 const DRM_CMSG_CAP: usize = 64;
 
-/// Aligned storage for the SCM_RIGHTS control buffer (`msg_control` must be `cmsghdr`-aligned).
+/// 用于 SCM_RIGHTS 控制缓冲区的对齐存储（`msg_control` 必须按 `cmsghdr` 对齐）。
 #[repr(align(8))]
 struct DrmCmsgBuf([u8; DRM_CMSG_CAP]);
 
-/// One non-blocking `sendmsg`; the cmsg is attached ONLY when a fd is present (-1 fails the call).
-/// SAFETY: `fd` a valid open socket fd, `buf` a readable slice, `pass_fd` (if any) a valid open fd.
+/// 一次非阻塞的 `sendmsg`；只有在存在 fd 时才附加 cmsg（-1 会让该调用失败）。
+/// 安全性：`fd` 是有效的已打开套接字 fd，`buf` 是可读切片，`pass_fd`（如果有）是有效的已打开 fd。
 unsafe fn drm_sendmsg(fd: RawFd, buf: &[u8], pass_fd: Option<RawFd>) -> std::io::Result<usize> {
     use hbb_common::libc;
     let mut iov = libc::iovec {
@@ -1546,8 +1546,8 @@ unsafe fn drm_sendmsg(fd: RawFd, buf: &[u8], pass_fd: Option<RawFd>) -> std::io:
     }
 }
 
-/// One non-blocking `recvmsg`: keeps at most one SCM_RIGHTS fd (surplus closed), rejects MSG_CTRUNC.
-/// SAFETY: `fd` must be a valid open socket fd; `buf` a valid writable slice.
+/// 一次非阻塞的 `recvmsg`：最多保留一个 SCM_RIGHTS fd（多余的关闭），并拒绝 MSG_CTRUNC。
+/// 安全性：`fd` 必须是有效的已打开套接字 fd；`buf` 是有效的可写切片。
 unsafe fn drm_recvmsg(fd: RawFd, buf: &mut [u8]) -> std::io::Result<(usize, Option<OwnedFd>)> {
     use hbb_common::libc;
     let mut iov = libc::iovec {
@@ -1604,7 +1604,7 @@ async fn drm_write_all(
     mut buf: &[u8],
     mut pass_fd: Option<RawFd>,
 ) -> ResultType<()> {
-    // ONE deadline for the whole write: arming it per readiness wait lets a dripping peer re-arm it.
+    // 整个写入共用一个截止时间：每次等待就绪都重新设定它，会让滴流式的对端不断重置。
     let deadline =
         tokio::time::Instant::now() + std::time::Duration::from_millis(DRM_SEND_TIMEOUT_MS);
     while !buf.is_empty() {
@@ -1687,9 +1687,9 @@ async fn drm_read_full(
                 Err(e) => return Err(e.into()),
             }
         };
-        // Any byte off the socket commits us to this frame: a cancellation cannot be re-polled.
+        // 从套接字上读到的任何字节都意味着这一帧已确定：取消无法再通过轮询实现。
         if n > 0 {
-            *progress = true;
+            * progress = true;
         }
         off += n;
     }
@@ -1732,15 +1732,15 @@ impl DrmConn {
 
     pub fn drain_frame_acks(&self, credit: &mut i32, max: i32, demand: &mut u8) -> ResultType<()> {
         let mut buf = [0u8; 64];
-        // BOUNDED: "until WouldBlock" is the peer's promise; a continuous writer would pin us.
+        // 有界："直到 WouldBlock" 是对端的承诺；持续写会对我们造成牵制。
         const MAX_ACK_READS: usize = 64;
         for _ in 0..MAX_ACK_READS {
             match self.stream.try_read(&mut buf) {
                 Ok(0) => bail!("drm: _drm frame-ack peer closed"),
                 Ok(n) => {
-                    *credit = (*credit + n as i32).min(max);
+                    * credit = (*credit + n as i32).min(max);
                     if let Some(d) = buf[..n].iter().rev().find_map(|&b| drm_ack_demand(b)) {
-                        *demand = d;
+                        * demand = d;
                     }
                     if *credit >= max {
                         return Ok(());
@@ -1774,8 +1774,8 @@ impl DrmConn {
         Ok((data, fd))
     }
 
-    /// Cancel-safe timeout wrapper around `recv_msg`. `None` = nothing consumed, so re-polling is
-    /// safe; past the first byte the frame is committed and an overrun is a hard error.
+    /// 围绕 `recv_msg` 的可取消超时包装。`None` 表示没有消费任何东西，所以重新轮询是
+    /// 安全的；过了第一个字节，这一帧就已确定，超时是硬错误。
     pub async fn recv_msg_timeout2(
         &mut self,
         ms_timeout: u64,
@@ -1830,7 +1830,7 @@ mod drm_pacing_tests {
     use super::*;
     use hbb_common::tokio;
 
-    /// An ack is one credit, as an older producer counts it, and a new one reads the demand from it.
+    /// 一个确认就是一份配额，与较早的生产者的计数方式相同，而新的生产者也从中读取需求。
     #[tokio::test]
     async fn a_demand_ack_is_one_credit_and_carries_the_demand() {
         let (a, b) = tokio::net::UnixStream::pair().unwrap();
@@ -1965,7 +1965,7 @@ mod drm_conn_tests {
             .arg("30")
             .spawn()
             .expect("/bin/sleep should be spawnable in the test environment");
-        // Until the child finishes exec'ing, /proc/<pid>/exe still points at OUR binary.
+        // 在子进程完成 exec 之前，/proc/<pid>/exe 仍然指向我们自己的二进制。
         let ours = std::fs::read_link(format!("/proc/{me}/exe")).ok();
         let peer_link = format!("/proc/{}/exe", other.id());
         let mut exec_done = false;

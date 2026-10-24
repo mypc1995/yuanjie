@@ -107,7 +107,7 @@ impl AudioPlaybackWriter {
         let mut buffer = match self.audio_buffer.try_lock() {
             Ok(buffer) => buffer,
             Err(TryLockError::WouldBlock) => {
-                // Keep queued PCM and its generation for the next successful read.
+                // 保留排队的 PCM 及其代次，供下一次成功读取时使用。
                 self.status.contentions.fetch_add(1, Ordering::Relaxed);
                 return 0;
             }
@@ -151,7 +151,7 @@ impl AudioPlaybackWriter {
             match self.recovery.process_frame(input) {
                 Ok(recovered) => {
                     for (output, sample) in output_frame.iter_mut().zip(recovered) {
-                        *output = T::from_sample(*sample);
+                        * output = T::from_sample(*sample);
                     }
                 }
                 Err(error) => {

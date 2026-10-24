@@ -6,20 +6,20 @@ use super::ffi::*;
 
 //TODO: Color space, YCbCr matrix.
 pub struct Config {
-    /// Whether the cursor is visible.
+    /// 光标是否可见。
     pub cursor: bool,
-    /// Whether it should letterbox or stretch.
+    /// 是加黑边还是拉伸。
     pub letterbox: bool,
-    /// Minimum seconds per frame.
+    /// 每帧的最少秒数。
     pub throttle: f64,
-    /// How many frames are allocated.
-    /// 3 is the recommended value.
-    /// 8 is the maximum value.
+    /// 分配多少帧。
+    /// 推荐值为 3。
+    /// 最大值为 8。
     pub queue_length: i8,
 }
 
 impl Config {
-    /// Don't forget to CFRelease this!
+    /// 别忘了对它调用 CFRelease！
     pub fn build(self) -> CFDictionaryRef {
         unsafe {
             let throttle = CFNumberCreate(

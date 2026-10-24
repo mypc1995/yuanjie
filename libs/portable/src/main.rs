@@ -25,9 +25,9 @@ const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
 
-// The extraction directory follows whatever executable the payload asks for, so a
-// custom client gets its own directory instead of sharing RustDesk's. Falls back to
-// APP_PREFIX when no package is injected, which keeps stock builds unchanged.
+// 解压目录跟随负载所要求的可执行文件，因此一个
+// 定制客户端会得到自己的目录，而不是与 RustDesk 共用。在没有注入包时回退到
+// APP_PREFIX，这样保持原版构建不变。
 fn app_dir_name(exe: &str) -> String {
     Path::new(&exe.replace('\\', "/"))
         .file_stem()
@@ -44,7 +44,7 @@ fn is_timestamp_matches(dir: &Path, ts: &mut u64) -> bool {
     for line in app_metadata.lines() {
         if line.starts_with(META_LINE_PREFIX_TIMESTAMP) {
             if let Ok(stored_ts) = line.replace(META_LINE_PREFIX_TIMESTAMP, "").parse::<u64>() {
-                *ts = stored_ts;
+                * ts = stored_ts;
                 break;
             }
         }
@@ -71,7 +71,7 @@ fn write_meta(dir: &Path, ts: u64, package_paths: &[String]) {
     for path in package_paths {
         content.push_str(&format!("{}{}\n", META_LINE_PREFIX_FILE, path));
     }
-    // Ignore is ok here
+    // 这里忽略掉也没问题
     let _ = std::fs::write(meta_file, content);
 }
 
@@ -86,10 +86,10 @@ fn previous_package_files(dir: &Path) -> Vec<String> {
         .collect()
 }
 
-// meta.toml is plain text in a user-writable directory, and it now drives deletion,
-// so the path is rebuilt from plain components rather than joined as written. A
-// prefix, root or parent component would otherwise escape the extraction directory:
-// Path::join replaces the base entirely when given an absolute path.
+// meta.toml 是用户可写目录中的纯文本，而它现在还驱动着删除操作，
+// 因此路径是用普通组件重新拼装的，而不是按写下来的样子直接拼接。一个
+// 前缀、根或父组件否则就会逃出解压目录：
+// Path::join 在遇到绝对路径时会整个替换掉基础路径。
 fn resolve_within(dir: &Path, relative: &str) -> Option<PathBuf> {
     use std::path::Component;
     let mut path = dir.to_path_buf();
@@ -97,9 +97,9 @@ fn resolve_within(dir: &Path, relative: &str) -> Option<PathBuf> {
     for component in Path::new(&relative.replace('\\', "/")).components() {
         match component {
             Component::Normal(part) => {
-                // A drive-relative name like "C:x" parses as Normal, and only a
-                // Windows host would classify "C:/..." as a Prefix, so the colon is
-                // rejected outright rather than relying on the host's parser.
+                // 像 "C:x" 这样的驱动器相对名称会被解析为 Normal，而只有
+                // Windows 主机才会把 "C:/..." 归类为 Prefix，所以这个冒号
+                // 被直接拒绝，而不是依赖主机的解析器。
                 if part.to_string_lossy().contains(':') {
                     return None;
                 }
@@ -117,10 +117,10 @@ fn resolve_within(dir: &Path, relative: &str) -> Option<PathBuf> {
     }
 }
 
-// A customer who drops a branding asset gets a package without it, and the file
-// would otherwise linger in an existing extraction and keep being used. The wipe
-// cannot cover this: it is keyed on the packer's build timestamp, which is now the
-// same for every customer of a release.
+// 客户若移除某个品牌素材，得到的包里就没有它，而该文件
+// 否则会滞留在已有的解压目录中并继续被使用。而这种清理
+// 覆盖不到这种情况：它以打包器的构建时间戳为键，而现在这个时间戳
+// 对同一版本的所有客户都是一样的。
 fn remove_dropped_package_files_with<F>(
     dir: &Path,
     current: &[String],
@@ -164,7 +164,7 @@ fn setup(
     let dir = if let Some(dir) = dir {
         dir
     } else {
-        // home dir
+        // 主目录
         if let Some(dir) = dirs::data_local_dir() {
             dir.join(app_dir_name(&reader.exe))
         } else {
@@ -177,7 +177,7 @@ fn setup(
     if clear || !is_timestamp_matches(&dir, &mut ts) {
         #[cfg(windows)]
         if _args.is_empty() {
-            *_ui = true;
+            * _ui = true;
             ui::setup();
         }
         std::fs::remove_dir_all(&dir).ok();
@@ -198,8 +198,8 @@ fn setup(
 fn use_null_stdio() -> bool {
     #[cfg(windows)]
     {
-        // When running in CMD on Windows 7, using Stdio::inherit() with spawn returns an "invalid handle" error.
-        // Since using Stdio::null() didn’t cause any issues, and determining whether the program is launched from CMD or by double-clicking would require calling more APIs during startup, we also use Stdio::null() when launched by double-clicking on Windows 7.
+        // 在 Windows 7 上从 CMD 运行时，spawn 配合 Stdio::inherit() 会返回「invalid handle」错误。
+        // 由于使用 Stdio::null() 没有引起任何问题，而判断程序是从 CMD 启动还是双击启动需要在启动过程中调用更多 API，因此在 Windows 7 上双击启动时我们同样使用 Stdio::null()。
         let is_windows_7 = is_windows_7();
         println!("is windows7: {}", is_windows_7);
         return is_windows_7;
@@ -218,7 +218,7 @@ fn is_windows_7() -> bool {
         version_info.dwOSVersionInfoSize = std::mem::size_of::<OSVERSIONINFOW>() as u32;
 
         if RtlGetVersion(&mut version_info).is_ok() {
-            // Windows 7 is version 6.1
+            // Windows 7 的版本号是 6.1
             println!(
                 "Windows version: {}.{}",
                 version_info.dwMajorVersion, version_info.dwMinorVersion
@@ -231,10 +231,10 @@ fn is_windows_7() -> bool {
 
 fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
     println!("executing {}", path.display());
-    // setup env
+    // 设置环境
     let exe = std::env::current_exe().unwrap_or_default();
     let exe_name = exe.file_name().unwrap_or_default();
-    // run executable
+    // 运行可执行程序
     let mut cmd = Command::new(path);
     cmd.args(args);
     #[cfg(windows)]
@@ -319,7 +319,7 @@ fn main() -> Result<(), String> {
 mod win {
     use std::{fs, os::windows::process::CommandExt, path::Path, process::Command};
 
-    // Used for privacy mode(magnifier impl).
+    // 用于隐私模式（放大镜实现）。
     pub const RUNTIME_BROKER_EXE: &'static str = "C:\\Windows\\System32\\RuntimeBroker.exe";
     pub const WIN_TOPMOST_INJECTED_PROCESS_EXE: &'static str = "RuntimeBroker_rustdesk.exe";
 
@@ -370,8 +370,8 @@ mod win {
         let _allow_err = std::fs::copy(src, &format!("{}\\{}", dir.to_string_lossy(), tgt));
     }
 
-    /// Check if the executable is a Quick Support version.
-    /// Note: This function must be kept in sync with `src/core_main.rs`.
+    /// 检查该可执行程序是否是 Quick Support 版本。
+    /// 注意：此函数必须与 `src/core_main.rs` 保持同步。
     #[inline]
     pub(super) fn is_quick_support_exe(exe: &str) -> bool {
         let exe = exe.to_lowercase();
@@ -394,7 +394,7 @@ mod meta_tests {
             resolve_within(base, ".\\data\\logo.png"),
             Some(base.join("data").join("logo.png"))
         );
-        // meta.toml is user-writable, so these must not reach remove_file.
+        // meta.toml 是用户可写的，所以这些绝不能进入 remove_file。
         assert_eq!(resolve_within(base, "../../etc/passwd"), None);
         assert_eq!(resolve_within(base, "/etc/passwd"), None);
         assert_eq!(resolve_within(base, "C:\\Windows\\System32\\x.dll"), None);
