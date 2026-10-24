@@ -73,6 +73,20 @@ sudo bash install.sh
 在管理面板「品牌定制」页上传 logo、填应用名、选主题色，然后重新走一遍第 2 步的构建，
 新包就带上了。
 
+> **应用名和安装名是两回事**，品牌定制页上都有：
+>
+> | | 叫什么 | 用在哪 |
+> |---|---|---|
+> | **应用名** | 远界（可以是中文） | 界面、窗口标题、文案、面板 |
+> | **安装名** | YuanJie（**必须纯 ASCII**） | Windows 服务名、安装目录（`C:\Program Files\YuanJie`）、注册表键、托盘快捷方式、提权安装脚本 |
+>
+> 客户端装服务时会把名字插值进**提权安装脚本和系统路径**，所以内部名只能是字母、数字、
+> 下划线、连字符。应用名用中文的话，客户端**装自己会被自己拦下来**，报
+> `Installation failed: Application name must start with a letter, number, underscore, or hyphen...`。
+>
+> 安装名留空时会自动用应用名（前提是应用名本身是纯 ASCII）。这个约束来自上游 RustDesk
+> 自己的限制（`src/platform/mod.rs` 的 `validate_install_app_name`），不是我们额外加的。
+
 ### 附：搭一台自己的构建机（可选）
 
 只有需要**重新编客户端**时才需要。把 `02-build-agent-windows` 拷到内网 Windows 机器，
