@@ -1,20 +1,23 @@
-//! 品牌化构建时预置的服务器配置。
+//! Server configuration preset for branded builds.
 //!
-//! 默认是空的 —— 普通编译出来的客户端跟上游没有区别。
-//! 品牌化构建 (`.deploy/builder/build_job.py` 或 `.deploy/package/client/package.ps1`)
-//! 会在编译**之前**把 `src/server_preset.txt` 改写成真正的配置串。
+//! Empty by default, so an ordinary build behaves exactly like upstream.
+//! A branded build (`.deploy/builder/build_job.py` or
+//! `.deploy/package/client/package.ps1`) rewrites `src/server_preset.txt` with
+//! the real config string *before* compiling.
 
 use hbb_common::config::Config;
 
-/// 预置的服务器配置串, 内容来自 `src/server_preset.txt`。
+/// The preset config string, read from `src/server_preset.txt`.
 ///
-/// 格式与客户端 `ServerConfig.encode()` 完全一致:
-/// `base64url(json{host,relay,api,key})` 之后**整体反转**。
+/// Same encoding as the client's `ServerConfig.encode()`:
+/// `base64url(json{host,relay,api,key})` with the whole string reversed.
 pub const PRESET_SERVER_CONFIG: &str = include_str!("server_preset.txt");
 
-/// 把预置配置写进本地配置, 只在该选项**还是空**的时候写。
+/// Writes the preset into the local config, but only while the option is
+/// still empty.
 ///
-/// 用户之后在设置里换成别的服务器, 不会被预置值顶回去。
+/// A user who later points the client at another server keeps that choice;
+/// the preset never overrides it.
 pub fn apply() {
     let preset = PRESET_SERVER_CONFIG.trim();
     if preset.is_empty() {
@@ -41,9 +44,11 @@ fn set_if_empty(key: &str, value: &str) {
 mod test {
     use super::*;
 
-    // base64url({"host":"1.2.3.4","relay":"","api":"","key":"k"}) 整体反转
+    // base64url({"host":"1.2.3.4","relay":"","api":"","key":"k"}), reversed
     const ENCODED: &str = "9JyaiojI5V2aiwiIiojIpBXYiwiIiojI5FGblJnIsICNuMjLy4SMiojI0N3boJye";
 
+    // The preset and the client must agree on the encoding, otherwise the
+    // preset decodes into the wrong fields.
     #[test]
     fn preset_uses_the_client_config_encoding() {
         let cfg = crate::custom_server::get_custom_server_from_config_string(ENCODED).unwrap();
@@ -51,14 +56,5 @@ mod test {
         assert_eq!(cfg.key, "k");
         assert!(cfg.relay.is_empty());
         assert!(cfg.api.is_empty());
-    }
-
-    #[test]
-    fn empty_preset_does_nothing() {
-        let preset = PRESET_SERVER_CONFIG.trim();
-        if preset.is_empty() {
-            // 空预置是默认状态, 不该写任何选项
-            assert_eq!(preset, "");
-        }
     }
 }
