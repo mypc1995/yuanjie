@@ -122,3 +122,4 @@ flutter/build/
 .deploy/tools/batches/
 .deploy/tools/commit-msg.txt
 .deploy/deploy-panel.resolved.sh
+.deploy/tools/remote-url.txt

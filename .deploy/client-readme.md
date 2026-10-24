@@ -3,7 +3,7 @@
 已经编好的客户端，解压即用。
 
 ```
-rustdesk-client-windows-x64.zip
+远界-client-windows-x64.zip
 ```
 
 ## 怎么用
