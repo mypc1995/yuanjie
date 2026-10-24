@@ -207,3 +207,18 @@ button.link {
 }
 button.link:hover { color: var(--text); filter: none; }
 form.inline { display: inline; }
+
+/* 免责声明 —— 登录页底部, 红色加粗提醒 */
+.disclaimer {
+    margin: 18px 0 0;
+    padding: 12px 14px;
+    border: 1px solid #fecaca;
+    border-left: 4px solid var(--bad);
+    border-radius: var(--radius);
+    background: #fef2f2;
+    color: #991b1b;
+    font-size: 14px;
+    line-height: 1.7;
+    font-weight: 600;
+}
+.disclaimer strong { color: #7f1d1d; }
