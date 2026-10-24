@@ -85,28 +85,116 @@ setup.cmd
 之后在面板「客户端构建」页点「开始构建」，这台机器自动领任务、编译、把产物回传面板。
 
 > 构建机需要装 **MSVC 工具集 + Windows SDK**（装 Visual Studio 时选「使用 C++ 的桌面开发」
-> 或只装工具集组件都行）。
+> 或只装工具集组件都行）。环境细节见下面的「从源码构建」。
 
 ## 从源码构建
 
-需要 Rust 1.99.1、Flutter 3.24.5、CMake、libclang、NASM，以及 vcpkg 预置的
-`x64-windows-static` 依赖库。
+### 方式一：离线构建机（推荐）
 
-```bash
-# 1) 依赖库 (vcpkg 静态库, 只需要编一次)
-vcpkg install --triplet x64-windows-static
+不想折腾环境，就用**内网构建机**方案：在一台能上外网（或能从别处拷包）的 Windows 机器上
+把离线环境打好，整包拷进内网，装一次就能一直编。
 
-# 2) Rust 侧
-export VCPKG_ROOT=<vcpkg 目录>
-export VCPKG_INSTALLED_ROOT=$VCPKG_ROOT/installed
-export LIBCLANG_PATH=<libclang.dll 所在目录>
-cargo build --locked --features flutter --lib --release
-
-# 3) 界面
-cd flutter && flutter build windows --release
+```bat
+setup.cmd
 ```
 
-产物在 `flutter/build/windows/x64/runner/Release/`。
+它会做三件事：装好完整的编译环境、把机器注册成面板的构建节点、挂上开机自启。
+之后在面板「客户端构建」页点「开始构建」，这台机器自动领任务、编译、把产物回传面板。
+
+离线包怎么打、里面有什么，见部署包里的 `README.md`（`02-build-agent-windows/`）。
+
+### 方式二：手工在 Windows 上编
+
+需要这几样：
+
+| 依赖 | 版本 | 说明 |
+|---|---|---|
+| Rust | 1.99.1 | 官方 MSI 装，按用户装就行，不需要管理员 |
+| Flutter | 3.24.5 | 官方 zip 解压 |
+| MSVC 工具集 + Windows SDK | —— | 装 Visual Studio 选「使用 C++ 的桌面开发」，或只装工具集组件 |
+| CMake | 4.x | 独立版即可（Flutter 找不到 VS 自带的会退回用它） |
+| libclang | —— | `kcp-sys`、`scrap` 的 bindgen 要用 |
+| NASM | 3.x | 编汇编用 |
+| vcpkg 预置库 | `x64-windows-static` | libvpx / libyuv / aom / opus 等，只需编一次 |
+
+**① 准备 C++ 依赖库**（在仓库根目录，manifest 模式，只需一次）
+
+```powershell
+vcpkg install --triplet x64-windows-static
+```
+
+**② 离线依赖源码**（有网时做一次，之后 cargo 完全不联网）
+
+```powershell
+cargo vendor --locked --versioned-dirs .vendor
+```
+
+用 `.vendor` 时要在源码树里放一份源替换配置，`.deploy/` 里有现成的生成脚本
+（`prepare-offline-bundle.ps1` 会一并写好）。**注意**：RustDesk 有一批 git 依赖
+（`[patch.crates-io]` 里的 webrtc / tungstenite 等），源替换配置必须包含那些 git 源段，
+只写 crates-io 一段会退回去连 GitHub。
+
+**③ 设置环境变量**
+
+```powershell
+$env:VCPKG_ROOT          = 'C:\vcpkg'
+$env:VCPKG_INSTALLED_ROOT= 'C:\vcpkg\installed'
+$env:LIBCLANG_PATH       = 'C:\libs\llvm\bin'      # libclang.dll 所在目录
+$env:FLUTTER_CMAKE_PATH  = 'C:\libs\cmake\bin\cmake.exe'
+$env:PATH = "C:\vcpkg;C:\libs\nasm;$env:LIBCLANG_PATH;C:\libs\flutter\bin;$env:USERPROFILE\.cargo\bin;$env:PATH"
+```
+
+**④ 编 Rust 侧**
+
+```powershell
+cargo build --locked --features flutter --lib --release
+```
+
+产物 `target/release/librustdesk.dll`。`--locked` 不能省，依赖版本是锁死的。
+
+**⑤ 编界面**
+
+```powershell
+cd flutter
+flutter pub get --offline      # 有 pub cache 时用 --offline, 不然会去连 pub.dev
+flutter build windows --release
+```
+
+产物在 `flutter/build/windows/x64/runner/Release/`（`rustdesk.exe` + `librustdesk.dll`
++ `flutter_windows.dll` + 各插件 dll + `data/`）。
+
+### bridge 代码
+
+`src/bridge_generated.rs`、`src/bridge_generated.io.rs`、`flutter/lib/generated_bridge.dart`
+这些是 FFI 桥接代码，**仓库里已经带好了**，clone 下来直接能编。
+
+要重新生成（改了 `src/flutter_ffi.rs` 之后）：
+
+```powershell
+flutter_rust_bridge_codegen --version 1.80.1
+# 需要 libclang:
+flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs `
+  --dart-output ./flutter/lib/generated_bridge.dart --llvm-path C:\libs\llvm
+```
+
+> 版本必须钉死 1.80.1，换版本生成的代码对不上。
+
+### 打成能发给用户的包
+
+改完品牌或服务器配置后，用面板走一遍「客户端构建」即可（logo、应用名、服务器地址会
+自动烘焙进客户端）。手工来就是：
+
+```powershell
+.deploy\package\client\package.ps1 -BrandingDir <品牌包目录>
+```
+
+它会把 logo / 应用名写进 `flutter/assets/` 和 `res/`，把服务器配置写进
+`src/server_preset.txt`，然后编出并打包。
+
+### 在 Linux 服务器上编 Linux 客户端
+
+服务器上装了源码树的话，面板能直接编 Linux 客户端（`cargo build` + `flutter build linux`）。
+Windows 客户端**只能**在 Windows 上编，没有交叉编译这条路。
 
 代码注释全部是中文；`src/lang/` 是界面翻译表。
 
