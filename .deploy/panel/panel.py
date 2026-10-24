@@ -292,7 +292,8 @@ def load_json_file(path, default=None):
 
 
 def default_branding():
-    return {"app_name": "RustDesk", "primary_color": "#2563eb",
+    return {"app_name": "RustDesk", "install_name": "",
+            "primary_color": "#2563eb",
             "logo": "", "logo_light": "", "logo_dark": "", "icon": "", "app_icon": "",
             "updated_at": ""}
 
@@ -551,6 +552,13 @@ def branding():
             os.makedirs(BRAND_DIR, exist_ok=True)
         data = load_branding()
         data["app_name"] = request.form.get("app_name", "").strip() or "RustDesk"
+        # 安装名: 服务名、安装目录、注册表键、提权脚本里用的名字。
+        # 客户端的安装流程会把它插值进特权脚本和路径, 所以必须是纯 ASCII。
+        install_name = request.form.get("install_name", "").strip()
+        if install_name and not re.match(r"^[A-Za-z0-9][A-Za-z0-9_-]*$", install_name):
+            flash("安装名只能用字母、数字、下划线和连字符, 且不能以符号开头。", "err")
+            return redirect(url_for("branding"))
+        data["install_name"] = install_name
         color = request.form.get("primary_color", "").strip() or "#2563eb"
         if not re.match(r"^#[0-9a-fA-F]{6}$", color):
             color = "#2563eb"
@@ -767,6 +775,7 @@ def build():
             "id": job_id,
             "target": target,
             "app_name": brand.get("app_name", "RustDesk"),
+            "install_name": brand.get("install_name", ""),
             "primary_color": brand.get("primary_color", "#2563eb"),
             "server": {"host": cfg.get("host", ""), "relay": cfg.get("relay", ""),
                        "api": cfg.get("api", ""), "key": cfg.get("key", "")},

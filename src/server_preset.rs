@@ -5,9 +5,13 @@
 //! `.deploy/package/client/package.ps1`) 会在编译**之前**把这个文件改写成
 //! 真正的值。
 //!
-//! 文件格式 (两行, 任意一行都可以为空):
-//!   第 1 行: 品牌化应用名, 空表示沿用默认的 "RustDesk"
-//!   第 2 行: 服务器配置串, 空表示不预置服务器
+//! 文件格式 (三行, 任意一行都可以为空):
+//!   第 1 行: 显示名 —— 界面、文案里出现的品牌名, 可以是中文
+//!   第 2 行: 内部名 —— 服务名、安装目录、注册表键、提权脚本里用的名字,
+//!             **必须是纯 ASCII**。上游会强制校验, 因为这些名字会被插值进
+//!             特权脚本和路径里 (见 `src/platform/mod.rs`
+//!             的 `validate_install_app_name`)。
+//!   第 3 行: 服务器配置串 —— 空表示不预置服务器
 //!
 //! 配置串格式与客户端 `ServerConfig.encode()` 完全一致:
 //! `base64url(json{host,relay,api,key})` 之后**整体反转**。
@@ -17,24 +21,47 @@ use hbb_common::config::Config;
 /// 预置内容的原始文本, 读自 `src/server_preset.txt`。
 const PRESET_RAW: &str = include_str!("server_preset.txt");
 
-/// 拆出 (应用名, 服务器配置串) 两项, 都是去掉首尾空白后的值。
-fn preset_parts() -> (&'static str, &'static str) {
-    let mut lines = PRESET_RAW.lines();
-    let app_name = lines.next().unwrap_or("").trim();
-    let server = lines.next().unwrap_or("").trim();
-    (app_name, server)
+/// 拆成 (显示名, 内部名, 服务器配置串) 三项, 都是去掉首尾空白后的值。
+fn preset_lines() -> (&'static str, &'static str, &'static str) {
+    let mut it = PRESET_RAW.lines();
+    let display = it.next().unwrap_or("").trim();
+    let internal = it.next().unwrap_or("").trim();
+    let server = it.next().unwrap_or("").trim();
+    (display, internal, server)
+}
+
+/// 界面与文案里显示的品牌名。没预置就回退到内部名。
+pub fn display_app_name() -> String {
+    let (display, internal, _) = preset_lines();
+    if display.is_empty() {
+        crate::get_app_name()
+    } else {
+        display.to_owned()
+    }
+}
+
+/// 安装、服务、路径用的内部名。没预置就回退到当前的应用名。
+///
+/// 必须是纯 ASCII —— 安装流程会把它插值进提权脚本、注册表键和路径。
+pub fn install_app_name() -> String {
+    let (_, internal, _) = preset_lines();
+    if internal.is_empty() {
+        crate::get_app_name()
+    } else {
+        internal.to_owned()
+    }
 }
 
 /// 把预置值写进本地配置, 只在该选项**还是空**的时候写。
 ///
 /// 用户之后在设置里换成别的服务器, 不会被预置值顶回去。
 pub fn apply() {
-    let (app_name, preset) = preset_parts();
+    let (_, internal, preset) = preset_lines();
 
-    // 应用名要最先设: 配置目录、日志文件名、IPC 目录都按应用名算,
-    // 晚一步就会写到旧的目录里去。
-    if !app_name.is_empty() {
-        *hbb_common::config::APP_NAME.write().unwrap() = app_name.to_owned();
+    // 内部名要先设好: 配置目录、日志文件名、IPC 目录、服务名都按它算,
+    // 晚一步就会写到用旧名字算出来的目录里去。
+    if !internal.is_empty() {
+        *hbb_common::config::APP_NAME.write().unwrap() = internal.to_owned();
     }
 
     if preset.is_empty() {
@@ -74,13 +101,14 @@ mod test {
         assert!(cfg.api.is_empty());
     }
 
+    // 内部名会被插值进特权脚本和路径, 必须是纯 ASCII。
     #[test]
-    fn preset_file_has_two_slots() {
-        // 空文件 -> 两项都空 -> 不做任何预置
-        let (name, server) = preset_parts();
-        if PRESET_RAW.trim().is_empty() {
-            assert!(name.is_empty());
-            assert!(server.is_empty());
-        }
+    fn install_name_must_be_ascii() {
+        let name = install_app_name();
+        assert!(
+            name.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'),
+            "内部名必须是纯 ASCII: {name}"
+        );
     }
 }

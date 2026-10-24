@@ -129,13 +129,20 @@ def apply_branding(job, src):
 
         # 服务器配置预置必须落在 Rust 侧: 真正去连 hbbs 的是 Rust 核心,
         # Dart 改运行期配置来不及。src/server_preset.txt 是编译期常量。
-        # 文件两行: 第 1 行应用名, 第 2 行服务器配置串。
+        # 文件三行: 第 1 行显示名(可以是中文), 第 2 行内部名(必须纯 ASCII),
+        # 第 3 行服务器配置串。
         app_name = (job.data.get("app_name") or "RustDesk").replace("\\", "\\\\").replace("'", "\\'")
+        install_name = (job.data.get("install_name") or "").strip()
+        if not install_name:
+            # 没填安装名: 应用名本身是纯 ASCII 就直接用, 否则退回默认名
+            install_name = app_name if app_name.isascii() else "RustDesk"
+        install_name = install_name.replace("\\", "\\\\").replace("'", "\\'")
         preset_txt = os.path.join(src, "src", "server_preset.txt")
         with open(preset_txt, "w", encoding="utf-8", newline="\n") as f:
-            f.write(app_name + "\n" + b64 + "\n")
-        job.log("服务器配置已预置 -> %s" % os.path.relpath(preset_txt, src))
-        job.log("  应用名   = %s" % app_name)
+            f.write("%s\n%s\n%s\n" % (app_name, install_name, b64))
+        job.log("品牌已预置 -> %s" % os.path.relpath(preset_txt, src))
+        job.log("  显示名   = %s" % app_name)
+        job.log("  安装名   = %s" % install_name)
         job.log("  ID Server = %s" % host)
         job.log("  Relay     = %s" % relay)
         job.log("  API       = %s" % api)

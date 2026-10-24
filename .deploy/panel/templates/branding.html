@@ -15,8 +15,19 @@
     <h2>应用信息</h2>
     <div class="field">
       <label for="app_name">应用名</label>
-      <p class="hint">显示在客户端标题栏、窗口标题和面板左上角。客户端通过 <code>bind.mainGetAppNameSync()</code> 从 Rust 侧取这个值。</p>
+      <p class="hint">显示在客户端标题栏、窗口标题和面板左上角。可以是中文。</p>
       <input type="text" id="app_name" name="app_name" value="{{ branding.app_name }}">
+    </div>
+    <div class="field">
+      <label for="install_name">安装名</label>
+      <p class="hint">
+        客户端装成服务时用的名字 —— 服务名、安装目录（<code>C:\Program Files\安装名</code>）、
+        注册表键、托盘快捷方式都是它。<b>只能用字母、数字、下划线、连字符</b>，
+        因为这些名字会被写进提权安装脚本和系统路径，中文会导致安装失败。
+        留空则用应用名（应用名是纯 ASCII 时）。
+      </p>
+      <input type="text" id="install_name" name="install_name" value="{{ branding.install_name or '' }}"
+             placeholder="留空则用应用名" pattern="[A-Za-z0-9][A-Za-z0-9_-]*">
     </div>
     <div class="field">
       <label for="primary_color">主题色</label>

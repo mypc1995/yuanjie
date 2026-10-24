@@ -255,7 +255,9 @@ pub fn translate_locale(name: String, locale: &str) -> String {
                 && !name.starts_with("upgrade_rustdesk_server_pro")
                 && name != "powered_by_me"
             {
-                let app_name = crate::get_app_name();
+                // 用显示名 (品牌名) 替换, 而不是内部名 —— 内部名是纯 ASCII 的
+                // 安装用名, 出现在界面上不好看。
+                let app_name = crate::server_preset::display_app_name();
                 if !app_name.contains("RustDesk") {
                     s = s.replace("RustDesk", &app_name);
                 } else {

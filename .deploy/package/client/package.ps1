@@ -108,11 +108,19 @@ if (-not [string]::IsNullOrEmpty($BrandingDir)) {
 
     # 服务器配置预置必须落在 Rust 侧: 真正去连 hbbs 的是 Rust 核心,
     # Dart 改运行期配置来不及。src/server_preset.txt 是编译期常量。
-    # 文件两行: 第 1 行应用名, 第 2 行服务器配置串。
+    # 文件三行: 第 1 行显示名(可以是中文), 第 2 行内部名(必须纯 ASCII),
+    # 第 3 行服务器配置串。
+    $installName = if ($branding -and $branding.install_name) { "$($branding.install_name)" } else { '' }
+    $installName = $installName.Trim()
+    if (-not $installName) {
+      # 没填安装名: 应用名本身是纯 ASCII 就直接用, 否则退回默认名
+      $installName = if ($appName -match '^[\x00-\x7F]+$') { $appName } else { 'RustDesk' }
+    }
+    $installName = $installName.Replace('\', '\\').Replace("'", "\'")
     $rustTarget = Join-Path $RepoRoot 'src\server_preset.txt'
-    $rustContent = "$appName`n$b64`n"
+    $rustContent = "$appName`n$installName`n$b64`n"
     [System.IO.File]::WriteAllText($rustTarget, $rustContent, (New-Object System.Text.UTF8Encoding($false)))
-    Say "预置配置串已写入 src/server_preset.txt"
+    Say "预置配置串已写入 src/server_preset.txt (显示名=$appName, 安装名=$installName)"
 
     # Dart 侧只管界面上的应用名
     $dartTarget = Join-Path $RepoRoot 'flutter\lib\common\server_preset.dart'
