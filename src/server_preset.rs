@@ -1,25 +1,42 @@
-//! 品牌定制构建的服务端配置预设。
+//! 品牌化构建时预置的应用名与服务器配置。
 //!
-//! 默认为空，因此普通构建的行为与上游完全一致。
-//! 品牌定制构建（`.deploy/builder/build_job.py` 或
-//! `.deploy/package/client/package.ps1`）会用真实的配置字符串重写 `src/server_preset.txt`，
-//! 这一步在*编译之前*完成。
+//! 内容来自 `src/server_preset.txt`, 默认是空的 —— 普通编译出来的客户端跟上游
+//! 没有区别。品牌化构建 (`.deploy/builder/build_job.py` 或
+//! `.deploy/package/client/package.ps1`) 会在编译**之前**把这个文件改写成
+//! 真正的值。
+//!
+//! 文件格式 (两行, 任意一行都可以为空):
+//!   第 1 行: 品牌化应用名, 空表示沿用默认的 "RustDesk"
+//!   第 2 行: 服务器配置串, 空表示不预置服务器
+//!
+//! 配置串格式与客户端 `ServerConfig.encode()` 完全一致:
+//! `base64url(json{host,relay,api,key})` 之后**整体反转**。
 
 use hbb_common::config::Config;
 
-/// 预设的配置字符串，从 `src/server_preset.txt` 读取。
-///
-/// 与客户端的 `ServerConfig.encode()` 采用相同编码：
-/// `base64url(json{host,relay,api,key})`，并把整个字符串反转。
-pub const PRESET_SERVER_CONFIG: &str = include_str!("server_preset.txt");
+/// 预置内容的原始文本, 读自 `src/server_preset.txt`。
+const PRESET_RAW: &str = include_str!("server_preset.txt");
 
-/// 把预设写入本地配置，但仅当该选项
-/// 仍为空时。
+/// 拆出 (应用名, 服务器配置串) 两项, 都是去掉首尾空白后的值。
+fn preset_parts() -> (&'static str, &'static str) {
+    let mut lines = PRESET_RAW.lines();
+    let app_name = lines.next().unwrap_or("").trim();
+    let server = lines.next().unwrap_or("").trim();
+    (app_name, server)
+}
+
+/// 把预置值写进本地配置, 只在该选项**还是空**的时候写。
 ///
-/// 之后把客户端指向另一台服务器的用户会保留那个选择；
-/// 预设永远不会覆盖它。
+/// 用户之后在设置里换成别的服务器, 不会被预置值顶回去。
 pub fn apply() {
-    let preset = PRESET_SERVER_CONFIG.trim();
+    let (app_name, preset) = preset_parts();
+
+    // 应用名要最先设: 配置目录、日志文件名、IPC 目录都按应用名算,
+    // 晚一步就会写到旧的目录里去。
+    if !app_name.is_empty() {
+        *hbb_common::config::APP_NAME.write().unwrap() = app_name.to_owned();
+    }
+
     if preset.is_empty() {
         return;
     }
@@ -44,11 +61,10 @@ fn set_if_empty(key: &str, value: &str) {
 mod test {
     use super::*;
 
-    // base64url({"host":"1.2.3.4","relay":"","api":"","key":"k"})，反转
+    // base64url({"host":"1.2.3.4","relay":"","api":"","key":"k"}), 整体反转
     const ENCODED: &str = "9JyaiojI5V2aiwiIiojIpBXYiwiIiojI5FGblJnIsICNuMjLy4SMiojI0N3boJye";
 
-    // 预设与客户端必须在编码上一致，否则
-    // 预设会被解析到错误的字段。
+    // 预置和客户端必须用同一套编码, 否则预置会解到错误的字段上。
     #[test]
     fn preset_uses_the_client_config_encoding() {
         let cfg = crate::custom_server::get_custom_server_from_config_string(ENCODED).unwrap();
@@ -56,5 +72,15 @@ mod test {
         assert_eq!(cfg.key, "k");
         assert!(cfg.relay.is_empty());
         assert!(cfg.api.is_empty());
+    }
+
+    #[test]
+    fn preset_file_has_two_slots() {
+        // 空文件 -> 两项都空 -> 不做任何预置
+        let (name, server) = preset_parts();
+        if PRESET_RAW.trim().is_empty() {
+            assert!(name.is_empty());
+            assert!(server.is_empty());
+        }
     }
 }

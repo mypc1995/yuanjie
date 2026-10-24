@@ -1,4 +1,4 @@
-# HZDesk
+# 远界
 
 **基于 RustDesk 开发的私有化远程控制方案** —— 服务端、客户端、编译环境全套自给自足，数据不出内网。
 
@@ -11,13 +11,13 @@
 - **数据必须留在自己内网。** 设备列表、连接记录、文件传输全都不该经过别人的服务器。
 - **客户端不该让用户去填服务器地址。** 发到同事手上还要教一遍「ID 服务器填什么、Key 从哪拷」，用起来就劝退了。
 
-HZDesk 把这两件事做掉：服务器装在自己机房里，客户端**解压双击就能连**，logo 和名字也换成自己的。
+远界 把这两件事做掉：服务器装在自己机房里，客户端**解压双击就能连**，logo 和名字也换成自己的。
 
 ---
 
 ## 和原生 RustDesk 有什么不一样
 
-| | 原生 RustDesk | HZDesk |
+| | 原生 RustDesk | 远界 |
 |---|---|---|
 | 服务器 | 官方公共服务器 | **自建**，信令 / 中继 / 面板都装在你自己机器上 |
 | 首次使用 | 要手动填服务器地址和 Key | **已内置**，装完即用 |
@@ -118,7 +118,7 @@ setup.cmd
 ## 目录结构
 
 ```
-HZDesk/
+远界/
 ├── src/                 客户端主程序
 ├── libs/                核心库（与服务端共享的部分 + 客户端专属部分）
 ├── flutter/             界面
@@ -166,7 +166,7 @@ HZDesk/
 |---|---|
 | `src/ui/` | 上游已废弃的 Sciter 界面。它还挂在 crate 的**非 flutter 编译路径**上（`cargo build` 不带 `--features flutter` 时会编它），删掉要连带改 `src/lib.rs`、`src/keyboard.rs` 和共享的 `src/ui_session_interface.rs`，风险大收益小。**本项目只用 Flutter 界面**，编译命令一律带 `--features flutter` |
 | `res/vcpkg-triplets/` | 4 个 Android triplet。`vcpkg.json` 的 `overlay-triplets` 指着它，删目录就得同步改 `vcpkg.json`，会影响已验证过的 vcpkg 依赖编译链。才 2KB，不值得动 |
-| `res/msi/` | Windows 客户端安装包工程（WiX）。上游品牌名（`RustDesk.wxs` 等）要自己改成 HZDesk，但这是唯一能出正规安装包的路径，先留着 |
+| `res/msi/` | Windows 客户端安装包工程（WiX）。上游品牌名（`RustDesk.wxs` 等）要自己改成 远界，但这是唯一能出正规安装包的路径，先留着 |
 | `src/lang/` | 客户端界面多语言 |
 
 ---
@@ -206,7 +206,7 @@ $env:LIBCLANG_PATH='D:\Software\llvm\bin'
 $env:FLUTTER_CMAKE_PATH='D:\Software\RustDesk\.dl\cmake-4.4.4-windows-x86_64\bin\cmake.exe'
 $env:PATH="C:\vcpkg;D:\Software\nasm\nasm-3.02;D:\Software\llvm\bin;D:\Software\flutter\bin;C:\Users\Agent\.cargo\bin;$env:PATH"
 
-cd D:\HZDesk
+cd D:\远界
 cargo build --locked --features flutter --lib --release
 cd flutter; flutter build windows --release
 ```
@@ -243,7 +243,7 @@ cd flutter; flutter build windows --release
 
 ## 关于本项目
 
-HZDesk **基于 RustDesk 开发**，遵循 **AGPL-3.0** 协议（见 [LICENCE](LICENCE)）。
+远界 **基于 RustDesk 开发**，遵循 **AGPL-3.0** 协议（见 [LICENCE](LICENCE)）。
 上游项目：<https://github.com/rustdesk/rustdesk>
 
 本仓库相对上游的主要改动：

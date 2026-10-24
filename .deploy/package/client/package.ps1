@@ -103,13 +103,15 @@ if (-not [string]::IsNullOrEmpty($BrandingDir)) {
   $b64Path = Join-Path $bdir 'server-config.b64'
   if (Test-Path $b64Path) {
     $b64 = (Get-Content $b64Path -Raw).Trim()
-    $appName = if ($branding) { "$($branding.app_name)" } else { 'RustDesk' }
+    $appName = if ($branding) { "$($branding.app_name)" } else { '远界' }
     $appName = $appName.Replace('\', '\\').Replace("'", "\'")
 
     # 服务器配置预置必须落在 Rust 侧: 真正去连 hbbs 的是 Rust 核心,
     # Dart 改运行期配置来不及。src/server_preset.txt 是编译期常量。
+    # 文件两行: 第 1 行应用名, 第 2 行服务器配置串。
     $rustTarget = Join-Path $RepoRoot 'src\server_preset.txt'
-    [System.IO.File]::WriteAllText($rustTarget, $b64, (New-Object System.Text.UTF8Encoding($false)))
+    $rustContent = "$appName`n$b64`n"
+    [System.IO.File]::WriteAllText($rustTarget, $rustContent, (New-Object System.Text.UTF8Encoding($false)))
     Say "预置配置串已写入 src/server_preset.txt"
 
     # Dart 侧只管界面上的应用名

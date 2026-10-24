@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}RustDesk 服务端面板{% endblock %}</title>
+<title>{% block title %}远界 服务端面板{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_version) }}">
 {% if branding and branding.primary_color %}
 <style>:root { --accent: {{ branding.primary_color }}; }</style>
@@ -18,7 +18,7 @@
     {% else %}
       <span class="dot {{ 'ok' if hbbs.active and hbbr.active else 'bad' }}"></span>
     {% endif %}
-    <span>{{ branding.app_name if branding else 'RustDesk' }} 服务端面板</span>
+    <span>{{ branding.app_name if branding else '远界' }} 服务端面板</span>
   </div>
   <nav>
     <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' }}">仪表盘</a>

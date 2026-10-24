@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}登录 · {{ branding.app_name if branding else 'RustDesk' }} 服务端面板{% endblock %}
+{% block title %}登录 · {{ branding.app_name if branding else '远界' }} 服务端面板{% endblock %}
 {% block header %}{% endblock %}
 {% block footer %}{% endblock %}
 {% block content %}
@@ -10,7 +10,7 @@
         <img src="{{ url_for('api_branding_asset', name='logo') }}?v={{ asset_version }}" alt="">
       </div>
     {% endif %}
-    <h1 style="text-align:center;">{{ branding.app_name if branding else 'RustDesk' }} 服务端面板</h1>
+    <h1 style="text-align:center;">{{ branding.app_name if branding else '远界' }} 服务端面板</h1>
     <p class="subtitle" style="text-align:center;">请输入管理账号密码</p>
 
     {% if error %}
