@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""RustDesk 客户端构建任务执行器。
+"""远界 客户端构建任务执行器。
 
 用法: python3 build_job.py <job.json>
 

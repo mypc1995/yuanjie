@@ -1,8 +1,8 @@
-# RustDesk build machine deploy config
+# 远界 build machine deploy config
 # Fill in before running setup.cmd
 # panel  = address of the admin panel (include port)
 # token  = agent_token from the server's /etc/rustdesk-panel/panel.conf
-# src    = where the RustDesk source tree is placed
+# src    = 原始代码树放在哪里 (远界的源码)
 #          (the installer puts it under <RepoHome>\rustdesk,
 #           default: %USERPROFILE%\rustdesk-src\rustdesk)
 

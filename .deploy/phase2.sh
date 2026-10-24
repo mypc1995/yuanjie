@@ -70,7 +70,7 @@ fi
 
 # ---------- 3. 源码 ----------
 echo
-echo "----- RustDesk 源码 -----"
+echo "----- 远界源码 -----"
 SRC=/opt/rustdesk-src
 if [ ! -d "$SRC/src" ]; then
   rm -rf "$SRC"

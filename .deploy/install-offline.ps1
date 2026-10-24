@@ -30,7 +30,7 @@ function Say([string]$m) { Write-Host "  $m" -ForegroundColor Green }
 function Warn([string]$m) { Write-Host "  ! $m" -ForegroundColor Yellow }
 function Die([string]$m) { Write-Host "  x $m" -ForegroundColor Red; exit 1 }
 
-Write-Host "`n=== RustDesk Windows 构建机 —— 离线安装 ===" -ForegroundColor Cyan
+Write-Host "`n=== 远界 Windows 构建机 —— 离线安装 ===" -ForegroundColor Cyan
 Write-Host "包目录: $BundleRoot`n"
 
 # ------------------------------------------------------------ 1. Rust
@@ -187,7 +187,7 @@ if (-not (Test-Path $vendorDir)) { Die "包里没有 cargo-vendor 目录" }
 Say "vendor $([math]::Round((Get-ChildItem $vendorDir -Recurse -File | Measure-Object -Property Length -Sum).Sum/1MB,1)) MB"
 
 # ------------------------------------------------------------ 5. 源码
-Write-Host "`n==> 5/6 RustDesk 源码" -ForegroundColor Cyan
+Write-Host "`n==> 5/6 远界源码" -ForegroundColor Cyan
 $srcOut = Join-Path $RepoHome "rustdesk"
 if (-not (Test-Path (Join-Path $srcOut "src"))) {
   Say "复制源码 (robocopy) ..."

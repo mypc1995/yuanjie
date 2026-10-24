@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RustDesk 自建服务器 —— 一键离线部署
+# 远界 自建服务器 —— 一键离线部署
 #
 # 本包完全自包含: 服务端二进制、面板、面板的 Python 依赖都在里面,
 # 安装过程不联网、不下载任何东西。
@@ -55,7 +55,7 @@ die()  { echo -e "  \033[31m✗\033[0m $*" >&2; exit 1; }
 
 # ---------------------------------------------------------------- 卸载
 if [[ $UNINSTALL -eq 1 ]]; then
-  echo "==> 卸载 RustDesk 服务"
+  echo "==> 卸载 远界 服务"
   systemctl disable --now rustdesk-hbbs rustdesk-hbbr rustdesk-panel 2>/dev/null || true
   rm -f "$UNIT_DIR/rustdesk-hbbs.service" "$UNIT_DIR/rustdesk-hbbr.service" "$UNIT_DIR/rustdesk-panel.service"
   rm -f "$BIN_DIR/hbbs" "$BIN_DIR/hbbr" "$BIN_DIR/rustdesk-utils"

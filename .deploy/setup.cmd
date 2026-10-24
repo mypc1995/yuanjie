@@ -1,5 +1,5 @@
 @echo off
-REM RustDesk build machine - one click setup.
+REM 远界 build machine - one click setup.
 REM Installs the offline build environment and registers this machine
 REM as a build node of the admin panel.
 REM Edit deploy-config.txt before running.

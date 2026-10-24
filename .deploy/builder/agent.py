@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""RustDesk 客户端构建 agent (跑在 Windows 构建机上)。
+"""远界 客户端构建 agent (跑在 Windows 构建机上)。
 
 面板不直接编 Windows 客户端 —— Flutter 不支持从 Linux 交叉构建 Windows。
 所以 Windows 目标走 agent: 面板派发任务, 这台机器编译, 产物回传给面板,

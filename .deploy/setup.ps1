@@ -1,5 +1,5 @@
 <#
-  RustDesk build machine - one click setup.
+  远界 build machine - one click setup.
 
   1. install the offline build environment (Rust / Flutter / prebuilt libs / vendored deps)
   2. register this machine as a build node of the admin panel
@@ -25,7 +25,7 @@ function Say([string]$m) { Write-Host "  $m" -ForegroundColor Green }
 function Warn([string]$m) { Write-Host "  ! $m" -ForegroundColor Yellow }
 function Die([string]$m) { Write-Host "  x $m" -ForegroundColor Red; exit 1 }
 
-Write-Host "`n=== RustDesk build machine setup ===" -ForegroundColor Cyan
+Write-Host "`n=== 远界 build machine setup ===" -ForegroundColor Cyan
 
 # ---------------------------------------------------------------- 读配置
 if (Test-Path $ConfigFile) {
@@ -84,13 +84,13 @@ if (-not $NoTask) {
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
                                      -DontStopIfGoingOnBatteries `
                                      -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-    Register-ScheduledTask -TaskName "RustDeskBuildAgent" -Action $action -Trigger $trigger `
+    Register-ScheduledTask -TaskName "远界BuildAgent" -Action $action -Trigger $trigger `
                            -Settings $settings -RunLevel Highest -Force | Out-Null
-    Say "scheduled task 'RustDeskBuildAgent' registered (starts at every logon)"
+    Say "scheduled task '远界BuildAgent' registered (starts at every logon)"
   } catch {
     Warn "could not register scheduled task: $($_.Exception.Message)"
     Warn "run this by hand if you need it to survive reboot:"
-    Warn "  schtasks /create /tn RustDeskBuildAgent /sc ONLOGON /rl HIGHEST /f /tr `"$python $argList`""
+    Warn "  schtasks /create /tn 远界BuildAgent /sc ONLOGON /rl HIGHEST /f /tr `"$python $argList`""
   }
 } else {
   Write-Host "`n==> [3/3] Skipping scheduled task (-NoTask)" -ForegroundColor Cyan

@@ -12,7 +12,7 @@
     - libclang.dll (bindgen 和 ffigen 都要)
     - Flutter 工具链补丁 (symlink->junction, 放宽 VS 检测)
     - pub cache (flutter pub get 不用连 pub.dev)
-    - RustDesk 源码 + 已生成好的 bridge 代码
+    - 远界源码 + 已生成好的 bridge 代码
     - agent 与构建脚本
 
   产物可以直接拷进纯内网环境。
@@ -213,7 +213,7 @@ if (Test-Path $pubCache) {
 }
 
 # ---------------------------------------------------------------- 源码 + bridge
-Write-Host "`n==> RustDesk 源码 + bridge 代码" -ForegroundColor Cyan
+Write-Host "`n==> 远界源码 + bridge 代码" -ForegroundColor Cyan
 $srcOut = Join-Path $OutDir "source\rustdesk"
 if (Test-Path $srcOut) { Remove-Item $srcOut -Recurse -Force }
 New-Item -ItemType Directory -Path $srcOut -Force | Out-Null

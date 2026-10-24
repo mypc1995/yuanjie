@@ -47,7 +47,7 @@ rustdesk-client-windows-x64.zip
 | `logo.png` / `logo_light.png` / `logo_dark.png` / `icon.png` | 品牌图片 |
 | `README.txt` | 手工烘焙这些资源的说明 |
 
-**注意**：包里现在是占位图和示例应用名（68 字节的小图 + 「测试远控」），
+**注意**：包里现在是占位图和示例应用名（68 字节的小图 + 「远界」），
 正式发布前在面板上换成真的。
 
 ## 手工改配置

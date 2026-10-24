@@ -1,5 +1,5 @@
 #!/bin/bash
-# 在麒麟服务器上准备 RustDesk 客户端构建环境。
+# 在麒麟服务器上准备 远界 客户端构建环境。
 # 幂等: 可以重复跑。日志写到 /var/log/rustdesk-builder/bootstrap.log
 set -uo pipefail
 
@@ -120,7 +120,7 @@ flutter --version 2>&1 | head -3
 flutter config --no-analytics >/dev/null 2>&1 || true
 flutter precache --linux --universal >/dev/null 2>&1 || true
 
-step "6. RustDesk 源码"
+step "6. 远界源码"
 SRC=/opt/rustdesk-src
 if [ ! -d "$SRC/.git" ]; then
   rm -rf "$SRC"

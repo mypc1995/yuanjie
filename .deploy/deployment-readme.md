@@ -1,4 +1,4 @@
-# RustDesk 私有化部署包
+# 远界 私有化部署包
 
 一套自包含的私有化部署包。**全程离线**，不需要连外网、不需要账号、不需要 Docker。
 
@@ -96,7 +96,7 @@ python rustdesk-offline-bundle\agent\agent.py --panel http://<服务器IP>:21120
 
 ## 第 3 步：发客户端
 
-`03-client-windows/rustdesk-client-windows-x64.zip` 解压就能用，不需要安装。
+`03-client-windows/远界-client-windows-x64.zip` 解压就能用，不需要安装。
 
 **这个包已经内置了第 1 步装好的服务器地址和 Key**，用户解压双击就能连上，
 不需要自己填任何服务器信息。
@@ -126,7 +126,7 @@ rustdesk-deployment/
 │       ├── README.md             ← 详细说明
 │       └── manifest.json         ← 每个文件的校验和
 └── 03-client-windows/
-    ├── rustdesk-client-windows-x64.zip  ← 编好的客户端, 解压即用
+    ├── 远界-client-windows-x64.zip  ← 编好的客户端, 解压即用
     ├── brand-bundle.zip                 ← 品牌包 (logo / 应用名 / 配置串)
     └── branding/                        ← 品牌包解开的样子
 ```
