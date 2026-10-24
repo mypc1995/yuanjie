@@ -121,3 +121,4 @@ flutter/build/
 # 注释批量翻译的中间产物
 .deploy/tools/batches/
 .deploy/tools/commit-msg.txt
+.deploy/deploy-panel.resolved.sh

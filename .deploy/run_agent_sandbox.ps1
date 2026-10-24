@@ -2,9 +2,9 @@
 # 用法: pwsh -File run_agent_sandbox.ps1 -Panel http://<服务器IP>:21120 -Token <agent_token>
 param(
   [string] $Panel = $env:RUSTDESK_PANEL_URL,
-  [string] $Token = "<AGENT_TOKEN>",
+  [string] $Token = $env:RUSTDESK_AGENT_TOKEN,
   [string] $Sandbox = "D:\OfflineTest",
-  [string] $Bundle = "D:\Software\rustdesk-offline-bundle"
+  [string] $Bundle = "D:\Software\rustdesk-deployment\02-build-agent-windows\rustdesk-offline-bundle"
 )
 
 $ErrorActionPreference = 'Continue'

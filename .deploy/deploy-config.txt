@@ -7,5 +7,5 @@
 #           default: %USERPROFILE%\rustdesk-src\rustdesk)
 
 panel=http://<服务器IP>:21120
-token=<AGENT_TOKEN>
+token=
 src=%USERPROFILE%\rustdesk-src\rustdesk
