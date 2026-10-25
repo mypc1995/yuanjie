@@ -58,8 +58,36 @@ foreach ($p in $parts) {
 }
 
 # ---------------------------------------------------------------- 脱敏
+# 要清掉哪些值, 先从源包里抓出来, 后面拿它们做精确复查。
+# 用具体值查, 不用 192.168.x.x 这种宽泛的写法 —— 离线包里
+# 上游第三方 crate 的 README 和测试数据里有大量 RFC1918 的示例地址,
+# 那些是别人的文档, 而且 vendor 目录碰不得(动了会破坏 cargo 校验)。
+$orig = New-Object System.Collections.Generic.List[string]
 if (-not $NoSanitize) {
     Write-Host "`n==> 脱敏 (环境相关的值)" -ForegroundColor Yellow
+
+    $cjSrc = Join-Path $Source '03-client-windows\branding\client-config.json'
+    if (Test-Path $cjSrc) {
+        try {
+            $o = Get-Content $cjSrc -Raw | ConvertFrom-Json
+            foreach ($k in @('host', 'relay', 'api', 'key')) {
+                $v = $o.$k
+                if ($v) { $orig.Add([string]$v) }
+            }
+        } catch { Write-Host "  读原始 client-config.json 失败: $_" -ForegroundColor Yellow }
+    }
+    $b64Src = Join-Path $Source '03-client-windows\branding\server-config.b64'
+    if (Test-Path $b64Src) {
+        $v = (Get-Content $b64Src -Raw).Trim()
+        if ($v) { $orig.Add($v) }
+    }
+    $cfgSrc = Join-Path $Source '02-build-agent-windows\deploy-config.txt'
+    if (Test-Path $cfgSrc) {
+        foreach ($line in (Get-Content $cfgSrc)) {
+            if ($line -match '^(panel|token)=(.*)$' -and $Matches[2]) { $orig.Add($Matches[2]) }
+        }
+    }
+    Write-Host "  捕获到 $($orig.Count) 个需要清掉的值"
 
     # 1. 构建机配置: 面板地址和 token 换环境后必然变
     $cfg = Join-Path $Out '02-build-agent-windows\deploy-config.txt'
@@ -94,9 +122,7 @@ if (-not $NoSanitize) {
     $bd = Join-Path $Out '03-client-windows\branding'
     $cj = Join-Path $bd 'client-config.json'
     if (Test-Path $cj) {
-        $o = @{
-            host = ''; relay = ''; api = ''; key = ''
-        } | ConvertTo-Json
+        $o = @{ host = ''; relay = ''; api = ''; key = '' } | ConvertTo-Json
         [System.IO.File]::WriteAllText($cj, $o, (New-Object System.Text.UTF8Encoding($false)))
         Write-Host "  branding/client-config.json: 已清空"
     }
@@ -104,6 +130,16 @@ if (-not $NoSanitize) {
     if (Test-Path $b64) {
         [System.IO.File]::WriteAllText($b64, '', (New-Object System.Text.UTF8Encoding($false)))
         Write-Host "  branding/server-config.b64: 已清空"
+    }
+
+    # 4b. 品牌包的说明文件里也印着地址和 Key
+    $brd = Join-Path $bd 'README.txt'
+    if (Test-Path $brd) {
+        $t = [System.IO.File]::ReadAllText($brd)
+        $t = $t -replace '192\.168\.\d+\.\d+', '<服务器IP>'
+        $t = $t -replace '(?m)^(Key\s*:\s*).*$', '$1'
+        [System.IO.File]::WriteAllText($brd, $t, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "  branding/README.txt: 地址和 Key 已清空"
     }
 
     # 5. brand-bundle.zip 里也压了一份同样的配置, 重新打一遍(用清空后的)
@@ -126,19 +162,25 @@ if (Test-Path $readmeSrc) {
 
 # ---------------------------------------------------------------- 复查
 Write-Host "`n==> 复查有没有漏掉的敏感值" -ForegroundColor Yellow
-$patterns = '192\.168\.\d+\.\d+|0FQR0MPNYTa5rEsYHbKt|fMJgSUtmpgELPap'
-# 只查文本类文件: 整包有 12 万多个文件, 逐个读二进制太慢
-$textExt = @('.txt', '.md', '.json', '.py', '.ps1', '.cmd', '.bat', '.sh', '.conf',
-    '.cfg', '.toml', '.yml', '.yaml', '.env', '.b64', '.ini', '.properties', '.xml', '.html')
-$files = Get-ChildItem $Out -Recurse -File -Force |
-    Where-Object { $textExt -contains $_.Extension.ToLower() }
-Write-Host "  扫描 $($files.Count) 个文本文件"
-$hits = Select-String -Path $files.FullName -Pattern $patterns -List -ErrorAction SilentlyContinue
-if ($hits) {
-    Write-Host "  !! 仍有命中:" -ForegroundColor Red
-    $hits | ForEach-Object { Write-Host "    $($_.Path.Substring($Out.Length + 1))" -ForegroundColor Red }
+# 用脱敏时抓到的原始值做精确复查, 不用 192.168.x.x 这种宽泛的写法 ——
+# 离线包里上游第三方 crate 的 README 和测试数据里有大量 RFC1918 示例地址,
+# 那是别人的文档, 跟源服务器无关, 而且 vendor 目录不能碰(动了 cargo 校验会挂)。
+$patterns = $orig.ToArray()
+if ($patterns.Count -eq 0) {
+    Write-Host "  没抓到原始值, 跳过精确复查" -ForegroundColor Yellow
 } else {
-    Write-Host "  干净" -ForegroundColor Green
+    $textExt = @('.txt', '.md', '.json', '.py', '.ps1', '.cmd', '.bat', '.sh', '.conf',
+        '.cfg', '.toml', '.yml', '.yaml', '.env', '.b64', '.ini', '.properties', '.xml', '.html')
+    $files = Get-ChildItem $Out -Recurse -File -Force |
+        Where-Object { $textExt -contains $_.Extension.ToLower() }
+    Write-Host "  拿 $($patterns.Count) 个原始值扫 $($files.Count) 个文本文件"
+    $hits = Select-String -Path $files.FullName -Pattern $patterns -List -ErrorAction SilentlyContinue
+    if ($hits) {
+        Write-Host "  !! 仍有命中:" -ForegroundColor Red
+        $hits | ForEach-Object { Write-Host "    $($_.Path.Substring($Out.Length + 1))" -ForegroundColor Red }
+    } else {
+        Write-Host "  干净" -ForegroundColor Green
+    }
 }
 
 # ---------------------------------------------------------------- 校验和
