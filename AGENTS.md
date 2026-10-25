@@ -200,6 +200,45 @@ A refactor added to cover a corner case rarely converges. Each new counter, time
 * Do not report a rare corner case as blocking when fixing it needs new state; mark it as a known limit the author may leave unfixed.
 * Treat growth across review rounds as a finding: if the latest commits add more state than the original fix, say so instead of asking for more handling.
 
+## Deployment package (`.deploy/`)
+
+The deployment bundle is assembled, not hand-edited. Two scripts do it:
+
+* `pwsh -File .deploy/tools/make-package.ps1` — rebuilds `01-server-kylin/`
+  (panel, builder, server binaries, `install.sh`, and the client source tarball)
+  from this repo.
+* `pwsh -File .deploy/tools/make-archive.ps1` — re-tars the whole bundle and
+  regenerates `SHA256SUMS.txt`.
+
+### One source of truth
+
+* The panel lives in **`.deploy/panel/`** and the build scripts in
+  **`.deploy/builder/`**. Those are the only copies in the repo.
+* `.deploy/package/panel/` and `.deploy/package/builder/` are **build output**
+  and are gitignored. They used to be a second hand-maintained copy, and the
+  two drifted apart: the server ran an older panel than the repo, so brand,
+  install-name and disclaimer changes never reached it.
+* Do not add a second copy of a file that already has one. If a file needs to
+  ship in the bundle, add it to `make-package.ps1`.
+
+### Server-side client builds
+
+The panel's **Linux x64** target compiles on the server itself. That path needs:
+
+* the client source tree at `/opt/rustdesk-src` — `install.sh` unpacks it from
+  `src/rustdesk-src.tar.gz` and refuses to build a tree that is not this fork
+  (`src/server_preset.rs` must exist, or the client ships without branding and
+  without a locked-in server);
+* `PATH` and `PKG_CONFIG_PATH` for `cargo` / `flutter` / `libyuv` / `libaom`.
+  The panel is started by systemd, which does not read `profile.d` — the
+  environment travels in `/etc/rustdesk-panel/build.env`, wired in through
+  `EnvironmentFile=` in the unit;
+* `flutter config --enable-linux-desktop` (off by default);
+* the `-devel` packages `install.sh` checks for and lists when missing.
+
+`build_job.py` re-checks all of this per job, so a misconfigured server fails
+with a sentence instead of a stack of cargo output.
+
 ## Localization (`src/lang/*.rs`)
 
 Each file is a `HashMap<key, translation>`. Layout:

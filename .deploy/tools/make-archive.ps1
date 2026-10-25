@@ -53,10 +53,13 @@ Write-Host ("  {0} 条 -> {1}" -f $lines.Count, $sums)
 
 # 抽查三个
 Write-Host "==> 抽查" -ForegroundColor Cyan
-foreach ($pick in @(0, [int]($lines.Count / 2), $lines.Count - 1)) {
+# 注意: 数组字面量里逗号的优先级高于减号, 减法必须加括号,
+# 否则会解析成「数组减数组」, 抛 op_Subtraction。
+$picks = @(0, [int]($lines.Count / 2), ($lines.Count - 1))
+foreach ($pick in $picks) {
     $line = $lines[$pick]
     $parts = $line -split '  ', 2
-    $real = (Get-FileHash (Join-Path $OutRoot $parts[1]) -Algorithm SHA256).Hash.ToLower()
+    $real = (Get-FileHash -LiteralPath (Join-Path $OutRoot $parts[1]) -Algorithm SHA256).Hash.ToLower()
     if ($real -eq $parts[0]) { Write-Host "  OK  $($parts[1])" -ForegroundColor Green }
     else { Write-Host "  BAD $($parts[1])" -ForegroundColor Red }
 }
