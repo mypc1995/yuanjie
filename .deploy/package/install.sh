@@ -234,8 +234,10 @@ fi
 # 缺这些开发库, cargo 会停在「找不到 gstreamer-1.0.pc」这类地方。
 MISSING_PKGS=""
 export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
-for p in gtk+-3.0 dbus-1 gstreamer-1.0 gstreamer-base-1.0 libXdamage libXrandr \
-         libXfixes libXcursor alsa uuid openssl libyuv; do
+# 注意模块名: X11 那几个是 xdamage/xrandr/xfixes/xcursor, 不是 libXdamage。
+for p in gtk+-3.0 dbus-1 gstreamer-1.0 gstreamer-base-1.0 \
+         xdamage xrandr xfixes xcursor xi xtst xinerama \
+         alsa uuid openssl libyuv; do
   pkg-config --exists "$p" 2>/dev/null || MISSING_PKGS="$MISSING_PKGS $p"
 done
 if [[ -n "$MISSING_PKGS" ]]; then
