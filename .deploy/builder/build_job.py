@@ -19,6 +19,7 @@ import base64
 import errno
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -187,6 +188,20 @@ def build_linux(job, src, env):
     feats = "flutter,linux-pkg-config"
     if (job.data.get("options") or {}).get("hwcodec"):
         feats += ",hwcodec"
+    # 目标架构必须跟这台服务器一致。没有交叉工具链, 在 x86_64 上编不出 arm64 客户端,
+    # 与其让它编到一半失败, 不如现在就说清楚。
+    want = "arm64" if "arm64" in (job.data.get("target") or "") else "x64"
+    host = platform.machine()
+    host_arch = "arm64" if host in ("aarch64", "arm64") else "x64"
+    if want != host_arch:
+        job.log("!! 服务器架构是 %s, 编不出 %s 客户端" % (host, want))
+        job.log("   要 ARM 版请在 ARM 机器上构建, 或者另配交叉工具链")
+        job.status("failed", error="架构不匹配: 服务器 %s -> 目标 %s" % (host, want),
+                   log=job.log_path)
+        return None
+    if not ensure_bridge(job, src, env):
+        job.status("failed", error="bridge 缺失且无法生成", log=job.log_path)
+        return None
     job.status("building-rust", target=job.data.get("target"), log=job.log_path)
     rc, out = run([tool("cargo", job), "build", "--locked", "--features", feats,
                    "--lib", "--release"], job, cwd=src, env=env)
@@ -208,6 +223,9 @@ def build_windows(job, src, env):
     feats = "flutter"
     if (job.data.get("options") or {}).get("hwcodec"):
         feats += ",hwcodec"
+    if not ensure_bridge(job, src, env):
+        job.status("failed", error="bridge 缺失且无法生成", log=job.log_path)
+        return None
     job.status("building-rust", target=job.data.get("target"), log=job.log_path)
     rc, out = run([tool("cargo", job), "build", "--locked", "--features", feats,
                    "--lib", "--release"], job, cwd=src, env=env)
@@ -222,6 +240,65 @@ def build_windows(job, src, env):
         job.status("failed", error="flutter build 失败", log=job.log_path)
         return None
     return os.path.join(src, "flutter", "build", "windows", "x64", "runner", "Release")
+
+
+def build_env(job):
+    """拼出构建用的环境变量。
+
+    面板是从 systemd 起的, 环境变量走 /etc/rustdesk-panel/build.env。
+    但这个脚本也可能被手工执行, 所以这里再兜一层:
+      * PATH 里补上 cargo / flutter 所在目录, 否则报「找不到 cargo」;
+      * PKG_CONFIG_PATH 里补上 /usr/local, 否则找不到自编的 libyuv、libaom。
+    """
+    env = dict(os.environ)
+    extra = [p for p in ("/root/.cargo/bin", "/opt/flutter/bin",
+                         "/usr/local/cargo/bin") if os.path.isdir(p)]
+    cur = env.get("PATH", "")
+    env["PATH"] = os.pathsep.join(extra + [cur]) if cur else os.pathsep.join(extra)
+
+    pkg = env.get("PKG_CONFIG_PATH", "")
+    for p in ("/usr/local/lib/pkgconfig", "/usr/local/lib64/pkgconfig"):
+        if os.path.isdir(p) and p not in pkg.split(os.pathsep):
+            pkg = os.pathsep.join([p, pkg]) if pkg else p
+    env["PKG_CONFIG_PATH"] = pkg
+    env.setdefault("CARGO_HOME", "/root/.cargo")
+    env.setdefault("RUSTUP_HOME", "/root/.rustup")
+    job.log("PATH        = %s" % env["PATH"])
+    job.log("PKG_CONFIG_PATH = %s" % (env["PKG_CONFIG_PATH"] or "(空)"))
+    return env
+
+
+def ensure_bridge(job, src, env):
+    """保证 Dart 侧的 bridge 在位。
+
+    仓库里已经提交了 flutter/lib/generated_bridge.dart, 正常情况下这一步什么都不做。
+    万一源码树是手工拼的、漏了这个文件, 就现场生成一次 —— 没有它, Dart 侧编译不过。
+    """
+    dart_out = os.path.join(src, "flutter", "lib", "generated_bridge.dart")
+    rust_out = os.path.join(src, "src", "bridge_generated.rs")
+    if os.path.isfile(dart_out):
+        return True
+    job.log("缺 generated_bridge.dart, 现场生成")
+    codegen = tool("flutter_rust_bridge_codegen", job)
+    if not shutil.which(codegen):
+        job.log("!! 没装 flutter_rust_bridge_codegen, 无法生成 bridge")
+        return False
+    llvm = None
+    for p in ("/usr/lib64", "/usr/lib", "/usr/lib/x86_64-linux-gnu"):
+        if os.path.exists(os.path.join(p, "libclang.so")):
+            llvm = p
+            break
+    cmd = [codegen, "--rust-input", "crate::api",
+           "--rust-output", os.path.relpath(rust_out, os.path.join(src, "flutter")),
+           "--dart-output", os.path.relpath(dart_out, os.path.join(src, "flutter"))]
+    if llvm:
+        cmd += ["--llvm-path", llvm]
+    rc, out = run(cmd, job, cwd=os.path.join(src, "flutter"), env=env)
+    if rc != 0 or not os.path.isfile(dart_out):
+        job.log("!! bridge 生成失败")
+        return False
+    job.log("bridge 已生成")
+    return True
 
 
 def main():
@@ -240,12 +317,17 @@ def main():
         job.log("!! 源码树不存在: %s" % src)
         job.status("failed", error="源码树不存在", log=job.log_path)
         return 1
+    # 源码树必须是远界的 fork。少了 src/server_preset.rs, 品牌与预置服务器地址
+    # 都不会生效 —— 编出来的是个"没改名、没锁服务器"的原版客户端。
+    if not os.path.isfile(os.path.join(src, "src", "server_preset.rs")):
+        job.log("!! 源码树不是远界版本 (缺 src/server_preset.rs): %s" % src)
+        job.status("failed", error="源码树不是远界版本", log=job.log_path)
+        return 1
 
     out_dir = os.path.join(ARTIFACT_DIR, job.id)
     os.makedirs(out_dir, exist_ok=True)
     target = job.data.get("target", "linux-x64")
-    env = dict(os.environ)
-    env["PATH"] = env.get("PATH", "")
+    env = build_env(job)
 
     try:
         job.status("baking", target=target, log=job.log_path)

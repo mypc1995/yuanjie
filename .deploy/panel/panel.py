@@ -78,7 +78,7 @@ BUILD_SCRIPT = os.environ.get("RUSTDESK_BUILD_SCRIPT", "/opt/rustdesk-builder/bu
 # 走 Windows agent 路径: 面板派发 -> Windows 构建机编译 -> 产物回传。
 BUILD_TARGETS = [
     ("linux-x64", "Linux x64", "在麒麟服务器上直接构建（适合麒麟/统信等国产系统客户端）"),
-    ("linux-arm64", "Linux arm64", "飞腾 / 鲲鹏 / 龙芯等 ARM 服务器", "cross"),
+    ("linux-arm64", "Linux arm64", "飞腾 / 鲲鹏 / 龙芯等 ARM 服务器（需在 ARM 机器上构建）"),
     ("windows-x64", "Windows x64", "需要一台 Windows 构建机（agent 模式）", "agent"),
 ]
 

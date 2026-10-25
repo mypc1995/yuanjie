@@ -14,6 +14,7 @@
 #   --panel-password <pw> 面板密码, 默认随机生成并打印
 #   --panel-port <port>   面板端口, 默认 21120
 #   --no-firewall         不动 firewalld
+#   --update-src          重新解压客户端源码树 (默认已存在就跳过)
 #   --uninstall           卸载(保留配置和密钥)
 
 set -euo pipefail
@@ -25,6 +26,7 @@ PANEL_USER="admin"
 PANEL_PASSWORD=""
 PANEL_PORT="21120"
 DO_FIREWALL=1
+UPDATE_SRC=0
 UNINSTALL=0
 
 while [[ $# -gt 0 ]]; do
@@ -34,8 +36,9 @@ while [[ $# -gt 0 ]]; do
     --panel-password) PANEL_PASSWORD="$2"; shift 2 ;;
     --panel-port) PANEL_PORT="$2"; shift 2 ;;
     --no-firewall) DO_FIREWALL=0; shift ;;
+    --update-src) UPDATE_SRC=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "未知参数: $1" >&2; exit 1 ;;
   esac
 done
@@ -162,10 +165,84 @@ if [[ -d "$SCRIPT_DIR/builder" ]]; then
 else
   warn "包里没有 builder 目录, 跳过构建服务"
 fi
-if [[ -d /opt/rustdesk-src ]]; then
-  log "检测到源码树 /opt/rustdesk-src, 面板可直接构建 Linux 客户端"
+
+# ---------------------------------------------------------------- 客户端源码树
+# 面板上的「构建」页选 linux 目标时, 是在这台服务器上直接编译的,
+# 所以源码树必须在这儿。没有它, Linux 目标一定失败。
+echo "==> 准备客户端源码树"
+SRC_DIR=/opt/rustdesk-src
+SRC_TARBALL="$(ls "$SCRIPT_DIR"/src/*.tar.gz 2>/dev/null | head -1 || true)"
+if [[ -n "$SRC_TARBALL" ]]; then
+  if [[ -f "$SRC_DIR/src/server_preset.rs" && "$UPDATE_SRC" -eq 0 ]]; then
+    log "源码树已就位: $SRC_DIR (要换版本请加 --update-src)"
+  else
+    mkdir -p "$SRC_DIR"
+    tar -xzf "$SRC_TARBALL" -C "$SRC_DIR"
+    # 源码树是在 Windows 上打的包, 权限位不可用, 统一收拾一下
+    chmod -R u+rwX "$SRC_DIR" 2>/dev/null || true
+    log "源码树已解到 $SRC_DIR"
+  fi
 else
-  warn "没有 /opt/rustdesk-src, 面板只能派发任务给 Windows agent (Linux 目标会失败)"
+  warn "包里没有 src/ 源码树, 服务器端构建 Linux 客户端不可用"
+fi
+if [[ -f "$SRC_DIR/src/server_preset.rs" ]]; then
+  log "源码树是远界版本 (含品牌与服务器预置)"
+else
+  warn "源码树缺少 src/server_preset.rs, 编出来的客户端不带品牌、也不锁服务器"
+fi
+
+# ---------------------------------------------------------------- 构建工具链
+echo "==> 检查构建工具链"
+CARGO_BIN=""
+for d in /root/.cargo/bin "$HOME/.cargo/bin" /usr/local/cargo/bin; do
+  [[ -x "$d/cargo" ]] && CARGO_BIN="$d" && break
+done
+FLUTTER_BIN=""
+for d in /opt/flutter/bin /usr/local/flutter/bin "$HOME/flutter/bin"; do
+  [[ -x "$d/flutter" ]] && FLUTTER_BIN="$d" && break
+done
+if [[ -z "$CARGO_BIN" || -z "$FLUTTER_BIN" ]]; then
+  warn "构建工具链不全 (cargo: ${CARGO_BIN:-缺}, flutter: ${FLUTTER_BIN:-缺})"
+  warn "服务器端一键出 Linux 客户端需要 Rust 工具链和 Flutter SDK"
+else
+  log "cargo   = $CARGO_BIN"
+  log "flutter = $FLUTTER_BIN"
+fi
+
+# 面板是 systemd 起的, 构建任务继承面板进程的环境变量。
+# 少了 PATH, 面板派出去的构建只会报一句「找不到 cargo」。
+cat > "$PANEL_CONF_DIR/build.env" <<EOF
+# 由 install.sh 生成: 构建工具链的 PATH 与 pkg-config 路径。
+# 面板派发的构建任务继承这里, 缺了这两行就会报「找不到 cargo」「找不到 gstreamer」。
+PATH=${CARGO_BIN}:${FLUTTER_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
+RUSTDESK_BUILD_SRC=$SRC_DIR
+RUSTDESK_BUILDER_ROOT=/var/lib/rustdesk-builder
+CARGO_HOME=/root/.cargo
+RUSTUP_HOME=/root/.rustup
+EOF
+chmod 644 "$PANEL_CONF_DIR/build.env"
+log "构建环境已写入 $PANEL_CONF_DIR/build.env"
+
+# Flutter 的 Linux 桌面支持默认是关的, 不开就编不出 Linux 客户端。
+if [[ -n "$FLUTTER_BIN" ]]; then
+  export PATH="$FLUTTER_BIN:$CARGO_BIN:$PATH"
+  flutter config --enable-linux-desktop >/dev/null 2>&1 || true
+  log "已开启 flutter 的 linux 桌面支持"
+fi
+
+# 缺这些开发库, cargo 会停在「找不到 gstreamer-1.0.pc」这类地方。
+MISSING_PKGS=""
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
+for p in gtk+-3.0 dbus-1 gstreamer-1.0 gstreamer-base-1.0 libXdamage libXrandr \
+         libXfixes libXcursor alsa uuid openssl libyuv; do
+  pkg-config --exists "$p" 2>/dev/null || MISSING_PKGS="$MISSING_PKGS $p"
+done
+if [[ -n "$MISSING_PKGS" ]]; then
+  warn "缺这些开发库, 服务器端构建会失败:$MISSING_PKGS"
+  warn "对应的是 gtk3-devel / gstreamer1-devel 这类 -devel 包, 离线机请提前装好"
+else
+  log "构建依赖齐全"
 fi
 
 # ---------------------------------------------------------------- 防火墙

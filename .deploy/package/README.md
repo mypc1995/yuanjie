@@ -15,6 +15,11 @@ rustdesk-server-suite/
 │   ├── templates/  static/
 │   ├── vendor/             Flask 等纯 Python 依赖（已 vendor，零安装）
 │   └── rustdesk-panel.service
+├── builder/                构建任务执行器
+│   ├── build_job.py        编译 + 打包（Linux 目标在服务器上直接跑）
+│   └── agent.py            Windows 构建机的领单 agent
+├── src/
+│   └── rustdesk-src.tar.gz 客户端源码树（面板在服务器上出包时用）
 └── client/
     └── package.ps1         Windows 客户端品牌化打包脚本
 ```
@@ -36,6 +41,7 @@ sudo bash install.sh --server-host <服务器IP>
 | `--panel-password <pw>` | 面板密码 | 随机生成并打印 |
 | `--panel-port <port>` | 面板端口 | `21120` |
 | `--no-firewall` | 不动 firewalld | — |
+| `--update-src` | 重新解压客户端源码树 | 已存在就跳过 |
 | `--uninstall` | 卸载（保留配置和密钥） | — |
 
 装完：
@@ -97,16 +103,68 @@ pwsh -File client/package.ps1 -BrandingDir branding
 
 字段：`host`（ID Server，可带端口）、`relay`、`api`、`key`。
 
-## 三、离线注意事项
+## 三、在面板上一键生成客户端
+
+面板的「构建」页可以出客户端包，选目标按下按钮就行。
+
+| 目标 | 在哪编 | 需要什么 |
+|---|---|---|
+| **Linux x64** | **就在这台服务器上编** | 服务器上有 Rust 工具链 + Flutter SDK（见下面「装构建环境」） |
+| Linux arm64 | 交叉编译 | 另配交叉工具链 |
+| Windows x64 | Windows 构建机编 | 一台装了离线构建包的 Windows 机器，跑 `builder/agent.py` 领单 |
+
+Linux 目标走的是服务器本地编译：面板把任务丢给 `builder/build_job.py`，
+它会把你填的品牌资源和服务器配置烘焙进源码，再跑 `cargo build` + `flutter build linux`，
+产物打成 `rustdesk-client-linux-x64.tar.gz`，在面板上点一下就能下载。
+
+烘焙进客户端的内容：
+
+* 显示名（界面上的名字，可以是中文）和安装名（服务名、安装目录、注册表键，**必须纯 ASCII**）
+* 服务器地址、Key —— 装完就能连，不用手填
+* logo 和图标
+
+### 装构建环境
+
+服务器要能编 Linux 客户端，需要下面这些。**装好之后重跑一次 `install.sh` 即可**，
+它会把工具链路径写进 `/etc/rustdesk-panel/build.env`（面板是 systemd 起的，
+构建任务继承这个文件里的 `PATH` 和 `PKG_CONFIG_PATH`）。
+
+```bash
+# Rust 工具链
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Flutter SDK（3.24.5，Linux 桌面版）
+# 解压到 /opt/flutter 即可
+
+# 编译要用的开发库（麒麟 / 统信按自己的包名装）
+yum install -y gtk3-devel dbus-devel libXdamage-devel libXrandr-devel \
+    libXfixes-devel libXcursor-devel libXi-devel libXtst-devel \
+    libXinerama-devel alsa-lib-devel uuid-devel openssl-devel \
+    gstreamer1-devel gstreamer1-plugins-base-devel
+
+# 自编的 libyuv / libaom 装在 /usr/local，pkg-config 要能找到它们
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
+```
+
+> **自己编 libaom / libyuv 的话，一定要带 `-fPIC`**：
+> 客户端的 Rust 核心编出来是 `librustdesk.so`（共享库），链静态库时目标文件
+> 必须是 PIC。没加的话链接会报
+> `relocation R_X86_64_32 against symbol ... can not be used when making a shared object`。
+> cmake 加 `-DCMAKE_POSITION_INDEPENDENT_CODE=ON` 即可。
+
+`install.sh` 会检查这些依赖，缺哪个会明确列出来。
+
+## 四、离线注意事项
 
 * 面板的 Python 依赖已经 vendor 在 `panel/vendor/`，**不碰系统 site-packages**，
   也不需要联网 pip install。面板只要求机器上有 `python3`（麒麟自带 3.7.9）。
 * 面板当前用 Flask 自带的 WSGI 服务器，适合内网管理面板。
   要上 HTTPS 的话，前面挂个 nginx 反代即可。
-* 客户端打包脚本里的 `cargo build` / `flutter build` 需要预先准备好的
-  Rust 工具链、vcpkg 依赖和 Flutter SDK —— 这些在**构建机**上准备，不在部署机上。
+* 服务端和面板的安装**不联网**。但服务器上编译 Linux 客户端这一步需要联网：
+  cargo 要从 crates.io 拉依赖，Flutter 要从 pub.dev 拉包。
+  纯离线环境要编客户端，请改用 Windows 构建机那条路（`02-build-agent-windows` 离线包）。
 
-## 四、常用运维命令
+## 五、常用运维命令
 
 ```bash
 systemctl status rustdesk-hbbs rustdesk-hbbr rustdesk-panel

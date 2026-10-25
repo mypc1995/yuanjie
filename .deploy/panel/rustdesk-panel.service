@@ -12,6 +12,9 @@ Environment=RUSTDESK_LOG_DIR=/var/log/rustdesk-server
 Environment=RUSTDESK_PANEL_CONF=/etc/rustdesk-panel/panel.conf
 Environment=RUSTDESK_PANEL_PORT=21120
 Environment=RUSTDESK_PANEL_SECRET=__PANEL_SECRET__
+# 构建工具链的环境变量(cargo / flutter 装在哪)。面板派发的构建任务继承这里的 PATH,
+# 少了这行, 面板就会报「找不到 cargo」。
+EnvironmentFile=-/etc/rustdesk-panel/build.env
 ExecStart=/usr/bin/python3 /opt/rustdesk-panel/panel.py
 # 面板需要 systemctl 和读密钥目录，所以用 root。
 User=root

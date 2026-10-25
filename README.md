@@ -209,7 +209,17 @@ flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs `
 
 ### 在 Linux 服务器上编 Linux 客户端
 
-服务器上装了源码树的话，面板能直接编 Linux 客户端（`cargo build` + `flutter build linux`）。
+服务器上装了源码树和构建工具链的话，面板「构建」页选 **Linux x64** 就能直接出包，
+不用另找构建机 —— 面板把任务交给服务器上的 `builder/build_job.py`，
+它烘焙好品牌和服务器配置，跑 `cargo build` + `flutter build linux`，
+打成 `rustdesk-client-linux-x64.tar.gz` 后在面板上下载。
+
+需要服务器上有：Rust 工具链、Flutter SDK（3.24.5，Linux 桌面版）、
+以及 `gtk3-devel` / `gstreamer1-devel` 这类开发库。
+部署包的 `install.sh` 会把工具链路径写进 `/etc/rustdesk-panel/build.env`
+（面板是 systemd 起的，构建任务继承这个文件里的 `PATH` 和 `PKG_CONFIG_PATH`），
+并检查依赖齐不齐。
+
 Windows 客户端**只能**在 Windows 上编，没有交叉编译这条路。
 
 代码注释全部是中文；`src/lang/` 是界面翻译表。

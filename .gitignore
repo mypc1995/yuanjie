@@ -115,6 +115,14 @@ flutter/build/
 .deploy/*.zip
 .vcpkg-assets/
 
+# --- 部署包里由 .deploy/ 生成的部分: 不进版本库 ---
+# 面板和构建脚本在仓库里各只有一份 (.deploy/panel/ 与 .deploy/builder/)。
+# 以前 package/ 下还各存了一份手工拷贝, 改了一处忘了同步, 服务器上跑的
+# 面板就比仓库旧 —— 品牌、安装名、免责声明这些改动全发不出去。
+# 现在部署包里的副本由 .deploy/tools/make-package.ps1 生成。
+.deploy/package/panel/
+.deploy/package/builder/
+
 # --- 敏感信息: 绝对不能进版本库 ---
 # 面板账号密码 / agent token 只放在服务器的 /etc/rustdesk-panel/panel.conf
 .deploy/panel-credentials.txt
