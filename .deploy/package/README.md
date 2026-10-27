@@ -143,6 +143,39 @@ sudo bash install-build-env.sh
 > `relocation R_X86_64_32 ... can not be used when making a shared object`。
 > 脚本里已经带了 `-DCMAKE_POSITION_INDEPENDENT_CODE=ON`。
 
+### 离线机器怎么装
+
+上面的脚本默认要联网（要下 Rust、Flutter 和依赖源码）。离线环境分两步：
+
+```bash
+# 1. 在有网的机器上: 装好并收集成离线包
+sudo bash install-build-env.sh --download ./build-env-cache
+
+# 2. 把 build-env-cache 整个目录拷到离线机器上
+sudo bash install-build-env.sh --offline ./build-env-cache
+```
+
+离线包里有什么：
+
+| 目录 | 内容 | 大小 |
+|---|---|---|
+| `rustup/` | Rust 工具链 | 约 600 MB |
+| `cargo/` | cargo 可执行文件 | 约 40 MB |
+| `flutter/` | Flutter SDK 3.24.5（Linux） | 约 1.3 GB |
+| `src/` | libyuv / libaom 源码 | 约 2 MB |
+| `rpms/` | 系统开发包（做成了本地 yum 源） | 约 670 MB |
+| `vendor/` | cargo 依赖 + Dart 包（可选） | 约 3.9 GB |
+
+`rpms/` 是用 `createrepo_c` 做成**真正的 yum 源**的，不是散装 rpm 文件。
+离线机上 dnf 能同时看到「本机已装的」和「源里有的」，自己选能装的版本 ——
+直接喂 rpm 文件的话，碰到版本对不上（比如 python3 p21 和 p22）会直接报
+`cannot install both` 就失败了。
+
+`vendor/` 是给「编译时也不联网」用的。从 `02-build-agent-windows` 离线包里
+的 `toolchain/cargo-vendor` 和 `toolchain/pub-cache` 拷过来就行
+（它们是跨平台的，Linux 专有的依赖 `alsa-sys`/`gtk-sys`/`gstreamer-sys` 都在里面）。
+收集时可以用 `--vendor-src <路径>` 指定来源。
+
 手动装的话：
 
 ```bash
