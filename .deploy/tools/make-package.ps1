@@ -125,10 +125,21 @@ if ($hasInstall -and $hasCss) { Write-Host "  面板特性齐全 (install_name +
 $hits = Select-String -Path (Join-Path $ServerOut 'panel\panel.py'), (Join-Path $ServerOut 'panel\templates\*.html') `
     -Pattern '192\.168\.\d+\.\d+' -ErrorAction SilentlyContinue
 if ($hits) {
-    Write-Host "  ! 面板里混进了内网地址:" -ForegroundColor Yellow
-    $hits | ForEach-Object { Write-Host "    $($_.Filename):$($_.LineNumber)" -ForegroundColor Yellow }
+    Write-Host "  ! 面板里混进了内网地址:" -ForegroundColor Red
+    $hits | ForEach-Object { Write-Host "    $($_.Filename):$($_.LineNumber)" -ForegroundColor Red }
 } else {
     Write-Host "  面板里没有内网地址"
+}
+
+# 上面两项任何一项不对, 都说明产物里的面板是旧的(复制那一步没生效)。
+# 这种情况不能只是提醒 —— 旧面板发出去, 品牌、安装名、免责声明的改动全丢失。
+# 直接失败, 别让人以为组包成功了。
+if (-not $hasInstall -or -not $hasCss -or $hits) {
+    Write-Host ""
+    Write-Host "  产物里的面板不是最新的, 组包没成功。" -ForegroundColor Red
+    Write-Host "  常见原因: 同一时间还有别的任务在读写这个目录(比如正在打整包 tar)," -ForegroundColor Red
+    Write-Host "  Delete + robocopy 撞上了, 部分文件没写进去。等那个任务结束再重跑。" -ForegroundColor Red
+    exit 1
 }
 
 Write-Host "`n完成: $ServerOut" -ForegroundColor Green
