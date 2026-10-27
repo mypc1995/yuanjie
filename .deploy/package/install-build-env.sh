@@ -271,7 +271,10 @@ install_rust() {
 # ---------------------------------------------------------------- Flutter
 install_flutter() {
   step "4. Flutter SDK $FLUTTER_VERSION"
-  # safe.directory 必须最先设。git 拒绝属主对不上的仓库时, flutter 会去
+  # PATH 必须最先设。后面要用 flutter 去做校验, PATH 里没有它的话
+  # 命令根本找不到, 会被误判成「解出来的 Flutter 用不了」。
+  export PATH="$FLUTTER_DIR/bin:/root/.cargo/bin:$PATH"
+  # safe.directory 也必须最先设。git 拒绝属主对不上的仓库时, flutter 会去
   # fetch 找回版本号 —— 内网机器上 github 常被劫持成假 IP, fetch 挂住不动,
   # 整个 flutter 命令就卡死(而且不报错, 只是超时)。
   git config --global --add safe.directory "$FLUTTER_DIR" 2>/dev/null || true
