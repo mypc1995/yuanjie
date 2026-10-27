@@ -185,12 +185,25 @@ def systemctl(*args):
         return 1, str(exc)
 
 
+# 服务状态的短缓存, 见 unit_state
+_UNIT_STATE_CACHE = {}
+
+
 def unit_state(unit):
+    # 每个页面渲染都会问一次服务状态, 而问一次就是两个 systemctl 子进程。
+    # systemd 忙的时候(比如 install.sh 正在 restart)这两个调用会卡到超时,
+    # 页面就跟着一起卡住。缓存几秒钟, 状态显示晚几秒无所谓, 别把页面拖死。
+    now = time.time()
+    cached = _UNIT_STATE_CACHE.get(unit)
+    if cached and now - cached[0] < 3:
+        return cached[1]
     code, out = systemctl("is-active", unit)
     active = (out or "").strip() == "active"
     _, enabled = systemctl("is-enabled", unit)
-    return {"unit": unit, "active": active, "state": (out or "unknown").strip(),
-            "enabled": (enabled or "unknown").strip()}
+    state = {"unit": unit, "active": active, "state": (out or "unknown").strip(),
+             "enabled": (enabled or "unknown").strip()}
+    _UNIT_STATE_CACHE[unit] = (now, state)
+    return state
 
 
 def console(port, command, timeout=2.0):
