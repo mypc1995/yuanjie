@@ -23,21 +23,32 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $OutRoot = (Resolve-Path $OutRoot).Path
-$tar = Join-Path $OutRoot 'rustdesk-deployment.tar'
+# 用 gzip 而不是裸 tar: 这套东西 5.6GB 里大半是可压缩的文本,
+# 打成 .tar.gz 大约 2GB, 搬去别的环境方便得多(裸 tar 7.8GB)。
+$tar = Join-Path $OutRoot 'rustdesk-deployment.tar.gz'
 $sums = Join-Path $OutRoot 'SHA256SUMS.txt'
 
 if (-not $SkipArchive) {
     Write-Host "==> 打包 $tar" -ForegroundColor Cyan
     if (Test-Path $tar) { [System.IO.File]::Delete($tar) }
-    & tar.exe -cf $tar --exclude='./rustdesk-deployment.tar' --exclude='./SHA256SUMS.txt' -C $OutRoot .
+    # 排除所有归档文件 —— 之前只排除了 tar 自己, 结果目录里那个
+    # rustdesk-deployment.tar.xz 被打进来了, 包凭空大了 2GB 还夹着一份旧副本。
+    & tar.exe -czf $tar --exclude='./rustdesk-deployment.tar' --exclude='./rustdesk-deployment.tar.gz' `
+        --exclude='./rustdesk-deployment.tar.xz' --exclude='./SHA256SUMS.txt' -C $OutRoot .
     if ($LASTEXITCODE -ne 0) { throw "打包失败 ($LASTEXITCODE)" }
     Write-Host ("  {0:N1} MB" -f ((Get-Item $tar).Length / 1MB))
 }
 
 Write-Host "==> 算 SHA256" -ForegroundColor Cyan
+# 只排除「输出根目录下的归档产物」和校验和文件本身, 不能按扩展名一刀切 ——
+# 离线包里也有 .tar.gz 之类的测试样本, 那些也要进校验和。
+# 新生成的 .tar.gz 要算进去(它在打包之后才存在, 正好能校验)。
+$rootArchives = @('SHA256SUMS.txt', 'rustdesk-deployment.tar', 'rustdesk-deployment.tar.xz')
 $files = Get-ChildItem $OutRoot -Recurse -File -Force |
-    Where-Object { $_.Name -notin @('SHA256SUMS.txt', 'rustdesk-deployment.tar') } |
-    Sort-Object FullName
+    Where-Object {
+        $rel = $_.FullName.Substring($OutRoot.Length + 1)
+        -not ($rel -notmatch '\\' -and $rootArchives -contains $_.Name)
+    } | Sort-Object FullName
 
 $lines = New-Object System.Collections.Generic.List[string]
 $i = 0
