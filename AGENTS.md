@@ -242,6 +242,40 @@ The panel's **Linux x64** target compiles on the server itself. That path needs:
 `build_job.py` re-checks all of this per job, so a misconfigured server fails
 with a sentence instead of a stack of cargo output.
 
+### Offline build environments
+
+`.deploy/package/install-build-env.sh` has two extra modes for hosts without
+internet:
+
+```
+sudo bash install-build-env.sh --download <dir> [--make-vendor]   # networked host
+sudo bash install-build-env.sh --offline  <dir>                    # air-gapped host
+```
+
+`--download` installs everything, then collects it into `<dir>`: the Rust
+toolchain, the Flutter SDK, the `libyuv`/`libaom` sources, the system
+development packages, and (with `--make-vendor`) the vendored cargo crates and
+Dart packages. `--offline` installs from that directory without touching the
+network.
+
+Three things that are easy to get wrong:
+
+* **The RPMs must become a real yum repository** (`createrepo_c`), not a pile of
+  loose `.rpm` files. Handed loose files, dnf resolves only by package name and
+  fails outright on a version mismatch (`cannot install both ...`); as a
+  repository it sees the host's installed packages too and picks what fits.
+* **The Flutter SDK's `.git` must stay.** Its launcher derives the version from
+  git; without `.git` it runs `git fetch`, which hangs on hosts where github
+  resolves to a fake IP.
+* **The Flutter SDK is owned by uid 1000**, not root — that is how the official
+  tarball is built. git then refuses it as "dubious ownership", and flutter
+  hangs trying to recover the version. `chown -R root:root` plus
+  `git config --global --add safe.directory <path>` fixes it.
+
+The vendor directory is written to a fixed path (`/opt/rustdesk-vendor`) so the
+absolute paths inside `build.env` stay valid wherever the cache directory was
+placed.
+
 ### Flutter and the version check
 
 Every `flutter` invocation must pass `--no-version-check`. Flutter's version
