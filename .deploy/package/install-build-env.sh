@@ -6,10 +6,15 @@
 #   sudo bash install-build-env.sh --download <目录>       # 在有网的机器上: 装好并收集成离线包
 #   sudo bash install-build-env.sh --offline  <目录>       # 在离线机器上: 从本地目录装, 全程不联网
 #
+# 常用组合:
+#   --download <目录> --make-vendor    连编译也不联网(自己 cargo vendor, 要联网, 约 4 分钟)
+#   --download <目录> --vendor-src <目录>  从已有的离线包里取 vendor(跨平台通用)
+#
 # 离线包里有什么(--download 生成的):
 #   rustup/    Rust 工具链          cargo/     cargo 可执行文件
 #   flutter/   Flutter SDK          src/       libyuv / libaom 源码
-#   rpms/      系统开发包           vendor/    cargo 依赖 + Dart 包(可选, 让编译也不联网)
+#   rpms/      系统开发包(做成了本地 yum 源)
+#   vendor/    cargo 依赖 + Dart 包(可选, 让编译也不联网)
 #
 # 幂等: 重复跑不会重装已有的东西。
 set -uo pipefail
@@ -32,12 +37,14 @@ MODE=online
 CACHE_DIR=""
 VENDOR_SRC=""
 ONLY_VENDOR=0
+MAKE_VENDOR=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --download) MODE=download; CACHE_DIR="$2"; shift 2 ;;
     --offline) MODE=offline; CACHE_DIR="$2"; shift 2 ;;
     --vendor-src) VENDOR_SRC="$2"; shift 2 ;;
+    --make-vendor) MAKE_VENDOR=1; shift ;;
     --only-vendor) ONLY_VENDOR=1; shift ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "未知参数: $1" >&2; exit 1 ;;
@@ -102,7 +109,11 @@ repo_gpgcheck=0
 EOF
     dnf install -y --disablerepo='*' --enablerepo=rustdesk-local \
       --setopt=install_weak_deps=False "${DEVPKGS[@]}" >/tmp/buildenv-rpm.log 2>&1
-    if [[ $? -ne 0 ]]; then
+    local rc=$?
+    # 装完就把这个源停用。不停用的话, 后面在线跑 dnf download 会从它那儿取包,
+    # 而源里的文件可能已经被清掉了 -> dnf 报 checksum 错误, 整批下载全废。
+    sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/rustdesk-local.repo
+    if [[ $rc -ne 0 ]]; then
       bad "本地源安装有报错, 看看 /tmp/buildenv-rpm.log"
       tail -10 /tmp/buildenv-rpm.log
       return 1
@@ -124,10 +135,11 @@ EOF
   done
   if [[ -n "${avail// /}" ]]; then
     echo "  安装:${avail}"
-    if ! yum install -y $avail >/tmp/buildenv-yum.log 2>&1; then
+    # 排除 rustdesk-local: 上一次离线装留下的本地源可能指向已被清空的目录
+    if ! yum install -y --disablerepo=rustdesk-local $avail >/tmp/buildenv-yum.log 2>&1; then
       bad "整批安装失败, 改成逐个装"
       for p in $avail; do
-        yum install -y "$p" >/dev/null 2>&1 || bad "装不上: $p"
+        yum install -y --disablerepo=rustdesk-local "$p" >/dev/null 2>&1 || bad "装不上: $p"
       done
     fi
   else
@@ -259,6 +271,12 @@ install_rust() {
 # ---------------------------------------------------------------- Flutter
 install_flutter() {
   step "4. Flutter SDK $FLUTTER_VERSION"
+  # safe.directory 必须最先设。git 拒绝属主对不上的仓库时, flutter 会去
+  # fetch 找回版本号 —— 内网机器上 github 常被劫持成假 IP, fetch 挂住不动,
+  # 整个 flutter 命令就卡死(而且不报错, 只是超时)。
+  git config --global --add safe.directory "$FLUTTER_DIR" 2>/dev/null || true
+  [[ -n "$CACHE_DIR" ]] && git config --global --add safe.directory "$CACHE_DIR/flutter" 2>/dev/null || true
+
   if [[ "$MODE" == "offline" ]]; then
     if [[ -d "$CACHE_DIR/flutter/bin" ]]; then
       # 原来有就挪开, 别直接 rm —— 万一拷贝出问题, Flutter 就没了
@@ -269,11 +287,19 @@ install_flutter() {
         ok "原来的 /opt/flutter 已挪到 $backup"
       fi
       cp -a "$CACHE_DIR/flutter" /opt/flutter
+      # 属主统一, 免得 git 报 dubious ownership
+      chown -R root:root /opt/flutter 2>/dev/null || true
+      git config --global --add safe.directory "/opt/flutter" 2>/dev/null || true
       ok "Flutter SDK 已从离线包解出"
       # 立刻验一下能不能用。不行就把原来那份挪回来。
-      if ! timeout 120 flutter --no-version-check --version >/dev/null 2>&1; then
+      if ! timeout 300 flutter --no-version-check --version >/dev/null 2>&1; then
         bad "解出来的 Flutter 用不了, 把原来那份挪回来"
-        [[ -n "$backup" ]] && mv "$backup" /opt/flutter
+        if [[ -n "$backup" ]]; then
+          # 注意: /opt/flutter 现在是那份坏的, 得先挪走, 不然 mv 会把它
+          # 塞成 /opt/flutter/<备份名> 而不是还原
+          mv /opt/flutter "/opt/flutter.failed-$(date '+%H%M%S')" 2>/dev/null
+          mv "$backup" /opt/flutter && ok "已还原原来的 Flutter"
+        fi
         return 1
       fi
       ok "Flutter 可用"
@@ -297,14 +323,10 @@ install_flutter() {
     ok "flutter 已就绪"
   fi
   export PATH="$FLUTTER_DIR/bin:/root/.cargo/bin:$PATH"
-  git config --global --add safe.directory "$FLUTTER_DIR" 2>/dev/null || true
-  # --no-version-check 必须带。Flutter 的版本新鲜度检查会去 git fetch github,
-  # 内网机器上 github 常被劫持成假 IP(198.18.x.x), fetch 挂住不动,
-  # 整个脚本就卡在这儿。带上这个开关它就不去 fetch 了。
-  timeout 120 flutter --no-version-check --version 2>&1 | head -2
-  timeout 120 flutter --no-version-check config --enable-linux-desktop >/dev/null 2>&1 || true
-  timeout 120 flutter --no-version-check config --no-analytics >/dev/null 2>&1 || true
-  if timeout 60 flutter --no-version-check config --list 2>/dev/null | grep -q 'enable-linux-desktop: true'; then
+  timeout 300 flutter --no-version-check --version 2>&1 | head -2
+  timeout 300 flutter --no-version-check config --enable-linux-desktop >/dev/null 2>&1 || true
+  timeout 300 flutter --no-version-check config --no-analytics >/dev/null 2>&1 || true
+  if timeout 120 flutter --no-version-check config --list 2>/dev/null | grep -q 'enable-linux-desktop: true'; then
     ok "flutter 的 linux 桌面支持已打开"
   else
     bad "flutter 的 linux 桌面支持没打开"
@@ -325,6 +347,13 @@ setup_vendor() {
     bad "没有源码树 $src, 跳过 vendor 配置"
     return 0
   fi
+  # 统一放到固定路径。离线机上缓存目录可能摆的位置不一样,
+  # 固定路径才能让 build.env 里的绝对路径一直对得上。
+  local fixed=/opt/rustdesk-vendor
+  mkdir -p "$fixed"
+  cp -a "$vd/." "$fixed/" 2>/dev/null
+  ok "vendor 已放到 $fixed"
+
   mkdir -p "$src/.cargo"
   local cfg="$src/.cargo/config.toml"
   # 追加, 不覆盖 —— 原文件里有 target rustflags 和 [net] 这些设置,
@@ -333,12 +362,52 @@ setup_vendor() {
     ok "$cfg 已经有 source 配置, 不动它"
   else
     [[ -f "$cfg" ]] && cp -f "$cfg" "$cfg.bak"
-    sed "s|__VENDOR_DIR__|$vd/cargo-vendor|" "$vd/cargo-vendor-config.toml" >> "$cfg"
+    if grep -q '__VENDOR_DIR__' "$vd/cargo-vendor-config.toml" 2>/dev/null; then
+      sed "s|__VENDOR_DIR__|$fixed/cargo-vendor|" "$vd/cargo-vendor-config.toml" >> "$cfg"
+    else
+      sed "s|^directory = .*|directory = \"$fixed/cargo-vendor\"|" "$vd/cargo-vendor-config.toml" >> "$cfg"
+    fi
     ok "已把 vendor 配置追加到 $cfg (原文件备份为 .bak)"
   fi
   # pub-cache 放哪都行, 用环境变量指过去
-  export PUB_CACHE="$vd/pub-cache"
+  export PUB_CACHE="$fixed/pub-cache"
   ok "PUB_CACHE=$PUB_CACHE"
+}
+
+# ---------------------------------------------------------------- 生成 vendor
+# 让「编译时也不联网」: 把 crates 全部 vendor 到本地, cargo 就不去 crates.io 了。
+# 必须在有网的机器上做 —— vendor 要拉齐所有平台的依赖, 光有 Linux 的缓存不够
+# (比如 bitmask-enum 这种 Windows 专有的 crate 在 Linux 上根本不会被下载)。
+make_vendor() {
+  step "生成 cargo vendor (让编译也不联网)"
+  local src=/opt/rustdesk-src
+  if [[ ! -d "$src" ]]; then
+    bad "没有源码树 $src, 跳过"
+    return 1
+  fi
+  export PATH="/root/.cargo/bin:$PATH"
+  local vd="$CACHE_DIR/vendor"
+  mkdir -p "$vd"
+  echo "  cargo vendor (要拉所有平台的依赖, 会跑一会儿)..."
+  if ! (cd "$src" && cargo vendor --locked "$vd/cargo-vendor" \
+        >"$vd/cargo-vendor-config.toml" 2>/tmp/vendor.log); then
+    bad "cargo vendor 失败, 看 /tmp/vendor.log"
+    tail -8 /tmp/vendor.log
+    return 1
+  fi
+  # 配置里是相对路径, 换成绝对路径(离线机上路径可能不一样)
+  sed -i "s|^directory = .*|directory = \"$vd/cargo-vendor\"|" "$vd/cargo-vendor-config.toml"
+  ok "vendor/cargo-vendor 已生成 ($(du -sh "$vd/cargo-vendor" | cut -f1))"
+
+  # Dart 包也缓存一份, flutter pub get 才能离线
+  local pubcache="$vd/pub-cache"
+  mkdir -p "$pubcache"
+  if [[ -d "$src/flutter" ]]; then
+    export PUB_CACHE="$pubcache"
+    (cd "$src/flutter" && timeout 600 flutter --no-version-check pub get >/tmp/pubget.log 2>&1) \
+      && ok "vendor/pub-cache 已生成 ($(du -sh "$pubcache" | cut -f1))" \
+      || { bad "flutter pub get 失败, 看 /tmp/pubget.log"; tail -5 /tmp/pubget.log; }
+  fi
 }
 
 # ---------------------------------------------------------------- 环境变量
@@ -412,10 +481,19 @@ collect_cache() {
   # 671M 的包在里面再复制一份就把它撑满了, 撑满之后连文件都写不进去
   # (表现是上传的文件变成 0 字节)。
   echo "  抓系统开发包..."
+  # 必须排除 rustdesk-local: 上一次离线装留下的本地源指向一个已经被清空
+  # 或者被改过的目录, dnf 从那儿取包会报 checksum 错误, 整批下载全废。
   dnf download --resolve --alldeps --setopt=install_weak_deps=False \
-    --destdir="$CACHE_DIR/rpms" "${DEVPKGS[@]}" >/tmp/rpmdl.log 2>&1
+    --disablerepo=rustdesk-local --destdir="$CACHE_DIR/rpms" "${DEVPKGS[@]}" \
+    >/tmp/rpmdl.log 2>&1
   local kept
   kept=$(ls "$CACHE_DIR/rpms"/*.rpm 2>/dev/null | wc -l)
+  if [[ "$kept" -eq 0 ]]; then
+    bad "RPM 一个都没下下来, 离线包里就没有系统包了"
+    bad "  看 /tmp/rpmdl.log (常见原因: 本地源没排除 / 源里没网 / 磁盘满)"
+    tail -6 /tmp/rpmdl.log
+    return 1
+  fi
   ok "rpms/ 已收 ($kept 个, $(du -sh "$CACHE_DIR/rpms" | cut -f1))"
 
   # 把 rpms/ 做成真正的 yum 仓库。离线机上 dnf 靠它解依赖 ——
@@ -428,32 +506,40 @@ collect_cache() {
     bad "没有 createrepo_c, 源索引没生成"
   fi
 
-  # vendor: 从已有的离线包拷(跨平台通用), 或者从 --vendor-src 指定的地方
-  local vsrc="$VENDOR_SRC"
-  if [[ -z "$vsrc" ]]; then
-    for cand in \
-      "/opt/rustdesk-build-agent/toolchain" \
-      "$HOME/rustdesk-offline-bundle/toolchain" \
-      "/mnt/rustdesk-deployment/02-build-agent-windows/rustdesk-offline-bundle/toolchain" \
-      "/opt/rustdesk-builder/toolchain"; do
-      [[ -d "$cand/cargo-vendor" ]] && vsrc="$cand" && break
-    done
-  fi
-  if [[ -n "$vsrc" && -d "$vsrc/cargo-vendor" ]]; then
-    mkdir -p "$CACHE_DIR/vendor/cargo-vendor"
-    cp -a "$vsrc/cargo-vendor/." "$CACHE_DIR/vendor/cargo-vendor/"
-    ok "vendor/cargo-vendor 已收 (来自 $vsrc)"
-    if [[ -d "$vsrc/pub-cache" ]]; then
-      mkdir -p "$CACHE_DIR/vendor/pub-cache"
-      cp -a "$vsrc/pub-cache/." "$CACHE_DIR/vendor/pub-cache/"
-      ok "vendor/pub-cache 已收"
-    fi
-    if [[ -f "$vsrc/cargo-vendor-config.toml" ]]; then
-      cp -f "$vsrc/cargo-vendor-config.toml" "$CACHE_DIR/vendor/cargo-vendor-config.toml"
-    fi
+  # vendor: 三种来源, 优先级从上到下
+  #  1. --make-vendor 生成的(最全, 含所有平台的依赖)
+  #  2. --vendor-src 指定的目录
+  #  3. 自动找已有的离线包里的 toolchain/
+  local vd="$CACHE_DIR/vendor"
+  if [[ -d "$vd/cargo-vendor" ]]; then
+    ok "vendor/cargo-vendor 已在 ($(du -sh "$vd/cargo-vendor" | cut -f1))"
   else
-    bad "没找到 cargo-vendor 来源, 离线包里的编译仍会联网"
-    bad "  可以用 --vendor-src <路径> 指定"
+    local vsrc="$VENDOR_SRC"
+    if [[ -z "$vsrc" ]]; then
+      for cand in \
+        "/opt/rustdesk-build-agent/toolchain" \
+        "$HOME/rustdesk-offline-bundle/toolchain" \
+        "/mnt/rustdesk-deployment/02-build-agent-windows/rustdesk-offline-bundle/toolchain" \
+        "/opt/rustdesk-builder/toolchain"; do
+        [[ -d "$cand/cargo-vendor" ]] && vsrc="$cand" && break
+      done
+    fi
+    if [[ -n "$vsrc" && -d "$vsrc/cargo-vendor" ]]; then
+      mkdir -p "$vd/cargo-vendor"
+      cp -a "$vsrc/cargo-vendor/." "$vd/cargo-vendor/"
+      ok "vendor/cargo-vendor 已收 (来自 $vsrc)"
+      if [[ -d "$vsrc/pub-cache" ]]; then
+        mkdir -p "$vd/pub-cache"
+        cp -a "$vsrc/pub-cache/." "$vd/pub-cache/"
+        ok "vendor/pub-cache 已收"
+      fi
+      if [[ -f "$vsrc/cargo-vendor-config.toml" ]]; then
+        cp -f "$vsrc/cargo-vendor-config.toml" "$vd/cargo-vendor-config.toml"
+      fi
+    else
+      bad "没找到 cargo-vendor 来源, 离线包里的编译仍会联网"
+      bad "  可以在有网机器上加 --make-vendor 自己生成, 或用 --vendor-src <路径> 指定"
+    fi
   fi
 
   cat > "$CACHE_DIR/MANIFEST.txt" <<EOF
@@ -517,6 +603,9 @@ if [[ "$MODE" == "download" ]]; then
   if [[ "$ONLY_VENDOR" -eq 0 ]]; then
     write_env
     verify
+  fi
+  if [[ "$MAKE_VENDOR" -eq 1 ]]; then
+    make_vendor
   fi
   collect_cache
 elif [[ "$MODE" == "offline" ]]; then

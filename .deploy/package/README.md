@@ -161,8 +161,8 @@ sudo bash install-build-env.sh --offline ./build-env-cache
 |---|---|---|
 | `rustup/` | Rust 工具链 | 约 600 MB |
 | `cargo/` | cargo 可执行文件 | 约 40 MB |
-| `flutter/` | Flutter SDK 3.24.5（Linux） | 约 1.3 GB |
-| `src/` | libyuv / libaom 源码 | 约 2 MB |
+| `flutter/` | Flutter SDK 3.24.5（Linux） | 约 1.7 GB |
+| `src/` | libyuv / libaom 源码 | 约 7 MB |
 | `rpms/` | 系统开发包（做成了本地 yum 源） | 约 670 MB |
 | `vendor/` | cargo 依赖 + Dart 包（可选） | 约 3.9 GB |
 
@@ -171,10 +171,27 @@ sudo bash install-build-env.sh --offline ./build-env-cache
 直接喂 rpm 文件的话，碰到版本对不上（比如 python3 p21 和 p22）会直接报
 `cannot install both` 就失败了。
 
-`vendor/` 是给「编译时也不联网」用的。从 `02-build-agent-windows` 离线包里
-的 `toolchain/cargo-vendor` 和 `toolchain/pub-cache` 拷过来就行
-（它们是跨平台的，Linux 专有的依赖 `alsa-sys`/`gtk-sys`/`gstreamer-sys` 都在里面）。
-收集时可以用 `--vendor-src <路径>` 指定来源。
+### 要让「编译时也不联网」
+
+光把环境装上还不够——`cargo build` 本身会去 crates.io 拉 crate。
+两种办法：
+
+```bash
+# 办法一: 在有网机器上自己生成(最全, 含所有平台的依赖, 约 4 分钟)
+sudo bash install-build-env.sh --download ./build-env-cache --make-vendor
+
+# 办法二: 从 02-build-agent-windows 离线包里取(跨平台通用, 不用重新生成)
+sudo bash install-build-env.sh --download ./build-env-cache \
+     --vendor-src /path/to/02-build-agent-windows/rustdesk-offline-bundle/toolchain
+```
+
+离线机上 `--offline` 会把 vendor 放到固定的 `/opt/rustdesk-vendor`，
+并把 cargo 的 source 替换和 `PUB_CACHE` 写进 `build.env`，
+之后面板触发的构建全程不碰外网。
+
+> `cargo vendor` 必须联网跑：它要拉齐**所有平台**的依赖，
+> 光有 Linux 的 crate 缓存不够（`bitmask-enum` 这种 Windows 专有的 crate
+> 在 Linux 上根本不会被下载）。
 
 手动装的话：
 

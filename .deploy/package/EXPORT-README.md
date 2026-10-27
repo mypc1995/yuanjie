@@ -49,6 +49,22 @@ sudo bash install-build-env.sh
 装 Rust 工具链和 Flutter SDK、打开 Flutter 的 Linux 桌面支持、写好面板要用的
 `build.env`，最后自检一遍。**这一步要联网**（要下载工具链和依赖源码）。
 
+### 离线环境
+
+如果目标机器完全没有外网，改成两段式：
+
+```bash
+# 1. 在有网的机器上: 装好并收集成离线包（加 --make-vendor 连编译也不联网）
+sudo bash install-build-env.sh --download ./build-env-cache --make-vendor
+
+# 2. 把 build-env-cache 整个目录拷到离线机器上（约 3-6 GB）
+sudo bash install-build-env.sh --offline ./build-env-cache
+```
+
+离线包里带的是系统开发包（已做成真正的本地 yum 源）、Rust 工具链、
+Flutter SDK、libyuv/libaom 源码，以及可选的 cargo 依赖和 Dart 包。
+离线机上装完之后，面板上触发的构建全程不碰外网。
+
 装完再跑一次 `sudo bash install.sh --server-host <这台服务器的IP>`，
 它会重新探测工具链、生成 `build.env` 并重启面板。
 
