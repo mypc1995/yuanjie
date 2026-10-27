@@ -204,17 +204,27 @@ done
 if [[ -z "$CARGO_BIN" || -z "$FLUTTER_BIN" ]]; then
   warn "构建工具链不全 (cargo: ${CARGO_BIN:-缺}, flutter: ${FLUTTER_BIN:-缺})"
   warn "服务器端一键出 Linux 客户端需要 Rust 工具链和 Flutter SDK"
+  warn "装它: sudo bash $SCRIPT_DIR/install-build-env.sh"
+  warn "（这一步要联网; 纯离线环境请用 Windows 构建机那条路）"
 else
   log "cargo   = $CARGO_BIN"
   log "flutter = $FLUTTER_BIN"
 fi
+
+# 面板的 PATH: 工具链目录 + 系统目录。工具链没装时不要留空段 ——
+# PATH 里出现空项等于把当前目录也加进搜索路径, 不该出现。
+BUILD_PATH=""
+for d in "$CARGO_BIN" "$FLUTTER_BIN"; do
+  [[ -n "$d" ]] && BUILD_PATH="$BUILD_PATH$d:"
+done
+BUILD_PATH="${BUILD_PATH}/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # 面板是 systemd 起的, 构建任务继承面板进程的环境变量。
 # 少了 PATH, 面板派出去的构建只会报一句「找不到 cargo」。
 cat > "$PANEL_CONF_DIR/build.env" <<EOF
 # 由 install.sh 生成: 构建工具链的 PATH 与 pkg-config 路径。
 # 面板派发的构建任务继承这里, 缺了这两行就会报「找不到 cargo」「找不到 gstreamer」。
-PATH=${CARGO_BIN}:${FLUTTER_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PATH=$BUILD_PATH
 PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
 RUSTDESK_BUILD_SRC=$SRC_DIR
 RUSTDESK_BUILDER_ROOT=/var/lib/rustdesk-builder
@@ -243,6 +253,7 @@ done
 if [[ -n "$MISSING_PKGS" ]]; then
   warn "缺这些开发库, 服务器端构建会失败:$MISSING_PKGS"
   warn "对应的是 gtk3-devel / gstreamer1-devel 这类 -devel 包, 离线机请提前装好"
+  warn "装齐: sudo bash $SCRIPT_DIR/install-build-env.sh"
 else
   log "构建依赖齐全"
 fi
@@ -287,12 +298,40 @@ for u in rustdesk-hbbs rustdesk-hbbr rustdesk-panel; do
 done
 
 echo "--- 监听端口 ---"
-PORTS=$(ss -lntu 2>/dev/null | grep -oE ':2111[5-9]' | sort -u | tr '\n' ' ')
+# 21120(面板) 也要看, 之前的匹配漏了它
+PORTS=$(ss -lntu 2>/dev/null | grep -oE ':2111[5-9]|:21120' | sort -u | tr '\n' ' ')
 if [[ -n "$PORTS" ]]; then log "已监听: $PORTS"; else warn "没抓到 21115-21119 的监听"; FAIL=1; fi
+if ! ss -lntu 2>/dev/null | grep -qE ':21120'; then
+  warn "面板端口 21120 没在监听"
+  FAIL=1
+fi
 
 echo "--- 面板 HTTP ---"
-CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PANEL_PORT/login" 2>/dev/null || echo 000)
-if [[ "$CODE" == "200" ]]; then log "面板响应正常 (登录页 200)"; else warn "面板返回 $CODE"; FAIL=1; fi
+# 面板是刚起的, 第一次 import Flask 和 vendor 依赖要花点时间, 冷启动的机器
+# 5 秒可能不够。轮询等它起来, 别急着判失败。
+#
+# 注意 curl 的坑: 连不上时它已经会用 -w 吐一个 "000", 再写 || echo 000
+# 就变成 "000000" 了 —— 看着像返回码异常, 其实是连接根本没通。
+CODE=""
+for i in $(seq 1 30); do
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+    "http://127.0.0.1:$PANEL_PORT/login" 2>/dev/null || true)
+  [[ -n "$CODE" ]] || CODE="000"
+  [[ "$CODE" == "200" ]] && break
+  sleep 2
+done
+if [[ "$CODE" == "200" ]]; then
+  log "面板响应正常 (登录页 200)"
+else
+  warn "面板返回 $CODE —— 没连上, 下面是日志, 照着查:"
+  echo "--- panel.error ---"
+  tail -20 "$LOG_DIR/panel.error" 2>/dev/null || echo "(没有)"
+  echo "--- panel.log ---"
+  tail -20 "$LOG_DIR/panel.log" 2>/dev/null || echo "(没有)"
+  echo "--- journalctl ---"
+  journalctl -u rustdesk-panel -n 20 --no-pager 2>/dev/null || true
+  FAIL=1
+fi
 
 echo "--- 服务器公钥 ---"
 PUBKEY=$(cat "$SERVER_DIR/id_ed25519.pub" 2>/dev/null || echo "")

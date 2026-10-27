@@ -62,7 +62,7 @@ Write-Host "  builder/ <- .deploy/builder/"
 # ---------------------------------------------------------------- 3. 服务端二进制与安装脚本
 Write-Host "`n==> 3/4 复制服务端二进制与安装脚本" -ForegroundColor Yellow
 Copy-Tree (Join-Path $Deploy 'package\server') (Join-Path $ServerOut 'server')
-foreach ($f in @('install.sh', 'README.md')) {
+foreach ($f in @('install.sh', 'install-build-env.sh', 'README.md')) {
     $src = Join-Path $Deploy "package\$f"
     if (Test-Path $src) {
         [System.IO.File]::Copy($src, (Join-Path $ServerOut $f), $true)
@@ -97,7 +97,7 @@ if ($SkipSource) {
 # ---------------------------------------------------------------- 校验
 Write-Host "`n==> 校验" -ForegroundColor Yellow
 $must = @(
-    'install.sh', 'README.md',
+    'install.sh', 'install-build-env.sh', 'README.md',
     'panel\panel.py', 'panel\templates\branding.html', 'panel\templates\login.html',
     'panel\static\style.css', 'panel\rustdesk-panel.service',
     'builder\agent.py', 'builder\build_job.py',

@@ -6,6 +6,7 @@
 ```
 rustdesk-server-suite/
 ├── install.sh              一键部署（主入口）
+├── install-build-env.sh    一键装构建环境（让服务器能直接编客户端）
 ├── server/
 │   ├── amd64/              x86_64 二进制 (hbbs / hbbr / rustdesk-utils)
 │   ├── arm64/              aarch64 二进制（飞腾 / 鲲鹏 / 龙芯）
@@ -20,8 +21,6 @@ rustdesk-server-suite/
 │   └── agent.py            Windows 构建机的领单 agent
 ├── src/
 │   └── rustdesk-src.tar.gz 客户端源码树（面板在服务器上出包时用）
-└── client/
-    └── package.ps1         Windows 客户端品牌化打包脚本
 ```
 
 ## 一、部署服务端
@@ -129,28 +128,40 @@ Linux 目标走的是服务器本地编译：面板把任务丢给 `builder/buil
 它会把工具链路径写进 `/etc/rustdesk-panel/build.env`（面板是 systemd 起的，
 构建任务继承这个文件里的 `PATH` 和 `PKG_CONFIG_PATH`）。
 
+包里带了一个现成的脚本，一句话装齐：
+
+```bash
+sudo bash install-build-env.sh
+```
+
+它做这些事：装开发包（gtk3-devel / gstreamer1-devel / X11 那套）、
+编 `libyuv` 和 `libaom`、装 Rust 工具链、装 Flutter SDK（3.24.5）、
+打开 Flutter 的 Linux 桌面支持、写 `build.env`、最后自检一遍。
+
+> **它自己编的 libaom / libyuv 一定带 `-fPIC`**：客户端核心是 `librustdesk.so`
+> （共享库），链非 PIC 的静态库会报
+> `relocation R_X86_64_32 ... can not be used when making a shared object`。
+> 脚本里已经带了 `-DCMAKE_POSITION_INDEPENDENT_CODE=ON`。
+
+手动装的话：
+
 ```bash
 # Rust 工具链
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# Flutter SDK（3.24.5，Linux 桌面版）
-# 解压到 /opt/flutter 即可
+# Flutter SDK（3.24.5，Linux 桌面版），解压到 /opt/flutter 即可
+# https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz
 
 # 编译要用的开发库（麒麟 / 统信按自己的包名装）
 yum install -y gtk3-devel dbus-devel libXdamage-devel libXrandr-devel \
     libXfixes-devel libXcursor-devel libXi-devel libXtst-devel \
     libXinerama-devel alsa-lib-devel uuid-devel openssl-devel \
-    gstreamer1-devel gstreamer1-plugins-base-devel
+    gstreamer1-devel gstreamer1-plugins-base-devel clang cmake ninja-build \
+    gcc-c++ pkgconf
 
-# 自编的 libyuv / libaom 装在 /usr/local，pkg-config 要能找到它们
-export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
+# Flutter 的 Linux 桌面支持默认是关的，不开编不出客户端
+flutter config --enable-linux-desktop
 ```
-
-> **自己编 libaom / libyuv 的话，一定要带 `-fPIC`**：
-> 客户端的 Rust 核心编出来是 `librustdesk.so`（共享库），链静态库时目标文件
-> 必须是 PIC。没加的话链接会报
-> `relocation R_X86_64_32 against symbol ... can not be used when making a shared object`。
-> cmake 加 `-DCMAKE_POSITION_INDEPENDENT_CODE=ON` 即可。
 
 `install.sh` 会检查这些依赖，缺哪个会明确列出来。
 

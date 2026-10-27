@@ -39,14 +39,18 @@ sudo bash install.sh --server-host <这台服务器的IP>
 **把这几个记下来**，后面填配置要用。
 
 如果这台机器上要装构建环境（Rust 工具链、Flutter SDK、编译用的开发库），
-`install.sh` 会检查并把缺的东西列出来。开发库在麒麟上大致是这些：
+包里带了个现成脚本，一条命令装齐：
 
 ```bash
-yum install -y gtk3-devel dbus-devel libXdamage-devel libXrandr-devel \
-    libXfixes-devel libXcursor-devel libXi-devel libXtst-devel \
-    libXinerama-devel alsa-lib-devel uuid-devel openssl-devel \
-    gstreamer1-devel gstreamer1-plugins-base-devel
+sudo bash install-build-env.sh
 ```
+
+它会装好开发包、自己编 `libyuv` 和 `libaom`（带 `-fPIC`，不然链共享库会失败）、
+装 Rust 工具链和 Flutter SDK、打开 Flutter 的 Linux 桌面支持、写好面板要用的
+`build.env`，最后自检一遍。**这一步要联网**（要下载工具链和依赖源码）。
+
+装完再跑一次 `sudo bash install.sh --server-host <这台服务器的IP>`，
+它会重新探测工具链、生成 `build.env` 并重启面板。
 
 > 面板上的「构建」页选 **Linux x64**，会直接在这台服务器上把客户端编出来。
 > 这一步需要联网（要下载依赖包）。纯离线环境请走下面的 Windows 构建机。

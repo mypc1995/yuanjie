@@ -210,7 +210,9 @@ def build_linux(job, src, env):
         return None
 
     job.status("building-flutter", target=job.data.get("target"), log=job.log_path)
-    rc, out = run([tool("flutter", job), "build", "linux", "--release"], job,
+    # --no-version-check 必须带: Flutter 的版本新鲜度检查会去 git fetch github,
+    # 内网机器上 github 常被劫持成假 IP(198.18.x.x), fetch 挂住不动, 构建就卡死。
+    rc, out = run([tool("flutter", job), "build", "linux", "--no-version-check", "--release"], job,
                   cwd=os.path.join(src, "flutter"), env=env)
     if rc != 0:
         job.status("failed", error="flutter build 失败", log=job.log_path)
@@ -234,7 +236,7 @@ def build_windows(job, src, env):
         return None
 
     job.status("building-flutter", target=job.data.get("target"), log=job.log_path)
-    rc, out = run([tool("flutter", job), "build", "windows", "--release"], job,
+    rc, out = run([tool("flutter", job), "build", "windows", "--no-version-check", "--release"], job,
                   cwd=os.path.join(src, "flutter"), env=env)
     if rc != 0:
         job.status("failed", error="flutter build 失败", log=job.log_path)
