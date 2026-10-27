@@ -235,9 +235,30 @@ The panel's **Linux x64** target compiles on the server itself. That path needs:
   `EnvironmentFile=` in the unit;
 * `flutter config --enable-linux-desktop` (off by default);
 * the `-devel` packages `install.sh` checks for and lists when missing.
+  `.deploy/package/install-build-env.sh` installs all of it in one go
+  (dev packages, `libyuv`/`libaom` with `-fPIC`, Rust, Flutter 3.24.5) and
+  writes `build.env` itself.
 
 `build_job.py` re-checks all of this per job, so a misconfigured server fails
 with a sentence instead of a stack of cargo output.
+
+### Flutter and the version check
+
+Every `flutter` invocation must pass `--no-version-check`. Flutter's version
+freshness check runs `git fetch` against github, and on an intranet host
+github often resolves to a fake IP (the `198.18.0.0/15` range) — the fetch
+then hangs forever and the build never starts. `--no-version-check` skips the
+fetch. `install-build-env.sh` and `build_job.py` both use it.
+
+### `-fPIC` on self-built static libraries
+
+`libyuv` and `libaom` are built from source (no distro package) and must be
+compiled with `-DCMAKE_POSITION_INDEPENDENT_CODE=ON`. The client core links
+into `librustdesk.so`, a shared object, and non-PIC objects in a static
+archive cannot go into one — the link fails with
+`relocation R_X86_64_32 ... can not be used when making a shared object`.
+
+Check with `readelf -r <lib>.a | grep -c 'R_X86_64_32 '`; it must be 0.
 
 ## Localization (`src/lang/*.rs`)
 
