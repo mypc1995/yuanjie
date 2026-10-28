@@ -20,12 +20,17 @@
 
 .PARAMETER NoSanitize
     不做脱敏(要把当前环境的值原样带过去时才用)。
+
+.PARAMETER NoDisclaimer
+    导出包里不带免责声明(面板登录页的声明块和样式)。
+    一般是给不想在登录页显示这段文字的环境用的。
 #>
 [CmdletBinding()]
 param(
     [string] $Out = 'D:\远界部署包',
     [string] $Source = 'D:\Software\rustdesk-deployment',
-    [switch] $NoSanitize
+    [switch] $NoSanitize,
+    [switch] $NoDisclaimer
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,6 +60,37 @@ foreach ($p in $parts) {
     if ($rc -ge 8) { throw "robocopy 失败 ($rc): $p" }
     $n = (Get-ChildItem (Join-Path $Out $p) -Recurse -File -Force | Measure-Object).Count
     Write-Host "  完成, $n 个文件"
+}
+
+# ---------------------------------------------------------------- 去掉免责声明
+if ($NoDisclaimer) {
+    Write-Host "`n==> 去掉免责声明" -ForegroundColor Yellow
+    $login = Join-Path $Out '01-server-kylin\panel\templates\login.html'
+    $css = Join-Path $Out '01-server-kylin\panel\static\style.css'
+    if (Test-Path $login) {
+        $t = [System.IO.File]::ReadAllText($login)
+        $t = [regex]::Replace($t, '(?s)\r?\n\s*<div class="disclaimer">.*?</div>\r?\n', "`n")
+        [System.IO.File]::WriteAllText($login, $t, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "  登录页的免责声明已去掉"
+    }
+    if (Test-Path $css) {
+        $t = [System.IO.File]::ReadAllText($css)
+        $t = [regex]::Replace($t, '(?s)\r?\n/\* 免责声明.*?\r?\n\.disclaimer\s*\{.*?\}\r?\n', "`n")
+        $t = [regex]::Replace($t, '(?s)\r?\n\.disclaimer strong\s*\{[^}]*\}', '')
+        [System.IO.File]::WriteAllText($css, $t, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "  免责声明样式已去掉"
+    }
+    # 顶层 README 里如果有声明段, 一起去掉
+    $top = Join-Path $Out 'README.md'
+    if (Test-Path $top) {
+        $t = [System.IO.File]::ReadAllText($top)
+        if ($t -match '免责|不纵容') {
+            $t = [regex]::Replace($t, '(?s)\r?\n>?\s*#{1,3}\s*[^\r\n]*免责[^\r\n]*\r?\n.*?(?=\r?\n\r?\n|\z)', "`n")
+            $t = [regex]::Replace($t, '(?s)\r?\n>[^\r\n]*(不纵容|自行承担)[^\r\n]*(\r?\n>[^\r\n]*)*', "`n")
+            [System.IO.File]::WriteAllText($top, $t, (New-Object System.Text.UTF8Encoding($false)))
+            Write-Host "  顶层 README 的声明段已去掉"
+        }
+    }
 }
 
 # ---------------------------------------------------------------- 脱敏

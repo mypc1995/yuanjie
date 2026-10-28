@@ -17,14 +17,23 @@
 .PARAMETER OutRoot
     部署包输出根目录, 默认 D:\Software\rustdesk-deployment。
 
+.PARAMETER NoDisclaimer
+    把免责声明从产物里去掉 —— 面板登录页的声明块和对应的样式。
+    仓库里的源文件不动, 所以 GitHub 上的 README 仍然带免责声明,
+    以后想加回来重打一次就行。
+
 .EXAMPLE
     pwsh -File .deploy/tools/make-package.ps1
+
+.EXAMPLE
+    pwsh -File .deploy/tools/make-package.ps1 -NoDisclaimer -OutRoot D:\Software\rustdesk-deployment-nodisclaimer
 #>
 [CmdletBinding()]
 param(
     [string] $Repo,
     [string] $OutRoot = 'D:\Software\rustdesk-deployment',
-    [switch] $SkipSource
+    [switch] $SkipSource,
+    [switch] $NoDisclaimer
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,6 +62,27 @@ function Copy-Tree($src, $dst) {
 Write-Host "`n==> 1/4 复制面板" -ForegroundColor Yellow
 Copy-Tree (Join-Path $Deploy 'panel') (Join-Path $ServerOut 'panel')
 Write-Host "  panel/  <- .deploy/panel/"
+
+if ($NoDisclaimer) {
+    # 只改产物, 仓库里的源文件不动
+    $login = Join-Path $ServerOut 'panel\templates\login.html'
+    $css = Join-Path $ServerOut 'panel\static\style.css'
+    if (Test-Path $login) {
+        $t = [System.IO.File]::ReadAllText($login)
+        # 去掉整个 <div class="disclaimer">…</div> 块
+        $t = [regex]::Replace($t, '(?s)\r?\n\s*<div class="disclaimer">.*?</div>\r?\n', "`n")
+        [System.IO.File]::WriteAllText($login, $t, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "  登录页的免责声明已去掉" -ForegroundColor Yellow
+    }
+    if (Test-Path $css) {
+        $t = [System.IO.File]::ReadAllText($css)
+        # 去掉 .disclaimer 和 .disclaimer strong 这两条规则
+        $t = [regex]::Replace($t, '(?s)\r?\n/\* 免责声明.*?\r?\n\.disclaimer\s*\{.*?\}\r?\n', "`n")
+        $t = [regex]::Replace($t, '(?s)\r?\n\.disclaimer strong\s*\{[^}]*\}', '')
+        [System.IO.File]::WriteAllText($css, $t, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "  免责声明样式已去掉" -ForegroundColor Yellow
+    }
+}
 
 # ---------------------------------------------------------------- 2. 构建脚本
 Write-Host "`n==> 2/4 复制构建脚本" -ForegroundColor Yellow
@@ -117,9 +147,20 @@ Write-Host "  必备文件齐全"
 # 面板必须带 install_name 支持, 否则「品牌定制」页填的安装名不会生效
 $hasInstall = Select-String -Path (Join-Path $ServerOut 'panel\panel.py') -Pattern 'install_name' -Quiet
 $hasCss = Select-String -Path (Join-Path $ServerOut 'panel\static\style.css') -Pattern '\.disclaimer' -Quiet
+$hasText = Select-String -Path (Join-Path $ServerOut 'panel\templates\login.html') -Pattern 'class="disclaimer"' -Quiet
 if (-not $hasInstall) { Write-Host "  ! 面板缺 install_name 支持" -ForegroundColor Yellow }
-if (-not $hasCss) { Write-Host "  ! 面板缺免责声明样式" -ForegroundColor Yellow }
-if ($hasInstall -and $hasCss) { Write-Host "  面板特性齐全 (install_name + 免责声明)" }
+if ($NoDisclaimer) {
+    # 这次就是要没有免责声明, 所以"没有"才是对的
+    if ($hasCss -or $hasText) {
+        Write-Host "  ! 声明没删干净 (样式或登录页还在)" -ForegroundColor Red
+    } else {
+        Write-Host "  免责声明已去掉 (登录页和样式都没有了)"
+    }
+} else {
+    if (-not $hasCss) { Write-Host "  ! 面板缺免责声明样式" -ForegroundColor Yellow }
+    if (-not $hasText) { Write-Host "  ! 登录页缺免责声明" -ForegroundColor Yellow }
+    if ($hasInstall -and $hasCss -and $hasText) { Write-Host "  面板特性齐全 (install_name + 免责声明)" }
+}
 
 # 面板代码里不能出现真实内网地址
 $hits = Select-String -Path (Join-Path $ServerOut 'panel\panel.py'), (Join-Path $ServerOut 'panel\templates\*.html') `
@@ -131,12 +172,20 @@ if ($hits) {
     Write-Host "  面板里没有内网地址"
 }
 
-# 上面两项任何一项不对, 都说明产物里的面板是旧的(复制那一步没生效)。
-# 这种情况不能只是提醒 —— 旧面板发出去, 品牌、安装名、免责声明的改动全丢失。
-# 直接失败, 别让人以为组包成功了。
-if (-not $hasInstall -or -not $hasCss -or $hits) {
+# 上面几项任何一项不对, 都说明产物里的面板不对(复制那一步没生效, 或者
+# 免责声明没删干净)。这种情况不能只是提醒 —— 旧面板发出去, 品牌、安装名、
+# 免责声明这些改动全丢失。直接失败, 别让人以为组包成功了。
+$panelBad = $false
+if (-not $hasInstall) { $panelBad = $true }
+if ($NoDisclaimer) {
+    if ($hasCss -or $hasText) { $panelBad = $true }
+} else {
+    if (-not $hasCss -or -not $hasText) { $panelBad = $true }
+}
+if ($hits) { $panelBad = $true }
+if ($panelBad) {
     Write-Host ""
-    Write-Host "  产物里的面板不是最新的, 组包没成功。" -ForegroundColor Red
+    Write-Host "  产物里的面板不对, 组包没成功。" -ForegroundColor Red
     Write-Host "  常见原因: 同一时间还有别的任务在读写这个目录(比如正在打整包 tar)," -ForegroundColor Red
     Write-Host "  Delete + robocopy 撞上了, 部分文件没写进去。等那个任务结束再重跑。" -ForegroundColor Red
     exit 1
